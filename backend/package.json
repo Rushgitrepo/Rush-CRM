@@ -8,7 +8,7 @@
     "dev": "nodemon src/server.js",
     "migrate": "node src/database/migrate.js",
     "migrate:all": "node src/run-all-migrations.js",
-    "setup:db": "node src/setup-complete-database.js"
+    "setup:db": "node src/migrations/setup-complete-database.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
