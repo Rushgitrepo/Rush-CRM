@@ -1,5 +1,5 @@
 -- Create organizations table
-CREATE TABLE organizations (
+CREATE TABLE IF NOT EXISTS organizations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(255) NOT NULL,
   domain VARCHAR(255),
@@ -8,7 +8,7 @@ CREATE TABLE organizations (
 );
 
 -- Create users table
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email VARCHAR(255) UNIQUE NOT NULL,
   password VARCHAR(255) NOT NULL,
@@ -21,8 +21,18 @@ CREATE TABLE users (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Seed initial organization if none exist
+INSERT INTO organizations (id, name, domain)
+SELECT '00000000-0000-0000-0000-000000000001', 'Default Organization', 'default.com'
+WHERE NOT EXISTS (SELECT 1 FROM organizations LIMIT 1);
+
+-- Seed initial admin user if none exist
+INSERT INTO users (id, email, password, full_name, org_id)
+SELECT '00000000-0000-0000-0000-000000000002', 'admin@example.com', '$2b$10$YourHashedPasswordHere', 'Admin User', '00000000-0000-0000-0000-000000000001'
+WHERE NOT EXISTS (SELECT 1 FROM users LIMIT 1);
+
 -- Create user_roles table
-CREATE TABLE user_roles (
+CREATE TABLE IF NOT EXISTS user_roles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   org_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
@@ -33,7 +43,7 @@ CREATE TABLE user_roles (
 );
 
 -- Create profiles table
-CREATE TABLE profiles (
+CREATE TABLE IF NOT EXISTS profiles (
   id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   org_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
   full_name VARCHAR(255) NOT NULL,
@@ -49,7 +59,7 @@ CREATE TABLE profiles (
 );
 
 -- Create leads table
-CREATE TABLE leads (
+CREATE TABLE IF NOT EXISTS leads (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID REFERENCES organizations(id),
   title VARCHAR(255) NOT NULL,
@@ -67,16 +77,22 @@ CREATE TABLE leads (
   notes TEXT,
   tags TEXT[],
   expected_close_date DATE,
-  contact_id UUID,
-  company_id UUID,
-  assigned_to UUID,
+  contact_id UUID REFERENCES contacts(id),
+  company_id UUID REFERENCES companies(id),
+  assigned_to UUID REFERENCES users(id),
+  workspace_id UUID REFERENCES workgroups(id) ON DELETE CASCADE,
+  import_id UUID,
+  external_source_id UUID,
+  external_id VARCHAR(255),
+  converted_to_deal_id UUID,
+  converted_at TIMESTAMP,
   created_by UUID REFERENCES users(id),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create contacts table
-CREATE TABLE contacts (
+CREATE TABLE IF NOT EXISTS contacts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID REFERENCES organizations(id),
   user_id UUID REFERENCES users(id),
@@ -95,7 +111,7 @@ CREATE TABLE contacts (
 );
 
 -- Create companies table
-CREATE TABLE companies (
+CREATE TABLE IF NOT EXISTS companies (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID REFERENCES organizations(id),
   name VARCHAR(255) NOT NULL,
@@ -104,13 +120,38 @@ CREATE TABLE companies (
   website VARCHAR(255),
   industry VARCHAR(255),
   address TEXT,
+  revenue DECIMAL(15,2),
+  logo_url TEXT,
+  notes TEXT,
   created_by UUID REFERENCES users(id),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Create customers table
+CREATE TABLE IF NOT EXISTS customers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id),
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255),
+  phone VARCHAR(50),
+  status VARCHAR(50) DEFAULT 'active',
+  tier VARCHAR(50),
+  notes TEXT,
+  tags TEXT[],
+  lead_id UUID,
+  deal_id UUID,
+  company_id UUID REFERENCES companies(id),
+  industry VARCHAR(255),
+  converted_from_lead_id UUID,
+  converted_from_deal_id UUID,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Create vendors table
-CREATE TABLE vendors (
+CREATE TABLE IF NOT EXISTS vendors (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID REFERENCES organizations(id),
   user_id UUID REFERENCES users(id),
@@ -126,33 +167,51 @@ CREATE TABLE vendors (
 );
 
 -- Create deals table
-CREATE TABLE deals (
+CREATE TABLE IF NOT EXISTS deals (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID REFERENCES organizations(id),
   title VARCHAR(255) NOT NULL,
-  stage VARCHAR(50) DEFAULT 'new',
+  stage VARCHAR(50) DEFAULT 'qualification',
   status VARCHAR(50) DEFAULT 'open',
-  value DECIMAL(12,2),
+  value DECIMAL(12,2) DEFAULT 0,
   currency VARCHAR(10) DEFAULT 'USD',
   expected_close_date DATE,
-  probability INTEGER DEFAULT 50,
-  contact_id UUID,
-  company_id UUID,
+  probability INTEGER DEFAULT 0,
+  contact_id UUID REFERENCES contacts(id),
+  company_id UUID REFERENCES companies(id),
   contact_name VARCHAR(255),
   company_name VARCHAR(255),
   phone VARCHAR(50),
   email VARCHAR(255),
-  priority VARCHAR(50),
+  priority VARCHAR(20) DEFAULT 'medium',
   source VARCHAR(100),
   source_info TEXT,
   notes TEXT,
+  responsible_person UUID REFERENCES users(id),
+  converted_from_lead_id UUID REFERENCES leads(id) ON DELETE SET NULL,
+  converted_to_customer_id UUID REFERENCES customers(id),
+  workspace_id UUID REFERENCES workgroups(id) ON DELETE SET NULL,
+  closed_at TIMESTAMP,
+  agent_name TEXT,
+  decision_maker TEXT,
+  service_interested TEXT,
+  interaction_notes TEXT,
+  first_message TEXT,
+  last_touch TIMESTAMPTZ,
+  external_source_id TEXT,
+  phone_type TEXT DEFAULT 'work',
+  email_type TEXT DEFAULT 'work',
+  website_type TEXT DEFAULT 'corporate',
+  customer_type TEXT,
+  last_contacted_date DATE,
+  next_follow_up_date DATE,
   created_by UUID REFERENCES users(id),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create projects table
-CREATE TABLE projects (
+CREATE TABLE IF NOT EXISTS projects (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID REFERENCES organizations(id),
   owner_id UUID REFERENCES users(id),
@@ -169,7 +228,7 @@ CREATE TABLE projects (
 );
 
 -- Create tasks table
-CREATE TABLE tasks (
+CREATE TABLE IF NOT EXISTS tasks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID REFERENCES organizations(id),
   title VARCHAR(255) NOT NULL,
@@ -194,7 +253,7 @@ CREATE TABLE tasks (
 );
 
 -- Create activities table
-CREATE TABLE activities (
+CREATE TABLE IF NOT EXISTS activities (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID REFERENCES organizations(id),
   entity_type VARCHAR(50) NOT NULL,
@@ -221,7 +280,7 @@ CREATE TABLE IF NOT EXISTS crm_activities (
 );
 
 -- Create workflows table
-CREATE TABLE workflows (
+CREATE TABLE IF NOT EXISTS workflows (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID REFERENCES organizations(id),
   name VARCHAR(255) NOT NULL,
@@ -234,7 +293,7 @@ CREATE TABLE workflows (
 );
 
 -- Create workflow_actions table
-CREATE TABLE workflow_actions (
+CREATE TABLE IF NOT EXISTS workflow_actions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workflow_id UUID REFERENCES workflows(id),
   org_id UUID REFERENCES organizations(id),
@@ -303,7 +362,7 @@ CREATE TABLE IF NOT EXISTS workgroup_posts (
 );
 
 -- Create marketing tables
-CREATE TABLE marketing_campaigns (
+CREATE TABLE IF NOT EXISTS marketing_campaigns (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID REFERENCES organizations(id),
   name VARCHAR(255) NOT NULL,
@@ -317,7 +376,7 @@ CREATE TABLE marketing_campaigns (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE marketing_lists (
+CREATE TABLE IF NOT EXISTS marketing_lists (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID REFERENCES organizations(id),
   name VARCHAR(255) NOT NULL,
@@ -327,7 +386,7 @@ CREATE TABLE marketing_lists (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE marketing_forms (
+CREATE TABLE IF NOT EXISTS marketing_forms (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID REFERENCES organizations(id),
   name VARCHAR(255) NOT NULL,
@@ -340,20 +399,20 @@ CREATE TABLE marketing_forms (
 );
 
 -- Create indexes for better performance
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_org ON users(org_id);
-CREATE INDEX idx_leads_org ON leads(org_id);
-CREATE INDEX idx_leads_stage ON leads(stage);
-CREATE INDEX idx_contacts_org ON contacts(org_id);
-CREATE INDEX idx_companies_org ON companies(org_id);
-CREATE INDEX idx_deals_org ON deals(org_id);
-CREATE INDEX idx_deals_stage ON deals(stage);
-CREATE INDEX idx_projects_org ON projects(org_id);
-CREATE INDEX idx_tasks_org ON tasks(org_id);
-CREATE INDEX idx_tasks_project ON tasks(project_id);
-CREATE INDEX idx_activities_entity ON activities(entity_type, entity_id);
-CREATE INDEX idx_workflows_org ON workflows(org_id);
-CREATE INDEX idx_workflow_actions_workflow ON workflow_actions(workflow_id);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_org ON users(org_id);
+CREATE INDEX IF NOT EXISTS idx_leads_org ON leads(org_id);
+CREATE INDEX IF NOT EXISTS idx_leads_stage ON leads(stage);
+CREATE INDEX IF NOT EXISTS idx_contacts_org ON contacts(org_id);
+CREATE INDEX IF NOT EXISTS idx_companies_org ON companies(org_id);
+CREATE INDEX IF NOT EXISTS idx_deals_org ON deals(org_id);
+CREATE INDEX IF NOT EXISTS idx_deals_stage ON deals(stage);
+CREATE INDEX IF NOT EXISTS idx_projects_org ON projects(org_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_org ON tasks(org_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
+CREATE INDEX IF NOT EXISTS idx_activities_entity ON activities(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_workflows_org ON workflows(org_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_actions_workflow ON workflow_actions(workflow_id);
 
 
 -- ======================================
@@ -500,13 +559,13 @@ BEGIN
   ALTER TABLE contacts ALTER COLUMN last_name DROP NOT NULL;
 END $$;
 
--- Create index on contact_type for faster queries
+-- CREATE INDEX IF NOT EXISTS on contact_type for faster queries
 CREATE INDEX IF NOT EXISTS idx_contacts_contact_type ON contacts(contact_type);
 
--- Create index on vendors org_id for faster queries
+-- CREATE INDEX IF NOT EXISTS on vendors org_id for faster queries
 CREATE INDEX IF NOT EXISTS idx_vendors_org_id ON vendors(org_id);
 
--- Create index on vendors status
+-- CREATE INDEX IF NOT EXISTS on vendors status
 CREATE INDEX IF NOT EXISTS idx_vendors_status ON vendors(status);
 
 
@@ -799,6 +858,27 @@ BEGIN
     ALTER TABLE deals ADD COLUMN lost_reason TEXT;
   END IF;
 
+  -- Add conversion tracking fields to deals if missing
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                 WHERE table_name='deals' AND column_name='converted_from_lead_id') THEN
+    ALTER TABLE deals ADD COLUMN converted_from_lead_id UUID REFERENCES leads(id);
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                 WHERE table_name='deals' AND column_name='converted_to_customer_id') THEN
+    ALTER TABLE deals ADD COLUMN converted_to_customer_id UUID REFERENCES customers(id);
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                 WHERE table_name='deals' AND column_name='closed_at') THEN
+    ALTER TABLE deals ADD COLUMN closed_at TIMESTAMP;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                 WHERE table_name='deals' AND column_name='responsible_person') THEN
+    ALTER TABLE deals ADD COLUMN responsible_person UUID;
+  END IF;
+
   -- Update probability default to 0 instead of 50
   ALTER TABLE deals ALTER COLUMN probability SET DEFAULT 0;
 
@@ -941,7 +1021,7 @@ DO $$
 BEGIN
   -- Create deal_contacts table if not exists
   IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='deal_contacts') THEN
-    CREATE TABLE deal_contacts (
+    CREATE TABLE IF NOT EXISTS deal_contacts (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
       deal_id UUID NOT NULL REFERENCES deals(id) ON DELETE CASCADE,
@@ -952,14 +1032,14 @@ BEGIN
       UNIQUE(org_id, deal_id, contact_id)
     );
     
-    CREATE INDEX idx_deal_contacts_org ON deal_contacts(org_id);
-    CREATE INDEX idx_deal_contacts_deal ON deal_contacts(deal_id);
-    CREATE INDEX idx_deal_contacts_contact ON deal_contacts(contact_id);
+    CREATE INDEX IF NOT EXISTS idx_deal_contacts_org ON deal_contacts(org_id);
+    CREATE INDEX IF NOT EXISTS idx_deal_contacts_deal ON deal_contacts(deal_id);
+    CREATE INDEX IF NOT EXISTS idx_deal_contacts_contact ON deal_contacts(contact_id);
   END IF;
 
   -- Create deal_signing_parties table if not exists
   IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='deal_signing_parties') THEN
-    CREATE TABLE deal_signing_parties (
+    CREATE TABLE IF NOT EXISTS deal_signing_parties (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
       deal_id UUID NOT NULL REFERENCES deals(id) ON DELETE CASCADE,
@@ -969,9 +1049,9 @@ BEGIN
       UNIQUE(org_id, deal_id, contact_id)
     );
     
-    CREATE INDEX idx_deal_signing_parties_org ON deal_signing_parties(org_id);
-    CREATE INDEX idx_deal_signing_parties_deal ON deal_signing_parties(deal_id);
-    CREATE INDEX idx_deal_signing_parties_contact ON deal_signing_parties(contact_id);
+    CREATE INDEX IF NOT EXISTS idx_deal_signing_parties_org ON deal_signing_parties(org_id);
+    CREATE INDEX IF NOT EXISTS idx_deal_signing_parties_deal ON deal_signing_parties(deal_id);
+    CREATE INDEX IF NOT EXISTS idx_deal_signing_parties_contact ON deal_signing_parties(contact_id);
   END IF;
 
   -- Add missing conversion fields to customers table
@@ -1475,7 +1555,7 @@ BEGIN
 
   -- Add batch tracking support
   IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='product_batches') THEN
-    CREATE TABLE product_batches (
+    CREATE TABLE IF NOT EXISTS product_batches (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
       product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
@@ -1486,8 +1566,8 @@ BEGIN
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     
-    CREATE INDEX idx_product_batches_org ON product_batches(org_id);
-    CREATE INDEX idx_product_batches_product ON product_batches(product_id);
+    CREATE INDEX IF NOT EXISTS idx_product_batches_org ON product_batches(org_id);
+    CREATE INDEX IF NOT EXISTS idx_product_batches_product ON product_batches(product_id);
   END IF;
 
 END $$;
@@ -1825,7 +1905,7 @@ DROP TABLE IF EXISTS workgroup_members CASCADE;
 DROP TABLE IF EXISTS workgroups CASCADE;
 
 -- Create enhanced workgroups table
-CREATE TABLE workgroups (
+CREATE TABLE IF NOT EXISTS workgroups (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
@@ -1851,7 +1931,7 @@ CREATE TABLE workgroups (
 );
 
 -- Create workgroup members table with enhanced roles
-CREATE TABLE workgroup_members (
+CREATE TABLE IF NOT EXISTS workgroup_members (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     workgroup_id UUID NOT NULL REFERENCES workgroups(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -1866,7 +1946,7 @@ CREATE TABLE workgroup_members (
 );
 
 -- Create channels table (like Teams channels)
-CREATE TABLE workgroup_channels (
+CREATE TABLE IF NOT EXISTS workgroup_channels (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     workgroup_id UUID NOT NULL REFERENCES workgroups(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
@@ -1886,7 +1966,7 @@ CREATE TABLE workgroup_channels (
 );
 
 -- Create posts/messages table with threading support
-CREATE TABLE workgroup_posts (
+CREATE TABLE IF NOT EXISTS workgroup_posts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     workgroup_id UUID NOT NULL REFERENCES workgroups(id) ON DELETE CASCADE,
     channel_id UUID REFERENCES workgroup_channels(id) ON DELETE CASCADE,
@@ -1911,7 +1991,7 @@ CREATE TABLE workgroup_posts (
 );
 
 -- Create meetings table
-CREATE TABLE workgroup_meetings (
+CREATE TABLE IF NOT EXISTS workgroup_meetings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     workgroup_id UUID NOT NULL REFERENCES workgroups(id) ON DELETE CASCADE,
     channel_id UUID REFERENCES workgroup_channels(id) ON DELETE SET NULL,
@@ -1942,7 +2022,7 @@ CREATE TABLE workgroup_meetings (
 );
 
 -- Create meeting participants table
-CREATE TABLE workgroup_meeting_participants (
+CREATE TABLE IF NOT EXISTS workgroup_meeting_participants (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     meeting_id UUID NOT NULL REFERENCES workgroup_meetings(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -1959,7 +2039,7 @@ CREATE TABLE workgroup_meeting_participants (
 );
 
 -- Create files table for workgroup file sharing
-CREATE TABLE workgroup_files (
+CREATE TABLE IF NOT EXISTS workgroup_files (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     workgroup_id UUID NOT NULL REFERENCES workgroups(id) ON DELETE CASCADE,
     channel_id UUID REFERENCES workgroup_channels(id) ON DELETE SET NULL,
@@ -1985,7 +2065,7 @@ CREATE TABLE workgroup_files (
 );
 
 -- Create activities table for audit trail
-CREATE TABLE workgroup_activities (
+CREATE TABLE IF NOT EXISTS workgroup_activities (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     workgroup_id UUID NOT NULL REFERENCES workgroups(id) ON DELETE CASCADE,
     user_id UUID REFERENCES users(id) ON DELETE SET NULL,
@@ -1995,31 +2075,31 @@ CREATE TABLE workgroup_activities (
 );
 
 -- Create indexes for better performance
-CREATE INDEX idx_workgroups_org_id ON workgroups(org_id);
-CREATE INDEX idx_workgroups_type ON workgroups(type);
-CREATE INDEX idx_workgroups_created_at ON workgroups(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_workgroups_org_id ON workgroups(org_id);
+CREATE INDEX IF NOT EXISTS idx_workgroups_type ON workgroups(type);
+CREATE INDEX IF NOT EXISTS idx_workgroups_created_at ON workgroups(created_at DESC);
 
-CREATE INDEX idx_workgroup_members_workgroup_id ON workgroup_members(workgroup_id);
-CREATE INDEX idx_workgroup_members_user_id ON workgroup_members(user_id);
-CREATE INDEX idx_workgroup_members_role ON workgroup_members(role);
+CREATE INDEX IF NOT EXISTS idx_workgroup_members_workgroup_id ON workgroup_members(workgroup_id);
+CREATE INDEX IF NOT EXISTS idx_workgroup_members_user_id ON workgroup_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_workgroup_members_role ON workgroup_members(role);
 
-CREATE INDEX idx_workgroup_channels_workgroup_id ON workgroup_channels(workgroup_id);
-CREATE INDEX idx_workgroup_channels_type ON workgroup_channels(type);
+CREATE INDEX IF NOT EXISTS idx_workgroup_channels_workgroup_id ON workgroup_channels(workgroup_id);
+CREATE INDEX IF NOT EXISTS idx_workgroup_channels_type ON workgroup_channels(type);
 
-CREATE INDEX idx_workgroup_posts_workgroup_id ON workgroup_posts(workgroup_id);
-CREATE INDEX idx_workgroup_posts_channel_id ON workgroup_posts(channel_id);
-CREATE INDEX idx_workgroup_posts_parent_id ON workgroup_posts(parent_id);
-CREATE INDEX idx_workgroup_posts_created_at ON workgroup_posts(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_workgroup_posts_workgroup_id ON workgroup_posts(workgroup_id);
+CREATE INDEX IF NOT EXISTS idx_workgroup_posts_channel_id ON workgroup_posts(channel_id);
+CREATE INDEX IF NOT EXISTS idx_workgroup_posts_parent_id ON workgroup_posts(parent_id);
+CREATE INDEX IF NOT EXISTS idx_workgroup_posts_created_at ON workgroup_posts(created_at DESC);
 
-CREATE INDEX idx_workgroup_meetings_workgroup_id ON workgroup_meetings(workgroup_id);
-CREATE INDEX idx_workgroup_meetings_status ON workgroup_meetings(status);
-CREATE INDEX idx_workgroup_meetings_scheduled_start ON workgroup_meetings(scheduled_start);
+CREATE INDEX IF NOT EXISTS idx_workgroup_meetings_workgroup_id ON workgroup_meetings(workgroup_id);
+CREATE INDEX IF NOT EXISTS idx_workgroup_meetings_status ON workgroup_meetings(status);
+CREATE INDEX IF NOT EXISTS idx_workgroup_meetings_scheduled_start ON workgroup_meetings(scheduled_start);
 
-CREATE INDEX idx_workgroup_files_workgroup_id ON workgroup_files(workgroup_id);
-CREATE INDEX idx_workgroup_files_channel_id ON workgroup_files(channel_id);
-CREATE INDEX idx_workgroup_files_uploaded_by ON workgroup_files(uploaded_by);
+CREATE INDEX IF NOT EXISTS idx_workgroup_files_workgroup_id ON workgroup_files(workgroup_id);
+CREATE INDEX IF NOT EXISTS idx_workgroup_files_channel_id ON workgroup_files(channel_id);
+CREATE INDEX IF NOT EXISTS idx_workgroup_files_uploaded_by ON workgroup_files(uploaded_by);
 
-CREATE INDEX idx_workgroup_activities_workgroup_created ON workgroup_activities(workgroup_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_workgroup_activities_workgroup_created ON workgroup_activities(workgroup_id, created_at DESC);
 
 -- Create triggers for updating counts and timestamps
 CREATE OR REPLACE FUNCTION update_workgroup_member_count()
@@ -2772,7 +2852,7 @@ END $$;
 -- Add workspace_id to leads table
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCES workgroups(id) ON DELETE CASCADE;
 
--- Create index for workspace-based queries
+-- CREATE INDEX IF NOT EXISTS for workspace-based queries
 CREATE INDEX IF NOT EXISTS idx_leads_workspace_id ON leads(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_leads_org_workspace ON leads(org_id, workspace_id);
 
@@ -2789,8 +2869,8 @@ CREATE TABLE IF NOT EXISTS lead_workspace_access (
     UNIQUE(lead_id, workspace_id)
 );
 
-CREATE INDEX idx_lead_workspace_access_lead ON lead_workspace_access(lead_id);
-CREATE INDEX idx_lead_workspace_access_workspace ON lead_workspace_access(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_lead_workspace_access_lead ON lead_workspace_access(lead_id);
+CREATE INDEX IF NOT EXISTS idx_lead_workspace_access_workspace ON lead_workspace_access(workspace_id);
 
 -- Create lead import history table
 CREATE TABLE IF NOT EXISTS lead_imports (
@@ -2822,10 +2902,10 @@ CREATE TABLE IF NOT EXISTS lead_imports (
     completed_at TIMESTAMP WITH TIME ZONE
 );
 
-CREATE INDEX idx_lead_imports_org ON lead_imports(org_id);
-CREATE INDEX idx_lead_imports_workspace ON lead_imports(workspace_id);
-CREATE INDEX idx_lead_imports_status ON lead_imports(status);
-CREATE INDEX idx_lead_imports_created ON lead_imports(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_lead_imports_org ON lead_imports(org_id);
+CREATE INDEX IF NOT EXISTS idx_lead_imports_workspace ON lead_imports(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_lead_imports_status ON lead_imports(status);
+CREATE INDEX IF NOT EXISTS idx_lead_imports_created ON lead_imports(created_at DESC);
 
 -- Create external lead sources table for website integration
 CREATE TABLE IF NOT EXISTS lead_external_sources (
@@ -2863,10 +2943,10 @@ CREATE TABLE IF NOT EXISTS lead_external_sources (
     UNIQUE(org_id, source_name)
 );
 
-CREATE INDEX idx_lead_external_sources_org ON lead_external_sources(org_id);
-CREATE INDEX idx_lead_external_sources_workspace ON lead_external_sources(workspace_id);
-CREATE INDEX idx_lead_external_sources_api_key ON lead_external_sources(api_key);
-CREATE INDEX idx_lead_external_sources_active ON lead_external_sources(is_active);
+CREATE INDEX IF NOT EXISTS idx_lead_external_sources_org ON lead_external_sources(org_id);
+CREATE INDEX IF NOT EXISTS idx_lead_external_sources_workspace ON lead_external_sources(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_lead_external_sources_api_key ON lead_external_sources(api_key);
+CREATE INDEX IF NOT EXISTS idx_lead_external_sources_active ON lead_external_sources(is_active);
 
 -- Add import_id to leads to track which import they came from
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS import_id UUID REFERENCES lead_imports(id) ON DELETE SET NULL;
@@ -3559,4 +3639,3 @@ ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT true,
 ADD COLUMN IF NOT EXISTS include_in_export BOOLEAN DEFAULT true,
 ADD COLUMN IF NOT EXISTS responsible_id UUID REFERENCES public.users(id),
 ADD COLUMN IF NOT EXISTS observers UUID[];
-
