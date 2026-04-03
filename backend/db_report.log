@@ -1,0 +1,31 @@
+TOTAL TABLES: 108
+TABLES WITH DATA (20):
+  drive_folders: 4
+  employee_leave_balances: 3
+  employee_product_assignments: 3
+  lead_imports: 6
+  leads: 9
+  leave_request_comments: 1
+  leave_types: 3
+  marketing_campaigns: 1
+  organizations: 3
+  profiles: 1
+  salary_slip_items: 2
+  stock_movements: 1
+  tasks: 2
+  users: 3
+  warehouses: 1
+  workgroup_activities: 1
+  workgroup_channels: 4
+  workgroup_members: 4
+  workgroup_posts: 2
+  workgroups: 4
+EMPTY TABLES: 88
+ORGANIZATIONS: 3
+  adb32da4 - Jawad Abbas's Organization
+  00000000 - Default Organization
+  f9623a8e - Haris Rashid's Organization
+USERS: 3
+  jawadabbas202020@gmail.com
+  admin@example.com
+  haris.rashidch@gmail.com
