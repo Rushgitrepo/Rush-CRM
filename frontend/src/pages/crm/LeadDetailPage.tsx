@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { 
-  ArrowLeft, Pencil, Trash2, Save, ArrowRightLeft, Phone, Mail, Globe, 
-  MapPin, Building2, User, Calendar, DollarSign, Tag, FileText, 
+import {
+  ArrowLeft, Pencil, Trash2, Save, ArrowRightLeft, Phone, Mail, Globe,
+  MapPin, Building2, User, Calendar, DollarSign, Tag, FileText,
   Activity, MessageSquare, Clock, Star, MoreHorizontal, Copy, ExternalLink,
-  CheckCircle, XCircle, AlertCircle, Zap, ChevronDown, ChevronRight, 
+  CheckCircle, XCircle, AlertCircle, Zap, ChevronDown, ChevronRight,
   TrendingUp, Users, Target, Award, Briefcase, Calendar as CalendarIcon,
-  History, Plus, Edit3, Send, PhoneCall, Video, MessageCircle, 
+  History, Plus, Edit3, Send, PhoneCall, Video, MessageCircle,
   BarChart3, PieChart, TrendingDown, Eye, Filter, Search, Settings, Share2
 } from "lucide-react";
 import { ClickToCall } from "@/components/telephony/ClickToCall";
@@ -36,7 +36,7 @@ import { format } from "date-fns";
 
 const defaultServiceOptions = [
   { value: "Web Development", label: "Web Development" },
-  { value: "Mobile App Development", label: "Mobile App Development" }, 
+  { value: "Mobile App Development", label: "Mobile App Development" },
   { value: "Digital Marketing", label: "Digital Marketing" },
   { value: "SEO Services", label: "SEO Services" },
   { value: "Consulting", label: "Consulting" },
@@ -113,9 +113,9 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
 }
 // Enterprise-level pipeline stages with professional styling
 const pipelineStages = [
-  { 
-    id: "new", 
-    label: "New Lead", 
+  {
+    id: "new",
+    label: "New Lead",
     color: "bg-primary",
     bgColor: "bg-primary/5",
     textColor: "text-primary",
@@ -123,29 +123,29 @@ const pipelineStages = [
     icon: <AlertCircle className="h-4 w-4" />,
     description: "Fresh lead, needs initial contact"
   },
-  { 
-    id: "contacted", 
-    label: "Contacted", 
+  {
+    id: "contacted",
+    label: "Contacted",
     color: "bg-yellow-500",
     bgColor: "bg-yellow-50",
-    textColor: "text-yellow-700", 
+    textColor: "text-yellow-700",
     borderColor: "border-yellow-200",
     icon: <PhoneCall className="h-4 w-4" />,
     description: "Initial contact made"
   },
-  { 
-    id: "qualified", 
-    label: "Qualified", 
+  {
+    id: "qualified",
+    label: "Qualified",
     color: "bg-green-500",
     bgColor: "bg-green-50",
     textColor: "text-green-700",
-    borderColor: "border-green-200", 
+    borderColor: "border-green-200",
     icon: <CheckCircle className="h-4 w-4" />,
     description: "Lead meets criteria"
   },
-  { 
-    id: "proposal", 
-    label: "Proposal Sent", 
+  {
+    id: "proposal",
+    label: "Proposal Sent",
     color: "bg-purple-500",
     bgColor: "bg-purple-50",
     textColor: "text-purple-700",
@@ -153,19 +153,19 @@ const pipelineStages = [
     icon: <Send className="h-4 w-4" />,
     description: "Proposal delivered"
   },
-  { 
-    id: "negotiation", 
-    label: "Negotiation", 
+  {
+    id: "negotiation",
+    label: "Negotiation",
     color: "bg-orange-500",
-    bgColor: "bg-orange-50", 
+    bgColor: "bg-orange-50",
     textColor: "text-orange-700",
     borderColor: "border-orange-200",
     icon: <Target className="h-4 w-4" />,
     description: "Terms being discussed"
   },
-  { 
-    id: "unqualified", 
-    label: "Unqualified", 
+  {
+    id: "unqualified",
+    label: "Unqualified",
     color: "bg-red-500",
     bgColor: "bg-red-50",
     textColor: "text-red-700",
@@ -210,6 +210,8 @@ export default function LeadDetailPage() {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Record<string, unknown>>({});
   const [showWorkspaceModal, setShowWorkspaceModal] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showConvertDialog, setShowConvertDialog] = useState(false);
 
   useEffect(() => {
     if (lead) {
@@ -287,9 +289,9 @@ export default function LeadDetailPage() {
     Object.entries(form).forEach(([key, val]) => {
       if (val !== (lead as Record<string, unknown>)[key]) changes[key] = val;
     });
-    if (Object.keys(changes).length === 0) { 
-      setEditing(false); 
-      return; 
+    if (Object.keys(changes).length === 0) {
+      setEditing(false);
+      return;
     }
 
     updateLead.mutate({ id: lead.id, ...changes }, {
@@ -302,6 +304,7 @@ export default function LeadDetailPage() {
   const handleConvertToDeal = () => {
     convertLeadToDeal.mutate(lead.id, {
       onSuccess: (data: any) => {
+        setShowConvertDialog(false);
         navigate(`/crm/deals/${data.dealId || data.id}`);
       },
     });
@@ -310,6 +313,7 @@ export default function LeadDetailPage() {
   const handleDelete = () => {
     deleteLead.mutate(lead.id, {
       onSuccess: () => {
+        setShowDeleteDialog(false);
         navigate('/crm/leads');
       },
     });
@@ -322,7 +326,7 @@ export default function LeadDetailPage() {
         onSuccess: () => {
           const stageName = pipelineStages.find(s => s.id === newStage)?.label || newStage;
           createActivity.mutate({
-            entityType: 'lead', 
+            entityType: 'lead',
             entityId: lead.id,
             activityType: 'stage_change',
             title: `Stage changed to ${stageName}`,
@@ -356,16 +360,16 @@ export default function LeadDetailPage() {
           {/* Header Content */}
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div className="flex flex-col md:flex-row md:items-center gap-6">
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => navigate("/crm/leads")}
                 className="gap-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 self-start md:self-auto"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back to Leads
               </Button>
-              
+
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                 <div className="relative">
                   <Avatar className="h-14 w-14 ring-4 ring-white shadow-lg">
@@ -376,7 +380,7 @@ export default function LeadDetailPage() {
                   </Avatar>
                   <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 border-2 border-white rounded-full"></div>
                 </div>
-                
+
                 <div>
                   <div className="flex flex-wrap items-center gap-3 mb-1">
                     <h1 className="text-xl md:text-2xl font-bold text-slate-900 break-words max-w-[200px] sm:max-w-none">{lead.title}</h1>
@@ -410,19 +414,19 @@ export default function LeadDetailPage() {
             <div className="flex flex-wrap items-center gap-3">
               {editing ? (
                 <>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     onClick={() => { setEditing(false); setForm({ ...lead }); }}
-                    className="gap-2 border-slate-300 text-slate-700 hover:bg-slate-50"
+                    className="gap-2 border-slate-300 text-slate-700"
                   >
                     Cancel
                   </Button>
-                  <Button 
-                    onClick={handleSave} 
-                    disabled={updateLead.isPending} 
+                  <Button
+                    onClick={handleSave}
+                    disabled={updateLead.isPending}
                     className="gap-2 bg-primary hover:bg-primary/90 text-white shadow-lg"
                   >
-                    <Save className="h-4 w-4" /> 
+                    <Save className="h-4 w-4" />
                     {updateLead.isPending ? 'Saving...' : 'Save Changes'}
                   </Button>
                 </>
@@ -430,10 +434,10 @@ export default function LeadDetailPage() {
                 <>
                   {/* Quick Action Buttons */}
                   {lead.phone && (
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="gap-2 text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 text-emerald-600 border-emerald-200"
                       asChild
                     >
                       <a href={`tel:${lead.phone}`}>
@@ -443,10 +447,10 @@ export default function LeadDetailPage() {
                     </Button>
                   )}
                   {lead.email && (
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="gap-2 text-primary border-primary/20 hover:bg-primary/5"
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 text-primary border-primary/20"
                       asChild
                     >
                       <a href={`mailto:${lead.email}`}>
@@ -455,18 +459,18 @@ export default function LeadDetailPage() {
                       </a>
                     </Button>
                   )}
-                  
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setEditing(true)} 
-                    className="gap-2 border-slate-300 hover:bg-slate-50"
+
+                  <Button
+                    variant="outline"
+                    onClick={() => setEditing(true)}
+                    className="gap-2 border-slate-300"
                   >
-                    <Edit3 className="h-4 w-4" /> 
+                    <Edit3 className="h-4 w-4" />
                     Edit Lead
                   </Button>
-                  
+
                   {lead.status === 'converted' || lead.converted_to_deal_id ? (
-                    <Button 
+                    <Button
                       className="gap-2 bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300 shadow-sm"
                       onClick={() => navigate(`/crm/deals/${lead.converted_to_deal_id || ''}`)}
                     >
@@ -474,40 +478,18 @@ export default function LeadDetailPage() {
                       View Converted Deal
                     </Button>
                   ) : (
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button className="gap-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white shadow-lg">
-                          <ArrowRightLeft className="h-4 w-4" /> 
-                          Convert to Deal
-                        </Button>
-                      </AlertDialogTrigger>
-                    <AlertDialogContent className="max-w-md">
-                      <AlertDialogHeader>
-                        <AlertDialogTitle className="flex items-center gap-2">
-                          <Target className="h-5 w-5 text-emerald-600" />
-                          Convert Lead to Deal
-                        </AlertDialogTitle>
-                        <AlertDialogDescription className="text-slate-600">
-                          This will create a new deal from this lead's information and move it to your deals pipeline. This action cannot be undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction 
-                          onClick={handleConvertToDeal} 
-                          disabled={convertLeadToDeal.isPending}
-                          className="bg-emerald-600 hover:bg-emerald-700"
-                        >
-                          {convertLeadToDeal.isPending ? "Converting..." : "Convert to Deal"}
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                    <Button 
+                      className="gap-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white shadow-lg"
+                      onClick={() => setShowConvertDialog(true)}
+                    >
+                      <ArrowRightLeft className="h-4 w-4" />
+                      Convert to Deal
+                    </Button>
                   )}
-                  
+
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="icon" className="border-slate-300 hover:bg-slate-50">
+                      <Button variant="outline" size="icon" className="border-slate-300">
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -543,34 +525,13 @@ export default function LeadDetailPage() {
                         Manage Workspace Access
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-600 focus:text-red-600">
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete Lead
-                          </DropdownMenuItem>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
-                              <AlertCircle className="h-5 w-5" />
-                              Delete Lead
-                            </AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to delete this lead? This action cannot be undone and will remove all associated data including activities, notes, and files.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction 
-                              onClick={handleDelete} 
-                              className="bg-red-600 hover:bg-red-700"
-                            >
-                              Delete Lead
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                      <DropdownMenuItem 
+                        onClick={() => setShowDeleteDialog(true)} 
+                        className="text-red-600 focus:text-red-600 cursor-pointer"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete Lead
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </>
@@ -579,7 +540,7 @@ export default function LeadDetailPage() {
           </div>
         </div>
       </div>
-      
+
       {/* Enterprise Pipeline Progress Tracker */}
       <div className="px-6 pb-6">
         <div className="bg-gradient-to-r from-slate-50 to-primary/5 rounded-xl p-6 border border-slate-200">
@@ -595,14 +556,14 @@ export default function LeadDetailPage() {
               </div>
             </div>
           </div>
-            
-            <div className="overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-200">
-              <div className="flex gap-3 min-w-[800px] md:min-w-0">
+
+          <div className="overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-200">
+            <div className="flex gap-3 min-w-[800px] md:min-w-0">
               {pipelineStages.map((stage, index) => {
                 const isActive = (form.stage || lead.stage) === stage.id;
                 const isPassed = pipelineStages.findIndex(s => s.id === (form.stage || lead.stage)) > index;
                 const isUnqualified = stage.id === 'unqualified' && isActive;
-                
+
                 return (
                   <div
                     key={stage.id}
@@ -610,12 +571,12 @@ export default function LeadDetailPage() {
                     className={cn(
                       "flex-1 relative cursor-pointer transition-all duration-300 rounded-xl p-4 border-2 group",
                       isActive && !isUnqualified
-                        ? `${stage.bgColor} ${stage.borderColor} ${stage.textColor} shadow-lg transform scale-105` 
+                        ? `${stage.bgColor} ${stage.borderColor} ${stage.textColor} shadow-lg transform scale-105`
                         : isActive && isUnqualified
-                        ? "bg-red-50 border-red-200 text-red-700 shadow-lg"
-                        : isPassed && !isUnqualified
-                        ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                        : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300"
+                          ? "bg-red-50 border-red-200 text-red-700 shadow-lg"
+                          : isPassed && !isUnqualified
+                            ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                            : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300"
                     )}
                   >
                     <div className="flex items-center gap-3">
@@ -624,10 +585,10 @@ export default function LeadDetailPage() {
                         isActive && !isUnqualified
                           ? stage.color + " text-white shadow-md"
                           : isActive && isUnqualified
-                          ? "bg-red-500 text-white shadow-md"
-                          : isPassed && !isUnqualified
-                          ? "bg-emerald-500 text-white shadow-md"
-                          : "bg-slate-300 text-slate-600 group-hover:bg-slate-400"
+                            ? "bg-red-500 text-white shadow-md"
+                            : isPassed && !isUnqualified
+                              ? "bg-emerald-500 text-white shadow-md"
+                              : "bg-slate-300 text-slate-600 group-hover:bg-slate-400"
                       )}>
                         {isPassed && !isUnqualified ? (
                           <CheckCircle className="h-5 w-5" />
@@ -673,7 +634,7 @@ export default function LeadDetailPage() {
                   </div>
                 </CardContent>
               </Card>
-              
+
               <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200 shadow-lg">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
@@ -688,7 +649,7 @@ export default function LeadDetailPage() {
                   </div>
                 </CardContent>
               </Card>
-              
+
               <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 shadow-lg">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
@@ -722,22 +683,22 @@ export default function LeadDetailPage() {
                 </CardHeader>
                 <CardContent className="p-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <Field 
-                      label="Full Name" 
-                      value={form.title as string} 
-                      onChange={(v) => set("title", v)} 
+                    <Field
+                      label="Full Name"
+                      value={form.title as string}
+                      onChange={(v) => set("title", v)}
                       editing={editing}
                       icon={<User className="h-4 w-4" />}
                       required
                     />
-                    <Field 
-                      label="Job Title" 
-                      value={form.designation as string} 
-                      onChange={(v) => set("designation", v)} 
+                    <Field
+                      label="Job Title"
+                      value={form.designation as string}
+                      onChange={(v) => set("designation", v)}
                       editing={editing}
                       icon={<Briefcase className="h-4 w-4" />}
                     />
-                    
+
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-gray-700 flex items-center gap-1">
                         <Phone className="h-4 w-4" />
@@ -760,12 +721,12 @@ export default function LeadDetailPage() {
                         </div>
                       )}
                     </div>
-                    
-                    <Field 
-                      label="Email Address" 
-                      value={form.email as string} 
-                      onChange={(v) => set("email", v)} 
-                      editing={editing} 
+
+                    <Field
+                      label="Email Address"
+                      value={form.email as string}
+                      onChange={(v) => set("email", v)}
+                      editing={editing}
                       type="email"
                       icon={<Mail className="h-4 w-4" />}
                     />
@@ -785,48 +746,48 @@ export default function LeadDetailPage() {
                 </CardHeader>
                 <CardContent className="p-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <Field 
-                      label="Company Name" 
-                      value={form.company_name as string} 
-                      onChange={(v) => set("company_name", v)} 
+                    <Field
+                      label="Company Name"
+                      value={form.company_name as string}
+                      onChange={(v) => set("company_name", v)}
                       editing={editing}
                       icon={<Building2 className="h-4 w-4" />}
                     />
-                    <Field 
-                      label="Company Size" 
-                      value={form.company_size as string} 
-                      onChange={(v) => set("company_size", v)} 
+                    <Field
+                      label="Company Size"
+                      value={form.company_size as string}
+                      onChange={(v) => set("company_size", v)}
                       editing={editing}
                       icon={<Users className="h-4 w-4" />}
                     />
-                    <Field 
-                      label="Company Phone" 
-                      value={form.company_phone as string} 
-                      onChange={(v) => set("company_phone", v)} 
+                    <Field
+                      label="Company Phone"
+                      value={form.company_phone as string}
+                      onChange={(v) => set("company_phone", v)}
                       editing={editing}
                       type="tel"
                       icon={<Phone className="h-4 w-4" />}
                     />
-                    <Field 
-                      label="Company Email" 
-                      value={form.company_email as string} 
-                      onChange={(v) => set("company_email", v)} 
+                    <Field
+                      label="Company Email"
+                      value={form.company_email as string}
+                      onChange={(v) => set("company_email", v)}
                       editing={editing}
                       icon={<Mail className="h-4 w-4" />}
                     />
-                    <Field 
-                      label="Website" 
-                      value={form.website as string} 
-                      onChange={(v) => set("website", v)} 
+                    <Field
+                      label="Website"
+                      value={form.website as string}
+                      onChange={(v) => set("website", v)}
                       editing={editing}
                       icon={<Globe className="h-4 w-4" />}
                     />
                     <div className="md:col-span-2">
-                      <Field 
-                        label="Business Address" 
-                        value={form.address as string} 
-                        onChange={(v) => set("address", v)} 
-                        editing={editing} 
+                      <Field
+                        label="Business Address"
+                        value={form.address as string}
+                        onChange={(v) => set("address", v)}
+                        editing={editing}
                         multiline
                         icon={<MapPin className="h-4 w-4" />}
                       />
@@ -861,33 +822,33 @@ export default function LeadDetailPage() {
                         disabled={!editing}
                       />
                     </div>
-                    
-                    <Field 
-                      label="Estimated Value" 
-                      value={String(form.value || "")} 
-                      onChange={(v) => set("value", v ? Number(v) : null)} 
-                      editing={editing} 
+
+                    <Field
+                      label="Estimated Value"
+                      value={String(form.value || "")}
+                      onChange={(v) => set("value", v ? Number(v) : null)}
+                      editing={editing}
                       type="number"
                       icon={<DollarSign className="h-4 w-4" />}
                     />
-                    <Field 
-                      label="Lead Source" 
-                      value={form.source as string} 
-                      onChange={(v) => set("source", v)} 
+                    <Field
+                      label="Lead Source"
+                      value={form.source as string}
+                      onChange={(v) => set("source", v)}
                       editing={editing}
                       icon={<Tag className="h-4 w-4" />}
                     />
-                    <Field 
-                      label="Decision Maker" 
-                      value={form.decision_maker as string} 
-                      onChange={(v) => set("decision_maker", v)} 
+                    <Field
+                      label="Decision Maker"
+                      value={form.decision_maker as string}
+                      onChange={(v) => set("decision_maker", v)}
                       editing={editing}
                       icon={<Award className="h-4 w-4" />}
                     />
-                    <Field 
-                      label="Assigned Sales Agent" 
-                      value={form.agent_name as string} 
-                      onChange={(v) => set("agent_name", v)} 
+                    <Field
+                      label="Assigned Sales Agent"
+                      value={form.agent_name as string}
+                      onChange={(v) => set("agent_name", v)}
                       editing={editing}
                       icon={<User className="h-4 w-4" />}
                     />
@@ -908,10 +869,10 @@ export default function LeadDetailPage() {
                 </CardHeader>
                 <CardContent className="p-8">
                   {editing ? (
-                    <Textarea 
-                      value={form.interaction_notes as string || ""} 
-                      onChange={(e) => set("interaction_notes", e.target.value)} 
-                      className="min-h-[150px] resize-none border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all" 
+                    <Textarea
+                      value={form.interaction_notes as string || ""}
+                      onChange={(e) => set("interaction_notes", e.target.value)}
+                      className="min-h-[150px] resize-none border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
                       placeholder="Add detailed notes about your interactions with this lead, including call summaries, meeting notes, email exchanges, and any important observations..."
                     />
                   ) : (
@@ -953,7 +914,7 @@ export default function LeadDetailPage() {
                   <p className="text-slate-600 font-medium">{lead.company_name}</p>
                   <p className="text-sm text-slate-500">{lead.designation}</p>
                 </div>
-                
+
                 <div className="space-y-4">
                   <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
                     <span className="text-sm font-semibold text-slate-600">Current Status</span>
@@ -962,19 +923,19 @@ export default function LeadDetailPage() {
                       {lead.status || 'New Lead'}
                     </Badge>
                   </div>
-                  
+
                   <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
                     <span className="text-sm font-semibold text-slate-600">Potential Value</span>
                     <span className="font-bold text-lg text-emerald-600">
                       {lead.value ? `$${Number(lead.value).toLocaleString()}` : 'Not specified'}
                     </span>
                   </div>
-                  
+
                   <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
                     <span className="text-sm font-semibold text-slate-600">Lead Source</span>
                     <span className="text-sm font-semibold text-slate-900">{lead.source || 'Unknown'}</span>
                   </div>
-                  
+
                   <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
                     <span className="text-sm font-semibold text-slate-600">Date Created</span>
                     <span className="text-sm font-medium text-slate-700">
@@ -1009,10 +970,10 @@ export default function LeadDetailPage() {
                     </a>
                   </Button>
                 )}
-                
+
                 {lead.email && (
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="w-full justify-start gap-4 h-14 text-left border-2 hover:border-blue-300 hover:bg-blue-50 transition-all"
                     onClick={() => window.open(`mailto:${lead.email}`, '_blank')}
                   >
@@ -1025,10 +986,10 @@ export default function LeadDetailPage() {
                     </div>
                   </Button>
                 )}
-                
+
                 {lead.website && (
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="w-full justify-start gap-4 h-14 text-left border-2 hover:border-purple-300 hover:bg-purple-50 transition-all"
                     onClick={() => window.open(lead.website, '_blank')}
                   >
@@ -1041,7 +1002,7 @@ export default function LeadDetailPage() {
                     </div>
                   </Button>
                 )}
-                
+
                 <Button variant="outline" className="w-full justify-start gap-4 h-14 text-left border-2 hover:border-orange-300 hover:bg-orange-50 transition-all">
                   <div className="p-3 bg-orange-100 rounded-xl">
                     <Calendar className="h-5 w-5 text-orange-600" />
@@ -1095,17 +1056,66 @@ export default function LeadDetailPage() {
       </div>
 
       {/* Workspace Share Modal */}
-      {showWorkspaceModal && (
-        <WorkspaceShareModal
-          leadId={lead.id}
-          leadTitle={lead.title}
-          currentWorkspaceName={lead.workspace_name}
-          onClose={() => setShowWorkspaceModal(false)}
-          onSuccess={() => {
-            // Optionally refresh lead data
-          }}
-        />
-      )}
+      <WorkspaceShareModal
+        leadId={lead.id}
+        leadTitle={lead.title}
+        currentWorkspaceName={lead.workspace_name}
+        open={showWorkspaceModal}
+        onClose={() => setShowWorkspaceModal(false)}
+        onSuccess={() => {
+          // Optionally refresh lead data or related associations
+        }}
+      />
+
+      {/* Convert to Deal Confirmation Dialog */}
+      <AlertDialog open={showConvertDialog} onOpenChange={setShowConvertDialog}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-xl font-bold">
+              <Target className="h-6 w-6 text-emerald-600" />
+              Convert Lead to Deal
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-600 py-2">
+              This will create a new deal from this lead's information and move it to your deals pipeline. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConvertToDeal}
+              disabled={convertLeadToDeal.isPending}
+              className="bg-emerald-600 hover:bg-emerald-700 h-10 px-6 font-semibold"
+            >
+              {convertLeadToDeal.isPending ? "Converting..." : "Yes, Convert to Deal"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Lead Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-xl font-bold text-red-600">
+              <AlertCircle className="h-6 w-6" />
+              Delete Lead
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-600 py-2">
+              Are you sure you want to delete this lead? This action cannot be undone and will remove all associated data including activities, notes, and files.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleteLead.isPending}
+              className="bg-red-600 hover:bg-red-700 h-10 px-6 font-semibold"
+            >
+              {deleteLead.isPending ? "Deleting..." : "Delete Permanently"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

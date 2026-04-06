@@ -56,7 +56,7 @@ export default function EmployeesPage() {
 
   const { data: resp, isLoading } = useQuery({
     queryKey: ["employees", search, statusFilter, deptFilter],
-    queryFn: () => api.get("/employees", { params: { search, status: statusFilter !== "all" ? statusFilter : undefined, department: deptFilter !== "all" ? deptFilter : undefined } }),
+    queryFn: () => api.get("/employees", { search, status: statusFilter !== "all" ? statusFilter : undefined, department: deptFilter !== "all" ? deptFilter : undefined }),
     refetchInterval: 30000,
   });
   const employees: Employee[] = (resp as any)?.data || [];

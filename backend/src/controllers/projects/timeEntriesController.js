@@ -6,7 +6,7 @@ const getByProject = async (req, res, next) => {
     
     const result = await db.query(
       `SELECT te.*, u.full_name as user_name, t.title as task_title
-       FROM time_entries te
+       FROM project_time_entries te
        LEFT JOIN users u ON te.user_id = u.id
        LEFT JOIN tasks t ON te.task_id = t.id
        WHERE te.project_id = $1 AND te.org_id = $2 
@@ -34,7 +34,7 @@ const create = async (req, res, next) => {
     }
 
     const result = await db.query(
-      `INSERT INTO time_entries (org_id, project_id, task_id, user_id, description, hours, date, billable, hourly_rate)
+      `INSERT INTO project_time_entries (org_id, project_id, task_id, user_id, description, hours, date, billable, hourly_rate)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
       [req.user.orgId, projectId, task_id || null, req.user.id, description || null, hours, date, billable !== false, hourly_rate || null]
     );
@@ -69,7 +69,7 @@ const update = async (req, res, next) => {
     values.push(id, req.user.orgId);
 
     const result = await db.query(
-      `UPDATE time_entries SET ${fields.join(', ')} 
+      `UPDATE project_time_entries SET ${fields.join(', ')} 
        WHERE id = $${paramIndex} AND org_id = $${paramIndex + 1} RETURNING *`,
       values
     );
@@ -89,7 +89,7 @@ const remove = async (req, res, next) => {
     const { id } = req.params;
 
     const result = await db.query(
-      'DELETE FROM time_entries WHERE id = $1 AND org_id = $2 RETURNING id',
+      'DELETE FROM project_time_entries WHERE id = $1 AND org_id = $2 RETURNING id',
       [id, req.user.orgId]
     );
 
@@ -113,7 +113,7 @@ const getStats = async (req, res, next) => {
         SUM(CASE WHEN billable THEN hours ELSE 0 END) as billable_hours,
         SUM(CASE WHEN billable AND hourly_rate IS NOT NULL THEN hours * hourly_rate ELSE 0 END) as total_revenue,
         COUNT(DISTINCT user_id) as team_members
-       FROM time_entries 
+       FROM project_time_entries 
        WHERE project_id = $1 AND org_id = $2`,
       [projectId, req.user.orgId]
     );

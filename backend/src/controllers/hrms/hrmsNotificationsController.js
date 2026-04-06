@@ -105,8 +105,7 @@ const markAllAsRead = async (req, res, next) => {
     const result = await db.query(
       `UPDATE hrms_notifications 
        SET is_read = true, read_at = NOW() 
-       WHERE org_id = $1 AND user_id = $2 AND is_read = false
-       RETURNING COUNT(*)`,
+       WHERE org_id = $1 AND user_id = $2 AND is_read = false`,
       [req.user.orgId, req.user.id]
     );
 

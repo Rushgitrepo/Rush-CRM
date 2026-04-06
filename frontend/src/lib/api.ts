@@ -344,6 +344,7 @@ const serializeTaskPayload = (data: any) => ({
   parentTaskId: data.parentTaskId ?? data.parent_task_id,
   sortOrder: data.sortOrder ?? data.sort_order,
   tags: data.tags,
+  recurrence_rule: data.recurrence_rule || data.recurrenceRule,
 });
 
 export const tasksApi = {
@@ -401,6 +402,15 @@ export const activitiesApi = {
   getRecent: (limit?: number) => api.get<any[]>('/activities', limit ? { limit: String(limit) } : undefined),
   getByEntity: (entityType: string, entityId: string) => api.get<any[]>(`/activities/${entityType}/${entityId}`),
   create: (data: any) => api.post<any>('/activities', data),
+};
+
+export const leadWorkspaceApi = {
+  getAvailable: (leadId: string) => api.get<any[]>(`/lead-workspace/${leadId}/available-workspaces`),
+  getShared: (leadId: string) => api.get<any[]>(`/lead-workspace/${leadId}/shared-workspaces`),
+  share: (leadId: string, data: { workspaceId: string; accessLevel: string; expiresAt?: string | null }) => 
+    api.post(`/lead-workspace/${leadId}/share`, data),
+  removeAccess: (leadId: string, workspaceId: string) => 
+    api.delete(`/lead-workspace/${leadId}/workspace/${workspaceId}`),
 };
 
 export const organizationApi = {

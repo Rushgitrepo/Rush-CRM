@@ -78,7 +78,18 @@ const create = async (req, res, next) => {
       ]
     );
 
-    res.status(201).json(result.rows[0]);
+    const newActivity = result.rows[0];
+
+    // Fetch the joined data for the newly created activity
+    const joinedResult = await db.query(
+      `SELECT a.*, p.full_name as user_name, p.avatar_url as user_avatar
+       FROM public.crm_activities a
+       LEFT JOIN public.profiles p ON p.id = a.user_id
+       WHERE a.id = $1`,
+      [newActivity.id]
+    );
+
+    res.status(201).json(joinedResult.rows[0]);
   } catch (err) {
     next(err);
   }

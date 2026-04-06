@@ -12,7 +12,7 @@ import { toast } from "sonner";
 
 interface Comment {
   id: string;
-  content: string;
+  comment: string;
   user_id: string;
   created_at: string;
   profile?: { full_name: string; avatar_url: string | null } | null;
@@ -65,7 +65,7 @@ export function ProjectCommentsSection({ entityType, entityId }: { entityType: s
                 <span className="text-xs font-medium">{c.profile?.full_name || "Unknown"}</span>
                 <span className="text-[10px] text-muted-foreground">{formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}</span>
               </div>
-              <p className="text-sm mt-0.5">{c.content}</p>
+              <p className="text-sm mt-0.5">{c.comment}</p>
             </div>
           </div>
         ))}

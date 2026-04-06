@@ -64,7 +64,10 @@ const getById = async (req, res, next) => {
 const create = async (req, res, next) => {
   try {
     console.log('Creating task with data:', req.body);
-    const { title, description, projectId, assignedTo, dueDate, priority, status, parentTaskId } = req.body;
+    const { 
+      title, description, projectId, assignedTo, dueDate, priority, status, 
+      parentTaskId, recurrence_rule 
+    } = req.body;
 
     if (!title || !title.trim()) {
       return res.status(400).json({ error: 'Task title is required' });
@@ -79,8 +82,9 @@ const create = async (req, res, next) => {
     const result = await db.query(
       `INSERT INTO public.tasks (
         org_id, project_id, title, description, assigned_to, due_date, 
-        priority, status, parent_task_id, sort_order, created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        priority, status, parent_task_id, sort_order, created_by,
+        is_recurring, recurrence_pattern
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
       [
         req.user.orgId, 
@@ -93,7 +97,9 @@ const create = async (req, res, next) => {
         status || 'todo', 
         parentTaskId || null, 
         maxOrder.rows[0].next_order, 
-        req.user.id
+        req.user.id,
+        !!recurrence_rule && recurrence_rule !== 'none',
+        recurrence_rule || null
       ]
     );
 
@@ -108,7 +114,10 @@ const create = async (req, res, next) => {
 const update = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { title, description, assignedTo, dueDate, priority, status } = req.body;
+    const { 
+      title, description, assignedTo, dueDate, priority, status, 
+      recurrence_rule 
+    } = req.body;
 
     const fields = [];
     const values = [];
@@ -124,6 +133,12 @@ const update = async (req, res, next) => {
       if (status === 'done') {
         fields.push(`completed_at = now()`);
       }
+    }
+    if (recurrence_rule !== undefined) {
+      fields.push(`is_recurring = $${paramIndex++}`);
+      values.push(!!recurrence_rule && recurrence_rule !== 'none');
+      fields.push(`recurrence_pattern = $${paramIndex++}`);
+      values.push(recurrence_rule || null);
     }
 
     if (fields.length === 0) {

@@ -236,10 +236,23 @@ const getComments = async (req, res) => {
     );
     if (!tableCheck.rows[0].exists) return res.json([]);
     const { rows } = await db.query(
-      'SELECT * FROM project_comments WHERE entity_type = $1 AND entity_id = $2 AND org_id = $3 ORDER BY created_at ASC',
+      `SELECT c.*, u.full_name, u.avatar_url 
+       FROM project_comments c 
+       LEFT JOIN users u ON c.user_id = u.id 
+       WHERE c.entity_type = $1 AND c.entity_id = $2 AND c.org_id = $3 
+       ORDER BY c.created_at ASC`,
       [entity_type, entity_id, req.user.orgId]
     );
-    res.json(rows);
+    
+    const comments = rows.map(r => ({
+      ...r,
+      profile: r.full_name ? {
+        full_name: r.full_name,
+        avatar_url: r.avatar_url
+      } : null
+    }));
+    
+    res.json(comments);
   } catch (err) {
     console.error('Project comments error:', err);
     res.json([]);
@@ -255,7 +268,7 @@ const createComment = async (req, res) => {
     );
     if (!tableCheck.rows[0].exists) return res.status(501).json({ error: 'Comments feature not available' });
     const { rows } = await db.query(
-      'INSERT INTO project_comments (content, entity_type, entity_id, org_id, user_id) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+      'INSERT INTO project_comments (comment, entity_type, entity_id, org_id, user_id) VALUES ($1,$2,$3,$4,$5) RETURNING *',
       [content, entity_type, entity_id, req.user.orgId, req.user.id]
     );
     res.status(201).json(rows[0]);

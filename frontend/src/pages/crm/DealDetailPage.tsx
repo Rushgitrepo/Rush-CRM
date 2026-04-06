@@ -345,8 +345,8 @@ export default function DealDetailPage() {
 
   const handleConvertToCustomer = () => {
     convertDealToCustomer.mutate(deal.id, {
-      onSuccess: () => {
-        navigate('/crm/customers');
+      onSuccess: (data: any) => {
+        navigate(`/crm/customers/${data.id}`);
       }
     });
   };
@@ -500,7 +500,7 @@ export default function DealDetailPage() {
                   <Button 
                     variant="outline" 
                     onClick={() => { setEditing(false); setForm({ ...deal }); }}
-                    className="gap-2 border-slate-300 text-slate-700 hover:bg-slate-50"
+                    className="gap-2 border-slate-300 text-slate-700"
                   >
                     Cancel
                   </Button>
@@ -546,45 +546,55 @@ export default function DealDetailPage() {
                   <Button 
                     variant="outline" 
                     onClick={() => setEditing(true)} 
-                    className="gap-2 border-slate-300 hover:bg-slate-50"
+                    className="gap-2 border-slate-300"
                   >
                     <Edit3 className="h-4 w-4" /> 
                     Edit Deal
                   </Button>
                   
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button className="gap-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white shadow-lg">
-                        <ArrowRightLeft className="h-4 w-4" /> 
-                        Convert to Customer
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent className="max-w-md">
-                      <AlertDialogHeader>
-                        <AlertDialogTitle className="flex items-center gap-2">
-                          <Users className="h-5 w-5 text-emerald-600" />
-                          Convert Deal to Customer
-                        </AlertDialogTitle>
-                        <AlertDialogDescription className="text-slate-600">
-                          This will create a new customer from this deal's information and move it to your customers section. This action cannot be undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction 
-                          onClick={handleConvertToCustomer} 
-                          disabled={convertDealToCustomer.isPending}
-                          className="bg-emerald-600 hover:bg-emerald-700"
-                        >
-                          {convertDealToCustomer.isPending ? "Converting..." : "Convert to Customer"}
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                  {deal.converted_to_customer_id ? (
+                    <Button 
+                      onClick={() => navigate(`/crm/customers/${deal.converted_to_customer_id}`)}
+                      className="gap-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white shadow-lg"
+                    >
+                      <ArrowRightLeft className="h-4 w-4" /> 
+                      View Converted Customer
+                    </Button>
+                  ) : (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button className="gap-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white shadow-lg">
+                          <ArrowRightLeft className="h-4 w-4" /> 
+                          Convert to Customer
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent className="max-w-md">
+                        <AlertDialogHeader>
+                          <AlertDialogTitle className="flex items-center gap-2">
+                            <Users className="h-5 w-5 text-emerald-600" />
+                            Convert Deal to Customer
+                          </AlertDialogTitle>
+                          <AlertDialogDescription className="text-slate-600">
+                            This will create a new customer from this deal's information and move it to your customers section. This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction 
+                            onClick={handleConvertToCustomer} 
+                            disabled={convertDealToCustomer.isPending}
+                            className="bg-emerald-600 hover:bg-emerald-700"
+                          >
+                            {convertDealToCustomer.isPending ? "Converting..." : "Convert to Customer"}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
                   
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="icon" className="border-slate-300 hover:bg-slate-50">
+                      <Button variant="outline" size="icon" className="border-slate-300">
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>

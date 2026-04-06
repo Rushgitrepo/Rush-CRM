@@ -79,6 +79,7 @@ import LeadDetailPage from "./pages/crm/LeadDetailPage";
 import DealDetailPage from "./pages/crm/DealDetailPage";
 import ContactDetailPage from "./pages/crm/ContactDetailPage";
 import CompanyDetailPage from "./pages/crm/CompanyDetailPage";
+import CustomerDetailPage from "./pages/crm/CustomerDetailPage";
 // Tasks & Automation
 import TasksPage from "./pages/tasks/TasksPage";
 import WorkflowsPage from "./pages/automation/WorkflowsPage";
@@ -148,6 +149,7 @@ const App = () => (
                   <Route path="/crm/deals/create" element={<CreateDealPage />} />
                   <Route path="/crm/deals/:id" element={<DealDetailPage />} />
                   <Route path="/crm/customers" element={<CustomersPage />} />
+                  <Route path="/crm/customers/:id" element={<CustomerDetailPage />} />
                   <Route path="/crm/customers/contacts" element={<ContactsPage />} />
                   <Route path="/crm/customers/contacts/create" element={<CreateContactPage />} />
                   <Route path="/crm/customers/contacts/:id" element={<ContactDetailPage />} />

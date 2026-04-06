@@ -34,7 +34,7 @@ export default function InventoryDashboard() {
   // Fetch low stock products
   const { data: lowStockResp } = useQuery({
     queryKey: ["low-stock-products"],
-    queryFn: () => api.get("/products", { params: { lowStock: true, limit: 10 } }),
+    queryFn: () => api.get("/products", { lowStock: true, limit: 10 }),
   });
 
   const lowStockProducts = (lowStockResp as any)?.data || [];
@@ -42,7 +42,7 @@ export default function InventoryDashboard() {
   // Fetch recent purchase orders
   const { data: recentPOResp } = useQuery({
     queryKey: ["recent-purchase-orders"],
-    queryFn: () => api.get("/purchase-orders", { params: { limit: 5 } }),
+    queryFn: () => api.get("/purchase-orders", { limit: 5 }),
   });
 
   const recentPOs = (recentPOResp as any)?.data || [];
@@ -50,7 +50,7 @@ export default function InventoryDashboard() {
   // Fetch recent stock movements
   const { data: movementsResp } = useQuery({
     queryKey: ["recent-stock-movements"],
-    queryFn: () => api.get("/stock/movements", { params: { limit: 10 } }),
+    queryFn: () => api.get("/stock/movements", { limit: 10 }),
   });
 
   const recentMovements = (movementsResp as any)?.data || [];
