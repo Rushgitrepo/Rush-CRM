@@ -295,12 +295,38 @@ CREATE TABLE public.calendar_event_attendees (
     event_id uuid,
     user_id uuid,
     status character varying(50) DEFAULT 'pending'::character varying,
+    email text,
+    is_organizer boolean DEFAULT false,
+    org_id uuid,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
 );
 
-
 ALTER TABLE public.calendar_event_attendees OWNER TO postgres;
+
+--
+-- Name: calendar_connections; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.calendar_connections (
+    id uuid DEFAULT public.gen_random_uuid() NOT NULL,
+    org_id uuid,
+    user_id uuid,
+    provider character varying(50) NOT NULL,
+    calendar_name character varying(255),
+    external_calendar_id character varying(255),
+    access_token text,
+    refresh_token text,
+    expires_at timestamp without time zone,
+    is_primary boolean DEFAULT false,
+    last_sync_at timestamp without time zone,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT calendar_connections_unique_user_provider UNIQUE(org_id, user_id, provider)
+);
+
+
+ALTER TABLE public.calendar_connections OWNER TO postgres;
 
 --
 -- Name: calendar_events; Type: TABLE; Schema: public; Owner: postgres
@@ -324,7 +350,11 @@ CREATE TABLE public.calendar_events (
     org_id uuid,
     color character varying(20),
     is_recurring boolean DEFAULT false,
-    attendees jsonb DEFAULT '[]'::jsonb
+    attendees jsonb DEFAULT '[]'::jsonb,
+    attachments jsonb DEFAULT '[]'::jsonb,
+    external_calendar_id character varying(255),
+    external_provider character varying(50),
+    CONSTRAINT calendar_events_external_id_unique UNIQUE(external_calendar_id)
 );
 
 
@@ -820,6 +850,7 @@ CREATE TABLE public.emails (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     user_id uuid,
+    mailbox_id uuid,
     from_email character varying(255) NOT NULL,
     to_email character varying(255) NOT NULL,
     cc_email text,
@@ -827,6 +858,7 @@ CREATE TABLE public.emails (
     subject character varying(500),
     body text,
     html_body text,
+    snippet text,
     is_read boolean DEFAULT false,
     is_starred boolean DEFAULT false,
     folder character varying(50) DEFAULT 'inbox'::character varying,
@@ -841,6 +873,16 @@ CREATE TABLE public.emails (
     labels text[],
     has_attachments boolean DEFAULT false
 );
+
+ALTER TABLE ONLY public.emails
+    ADD CONSTRAINT emails_mailbox_id_fkey FOREIGN KEY (mailbox_id) REFERENCES public.connected_mailboxes(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY public.emails
+    ADD CONSTRAINT emails_message_id_key UNIQUE (message_id);
+
+CREATE INDEX idx_emails_mailbox_id ON public.emails USING btree (mailbox_id);
+
+
 
 
 ALTER TABLE public.emails OWNER TO postgres;
@@ -5962,6 +6004,14 @@ ALTER TABLE ONLY public.emails
 
 ALTER TABLE ONLY public.emails
     ADD CONSTRAINT emails_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY public.emails
+    ADD CONSTRAINT emails_mailbox_id_fkey FOREIGN KEY (mailbox_id) REFERENCES public.connected_mailboxes(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY public.emails
+    ADD CONSTRAINT emails_message_id_key UNIQUE (message_id);
+
+CREATE INDEX IF NOT EXISTS idx_emails_mailbox_id ON public.emails USING btree (mailbox_id);
 
 
 --

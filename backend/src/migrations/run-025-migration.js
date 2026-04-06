@@ -1,9 +1,10 @@
 const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
+require('dotenv').config();
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgres://postgres:ali980@localhost:5432/CRM'
+  connectionString: process.env.DATABASE_URL,
 });
 
 async function runMigration() {

@@ -88,7 +88,7 @@ class GmailOAuthService {
     }
 
     try {
-      const { tokens } = await this.oauth2Client.getAccessToken(code);
+      const { tokens } = await this.oauth2Client.getToken(code);
       return tokens;
     } catch (error) {
       console.error('Error exchanging code for tokens:', error);
@@ -161,6 +161,125 @@ class GmailOAuthService {
       };
     }
   }
+
+  /**
+   * List messages from Gmail
+   */
+  async listMessages(accessToken, query = '', maxResults = 50) {
+    this.oauth2Client.setCredentials({ access_token: accessToken });
+    const gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
+    
+    const response = await gmail.users.messages.list({
+      userId: 'me',
+      q: query,
+      maxResults: maxResults
+    });
+
+    return response.data;
+  }
+
+  /**
+   * Get detailed message from Gmail
+   */
+  async getMessage(accessToken, messageId) {
+    this.oauth2Client.setCredentials({ access_token: accessToken });
+    const gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
+    
+    const response = await gmail.users.messages.get({
+      userId: 'me',
+      id: messageId,
+      format: 'full'
+    });
+
+    return response.data;
+  }
+
+  /**
+   * Update message labels in Gmail
+   */
+  async updateLabels(accessToken, messageId, addLabelIds = [], removeLabelIds = []) {
+    this.oauth2Client.setCredentials({ access_token: accessToken });
+    const gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
+    
+    await gmail.users.messages.batchModify({
+      userId: 'me',
+      ids: [messageId],
+      addLabelIds,
+      removeLabelIds
+    });
+  }
+
+  /**
+   * Send an email via Gmail API
+   */
+  async sendEmail(accessToken, { to, cc, bcc, subject, body, html, attachments = [] }) {
+    this.oauth2Client.setCredentials({ access_token: accessToken });
+    const gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
+
+    const utf8Subject = `=?utf-8?B?${Buffer.from(subject).toString('base64')}?=`;
+    const boundary = `----=_Part_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
+    
+    let message = '';
+    
+    if (attachments.length > 0) {
+      // Multipart message
+      message += `To: ${to}\n`;
+      if (cc) message += `Cc: ${cc}\n`;
+      if (bcc) message += `Bcc: ${bcc}\n`;
+      message += `Subject: ${utf8Subject}\n`;
+      message += `MIME-Version: 1.0\n`;
+      message += `Content-Type: multipart/mixed; boundary="${boundary}"\n\n`;
+
+      // Body part
+      message += `--${boundary}\n`;
+      message += `Content-Type: text/html; charset=utf-8\n`;
+      message += `Content-Transfer-Encoding: 7bit\n\n`;
+      message += `${html || body}\n\n`;
+
+      // Attachment parts
+      for (const att of attachments) {
+        message += `--${boundary}\n`;
+        message += `Content-Type: ${att.type || 'application/octet-stream'}; name="${att.filename}"\n`;
+        message += `Content-Transfer-Encoding: base64\n`;
+        message += `Content-Disposition: attachment; filename="${att.filename}"\n\n`;
+        message += `${att.content}\n\n`;
+      }
+      
+      message += `--${boundary}--`;
+    } else {
+      // Simple message
+      const messageParts = [
+        `To: ${to}`,
+        cc ? `Cc: ${cc}` : null,
+        bcc ? `Bcc: ${bcc}` : null,
+        `Subject: ${utf8Subject}`,
+        'MIME-Version: 1.0',
+        'Content-Type: text/html; charset=utf-8',
+        'Content-Transfer-Encoding: 7bit',
+        '',
+        html || body,
+      ].filter(Boolean);
+      message = messageParts.join('\n');
+    }
+
+    // The body needs to be base64url encoded
+    const encodedMessage = Buffer.from(message)
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+
+    const response = await gmail.users.messages.send({
+      userId: 'me',
+      requestBody: {
+        raw: encodedMessage,
+      },
+    });
+
+    return response.data;
+  }
+
 }
+
 
 module.exports = new GmailOAuthService();

@@ -1,17 +1,30 @@
 const db = require('../../config/database');
+const calendarController = require('./calendarController');
+const gmailSyncService = require('../../services/gmailSyncService');
 
 const sync = async (req, res, next) => {
   try {
     const { action, mailbox_id, full_sync } = req.body;
     if (action === 'health') return res.json({ status: 'ok' });
     if (action === 'refresh_token') return res.json({ success: true });
-    if (action === 'sync') return res.json({ success: true, messages_synced: 0 });
+    
+    if (action === 'sync' || !action) {
+      if (!mailbox_id) {
+        return res.status(400).json({ error: 'mailbox_id is required' });
+      }
+      
+      const syncedCount = await gmailSyncService.syncMailbox(mailbox_id, req.user.id, full_sync === true);
+      return res.json({ success: true, messages_synced: syncedCount });
+    }
+    
     if (action === 'verify') return res.json({ verified: true, message: 'IMAP credentials accepted (mock verifier)' });
     res.json({ error: 'Unknown action' });
   } catch (error) {
+    console.error('Sync error:', error);
     next(error);
   }
 };
+
 
 const getMailboxes = async (req, res, next) => {
   try {
@@ -67,10 +80,11 @@ const getMessages = async (req, res, next) => {
       i++;
     }
     if (search) {
-      query += ` AND (subject ILIKE $${i} OR from_address ILIKE $${i} OR body_text ILIKE $${i})`;
+      query += ` AND (subject ILIKE $${i} OR from_email ILIKE $${i} OR body ILIKE $${i})`;
       params.push(`%${search}%`);
       i++;
     }
+
     query += ' ORDER BY received_at DESC LIMIT 100';
     const { rows } = await db.query(query, params);
     res.json(rows);
@@ -152,22 +166,26 @@ async function processGmailCallback(req) {
   const tokens = await gmailOAuth.exchangeCodeForTokens(code);
   const userInfo = await gmailOAuth.getUserInfo(tokens.access_token);
   const connectionTest = await gmailOAuth.testConnection(tokens.access_token);
-  
+
   if (!connectionTest.success) {
     throw new Error(`Gmail connection test failed: ${connectionTest.error}`);
   }
 
-  let userId = req.user.id;
-  let orgId = req.user.orgId;
+  let userId = req.user?.id;
+  let orgId = req.user?.orgId;
 
   if (state) {
     try {
       const stateData = JSON.parse(state);
-      userId = stateData.userId || req.user.id;
-      orgId = stateData.orgId || req.user.orgId;
+      userId = stateData.userId || userId;
+      orgId = stateData.orgId || orgId;
     } catch (e) {
       console.warn('Could not parse state parameter:', e.message);
     }
+  }
+
+  if (!userId || !orgId) {
+    throw new Error('User identification missing. Please try connecting again.');
   }
 
   const result = await db.query(
@@ -200,16 +218,38 @@ async function processGmailCallback(req) {
 
   console.log(`✅ Gmail mailbox connected successfully: ${userInfo.email}`);
 
+  const mailbox = result.rows[0];
+  
+  // Trigger initial sync in background
+  try {
+    const gmailSyncService = require('../../services/gmailSyncService');
+    gmailSyncService.syncMailbox(mailbox.id, userId).catch(err => {
+      console.error(`Initial sync failed for mailbox ${mailbox.id}:`, err.message);
+    });
+  } catch (err) {
+    console.warn('Could not start initial sync:', err.message);
+  }
+
   return {
-    mailbox: result.rows[0],
+    mailbox,
     userInfo,
   };
 }
+
 
 const oauthCallback = async (req, res, next) => {
   try {
     const { code, state, provider = 'gmail' } = req.body;
     console.log(`📧 Processing OAuth callback for ${provider}`);
+
+    if (state) {
+      try {
+        const parsed = JSON.parse(state);
+        if (parsed.type === 'calendar') {
+          return calendarController.googleCallback(req, res, next);
+        }
+      } catch (err) { }
+    }
 
     if (provider === 'gmail') {
       try {
@@ -236,12 +276,23 @@ const oauthCallback = async (req, res, next) => {
 const oauthCallbackGet = async (req, res, next) => {
   try {
     const { code, state } = req.query;
-    console.log('📧 Processing OAuth callback (GET) for gmail');
+    console.log('📧 Processing OAuth callback (GET)');
+
+    if (state) {
+      try {
+        const parsed = JSON.parse(state);
+        if (parsed.type === 'calendar') {
+          return calendarController.googleCallback(req, res, next);
+        }
+      } catch (err) { }
+    }
+
     const { mailbox, userInfo } = await processGmailCallback({ ...req, code, state });
-    res.json({ success: true, message: 'Gmail connected successfully', mailbox, userInfo });
+    // Redirect to frontend mail page on success
+    res.redirect(process.env.APP_URL + '/collaboration/mail?connected=gmail&email=' + encodeURIComponent(userInfo.email));
   } catch (err) {
     console.error('❌ Gmail OAuth callback (GET) error:', err);
-    next(err);
+    res.redirect(process.env.APP_URL + '/collaboration/mail?error=' + encodeURIComponent(err.message));
   }
 };
 
@@ -249,36 +300,36 @@ const getOauthUrl = async (req, res, next) => {
   try {
     const { provider } = req.params;
     const normalized = provider === 'gmail-mail-auth' ? 'gmail' : provider;
-    
+
     console.log(`📧 OAuth URL requested for provider: ${provider}`);
-    
+
     if (normalized === 'gmail') {
       const gmailOAuth = require('../../services/gmailOAuth');
-      
+
       try {
         const state = JSON.stringify({
           userId: req.user.id,
           orgId: req.user.orgId,
           timestamp: Date.now()
         });
-        
+
         const authUrl = gmailOAuth.getAuthUrl(state);
-        
-        res.json({ 
+
+        res.json({
           success: true,
           authUrl: authUrl,
           provider: 'gmail'
         });
       } catch (error) {
         console.error('Gmail OAuth error:', error.message);
-        res.status(500).json({ 
+        res.status(500).json({
           error: 'Failed to generate Gmail OAuth URL',
           message: error.message,
           details: 'Please ensure GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are configured'
         });
       }
     } else {
-      res.status(400).json({ 
+      res.status(400).json({
         error: 'Unsupported provider',
         message: `Provider '${provider}' is not supported. Use 'gmail' for Gmail integration.`
       });
@@ -289,8 +340,27 @@ const getOauthUrl = async (req, res, next) => {
 };
 
 const sendEmail = async (req, res, next) => {
-  res.json({ error: 'Email sending not implemented' });
+  try {
+    const emailService = require('../../services/emailService');
+    const result = await emailService.sendEmail(req.user.id, {
+      mailbox_id: req.body.mailbox_id,
+      to: req.body.to,
+      cc: req.body.cc,
+      bcc: req.body.bcc,
+      subject: req.body.subject,
+      body: req.body.body,
+      html_body: req.body.html_body,
+      attachments: req.body.attachments || []
+    });
+    
+    res.json(result);
+  } catch (err) {
+    console.error('Send email error:', err);
+    res.status(500).json({ error: err.message });
+  }
 };
+
+
 
 module.exports = {
   sync,

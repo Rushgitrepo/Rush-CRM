@@ -1,50 +1,54 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { MailboxIntegration } from "@/components/mail/MailboxIntegration";
 import { WebmailView } from "@/components/mail/WebmailView";
 
 export default function MailPage() {
   const { user } = useAuth();
   const [view, setView] = useState<"integration" | "webmail">("integration");
+  const [openComposer, setOpenComposer] = useState(false);
 
   const { data: mailboxes = [], isLoading } = useQuery({
     queryKey: ["connected-mailboxes", user?.id],
     queryFn: async () => {
       if (!user) return [];
-      const { data, error } = await supabase
-        .from("connected_mailboxes")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("is_active", true);
-      if (error) throw error;
-      return data;
+      const data = await api.get<any[]>('/email/mailboxes');
+      return data || [];
     },
     enabled: !!user,
   });
 
-  // Auto-switch to webmail if user has connected mailboxes
-  if (view === "integration" && mailboxes.length > 0) {
-    return (
-      <MailboxIntegration
-        onMailboxConnected={() => setView("webmail")}
-      />
-    );
-  }
+  // Auto-switch to webmail view if mailboxes exist and we are in integration view
+  useEffect(() => {
+    if (mailboxes.length > 0 && view === "integration") {
+      setView("webmail");
+    }
+  }, [mailboxes.length, view]);
 
   if (view === "webmail" && mailboxes.length > 0) {
     return (
       <WebmailView
         mailboxes={mailboxes}
         onBackToIntegration={() => setView("integration")}
+        initialOpenComposer={openComposer}
       />
     );
   }
 
   return (
     <MailboxIntegration
-      onMailboxConnected={() => setView("webmail")}
+      onMailboxConnected={() => {
+        setOpenComposer(false);
+        setView("webmail");
+      }}
+      onComposeClick={() => {
+        setOpenComposer(true);
+        setView("webmail");
+      }}
     />
   );
 }
+
+

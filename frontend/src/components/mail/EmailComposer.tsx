@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+
 import {
   Select,
   SelectContent,
@@ -38,7 +40,7 @@ export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardE
 
   const [form, setForm] = useState({
     mailbox_id: mailboxes[0]?.id || "",
-    to: replyTo?.from_address || "",
+    to: replyTo?.from_email || "",
     cc: "",
     bcc: "",
     subject: replyTo
@@ -47,9 +49,38 @@ export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardE
       ? `Fwd: ${forwardEmail.subject}`
       : "",
     body: forwardEmail
-      ? `\n\n---------- Forwarded message ----------\nFrom: ${forwardEmail.from_address}\nSubject: ${forwardEmail.subject}\n\n${forwardEmail.body_text || ""}`
+      ? `\n\n---------- Forwarded message ----------\nFrom: ${forwardEmail.from_email}\nSubject: ${forwardEmail.subject}\n\n${forwardEmail.body || ""}`
       : "",
+
   });
+
+  const [attachments, setAttachments] = useState<File[]>([]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setAttachments(prev => [...prev, ...Array.from(e.target.files!)]);
+    }
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const fileToBase64 = (file: File): Promise<{ filename: string, content: string, type: string }> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const base64String = (reader.result as string).split(',')[1];
+        resolve({
+          filename: file.name,
+          content: base64String,
+          type: file.type
+        });
+      };
+      reader.onerror = error => reject(error);
+    });
+  };
 
   const handleSend = async () => {
     if (!user) return;
@@ -60,6 +91,8 @@ export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardE
 
     setSending(true);
     try {
+      const base64Attachments = await Promise.all(attachments.map(fileToBase64));
+
       // Send via edge function (real Gmail API / Graph API)
       const data = await api.post<any>('/email/send', {
           mailbox_id: form.mailbox_id,
@@ -68,6 +101,7 @@ export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardE
           bcc: form.bcc || undefined,
           subject: form.subject,
           body: form.body,
+          attachments: base64Attachments,
           in_reply_to: replyTo?.message_id || undefined,
           thread_id: replyTo?.thread_id || undefined,
       });
@@ -83,6 +117,7 @@ export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardE
       setSending(false);
     }
   };
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -163,24 +198,63 @@ export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardE
               onChange={(e) => setForm({ ...form, body: e.target.value })}
             />
           </div>
+
+          {attachments.length > 0 && (
+            <div className="flex flex-wrap gap-2 pt-2">
+              {attachments.map((file, i) => (
+                <Badge key={i} variant="secondary" className="pl-2 flex items-center gap-1 group">
+                  <span className="max-w-[150px] truncate">{file.name}</span>
+                  <button 
+                    onClick={() => removeAttachment(i)}
+                    className="hover:text-destructive p-0.5"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div className="flex items-center justify-between pt-2">
+        <div className="flex items-center justify-between pt-4 mt-6 border-t">
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="h-8 w-8" title="Attach file">
-              <Paperclip className="h-4 w-4" />
+            <input
+              type="file"
+              id="file-upload"
+              multiple
+              className="hidden"
+              onChange={handleFileChange}
+            />
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-9 w-9 rounded-full hover:bg-primary/10 hover:text-primary transition-all"
+              onClick={() => document.getElementById('file-upload')?.click()}
+              title="Attach files"
+            >
+              <Paperclip className="h-5 w-5" />
             </Button>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onOpenChange(false)}>
-              <X className="h-4 w-4" />
+          <div className="flex items-center gap-3">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => onOpenChange(false)}
+              className="rounded-full px-6"
+            >
+              Cancel
             </Button>
-            <Button onClick={handleSend} disabled={sending} className="gradient-primary text-primary-foreground">
+            <Button 
+              onClick={handleSend} 
+              disabled={sending} 
+              className="gradient-primary text-primary-foreground rounded-full px-8 shadow-lg hover:shadow-primary/20 transition-all"
+            >
               <Send className="mr-2 h-4 w-4" />
               {sending ? "Sending..." : "Send"}
             </Button>
           </div>
         </div>
+
       </DialogContent>
     </Dialog>
   );

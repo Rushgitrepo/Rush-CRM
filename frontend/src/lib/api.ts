@@ -375,11 +375,17 @@ export const rolesApi = {
 };
 
 export const calendarApi = {
-  getEvents: (params?: { startDate?: string; endDate?: string }) => api.get<any[]>('/calendar', params),
+  getEvents: (params?: { startDate?: string; endDate?: string; search?: string }) => api.get<any[]>('/calendar', params),
   getById: (id: string) => api.get<any>(`/calendar/${id}`),
   create: (data: any) => api.post<any>('/calendar', data),
   update: (id: string, data: any) => api.put<any>(`/calendar/${id}`, data),
   delete: (id: string) => api.delete(`/calendar/${id}`),
+  getGoogleAuthUrl: () => api.get<{ authUrl: string }>('/calendar/auth/google'),
+  getMicrosoftAuthUrl: () => api.get<{ authUrl: string }>('/calendar/auth/microsoft'),
+  getConnections: () => api.get<any[]>('/calendar/connections'),
+  sync: (provider: string) => api.post<{ success: boolean; count: number }>(`/calendar/sync/${provider}`),
+  disconnect: (id: string) => api.delete<{ success: boolean }>(`/calendar/connections/${id}`),
+  connectICloud: (appleId?: string, appPassword?: string) => api.post<{ success: boolean; message: string }>('/calendar/auth/icloud', { appleId, appPassword }),
 };
 
 export const workflowsApi = {

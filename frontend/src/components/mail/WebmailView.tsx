@@ -60,7 +60,9 @@ const folders = [
 interface WebmailViewProps {
   mailboxes: any[];
   onBackToIntegration: () => void;
+  initialOpenComposer?: boolean;
 }
+
 
 function formatEmailDate(dateStr: string | null): string {
   if (!dateStr) return "";
@@ -91,7 +93,7 @@ function EmailListSkeleton() {
   );
 }
 
-export function WebmailView({ mailboxes, onBackToIntegration }: WebmailViewProps) {
+export function WebmailView({ mailboxes, onBackToIntegration, initialOpenComposer = false }: WebmailViewProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { syncMailbox, syncing } = useEmailSync();
@@ -99,7 +101,7 @@ export function WebmailView({ mailboxes, onBackToIntegration }: WebmailViewProps
   const [activeMailbox, setActiveMailbox] = useState(mailboxes[0]?.id || "all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedEmail, setSelectedEmail] = useState<any>(null);
-  const [composerOpen, setComposerOpen] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(initialOpenComposer);
   const [replyTo, setReplyTo] = useState<any>(null);
   const [forwardEmail, setForwardEmail] = useState<any>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -437,9 +439,10 @@ export function WebmailView({ mailboxes, onBackToIntegration }: WebmailViewProps
                       </button>
                       <Avatar className="h-8 w-8 shrink-0">
                         <AvatarFallback className="text-xs bg-primary/10 text-primary">
-                          {(email.from_name || email.from_address || "?")[0].toUpperCase()}
+                          {(email.from_name || email.from_email || "?")[0].toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
+
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-0.5">
                           <span
@@ -447,8 +450,9 @@ export function WebmailView({ mailboxes, onBackToIntegration }: WebmailViewProps
                               !email.is_read ? "font-semibold text-foreground" : "text-muted-foreground"
                             }`}
                           >
-                            {email.from_name || email.from_address}
+                            {email.from_name || email.from_email}
                           </span>
+
                           <span className="text-[11px] text-muted-foreground shrink-0 ml-2">
                             {formatEmailDate(email.received_at)}
                           </span>
@@ -461,8 +465,9 @@ export function WebmailView({ mailboxes, onBackToIntegration }: WebmailViewProps
                           {email.subject || "(No Subject)"}
                         </p>
                         <p className="text-xs text-muted-foreground truncate mt-0.5">
-                          {email.snippet || email.body_text?.substring(0, 100)}
+                          {email.snippet || email.body?.substring(0, 100)}
                         </p>
+
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
                         {email.has_attachments && (

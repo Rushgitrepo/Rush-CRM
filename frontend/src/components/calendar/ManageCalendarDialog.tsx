@@ -59,20 +59,20 @@ export function ManageCalendarDialog({
         <div className="space-y-3">
           <Button
             variant="outline"
-            className="w-full justify-start gap-3 h-12"
+            className="w-full justify-start gap-3 h-12 group-hover:text-white"
             onClick={() => {
               onSync();
               onOpenChange(false);
             }}
           >
-            <RefreshCw className="w-5 h-5 text-primary" />
+            <RefreshCw className="w-5 h-5" />
             <div className="text-left">
               <p className="font-medium">Sync now</p>
-              <p className="text-xs text-muted-foreground">Force synchronization with {providerName}</p>
+              <p className="text-xs">Force synchronization with {providerName}</p>
             </div>
           </Button>
 
-          <Button
+          {/* <Button
             variant="outline"
             className="w-full justify-start gap-3 h-12"
             onClick={() => {}}
@@ -82,11 +82,11 @@ export function ManageCalendarDialog({
               <p className="font-medium">Settings</p>
               <p className="text-xs text-muted-foreground">Configure sync options</p>
             </div>
-          </Button>
+          </Button> */}
 
           <Button
             variant="outline"
-            className="w-full justify-start gap-3 h-12 text-destructive hover:text-destructive hover:bg-destructive/10"
+            className="w-full justify-start gap-3 h-12 text-destructive hover:text-white hover:bg-destructive"
             onClick={() => {
               onDisconnect();
               onOpenChange(false);
@@ -95,7 +95,7 @@ export function ManageCalendarDialog({
             <Trash2 className="w-5 h-5" />
             <div className="text-left">
               <p className="font-medium">Disconnect</p>
-              <p className="text-xs text-muted-foreground">Remove {providerName} connection</p>
+              <p className="text-xs">Remove {providerName} connection</p>
             </div>
           </Button>
         </div>

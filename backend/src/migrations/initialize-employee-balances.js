@@ -1,11 +1,8 @@
 const { Pool } = require('pg');
+require('dotenv').config();
 
 const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'CRM',
-  password: 'ali980',
-  port: 5432,
+  connectionString: process.env.DATABASE_URL,
 });
 
 async function initializeBalances() {

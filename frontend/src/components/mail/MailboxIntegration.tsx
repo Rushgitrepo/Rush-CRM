@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Link2, Mail, Settings, Trash2 } from "lucide-react";
+import { Link2, Mail, Settings, Trash2, Plus } from "lucide-react";
+
 import { ConnectMailboxDialog } from "./ConnectMailboxDialog";
 import { api } from '@/lib/api';
 import { useAuth } from "@/contexts/AuthContext";
@@ -59,9 +60,11 @@ const providers = [
 
 interface MailboxIntegrationProps {
   onMailboxConnected: () => void;
+  onComposeClick?: () => void;
 }
 
-export function MailboxIntegration({ onMailboxConnected }: MailboxIntegrationProps) {
+
+export function MailboxIntegration({ onMailboxConnected, onComposeClick }: MailboxIntegrationProps) {
   const [connectDialog, setConnectDialog] = useState<string | null>(null);
   const [oauthLoading, setOauthLoading] = useState<string | null>(null);
   const { user } = useAuth();
@@ -120,11 +123,22 @@ export function MailboxIntegration({ onMailboxConnected }: MailboxIntegrationPro
           <Settings className="h-5 w-5 text-muted-foreground cursor-pointer hover:text-foreground transition-colors" />
         </div>
         {hasConnectedMailboxes && (
-          <Button variant="outline" onClick={onMailboxConnected}>
-            <Mail className="mr-2 h-4 w-4" />
-            Open Webmail
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              className="gradient-primary text-primary-foreground" 
+              onClick={onComposeClick || onMailboxConnected}
+            >
+
+              <Plus className="mr-2 h-4 w-4" />
+              Compose Email
+            </Button>
+            <Button variant="outline" onClick={onMailboxConnected}>
+              <Mail className="mr-2 h-4 w-4" />
+              Open Webmail
+            </Button>
+          </div>
         )}
+
       </div>
 
       {/* Connected Mailboxes */}

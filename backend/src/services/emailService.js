@@ -1,197 +1,111 @@
-const nodemailer = require('nodemailer');
-const sgMail = require('@sendgrid/mail');
+const db = require('../config/database');
+const gmailOAuth = require('./gmailOAuth');
 
 class EmailService {
-  constructor() {
-    this.provider = process.env.EMAIL_PROVIDER || 'smtp'; // 'smtp' or 'sendgrid'
-    this.initializeProvider();
-  }
-
-  initializeProvider() {
-    if (this.provider === 'sendgrid') {
-      // SendGrid setup
-      const apiKey = process.env.SENDGRID_API_KEY;
-      if (apiKey) {
-        sgMail.setApiKey(apiKey);
-        console.log('✅ SendGrid email service initialized');
-      } else {
-        console.warn('⚠️  SENDGRID_API_KEY not found, falling back to SMTP');
-        this.provider = 'smtp';
-        this.initializeSMTP();
-      }
-    } else {
-      this.initializeSMTP();
-    }
-  }
-
-  initializeSMTP() {
-    // SMTP setup (Gmail, Outlook, custom SMTP)
-    this.transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
-    console.log('✅ SMTP email service initialized');
-  }
-
-  async sendEmail({ to, subject, html, text, from, replyTo }) {
-    try {
-      const fromEmail = from || process.env.DEFAULT_FROM_EMAIL || 'noreply@yourcompany.com';
-      const fromName = process.env.DEFAULT_FROM_NAME || 'Your Company';
-
-      if (this.provider === 'sendgrid') {
-        return await this.sendViaSendGrid({ to, subject, html, text, from: fromEmail, fromName, replyTo });
-      } else {
-        return await this.sendViaSMTP({ to, subject, html, text, from: fromEmail, fromName, replyTo });
-      }
-    } catch (error) {
-      console.error('Email sending error:', error);
-      throw error;
-    }
-  }
-
-  async sendViaSendGrid({ to, subject, html, text, from, fromName, replyTo }) {
-    const msg = {
-      to,
-      from: { email: from, name: fromName },
-      subject,
-      text: text || this.htmlToText(html),
-      html,
-      replyTo,
-    };
-
-    const result = await sgMail.send(msg);
-    return {
-      success: true,
-      messageId: result[0].headers['x-message-id'],
-      provider: 'sendgrid',
-    };
-  }
-
-  async sendViaSMTP({ to, subject, html, text, from, fromName, replyTo }) {
-    const mailOptions = {
-      from: `"${fromName}" <${from}>`,
-      to,
-      subject,
-      text: text || this.htmlToText(html),
-      html,
-      replyTo,
-    };
-
-    const info = await this.transporter.sendMail(mailOptions);
-    return {
-      success: true,
-      messageId: info.messageId,
-      provider: 'smtp',
-    };
-  }
-
-  async sendBulkEmails(emails) {
-    const results = [];
-    const batchSize = 10; // Send 10 emails at a time
-
-    for (let i = 0; i < emails.length; i += batchSize) {
-      const batch = emails.slice(i, i + batchSize);
-      const batchResults = await Promise.allSettled(
-        batch.map(email => this.sendEmail(email))
+  /**
+   * Global send email function
+   */
+  async sendEmail(userId, { mailbox_id, to, cc, bcc, subject, body, html_body, attachments = [] }) {
+    if (!mailbox_id) {
+      // If no mailbox_id, try to find the primary/first active mailbox for the user
+      const { rows } = await db.query(
+        'SELECT id FROM connected_mailboxes WHERE user_id = $1 AND is_active = true LIMIT 1',
+        [userId]
       );
+      if (rows.length === 0) throw new Error('No active mailbox found for user');
+      mailbox_id = rows[0].id;
+    }
 
-      batchResults.forEach((result, index) => {
-        if (result.status === 'fulfilled') {
-          results.push({
-            email: batch[index].to,
-            success: true,
-            messageId: result.value.messageId,
-          });
-        } else {
-          results.push({
-            email: batch[index].to,
-            success: false,
-            error: result.reason.message,
-          });
-        }
+    // 1. Get mailbox info
+    const { rows } = await db.query(
+      'SELECT * FROM connected_mailboxes WHERE id = $1 AND user_id = $2',
+      [mailbox_id, userId]
+    );
+
+    if (rows.length === 0) throw new Error('Mailbox not found');
+    const mailbox = rows[0];
+
+    // 2. Refresh token if needed
+    let accessToken = mailbox.access_token;
+    if (mailbox.provider === 'gmail') {
+      if (mailbox.token_expires_at && new Date(mailbox.token_expires_at) <= new Date()) {
+        const tokens = await gmailOAuth.refreshAccessToken(mailbox.refresh_token);
+        accessToken = tokens.access_token;
+        
+        await db.query(
+          'UPDATE connected_mailboxes SET access_token = $1, token_expires_at = $2 WHERE id = $3',
+          [accessToken, tokens.expiry_date ? new Date(tokens.expiry_date) : null, mailbox_id]
+        );
+      }
+
+      // 3. Send via Gmail API
+      const sentData = await gmailOAuth.sendEmail(accessToken, {
+        to,
+        cc,
+        bcc,
+        subject,
+        body,
+        html: html_body || body,
+        attachments
       });
 
-      // Small delay between batches to avoid rate limits
-      if (i + batchSize < emails.length) {
-        await this.delay(1000);
+      // 4. Record in Sent folder (Internal)
+      try {
+        const gmailSyncService = require('./gmailSyncService');
+        const msg = await gmailOAuth.getMessage(accessToken, sentData.id);
+        await gmailSyncService.upsertMessage(msg, mailbox, userId, 'sent');
+      } catch (syncErr) {
+        console.error('Failed to sync sent message back to DB:', syncErr);
       }
-    }
 
-    return results;
-  }
+      return { success: true, messageId: sentData.id };
+    } else if (mailbox.provider === 'icloud' || mailbox.provider === 'custom_imap') {
+      const nodemailer = require('nodemailer');
+      
+      const config = mailbox.provider === 'icloud' ? {
+        host: 'smtp.mail.me.com',
+        port: 587,
+        secure: false, // TLS
+        auth: {
+          user: mailbox.email_address,
+          pass: mailbox.refresh_token // App-specific password
+        }
+      } : {
+        host: mailbox.smtp_host,
+        port: mailbox.smtp_port,
+        secure: mailbox.smtp_port === 465,
+        auth: {
+          user: mailbox.email_address,
+          pass: mailbox.refresh_token
+        }
+      };
 
-  async sendCampaign(campaign, contacts) {
-    const emails = contacts.map(contact => ({
-      to: contact.email,
-      subject: this.replaceTokens(campaign.subject, contact),
-      html: this.replaceTokens(campaign.content, contact),
-      from: campaign.from_email,
-      replyTo: campaign.from_email,
-    }));
+      const transporter = nodemailer.createTransport(config);
+      
+      const info = await transporter.sendMail({
+        from: mailbox.email_address,
+        to,
+        cc,
+        bcc,
+        subject,
+        text: body,
+        html: html_body || body,
+        attachments: attachments.map(att => ({
+          filename: att.filename,
+          content: Buffer.from(att.content, 'base64'),
+          contentType: att.type
+        }))
+      });
 
-    return await this.sendBulkEmails(emails);
-  }
-
-  replaceTokens(content, contact) {
-    if (!content) return content;
-
-    const tokens = {
-      '{{first_name}}': contact.first_name || '',
-      '{{last_name}}': contact.last_name || '',
-      '{{email}}': contact.email || '',
-      '{{company}}': contact.company || '',
-      '{{company_name}}': contact.company || '',
-      '{{phone}}': contact.phone || '',
-      '{{city}}': contact.city || '',
-      '{{country}}': contact.country || '',
-      '{{job_title}}': contact.job_title || '',
-      '{{website}}': contact.website || '',
-      '{{cta_link}}': process.env.APP_URL || 'https://yourcompany.com',
-      '{{month}}': new Date().toLocaleString('default', { month: 'long' }),
-      '{{year}}': new Date().getFullYear().toString(),
-    };
-
-    let result = content;
-    Object.entries(tokens).forEach(([token, value]) => {
-      result = result.replace(new RegExp(token, 'g'), value);
-    });
-
-    return result;
-  }
-
-  htmlToText(html) {
-    if (!html) return '';
-    // Simple HTML to text conversion
-    return html
-      .replace(/<style[^>]*>.*<\/style>/gm, '')
-      .replace(/<script[^>]*>.*<\/script>/gm, '')
-      .replace(/<[^>]+>/gm, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-  }
-
-  delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
-  async verifyConnection() {
-    try {
-      if (this.provider === 'smtp' && this.transporter) {
-        await this.transporter.verify();
-        return { success: true, provider: 'smtp' };
-      } else if (this.provider === 'sendgrid') {
-        return { success: true, provider: 'sendgrid' };
-      }
-      return { success: false, error: 'No email provider configured' };
-    } catch (error) {
-      return { success: false, error: error.message };
+      return { success: true, messageId: info.messageId };
+    } else if (mailbox.provider === 'outlook' || mailbox.provider === 'microsoft') {
+      // Placeholder for Microsoft Graph API
+      throw new Error('Outlook email sending not yet implemented. Please use Gmail for now.');
+    } else {
+      throw new Error(`Unsupported email provider: ${mailbox.provider}`);
     }
   }
 }
+
 
 module.exports = new EmailService();
