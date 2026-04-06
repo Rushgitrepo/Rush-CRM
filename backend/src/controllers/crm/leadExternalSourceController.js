@@ -31,23 +31,17 @@ const createExternalSource = async (req, res, next) => {
 
     const result = await db.query(
       `INSERT INTO lead_external_sources 
-       (org_id, workspace_id, source_name, source_type, source_url, api_key, webhook_secret,
-        field_mapping, default_values, auto_assign_enabled, assignment_rules, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       (org_id, workspace_id, name, source_type, api_key, webhook_url, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
       [
         req.user.orgId,
         (workspaceId && workspaceId !== '') ? workspaceId : null,
         sourceName,
         sourceType,
-        sourceUrl || null,
         apiKey,
-        webhookSecret,
-        JSON.stringify(fieldMapping || {}),
-        JSON.stringify(defaultValues || {}),
-        autoAssignEnabled || false,
-        JSON.stringify(assignmentRules || {}),
-        req.user.id
+        sourceUrl || null,
+        true
       ]
     );
 
@@ -106,33 +100,13 @@ const updateExternalSource = async (req, res, next) => {
     let paramIndex = 1;
 
     if (sourceName !== undefined) {
-      fields.push(`source_name = $${paramIndex}`);
+      fields.push(`name = $${paramIndex}`);
       values.push(sourceName);
       paramIndex++;
     }
     if (sourceUrl !== undefined) {
-      fields.push(`source_url = $${paramIndex}`);
+      fields.push(`webhook_url = $${paramIndex}`);
       values.push(sourceUrl);
-      paramIndex++;
-    }
-    if (fieldMapping !== undefined) {
-      fields.push(`field_mapping = $${paramIndex}`);
-      values.push(JSON.stringify(fieldMapping));
-      paramIndex++;
-    }
-    if (defaultValues !== undefined) {
-      fields.push(`default_values = $${paramIndex}`);
-      values.push(JSON.stringify(defaultValues));
-      paramIndex++;
-    }
-    if (autoAssignEnabled !== undefined) {
-      fields.push(`auto_assign_enabled = $${paramIndex}`);
-      values.push(autoAssignEnabled);
-      paramIndex++;
-    }
-    if (assignmentRules !== undefined) {
-      fields.push(`assignment_rules = $${paramIndex}`);
-      values.push(JSON.stringify(assignmentRules));
       paramIndex++;
     }
     if (isActive !== undefined) {
@@ -321,7 +295,7 @@ const receiveExternalLead = async (req, res, next) => {
         mappedData.companyEmail || null,
         mappedData.companyPhone || null,
         mappedData.designation || null,
-        source.source_name,
+        source.name,
         mappedData.status || 'new',
         mappedData.value ? parseFloat(mappedData.value) : null,
         mappedData.website || null,

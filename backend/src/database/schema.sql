@@ -523,16 +523,25 @@ CREATE TABLE public.customers (
     organization_id uuid,
     contact_id uuid,
     company_id uuid,
+    user_id uuid,
+    name character varying(255),
+    email character varying(255),
+    phone character varying(50),
+    tier character varying(50),
     customer_type character varying(50) DEFAULT 'individual'::character varying,
     status character varying(50) DEFAULT 'active'::character varying,
     lifetime_value numeric(15,2) DEFAULT 0,
+    total_revenue numeric(15,2) DEFAULT 0,
     total_purchases integer DEFAULT 0,
     first_purchase_date date,
     last_purchase_date date,
     notes text,
+    tags jsonb DEFAULT '[]'::jsonb,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     industry character varying(100),
+    lead_id uuid,
+    deal_id uuid,
     converted_from_lead_id uuid,
     converted_from_deal_id uuid,
     org_id uuid
@@ -1063,7 +1072,7 @@ CREATE TABLE public.hrms_notifications (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     employee_id uuid,
-    type character varying(50) NOT NULL,
+    type character varying(50) DEFAULT 'info'::character varying NOT NULL,
     title character varying(255) NOT NULL,
     message text,
     is_read boolean DEFAULT false,
@@ -1074,7 +1083,9 @@ CREATE TABLE public.hrms_notifications (
     user_id uuid,
     created_by uuid,
     priority character varying(50) DEFAULT 'normal'::character varying,
-    action_url text
+    action_url text,
+    read_at timestamp without time zone,
+    data jsonb DEFAULT '{}'::jsonb
 );
 
 
@@ -1196,6 +1207,7 @@ CREATE TABLE public.lead_workspace_access (
     lead_id uuid NOT NULL,
     workspace_id uuid NOT NULL,
     granted_by uuid,
+    access_level character varying(50) DEFAULT 'view'::character varying,
     expires_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
@@ -2370,7 +2382,7 @@ CREATE TABLE public.purchase_order_items (
     quantity integer NOT NULL,
     unit_price numeric(15,2) NOT NULL,
     tax_rate numeric(5,2) DEFAULT 0,
-    total_price numeric(15,2) NOT NULL,
+    total_price numeric(15,2),
     received_quantity integer DEFAULT 0,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
@@ -2572,7 +2584,7 @@ CREATE TABLE public.stock_movements (
     organization_id uuid,
     product_id uuid,
     warehouse_id uuid,
-    movement_type character varying(50) NOT NULL,
+    movement_type character varying(50),
     quantity integer NOT NULL,
     reference_type character varying(50),
     reference_id uuid,
@@ -2767,7 +2779,9 @@ CREATE TABLE public.warehouses (
     phone character varying(50),
     email character varying(255),
     type character varying(50),
-    operating_hours character varying(100)
+    operating_hours character varying(100),
+    status character varying(50) DEFAULT 'active'::character varying,
+    created_by uuid
 );
 
 
@@ -7620,6 +7634,81 @@ ALTER TABLE ONLY public.workgroups
 ALTER TABLE ONLY public.workgroups
     ADD CONSTRAINT workgroups_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
 
+
+-- 
+-- Migration: project_templates
+-- 
+
+CREATE TABLE project_templates (
+    id UUID PRIMARY KEY DEFAULT public.uuid_generate_v4(),
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+    org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    default_milestones JSONB DEFAULT '[]',
+    default_tasks JSONB DEFAULT '[]',
+    settings JSONB DEFAULT '{}',
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_project_templates_org_id ON project_templates(org_id);
+CREATE INDEX idx_project_templates_organization_id ON project_templates(organization_id);
+
+CREATE TRIGGER update_project_templates_updated_at
+    BEFORE UPDATE ON project_templates
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+
+--
+-- Name: project_invoices; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.project_invoices (
+    id uuid DEFAULT public.uuid_generate_v4() NOT NULL PRIMARY KEY,
+    org_id uuid NOT NULL REFERENCES public.organizations(id),
+    project_id uuid NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+    invoice_number character varying(255) NOT NULL,
+    amount numeric(15,2) NOT NULL,
+    currency character varying(10) DEFAULT 'USD',
+    status character varying(50) DEFAULT 'draft' CHECK (status IN ('draft', 'sent', 'paid', 'void', 'overdue', 'cancelled')),
+    issue_date date NOT NULL,
+    due_date date,
+    paid_date date,
+    description text,
+    created_by uuid REFERENCES public.users(id),
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+--
+-- Name: project_notifications; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.project_notifications (
+    id uuid DEFAULT public.uuid_generate_v4() NOT NULL PRIMARY KEY,
+    org_id uuid NOT NULL,
+    project_id uuid REFERENCES public.projects(id) ON DELETE CASCADE,
+    user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    title character varying(255) NOT NULL,
+    message text,
+    type character varying(50) DEFAULT 'info' CHECK (type IN ('info', 'warning', 'success', 'error')),
+    is_read boolean DEFAULT false,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    read_at timestamp without time zone,
+    data jsonb DEFAULT '{}'::jsonb
+);
+
+CREATE INDEX idx_project_invoices_project_id ON public.project_invoices(project_id);
+CREATE INDEX idx_project_invoices_org_id ON public.project_invoices(org_id);
+CREATE INDEX idx_project_notifications_user_project ON public.project_notifications(user_id, project_id);
+
+CREATE TRIGGER update_project_invoices_updated_at
+    BEFORE UPDATE ON public.project_invoices
+    FOR EACH ROW
+    EXECUTE FUNCTION public.update_updated_at_column();
 
 --
 -- PostgreSQL database dump complete

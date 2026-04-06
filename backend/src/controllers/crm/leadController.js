@@ -315,11 +315,13 @@ const getById = async (req, res, next) => {
     try {
       result = await db.query(
         `SELECT l.*,
-                c.id as contact_id, c.first_name as contact_first_name, c.last_name as contact_last_name, c.email as contact_email, c.phone as contact_phone,
-                co.id as company_id, co.name as linked_company_name, co.email as linked_company_email, co.phone as linked_company_phone
+                c.id as contact_id, c.first_name as contact_first_name, c.last_name as contact_last_name, c.email as contact_email, c.phone as contact_phone, 
+                co.id as company_id, co.name as linked_company_name, co.email as linked_company_email, co.phone as linked_company_phone,
+                w.name as workspace_name
          FROM public.leads l
          LEFT JOIN public.contacts c ON c.id = l.contact_id
          LEFT JOIN public.companies co ON co.id = l.company_id
+         LEFT JOIN public.workgroups w ON w.id = l.workspace_id
          WHERE l.id = $1 AND l.org_id = $2`,
         [id, req.user.orgId]
       );
@@ -529,6 +531,9 @@ const update = async (req, res, next) => {
       externalSourceId: 'external_source_id'
     };
 
+    const hasStage = value.stage !== undefined;
+    const hasStatus = value.status !== undefined;
+
     for (const [key, val] of Object.entries(value)) {
       const dbField = fieldMapping[key];
       if (dbField && val !== undefined) {
@@ -540,6 +545,17 @@ const update = async (req, res, next) => {
         fields.push(`${dbField} = $${paramIndex}`);
         values.push(dbValue);
         paramIndex++;
+        
+        // Synchronize stage and status if only one is provided
+        if (key === 'stage' && !hasStatus) {
+          fields.push(`status = $${paramIndex}`);
+          values.push(dbValue);
+          paramIndex++;
+        } else if (key === 'status' && !hasStage) {
+          fields.push(`stage = $${paramIndex}`);
+          values.push(dbValue);
+          paramIndex++;
+        }
       }
     }
 

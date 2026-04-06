@@ -6,8 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "setup:db": "node src/database/setup.js",
-    "db:import": "node src/database/import-database.js"
+    "db:import": "node src/database/import-database.js",
+    "migrate": "node src/database/run-migrations.js"
   },
   "dependencies": {
     "@sendgrid/mail": "^8.1.6",

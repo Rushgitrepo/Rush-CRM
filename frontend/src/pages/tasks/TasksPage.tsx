@@ -10,6 +10,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Plus, Search, Trash2, CheckCircle2, Clock, Eye, Activity,
   FolderKanban, List, LayoutGrid, FolderOpen, ChevronRight,
@@ -335,60 +337,122 @@ export default function TasksPage() {
 
       {/* ══ DIALOGS ══════════════════════════════════════════════════════════ */}
       <Dialog open={taskDialog} onOpenChange={setTaskDialog}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader><DialogTitle>New Task</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-1">
-            <Input
-              placeholder="Task title"
-              className="text-base border-0 border-b rounded-none px-0 focus-visible:ring-0 font-medium placeholder:font-normal"
-              value={newTask.title}
-              onChange={(e) => setNewTask((t) => ({ ...t, title: e.target.value }))}
-              onKeyDown={(e) => e.key === "Enter" && handleCreateTask()}
-              autoFocus
-            />
-            <Textarea
-              placeholder="Add description..."
-              className="text-sm resize-none border-0 border-b rounded-none px-0 focus-visible:ring-0 min-h-[60px]"
-              value={newTask.description}
-              onChange={(e) => setNewTask((t) => ({ ...t, description: e.target.value }))}
-              rows={2}
-            />
-            <div className="flex flex-wrap gap-2 pt-1">
-              <Select value={newTask.priority} onValueChange={(v) => setNewTask((t) => ({ ...t, priority: v }))}>
-                <SelectTrigger className="h-8 w-auto gap-1.5 text-xs border-dashed">
-                  <Flag className="h-3 w-3" /><SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PRIORITY_OPTIONS.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Select value={newTask.project_id || "none"} onValueChange={(v) => setNewTask((t) => ({ ...t, project_id: v === "none" ? "" : v }))}>
-                <SelectTrigger className="h-8 w-auto gap-1.5 text-xs border-dashed">
-                  <Hash className="h-3 w-3" /><SelectValue placeholder="No project" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No project</SelectItem>
-                  {projects.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Select value={newTask.assigned_to || "none"} onValueChange={(v) => setNewTask((t) => ({ ...t, assigned_to: v === "none" ? "" : v }))}>
-                <SelectTrigger className="h-8 w-auto gap-1.5 text-xs border-dashed">
-                  <User className="h-3 w-3" /><SelectValue placeholder="Unassigned" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Unassigned</SelectItem>
-                  {members.map((m) => <SelectItem key={m.id} value={m.id}>{m.full_name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <div className="relative">
-                <CalendarDays className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
-                <Input type="date" className="h-8 pl-7 text-xs border-dashed w-36" value={newTask.due_date} onChange={(e) => setNewTask((t) => ({ ...t, due_date: e.target.value }))} />
+        <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>New Task</DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-6 py-2">
+            <div>
+              <Input
+                placeholder="What needs to be done?"
+                className="text-lg border-0 border-b rounded-none px-0 focus-visible:ring-0 font-medium placeholder:text-muted-foreground/40 bg-transparent"
+                value={newTask.title}
+                onChange={(e) => setNewTask((t) => ({ ...t, title: e.target.value }))}
+                onKeyDown={(e) => e.key === "Enter" && handleCreateTask()}
+                autoFocus
+              />
+            </div>
+            
+            <div>
+              <Textarea
+                placeholder="Add more details or a description..."
+                className="text-sm resize-none border-0 border-b rounded-none px-0 focus-visible:ring-0 min-h-[80px] bg-transparent"
+                value={newTask.description}
+                onChange={(e) => setNewTask((t) => ({ ...t, description: e.target.value }))}
+                rows={3}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Priority</Label>
+                <Select value={newTask.priority} onValueChange={(v) => setNewTask((t) => ({ ...t, priority: v }))}>
+                  <SelectTrigger className="h-9 w-full gap-2 text-sm">
+                    <Flag className="h-3.5 w-3.5" />
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PRIORITY_OPTIONS.map((p) => (
+                      <SelectItem key={p.value} value={p.value}>
+                        <div className="flex items-center gap-2">
+                          <span className={cn("h-2 w-2 rounded-full", p.dot)} />
+                          {p.label}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Project</Label>
+                <Select value={newTask.project_id || "none"} onValueChange={(v) => setNewTask((t) => ({ ...t, project_id: v === "none" ? "" : v }))}>
+                  <SelectTrigger className="h-9 w-full gap-2 text-sm">
+                    <Hash className="h-3.5 w-3.5" />
+                    <SelectValue placeholder="No project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No project</SelectItem>
+                    {projects.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Assignee</Label>
+                <Select value={newTask.assigned_to || "none"} onValueChange={(v) => setNewTask((t) => ({ ...t, assigned_to: v === "none" ? "" : v }))}>
+                  <SelectTrigger className="h-9 w-full gap-2 text-sm">
+                    <User className="h-3.5 w-3.5" />
+                    <SelectValue placeholder="Unassigned" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Unassigned</SelectItem>
+                    {members.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        <div className="flex items-center gap-2">
+                          <Avatar className="h-4 w-4">
+                            <AvatarFallback className="text-[8px]">{getInitials(m.full_name)}</AvatarFallback>
+                          </Avatar>
+                          {m.full_name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Due Date</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={"outline"}
+                      className={cn(
+                        "w-full h-9 justify-start text-sm font-normal gap-2",
+                        !newTask.due_date && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarDays className="h-3.5 w-3.5" />
+                      {newTask.due_date ? format(new Date(newTask.due_date), "PPP") : <span>Pick a date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={newTask.due_date ? new Date(newTask.due_date) : undefined}
+                      onSelect={(d) => setNewTask((t) => ({ ...t, due_date: d ? d.toISOString() : "" }))}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setTaskDialog(false)}>Cancel</Button>
-            <Button size="sm" onClick={handleCreateTask} disabled={!newTask.title.trim() || createTask.isPending}>
+
+          <DialogFooter className="mt-6 pt-2">
+            <Button variant="ghost" size="sm" onClick={() => setTaskDialog(false)}>Cancel</Button>
+            <Button size="sm" className="px-6" onClick={handleCreateTask} disabled={!newTask.title.trim() || createTask.isPending}>
               {createTask.isPending ? "Creating..." : "Create Task"}
             </Button>
           </DialogFooter>

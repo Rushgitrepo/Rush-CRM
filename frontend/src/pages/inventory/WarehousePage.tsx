@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useWarehouses, useStock, useStockAlerts } from "@/hooks/useCrmData";
 import { cn } from "@/lib/utils";
+import { WarehouseDialog } from "@/components/inventory/WarehouseDialog";
 
 const WAREHOUSE_COLORS = ["bg-blue-500","bg-violet-500","bg-emerald-500","bg-orange-500","bg-pink-500","bg-cyan-500"];
 
@@ -17,6 +18,8 @@ function getWarehouseColor(id: string) {
 
 export default function WarehousePage() {
   const [search, setSearch] = useState("");
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedWarehouse, setSelectedWarehouse] = useState<any>(null);
 
   const { data: warehousesData, isLoading, isError } = useWarehouses();
   const { data: stockData } = useStock();
@@ -27,6 +30,22 @@ export default function WarehousePage() {
   // Group stock by warehouse
   const warehouses = useMemo(() => {
     const buckets: Record<string, any> = {};
+
+    // Ensure all created warehouses are visible even if they have no stock
+    const wData = Array.isArray(warehousesData) ? warehousesData : (warehousesData?.data || []);
+    wData.forEach((w: any) => {
+      buckets[w.id] = {
+        id: w.id,
+        name: w.name || "Unknown",
+        location: w.city || w.address || w.code || "—",
+        products: new Set<string>(),
+        totalQty: 0,
+        lowStockItems: 0,
+        outOfStockItems: 0,
+        latestUpdate: w.updated_at,
+      };
+    });
+
     (stockData || []).forEach((row: any) => {
       const key = row.warehouse_id || "unassigned";
       if (!buckets[key]) {
@@ -51,7 +70,7 @@ export default function WarehousePage() {
       }
     });
     return Object.values(buckets).map((b: any) => ({ ...b, productCount: b.products.size }));
-  }, [stockData]);
+  }, [stockData, warehousesData]);
 
   const filtered = useMemo(() => {
     if (!search) return warehouses;
@@ -76,7 +95,7 @@ export default function WarehousePage() {
           <h1 className="text-xl font-semibold">Warehouses</h1>
           <p className="text-sm text-muted-foreground">Storage locations and capacity overview</p>
         </div>
-        <Button size="sm" variant="outline" className="gap-1.5">
+        <Button size="sm" variant="outline" className="gap-1.5" onClick={() => { setSelectedWarehouse(null); setIsDialogOpen(true); }}>
           <Plus className="h-3.5 w-3.5" /> Add Location
         </Button>
       </div>
@@ -184,6 +203,13 @@ export default function WarehousePage() {
           })}
         </div>
       )}
+
+      {/* Warehouse Dialog */}
+      <WarehouseDialog 
+        open={isDialogOpen} 
+        onOpenChange={setIsDialogOpen} 
+        warehouse={selectedWarehouse} 
+      />
     </div>
   );
 }

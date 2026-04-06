@@ -45,7 +45,7 @@ const shareLeadWithWorkspace = async (req, res, next) => {
       // Update existing share
       const result = await db.query(
         `UPDATE lead_workspace_access 
-         SET access_level = $1, expires_at = $2, granted_by = $3, granted_at = NOW()
+         SET access_level = $1, expires_at = $2, granted_by = $3, updated_at = NOW()
          WHERE lead_id = $4 AND workspace_id = $5
          RETURNING *`,
         [accessLevel, expiresAt || null, req.user.id, leadId, workspaceId]
@@ -81,7 +81,7 @@ const getLeadSharedWorkspaces = async (req, res, next) => {
        LEFT JOIN users u ON u.id = lwa.granted_by
        WHERE lwa.lead_id = $1
        AND (lwa.expires_at IS NULL OR lwa.expires_at > CURRENT_TIMESTAMP)
-       ORDER BY lwa.granted_at DESC`,
+       ORDER BY lwa.created_at DESC`,
       [leadId]
     );
 

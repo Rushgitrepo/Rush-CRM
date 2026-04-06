@@ -77,17 +77,17 @@ export function useComments(entityType: string, entityId: string) {
 export function useCreateComment() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (payload: { entity_type: string; entity_id: string; content: string }) => 
+    mutationFn: (payload: { entityType: string; entityId: string; content: string }) => 
       activitiesApi.create({
-        entityType: payload.entity_type,
-        entityId: payload.entity_id,
+        entityType: payload.entityType,
+        entityId: payload.entityId,
         activityType: 'comment',
         description: payload.content,
         title: 'Comment added'
       }),
     onSuccess: (_, vars) => {
-      queryClient.invalidateQueries({ queryKey: ['activities', vars.entity_type, vars.entity_id] });
-      queryClient.invalidateQueries({ queryKey: ['comments', vars.entity_type, vars.entity_id] });
+      queryClient.invalidateQueries({ queryKey: ['activities', vars.entityType, vars.entityId] });
+      queryClient.invalidateQueries({ queryKey: ['comments', vars.entityType, vars.entityId] });
       toast.success('Comment created');
     },
     onError: (error: any) => toast.error(error.message || 'Failed to create comment'),
@@ -97,9 +97,9 @@ export function useCreateComment() {
 export function useDeleteComment() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { id: string; entity_type: string; entity_id: string }) => payload,
-    onSuccess: (vars) => {
-      queryClient.invalidateQueries({ queryKey: ['comments', vars.entity_type, vars.entity_id] });
+    mutationFn: async (payload: { id: string; entityType: string; entityId: string }) => payload,
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['comments', vars.entityType, vars.entityId] });
       toast.success('Comment deleted');
     },
     onError: (error: any) => toast.error(`Failed to delete comment: ${error?.message ?? error}`),
@@ -109,9 +109,9 @@ export function useDeleteComment() {
 export function useUpdateComment() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { id: string; content: string; entity_type: string; entity_id: string }) => payload,
+    mutationFn: async (payload: { id: string; content: string; entityType: string; entityId: string }) => payload,
     onSuccess: (_, vars) => {
-      queryClient.invalidateQueries({ queryKey: ['comments', vars.entity_type, vars.entity_id] });
+      queryClient.invalidateQueries({ queryKey: ['comments', vars.entityType, vars.entityId] });
       toast.success('Comment updated');
     },
     onError: (error: any) => toast.error(`Failed to update comment: ${error?.message ?? error}`),

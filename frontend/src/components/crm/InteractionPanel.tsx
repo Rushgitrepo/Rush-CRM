@@ -48,8 +48,8 @@ export function InteractionPanel({ entityType, entityId }: InteractionPanelProps
   const handleSubmitComment = () => {
     if (!commentText.trim()) return;
     createComment.mutate({
-      entity_type: entityType,
-      entity_id: entityId,
+      entityType: entityType,
+      entityId: entityId,
       content: commentText,
     });
     setCommentText("");
@@ -57,7 +57,7 @@ export function InteractionPanel({ entityType, entityId }: InteractionPanelProps
 
   const handleEditSave = (id: string) => {
     updateComment.mutate({
-      id, content: editText, entity_type: entityType, entity_id: entityId,
+      id, content: editText, entityType: entityType, entityId: entityId,
     });
     setEditingId(null);
   };
@@ -73,7 +73,7 @@ export function InteractionPanel({ entityType, entityId }: InteractionPanelProps
       activityType: a.activity_type,
       createdAt: a.created_at,
       userId: a.user_id,
-      userName: a.user_name,
+      userName: a.user_name || (a.user_id === user?.id ? profile?.full_name : null),
     })),
     ...comments.map(c => ({
       id: c.id,
@@ -83,7 +83,7 @@ export function InteractionPanel({ entityType, entityId }: InteractionPanelProps
       activityType: 'comment',
       createdAt: c.created_at,
       userId: c.user_id,
-      userName: c.user_name,
+      userName: c.user_name || (c.user_id === user?.id ? profile?.full_name : null),
       isEdited: c.is_edited,
     })),
   ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -204,7 +204,12 @@ export function InteractionPanel({ entityType, entityId }: InteractionPanelProps
                       </div>
                     ) : (
                       <>
-                        <p className="text-sm">{item.content}</p>
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-xs font-bold text-slate-900 leading-none">
+                            {item.userName || "Unknown User"}
+                          </span>
+                        </div>
+                        <p className="text-sm text-slate-700 leading-relaxed">{item.content}</p>
                         {item.detail && item.type === 'activity' && (
                           <p className="text-xs text-muted-foreground mt-0.5">{item.detail}</p>
                         )}
@@ -227,7 +232,7 @@ export function InteractionPanel({ entityType, entityId }: InteractionPanelProps
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-destructive"
-                          onClick={() => deleteComment.mutate({ id: item.id, entity_type: entityType, entity_id: entityId })}
+                          onClick={() => deleteComment.mutate({ id: item.id, entityType: entityType, entityId: entityId })}
                         >
                           <Trash2 className="h-3 w-3 mr-2" /> Delete
                         </DropdownMenuItem>

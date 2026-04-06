@@ -276,6 +276,7 @@ export default function CustomersPage() {
               columns={columns}
               isLoading={isLoading}
               pageSize={8}
+              onRowClick={(c) => navigate(`/crm/customers/${c.id}`)}
               emptyState={
                 <EmptyState
                   title="No customers yet"

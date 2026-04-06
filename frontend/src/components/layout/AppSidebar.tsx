@@ -73,6 +73,7 @@ const navigation: NavItem[] = [
     href: "/",
     icon: LayoutDashboard,
   },
+ 
   {
     title: "Tasks & Projects",
     href: "/tasks",
@@ -236,7 +237,8 @@ export function AppSidebar() {
     if (hasNestedChildren) {
       return (
         <div key={child.href}>
-          <button
+          <NavLink
+            to={child.href}
             onClick={() => toggleSubItem(child.title)}
             className={cn(
               "flex w-full items-center justify-between gap-3 rounded-lg py-2 pl-11 pr-3 text-sm transition-colors",
@@ -255,7 +257,7 @@ export function AppSidebar() {
                 isExpanded && "rotate-180"
               )}
             />
-          </button>
+          </NavLink>
           
           {/* Inline expanded submenu */}
           {isExpanded && (
