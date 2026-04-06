@@ -6,17 +6,15 @@ require('dotenv').config();
 console.log('\n--- IMPORTING DATABASE ---\n');
 
 async function importDatabase() {
-  let sqlFile = path.join(__dirname, 'CRM.sql');
+  // Try database.sql first (consolidated schema), then CRM.sql as fallback
+  let sqlFile = path.join(__dirname, 'schema.sql');
 
   if (!fs.existsSync(sqlFile)) {
-    sqlFile = path.join(__dirname, '..', '..', 'CRM.sql');
+    sqlFile = path.join(__dirname, '..', '..', 'schema.sql');
   }
 
   if (!fs.existsSync(sqlFile)) {
-    console.error('ERROR: CRM.sql not found!');
-    console.log('Searched in:');
-    console.log('  - backend/src/database/CRM.sql');
-    console.log('  - backend/CRM.sql');
+    console.error('ERROR: schema.sql not found!');
     process.exit(1);
   }
 
@@ -36,30 +34,75 @@ async function importDatabase() {
 
     console.log('Processing SQL statements...\n');
 
-    // SQL parser - handles quotes, semicolons, dollar-quoted strings
+    // SQL parser - handles quotes, semicolons, dollar-quoted strings ($$)
     const statements = [];
     let current = '';
     let inQuote = false;
+    let inDollarQuote = false;
+    let inComment = false;
+    let inMultiLineComment = false;
 
     for (let i = 0; i < sqlContent.length; i++) {
       const ch = sqlContent[i];
+      const nextCh = sqlContent[i + 1];
 
-      if (ch === "'" && !inQuote) {
-        inQuote = true;
-      } else if (ch === "'" && inQuote) {
-        if (i + 1 < sqlContent.length && sqlContent[i + 1] === "'") {
-          current += "''";
+      // Handle psql backslash commands (\) - skip until newline
+      if (ch === '\\' && !inQuote && !inDollarQuote && !inComment && !inMultiLineComment) {
+        while (i < sqlContent.length && sqlContent[i] !== '\n') {
           i++;
-          continue;
         }
-        inQuote = false;
+        continue;
+      }
+
+      // Handle single-line comments (--)
+      if (ch === '-' && nextCh === '-' && !inQuote && !inDollarQuote && !inMultiLineComment) {
+        inComment = true;
+      }
+      if (inComment && ch === '\n') {
+        inComment = false;
+      }
+
+      // Handle multi-line comments (/* */)
+      if (ch === '/' && nextCh === '*' && !inQuote && !inDollarQuote && !inComment) {
+        inMultiLineComment = true;
+        current += ch;
+        continue;
+      }
+      if (inMultiLineComment && ch === '*' && nextCh === '/') {
+        inMultiLineComment = false;
+        current += '*/';
+        i++;
+        continue;
+      }
+
+      // Handle dollar quoting ($$...$$) used in PL/pgSQL functions
+      if (ch === '$' && nextCh === '$' && !inComment && !inMultiLineComment) {
+        inDollarQuote = !inDollarQuote;
+        current += '$$';
+        i++;
+        continue;
+      }
+
+      if (!inDollarQuote && !inComment && !inMultiLineComment) {
+        if (ch === "'" && !inQuote) {
+          inQuote = true;
+        } else if (ch === "'" && inQuote) {
+          if (nextCh === "'") {
+            current += "''";
+            i++;
+            continue;
+          }
+          inQuote = false;
+        }
       }
 
       current += ch;
 
-      if (ch === ';' && !inQuote) {
+      if (ch === ';' && !inQuote && !inDollarQuote && !inComment && !inMultiLineComment) {
         const stmt = current.trim();
-        if (stmt.length > 1 && !stmt.startsWith('--')) {
+        // Check if there's actual SQL that isn't just comments
+        const sqlOnly = stmt.replace(/--.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '').trim();
+        if (sqlOnly.length > 1) {
           statements.push(stmt);
         }
         current = '';
@@ -67,7 +110,11 @@ async function importDatabase() {
     }
 
     if (current.trim().length > 1) {
-      statements.push(current.trim());
+      const finalStmt = current.trim();
+      const sqlOnly = finalStmt.replace(/^(--[^\n]*\n\s*)+/g, '').trim();
+      if (sqlOnly.length > 1) {
+        statements.push(finalStmt);
+      }
     }
 
     console.log(`Found ${statements.length} SQL statements\n`);
@@ -83,7 +130,7 @@ async function importDatabase() {
 
         if (stmt.toUpperCase().includes('CREATE TABLE')) {
           tables++;
-          const m = stmt.match(/CREATE TABLE\s+(?:IF NOT EXISTS\s+)?(\w+)/i);
+          const m = stmt.match(/CREATE TABLE\s+(?:IF NOT EXISTS\s+)?(?:public\.)?(\w+)/i);
           if (m) console.log(`  [OK] Created table: ${m[1]}`);
         } else if (stmt.toUpperCase().includes('INSERT INTO')) {
           inserts++;
