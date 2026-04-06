@@ -68,6 +68,8 @@ import PurchaseOrdersPage from "./pages/inventory/PurchaseOrdersPage";
 import VendorsPage from "./pages/inventory/VendorsPage";
 import WarehousePage from "./pages/inventory/WarehousePage";
 import EmployeeAssignmentsPage from "./pages/inventory/EmployeeAssignmentsPage";
+import CarInventoryPage from "./pages/inventory/CarInventoryPage";
+import CarFormPage from "./pages/inventory/CarFormPage";
 // Admin
 import UsersPage from "./pages/admin/UsersPage";
 import RolesPage from "./pages/admin/RolesPage";
@@ -182,6 +184,9 @@ const App = () => (
                   <Route path="/inventory/warehouse" element={<WarehousePage />} />
                   <Route path="/inventory/warehouses" element={<WarehousePage />} />
                   <Route path="/inventory/assignments" element={<EmployeeAssignmentsPage />} />
+                  <Route path="/inventory/cars" element={<CarInventoryPage />} />
+                  <Route path="/inventory/cars/new" element={<CarFormPage />} />
+                  <Route path="/inventory/cars/:id/edit" element={<CarFormPage />} />
                   {/* Admin Routes - restricted to admin users */}
                   <Route path="/admin/users" element={<AdminRoute><UsersPage /></AdminRoute>} />
                   <Route path="/admin/roles" element={<AdminRoute><RolesPage /></AdminRoute>} />
