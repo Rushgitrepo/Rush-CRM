@@ -506,6 +506,7 @@ CREATE TABLE public.crm_activities (
     activity_type character varying(100),
     title character varying(255),
     description text,
+    metadata jsonb DEFAULT '{}'::jsonb,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now()
 );
