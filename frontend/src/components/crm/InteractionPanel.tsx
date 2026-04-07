@@ -21,6 +21,8 @@ import {
 interface InteractionPanelProps {
   entityType: string;
   entityId: string;
+  activeTab?: string;
+  onTabChange?: (tab: string) => void;
 }
 
 const tabs = [
@@ -31,8 +33,10 @@ const tabs = [
   { id: "task", label: "Task", icon: CheckSquare },
 ];
 
-export function InteractionPanel({ entityType, entityId }: InteractionPanelProps) {
-  const [activeTab, setActiveTab] = useState("activity");
+export function InteractionPanel({ entityType, entityId, activeTab: externalTab, onTabChange }: InteractionPanelProps) {
+  const [internalTab, setInternalTab] = useState("activity");
+  const activeTab = externalTab || internalTab;
+  const setActiveTab = onTabChange || setInternalTab;
   const [commentText, setCommentText] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");

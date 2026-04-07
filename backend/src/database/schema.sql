@@ -3129,7 +3129,7 @@ CREATE TABLE public.workgroups (
     is_active boolean DEFAULT true,
     settings jsonb DEFAULT '{}'::jsonb,
     cover_image character varying(500),
-    CONSTRAINT workgroups_type_check CHECK (((type)::text = ANY (ARRAY[('team'::character varying)::text, ('project'::character varying)::text, ('private'::character varying)::text])))
+    CONSTRAINT workgroups_type_check CHECK (((type)::text = ANY (ARRAY[('team'::character varying)::text, ('project'::character varying)::text, ('private'::character varying)::text, ('department'::character varying)::text])))
 );
 
 

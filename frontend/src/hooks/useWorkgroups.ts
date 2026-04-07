@@ -8,7 +8,7 @@ export interface Workgroup {
   name: string;
   description?: string;
   avatar_color: string;
-  type: 'team' | 'project' | 'private';
+  type: 'team' | 'project' | 'private' | 'department';
   is_private: boolean;
   is_archived: boolean;
   created_by: string;
