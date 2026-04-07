@@ -33,6 +33,7 @@ import WorkgroupsPage from "./pages/collaboration/WorkgroupsPage";
 import LeadsPage from "./pages/crm/LeadsPage";
 import CreateLeadPage from "./pages/crm/CreateLeadPage";
 import LeadImportPage from "./pages/leads/LeadImportPage";
+import ContactImportPage from "./pages/crm/ContactImportPage";
 import ExternalSourcesPage from "./pages/leads/ExternalSourcesPage";
 import CreateWorkspacePage from "./pages/workspaces/CreateWorkspacePage";
 import DealsPage from "./pages/crm/DealsPage";
@@ -153,6 +154,7 @@ const App = () => (
                   <Route path="/crm/customers" element={<CustomersPage />} />
                   <Route path="/crm/customers/:id" element={<CustomerDetailPage />} />
                   <Route path="/crm/customers/contacts" element={<ContactsPage />} />
+                  <Route path="/crm/customers/contacts/import" element={<ContactImportPage />} />
                   <Route path="/crm/customers/contacts/create" element={<CreateContactPage />} />
                   <Route path="/crm/customers/contacts/:id" element={<ContactDetailPage />} />
                   <Route path="/crm/customers/companies" element={<CompaniesPage />} />

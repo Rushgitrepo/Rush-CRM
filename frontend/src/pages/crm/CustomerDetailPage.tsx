@@ -353,52 +353,85 @@ export default function CustomerDetailPage() {
 
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="icon" className="border-slate-300">
-                        <MoreHorizontal className="h-4 w-4" />
+                      <Button 
+                        variant="outline" 
+                        size="icon" 
+                        className="h-9 w-9 border-slate-300 hover:border-slate-400 hover:bg-slate-50 transition-all duration-200 rounded-lg shadow-sm hover:shadow-md"
+                      >
+                        <MoreHorizontal className="h-4 w-4 text-slate-600" />
+                        <span className="sr-only">More options</span>
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-64 p-2 rounded-2xl shadow-xl border-slate-200 z-[100] pointer-events-auto">
+                    <DropdownMenuContent align="end" className="w-72 p-2 rounded-xl shadow-xl border-slate-200 z-[100] bg-white pointer-events-auto">
                       <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Communication</DropdownMenuLabel>
                       {customer.email && (
                         <DropdownMenuItem onClick={() => copyToClipboard(customer.email, 'Email')} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
-                          <Mail className="h-4 w-4 text-blue-500" />
-                          <p className="font-medium text-sm">Copy Email Address</p>
+                          <div className="p-2 bg-blue-50 rounded-md">
+                            <Mail className="h-4 w-4 text-blue-600" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-sm text-slate-900">Copy Email Address</p>
+                            <p className="text-xs text-slate-500 truncate">{customer.email}</p>
+                          </div>
                         </DropdownMenuItem>
                       )}
                       {customer.phone && (
                         <DropdownMenuItem onClick={() => copyToClipboard(customer.phone, 'Phone')} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
-                          <Phone className="h-4 w-4 text-emerald-500" />
-                          <p className="font-medium text-sm">Copy Phone Number</p>
+                          <div className="p-2 bg-emerald-50 rounded-md">
+                            <Phone className="h-4 w-4 text-emerald-600" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-sm text-slate-900">Copy Phone Number</p>
+                            <p className="text-xs text-slate-500">{customer.phone}</p>
+                          </div>
                         </DropdownMenuItem>
                       )}
-                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Reports & Data</DropdownMenuLabel>
-                      <DropdownMenuItem onClick={handlePrint} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
-                        <Printer className="h-4 w-4 text-orange-500" />
-                        <p className="font-medium text-sm">Print Client Details</p>
+
+                      <DropdownMenuSeparator className="my-2 bg-slate-100" />
+
+                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Quick Jump</DropdownMenuLabel>
+                      <DropdownMenuItem onClick={() => handleScrollToActivity("activity")} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                        <div className="p-2 bg-purple-50 rounded-md">
+                          <Activity className="h-4 w-4 text-purple-600" />
+                        </div>
+                        <p className="font-semibold text-sm text-slate-900">View Activity Timeline</p>
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={handleExport} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
-                        <Download className="h-4 w-4 text-emerald-500" />
-                        <p className="font-medium text-sm">Export as JSON</p>
+                      <DropdownMenuItem onClick={() => handleScrollToActivity("activity", "booking")} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                        <div className="p-2 bg-orange-50 rounded-md">
+                          <Calendar className="h-4 w-4 text-orange-600" />
+                        </div>
+                        <p className="font-semibold text-sm text-slate-900">Schedule Review</p>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                        <div className="p-2 bg-indigo-50 rounded-md">
+                          <MessageSquare className="h-4 w-4 text-indigo-600" />
+                        </div>
+                        <p className="font-semibold text-sm text-slate-900">Send Message</p>
                       </DropdownMenuItem>
 
                       <DropdownMenuSeparator className="my-2 bg-slate-100" />
-                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Quick Actions</DropdownMenuLabel>
-                      <DropdownMenuItem onClick={() => handleScrollToActivity("activity")} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
-                        <Activity className="h-4 w-4 text-purple-500" />
-                        <p className="font-medium text-sm">View Activity Timeline</p>
+
+                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Reports & Data</DropdownMenuLabel>
+                      <DropdownMenuItem onClick={handlePrint} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                        <div className="p-2 bg-orange-50 rounded-md">
+                          <Printer className="h-4 w-4 text-orange-600" />
+                        </div>
+                        <p className="font-semibold text-sm text-slate-900">Print Client Details</p>
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleScrollToActivity("activity", "booking")} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
-                        <Calendar className="h-4 w-4 text-orange-500" />
-                        <p className="font-medium text-sm">Schedule Review</p>
+                      <DropdownMenuItem onClick={handleExport} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                        <div className="p-2 bg-emerald-50 rounded-md">
+                          <Download className="h-4 w-4 text-emerald-600" />
+                        </div>
+                        <p className="font-semibold text-sm text-slate-900">Export as JSON</p>
                       </DropdownMenuItem>
-                      <DropdownMenuItem className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
-                        <MessageSquare className="h-4 w-4 text-indigo-500" />
-                        <p className="font-medium text-sm">Send Message</p>
-                      </DropdownMenuItem>
+
                       <DropdownMenuSeparator className="my-2 bg-slate-100" />
-                      <DropdownMenuItem onClick={() => setShowDeleteDialog(true)} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-red-50 text-red-600 transition-colors">
-                        <Trash2 className="h-4 w-4" />
-                        <p className="font-medium text-sm">Delete Customer</p>
+
+                      <DropdownMenuItem onClick={() => setShowDeleteDialog(true)} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-red-50 group transition-colors">
+                        <div className="p-2 bg-red-50 rounded-md group-hover:bg-red-100 transition-colors">
+                          <Trash2 className="h-4 w-4 text-red-600" />
+                        </div>
+                        <p className="font-semibold text-sm text-red-600">Delete Customer</p>
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>

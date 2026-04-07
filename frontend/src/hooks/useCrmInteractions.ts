@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { leadsApi, dealsApi, contactsApi, companiesApi, activitiesApi } from '@/lib/api';
+import { leadsApi, dealsApi, contactsApi, companiesApi, activitiesApi, crmCommentsApi, crmDocumentsApi } from '@/lib/api';
 import { toast } from 'sonner';
 
 export function useActivities(entityType: string, entityId: string) {
@@ -61,15 +61,11 @@ export function useCompany(id: string) {
   });
 }
 
-// Comments timeline helpers (unified with activities for now)
+// Separate Comments entity hooks
 export function useComments(entityType: string, entityId: string) {
-  const queryKey = ['comments', entityType, entityId];
   return useQuery({
-    queryKey,
-    queryFn: async () => {
-      const activities = await activitiesApi.getByEntity(entityType, entityId);
-      return activities.filter((a: any) => a.activity_type === 'comment');
-    },
+    queryKey: ['comments', entityType, entityId],
+    queryFn: () => crmCommentsApi.getByEntity(entityType, entityId),
     enabled: !!entityId && !!entityType,
   });
 }
@@ -78,15 +74,8 @@ export function useCreateComment() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: { entityType: string; entityId: string; content: string }) => 
-      activitiesApi.create({
-        entityType: payload.entityType,
-        entityId: payload.entityId,
-        activityType: 'comment',
-        description: payload.content,
-        title: 'Comment added'
-      }),
+      crmCommentsApi.create(payload),
     onSuccess: (_, vars) => {
-      queryClient.invalidateQueries({ queryKey: ['activities', vars.entityType, vars.entityId] });
       queryClient.invalidateQueries({ queryKey: ['comments', vars.entityType, vars.entityId] });
       toast.success('Comment created');
     },
@@ -97,7 +86,8 @@ export function useCreateComment() {
 export function useDeleteComment() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { id: string; entityType: string; entityId: string }) => payload,
+    mutationFn: (payload: { id: string; entityType: string; entityId: string }) => 
+      crmCommentsApi.delete(payload.id),
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ['comments', vars.entityType, vars.entityId] });
       toast.success('Comment deleted');
@@ -109,11 +99,47 @@ export function useDeleteComment() {
 export function useUpdateComment() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { id: string; content: string; entityType: string; entityId: string }) => payload,
+    mutationFn: (payload: { id: string; content: string; entityType: string; entityId: string }) => 
+      crmCommentsApi.update(payload.id, payload.content),
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ['comments', vars.entityType, vars.entityId] });
       toast.success('Comment updated');
     },
     onError: (error: any) => toast.error(`Failed to update comment: ${error?.message ?? error}`),
+  });
+}
+
+// Separate Documents entity hooks
+export function useDocuments(entityType: string, entityId: string) {
+  return useQuery({
+    queryKey: ['documents', entityType, entityId],
+    queryFn: () => crmDocumentsApi.getByEntity(entityType, entityId),
+    enabled: !!entityId && !!entityType,
+  });
+}
+
+export function useUploadDocument() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { entityType: string; entityId: string; file: File }) => 
+      crmDocumentsApi.upload(payload.entityType, payload.entityId, payload.file),
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['documents', vars.entityType, vars.entityId] });
+      toast.success('Document uploaded successfully');
+    },
+    onError: (error: any) => toast.error(`Upload failed: ${error?.message ?? error}`),
+  });
+}
+
+export function useDeleteDocument() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { id: string; entityType: string; entityId: string }) => 
+      crmDocumentsApi.delete(payload.id),
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['documents', vars.entityType, vars.entityId] });
+      toast.success('Document deleted');
+    },
+    onError: (error: any) => toast.error(`Failed to delete document: ${error?.message ?? error}`),
   });
 }

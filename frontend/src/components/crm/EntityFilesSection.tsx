@@ -15,9 +15,8 @@ import {
   Loader2,
   Upload,
 } from "lucide-react";
-import { useEntityDriveFiles, useLinkDriveFile, useUnlinkDriveFile } from "@/hooks/useEntityDriveFiles";
+import { useDocuments, useUploadDocument, useDeleteDocument } from "@/hooks/useCrmInteractions";
 import { useAuth } from "@/contexts/AuthContext";
-import { api } from "@/lib/api";
 import { toast } from "sonner";
 
 interface EntityFilesSectionProps {
@@ -26,12 +25,11 @@ interface EntityFilesSectionProps {
 }
 
 export function EntityFilesSection({ entityType, entityId }: EntityFilesSectionProps) {
-  const { data: files, isLoading } = useEntityDriveFiles(entityType, entityId);
-  const linkFile = useLinkDriveFile();
-  const unlinkFile = useUnlinkDriveFile();
+  const { data: files, isLoading } = useDocuments(entityType, entityId);
+  const uploadDocument = useUploadDocument();
+  const deleteDocument = useDeleteDocument();
   const { profile, user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
@@ -45,136 +43,171 @@ export function EntityFilesSection({ entityType, entityId }: EntityFilesSectionP
       return;
     }
 
-    setUploading(true);
     try {
       for (const file of Array.from(selectedFiles)) {
-        toast.info(`File storage not yet implemented - ${file.name}`);
+        await uploadDocument.mutateAsync({
+          entityType,
+          entityId,
+          file,
+        });
       }
     } catch (err: any) {
       toast.error(err.message || "Upload failed");
     } finally {
-      setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
-  const handleDownload = async (file: { provider: string; file_id: string; file_name: string }) => {
+  const handleDownload = async (file: { file_path: string; file_name: string }) => {
     try {
-      toast.info("Downloading...");
-      if (file.provider === "local") {
-        toast.info("Local file download not yet implemented");
-      } else if (file.provider === "google_drive") {
-        const { googleDriveService } = await import("@/services/googleDriveService");
-        await googleDriveService.downloadFile(file.file_id, file.file_id);
-        toast.success("Download complete");
-      } else {
-        const { oneDriveService } = await import("@/services/oneDriveService");
-        await oneDriveService.downloadFile(file.file_id, file.file_id);
-        toast.success("Download complete");
-      }
+      const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3001';
+      const downloadUrl = `${baseUrl}${file.file_path}`;
+      
+      // Create a temporary link and click it to trigger download
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.setAttribute('download', file.file_name);
+      link.setAttribute('target', '_blank');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success("Download started");
     } catch (error: any) {
       toast.error(error.message || "Failed to download");
     }
   };
 
-  const handleUnlink = async (file: { id: string; provider: string; file_id: string }) => {
-    unlinkFile.mutate({ id: file.id, entityType, entityId });
+  const handleDelete = async (id: string) => {
+    if (window.confirm("Are you sure you want to delete this document?")) {
+      deleteDocument.mutate({ id, entityType, entityId });
+    }
   };
 
   const getFileIcon = (mimeType: string | null) => {
     if (!mimeType) return <File className="h-4 w-4 text-muted-foreground" />;
-    if (mimeType.startsWith("image/")) return <Image className="h-4 w-4 text-emerald-500" />;
-    if (mimeType.startsWith("video/")) return <Video className="h-4 w-4 text-purple-500" />;
-    if (mimeType.startsWith("audio/")) return <Music className="h-4 w-4 text-pink-500" />;
-    if (mimeType.includes("spreadsheet") || mimeType.includes("excel")) return <FileSpreadsheet className="h-4 w-4 text-green-600" />;
-    if (mimeType === "application/pdf") return <FileText className="h-4 w-4 text-red-500" />;
-    if (mimeType.includes("document") || mimeType.includes("word")) return <FileText className="h-4 w-4 text-blue-500" />;
-    if (mimeType.includes("zip") || mimeType.includes("archive")) return <Archive className="h-4 w-4 text-muted-foreground" />;
-    if (mimeType.includes("folder")) return <Folder className="h-4 w-4 text-amber-500" />;
+    const type = mimeType.toLowerCase();
+    if (type.startsWith("image/")) return <Image className="h-4 w-4 text-emerald-500" />;
+    if (type.startsWith("video/")) return <Video className="h-4 w-4 text-purple-500" />;
+    if (type.startsWith("audio/")) return <Music className="h-4 w-4 text-pink-500" />;
+    if (type.includes("spreadsheet") || type.includes("excel") || type.includes("csv")) return <FileSpreadsheet className="h-4 w-4 text-green-600" />;
+    if (type === "application/pdf") return <FileText className="h-4 w-4 text-red-500" />;
+    if (type.includes("document") || type.includes("word")) return <FileText className="h-4 w-4 text-blue-500" />;
+    if (type.includes("zip") || type.includes("archive") || type.includes("compressed")) return <Archive className="h-4 w-4 text-muted-foreground" />;
+    if (type.includes("folder")) return <Folder className="h-4 w-4 text-amber-500" />;
     return <File className="h-4 w-4 text-muted-foreground" />;
   };
 
-  const formatSize = (bytes: number | null) => {
+  const formatSize = (bytes: number | string | null) => {
     if (!bytes) return "";
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+    const numBytes = typeof bytes === 'string' ? parseInt(bytes) : bytes;
+    if (numBytes < 1024) return `${numBytes} B`;
+    if (numBytes < 1024 * 1024) return `${(numBytes / 1024).toFixed(1)} KB`;
+    if (numBytes < 1024 * 1024 * 1024) return `${(numBytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(numBytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
   };
 
   return (
-    <Collapsible defaultOpen>
-      <div className="border border-border rounded-lg bg-card">
-        <CollapsibleTrigger className="flex items-center justify-between w-full p-4 hover:bg-muted/50">
-          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Files {files && files.length > 0 && `(${files.length})`}
-          </span>
+    <Collapsible defaultOpen className="group/collapsible">
+      <div className="border border-border rounded-lg bg-card overflow-hidden transition-all hover:shadow-sm">
+        <CollapsibleTrigger className="flex items-center justify-between w-full p-4 hover:bg-muted/50 transition-colors">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Documents & Attachments
+            </span>
+            {files && files.length > 0 && (
+              <span className="bg-primary/10 text-primary text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                {files.length}
+              </span>
+            )}
+          </div>
+          <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+            <Folder className="h-3 w-3 text-muted-foreground" />
+          </Button>
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <div className="px-4 pb-4 space-y-2">
-            {isLoading ? (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              </div>
-            ) : files && files.length > 0 ? (
-              <div className="space-y-1">
-                {files.map(file => (
-                  <div key={file.id} className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 group">
-                    {getFileIcon(file.mime_type)}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{file.file_name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {file.file_size ? formatSize(file.file_size) : ""}
-                      </p>
+          <div className="px-4 pb-4 space-y-3">
+            <div className="max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+              {isLoading ? (
+                <div className="flex flex-col items-center justify-center py-8 gap-2">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary/40" />
+                  <span className="text-xs text-muted-foreground animate-pulse">Loading documents...</span>
+                </div>
+              ) : files && files.length > 0 ? (
+                <div className="space-y-1">
+                  {files.map((file: any) => (
+                    <div key={file.id} className="flex items-center gap-3 p-2.5 rounded-lg border border-transparent hover:border-border hover:bg-muted/30 transition-all group/item">
+                      <div className="p-2 rounded-md bg-muted group-hover/item:bg-background transition-colors">
+                        {getFileIcon(file.mime_type || file.file_name?.split('.').pop())}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-slate-900 truncate group-hover/item:text-primary transition-colors">
+                          {file.file_name}
+                        </p>
+                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
+                          <span>{formatSize(file.file_size)}</span>
+                          <span className="w-1 h-1 rounded-full bg-border" />
+                          <span>{file.user_name || 'System'}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-all translate-x-2 group-hover/item:translate-x-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 hover:bg-primary/10 hover:text-primary"
+                          onClick={() => handleDownload(file)}
+                          title="Download"
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
+                          onClick={() => handleDelete(file.id)}
+                          title="Delete"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => handleDownload(file)}
-                        title="Download"
-                      >
-                        <Download className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-destructive"
-                        onClick={() => handleUnlink(file)}
-                        title="Remove file"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">No files attached</p>
-            )}
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              className="hidden"
-              onChange={handleFileChange}
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full mt-2"
-              onClick={handleUploadClick}
-              disabled={uploading}
-            >
-              {uploading ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ))}
+                </div>
               ) : (
-                <Upload className="h-4 w-4 mr-1" />
+                <div className="flex flex-col items-center justify-center py-10 border-2 border-dashed border-muted rounded-xl bg-muted/10">
+                  <File className="h-10 w-10 text-muted-foreground/30 mb-2" />
+                  <p className="text-sm font-medium text-muted-foreground">No documents attached</p>
+                  <p className="text-xs text-muted-foreground/60 mt-1">Upload files related to this record</p>
+                </div>
               )}
-              {uploading ? "Uploading..." : "Upload Document"}
-            </Button>
+            </div>
+
+            <div className="pt-2 border-t border-border/50">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={handleFileChange}
+              />
+              <Button
+                variant="default"
+                size="sm"
+                className="w-full h-10 font-bold shadow-sm hover:translate-y-[-1px] transition-all"
+                onClick={handleUploadClick}
+                disabled={uploadDocument.isPending}
+              >
+                {uploadDocument.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Upload className="h-4 w-4 mr-2" />
+                )}
+                {uploadDocument.isPending ? "Uploading Files..." : "Upload New Document"}
+              </Button>
+              <p className="text-[10px] text-center text-muted-foreground mt-2">
+                Supported formats: PDF, DOCX, XLSX, Images (Max 20MB)
+              </p>
+            </div>
           </div>
         </CollapsibleContent>
       </div>

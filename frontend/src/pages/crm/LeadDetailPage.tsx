@@ -501,7 +501,7 @@ export default function LeadDetailPage() {
                     </Button>
                   ) : (
                     <Button
-                      className="gap-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white shadow-lg"
+                      className="gap-2 bg-primary hover:bg-primary/90 text-white shadow-lg"
                       onClick={() => setShowConvertDialog(true)}
                     >
                       <ArrowRightLeft className="h-4 w-4" />
@@ -515,7 +515,7 @@ export default function LeadDetailPage() {
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-64 p-2 shadow-2xl border-slate-200 z-[100] bg-white pointer-events-auto">
+                    <DropdownMenuContent align="end" className="w-72 p-2 shadow-2xl border-slate-200 z-[100] bg-white pointer-events-auto rounded-xl">
                       <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Communication</DropdownMenuLabel>
                       {lead.email && (
                         <DropdownMenuItem
@@ -886,9 +886,9 @@ export default function LeadDetailPage() {
 
               {/* Lead Qualification */}
               <Card className="shadow-xl border-0 bg-white">
-                <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 border-b border-slate-200 rounded-t-lg">
+                <CardHeader className="bg-primary/10 border-b border-slate-200 rounded-t-lg">
                   <CardTitle className="flex items-center gap-3 text-xl">
-                    <div className="p-2 bg-purple-500 rounded-lg">
+                    <div className="p-2 bg-primary rounded-lg">
                       <Target className="h-5 w-5 text-white" />
                     </div>
                     Lead Qualification & Sales Information
