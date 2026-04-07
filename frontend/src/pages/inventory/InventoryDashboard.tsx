@@ -4,23 +4,37 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Package, ShoppingCart, Warehouse, Users, TrendingUp, TrendingDown,
   AlertTriangle, CheckCircle, Clock, DollarSign, ArrowUpRight, Box,
-  Truck, FileText, Activity, BarChart3,
+  Truck, FileText, Activity, Car, Building2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-
-function getInitials(name: string) {
-  return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
-}
+import { useCarWorkspaces, useCarStats } from "@/hooks/useCarInventory";
 
 export default function InventoryDashboard() {
   const navigate = useNavigate();
+  const [selectedWorkspace, setSelectedWorkspace] = useState<string>("biwords");
+
+  // Fetch car workspaces
+  const { data: carWorkspaces = [] } = useCarWorkspaces();
+  
+  const { data: carStats } = useCarStats(
+    selectedWorkspace !== "biwords" ? selectedWorkspace : undefined
+  );
+
+  // Check if current workspace is a car workspace
+  const isCarWorkspace = selectedWorkspace !== "biwords";
 
   // Fetch dashboard stats
   const { data: statsResp } = useQuery({
@@ -61,27 +75,164 @@ export default function InventoryDashboard() {
 
   return (
     <div className="space-y-6 pb-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Inventory Dashboard</h1>
-          <p className="text-muted-foreground mt-1">
-            Real-time inventory tracking and management
-          </p>
+      {/* Header with Workspace Switcher */}
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Inventory Dashboard</h1>
+            <p className="text-muted-foreground mt-1">
+              Real-time inventory tracking and management
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button onClick={() => navigate("/inventory/products")} className="gap-2">
+              <Package className="h-4 w-4" />
+              Add Product
+            </Button>
+            <Button onClick={() => navigate("/inventory/purchase-orders")} variant="outline" className="gap-2">
+              <ShoppingCart className="h-4 w-4" />
+              New PO
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <Button onClick={() => navigate("/inventory/products")} className="gap-2">
-            <Package className="h-4 w-4" />
-            Add Product
-          </Button>
-          <Button onClick={() => navigate("/inventory/purchase-orders")} variant="outline" className="gap-2">
-            <ShoppingCart className="h-4 w-4" />
-            New PO
-          </Button>
-        </div>
+
+        {/* Workspace Switcher */}
+        <Card className="bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
+          <CardContent className="p-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  {isCarWorkspace ? (
+                    <Car className="h-5 w-5 text-primary" />
+                  ) : (
+                    <Building2 className="h-5 w-5 text-primary" />
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm font-medium">
+                    {isCarWorkspace ? "Car Dealership Workspace" : "Main Inventory Workspace"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {isCarWorkspace ? "Switch between dealership locations" : "Biwords software inventory"}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-3 sm:ml-auto w-full sm:w-auto">
+                <Select value={selectedWorkspace} onValueChange={setSelectedWorkspace}>
+                  <SelectTrigger className="w-full sm:w-64 bg-background">
+                    <SelectValue placeholder="Select workspace" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {/* Main Biwords Workspace */}
+                    <SelectItem value="biwords">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="h-4 w-4" />
+                        <span>Biwords - Main Inventory</span>
+                      </div>
+                    </SelectItem>
+                    
+                    {/* Car Workspaces */}
+                    {carWorkspaces.map((ws) => (
+                      <SelectItem key={ws.id} value={ws.id}>
+                        <div className="flex items-center gap-2">
+                          <Car className="h-4 w-4" />
+                          <span>{ws.name}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {isCarWorkspace && (
+                  <Button
+                    onClick={() => navigate(`/inventory/cars?workspace=${selectedWorkspace}`)}
+                    variant="outline"
+                    className="gap-2"
+                  >
+                    <Car className="h-4 w-4" />
+                    View Cars
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Key Metrics */}
+      {/* Car Stats - Only show for car workspaces */}
+      {isCarWorkspace && carStats && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Total Cars</p>
+                  <p className="text-3xl font-bold mt-2">{carStats.total_cars || 0}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {carStats.new_cars || 0} new, {carStats.used_cars || 0} used
+                  </p>
+                </div>
+                <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
+                  <Car className="h-6 w-6 text-blue-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Available</p>
+                  <p className="text-3xl font-bold mt-2 text-green-600">{carStats.available || 0}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Ready for sale</p>
+                </div>
+                <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
+                  <CheckCircle className="h-6 w-6 text-green-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Sold</p>
+                  <p className="text-3xl font-bold mt-2 text-blue-600">{carStats.sold || 0}</p>
+                  <p className="text-xs text-muted-foreground mt-1">This period</p>
+                </div>
+                <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
+                  <TrendingUp className="h-6 w-6 text-blue-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Inventory Value</p>
+                  <p className="text-3xl font-bold mt-2">
+                    ${(carStats.total_inventory_value || 0).toLocaleString()}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">Total value</p>
+                </div>
+                <div className="h-12 w-12 rounded-full bg-emerald-100 flex items-center justify-center">
+                  <DollarSign className="h-6 w-6 text-emerald-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Show regular inventory stats for Biwords workspace */}
+      {!isCarWorkspace && (
+        <>
+          {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {/* Total Products */}
         <Card className="hover:shadow-lg transition-shadow">
@@ -415,6 +566,8 @@ export default function InventoryDashboard() {
           </div>
         </CardContent>
       </Card>
+        </>
+      )}
     </div>
   );
 }

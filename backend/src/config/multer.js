@@ -110,6 +110,13 @@ const multerConfig = {
     limits: { fileSize: 20 * 1024 * 1024 },
     fileFilter: documentFilter,
   }),
+  
+  // Car images (10MB limit)
+  carImages: multer({
+    storage: createStorage('cars'),
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: imageFilter,
+  }),
 };
 
 module.exports = multerConfig;
