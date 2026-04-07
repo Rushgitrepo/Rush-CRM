@@ -404,6 +404,27 @@ export const activitiesApi = {
   create: (data: any) => api.post<any>('/activities', data),
 };
 
+export const crmCommentsApi = {
+  getByEntity: (entityType: string, entityId: string, params?: { page?: number; limit?: number }) => 
+    api.get<any[]>(`/crm-comments/${entityType}/${entityId}`, params),
+  create: (data: { entityType: string; entityId: string; content: string }) => 
+    api.post<any>('/crm-comments', data),
+  update: (id: string, content: string) => 
+    api.put<any>(`/crm-comments/${id}`, { content }),
+  delete: (id: string) => api.delete(`/crm-comments/${id}`),
+};
+
+export const crmDocumentsApi = {
+  getByEntity: (entityType: string, entityId: string, params?: { page?: number; limit?: number }) => 
+    api.get<any[]>(`/crm-documents/${entityType}/${entityId}`, params),
+  upload: (entityType: string, entityId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post<any>(`/crm-documents/${entityType}/${entityId}`, formData);
+  },
+  delete: (id: string) => api.delete(`/crm-documents/${id}`),
+};
+
 export const leadWorkspaceApi = {
   getAvailable: (leadId: string) => api.get<any[]>(`/lead-workspace/${leadId}/available-workspaces`),
   getShared: (leadId: string) => api.get<any[]>(`/lead-workspace/${leadId}/shared-workspaces`),

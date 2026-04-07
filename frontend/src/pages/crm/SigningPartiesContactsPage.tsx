@@ -167,9 +167,9 @@ export default function SigningPartiesContactsPage() {
         ]}
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="hidden sm:flex border-primary/20 hover:bg-primary/5">
+            {/* <Button variant="outline" size="sm" className="hidden sm:flex border-primary/20 hover:bg-primary/5">
               <Download className="mr-2 h-4 w-4 text-primary" /> Export
-            </Button>
+            </Button> */}
             <Button 
               className="gradient-primary shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all active:scale-95" 
               onClick={() => navigate("/crm/customers/signing-parties/contacts/create")}

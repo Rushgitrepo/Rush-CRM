@@ -15,7 +15,7 @@ const pool = new Pool({
 
 // Connection health monitoring
 pool.on('connect', () => {
-  console.log('Connected to PostgreSQL database');
+  console.log('Connected to database');
 });
 
 pool.on('error', (err) => {
