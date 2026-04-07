@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { 
   Users, Plus, MessageSquare, Search, MoreHorizontal, Edit, Trash2, 
-  Video, Phone, Calendar, Files, Bell, Hash, Lock,
+  Video, Phone, Calendar, Files, Bell, Hash, Lock, Building2,
   UserPlus, Star, ChevronDown, LayoutGrid, List
 } from "lucide-react";
 import {
@@ -29,7 +29,8 @@ import WorkgroupDetailView from "@/components/workgroups/WorkgroupDetailView";
 import { toast } from "sonner";
 
 const WORKGROUP_TYPES = [
-  { value: "team" as const, label: "Team", icon: Users, description: "For project teams and departments" },
+  { value: "team" as const, label: "Team", icon: Users, description: "For project teams" },
+  { value: "department" as const, label: "Department", icon: Building2, description: "For organization departments" },
   { value: "project" as const, label: "Project", icon: Hash, description: "For specific projects and initiatives" },
   { value: "private" as const, label: "Private", icon: Lock, description: "Private group with invite-only access" },
 ];
@@ -50,12 +51,12 @@ export default function WorkgroupsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Workgroup | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [filterType, setFilterType] = useState<"all" | "team" | "project" | "private">("all");
+  const [filterType, setFilterType] = useState<"all" | "team" | "project" | "private" | "department">("all");
   const [form, setForm] = useState<{
     name: string;
     description: string;
     avatar_color: string;
-    type: "team" | "project" | "private";
+    type: "team" | "project" | "private" | "department";
     is_private: boolean;
   }>({ 
     name: "", 

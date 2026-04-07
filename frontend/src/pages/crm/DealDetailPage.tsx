@@ -1,14 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { 
-  ArrowLeft, Pencil, Trash2, Save, ArrowRightLeft, Phone, Mail, Globe, 
-  MapPin, Building2, User, Calendar, DollarSign, Tag, FileText, 
+import {
+  ArrowLeft, Pencil, Trash2, Save, ArrowRightLeft, Phone, Mail, Globe,
+  MapPin, Building2, User, Calendar, DollarSign, Tag, FileText,
   Activity, MessageSquare, Clock, Star, MoreHorizontal, Copy, ExternalLink,
-  CheckCircle, XCircle, AlertCircle, Zap, ChevronDown, ChevronRight, 
+  CheckCircle, XCircle, AlertCircle, Zap, ChevronDown, ChevronRight,
   TrendingUp, Users, Target, Award, Briefcase, Calendar as CalendarIcon,
-  History, Plus, Edit3, Send, PhoneCall, Video, MessageCircle, 
+  History, Plus, Edit3, Send, PhoneCall, Video, MessageCircle,
   BarChart3, PieChart, TrendingDown, Eye, Filter, Search, Settings, X,
-  ArrowUp, Check
+  ArrowUp, Check, Printer, Download, Share2
 } from "lucide-react";
 import { ClickToCall } from "@/components/telephony/ClickToCall";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { InteractionPanel } from "@/components/crm/InteractionPanel";
 import { CreatableSelect } from "@/components/crm/CreatableSelect";
@@ -46,8 +46,8 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 
 const fallbackStages = [
-  { 
-    id: "drawings_received", 
+  {
+    id: "drawings_received",
     label: "Drawings Received",
     description: "Initial drawings submitted",
     color: "bg-blue-500",
@@ -56,8 +56,8 @@ const fallbackStages = [
     borderColor: "border-blue-200",
     icon: FileText
   },
-  { 
-    id: "awaiting_proposal", 
+  {
+    id: "awaiting_proposal",
     label: "Awaiting Proposal",
     description: "Preparing proposal",
     color: "bg-yellow-500",
@@ -66,8 +66,8 @@ const fallbackStages = [
     borderColor: "border-yellow-200",
     icon: Clock
   },
-  { 
-    id: "proposal_sent", 
+  {
+    id: "proposal_sent",
     label: "Proposal Sent",
     description: "Proposal under review",
     color: "bg-purple-500",
@@ -76,8 +76,8 @@ const fallbackStages = [
     borderColor: "border-purple-200",
     icon: Send
   },
-  { 
-    id: "proposal_approved", 
+  {
+    id: "proposal_approved",
     label: "Proposal Approved",
     description: "Ready to proceed",
     color: "bg-green-500",
@@ -86,8 +86,8 @@ const fallbackStages = [
     borderColor: "border-green-200",
     icon: CheckCircle
   },
-  { 
-    id: "invoice_sent", 
+  {
+    id: "invoice_sent",
     label: "Invoice Sent",
     description: "Awaiting payment",
     color: "bg-indigo-500",
@@ -96,8 +96,8 @@ const fallbackStages = [
     borderColor: "border-indigo-200",
     icon: DollarSign
   },
-  { 
-    id: "project_approved", 
+  {
+    id: "project_approved",
     label: "Project Approved",
     description: "Project confirmed",
     color: "bg-emerald-500",
@@ -106,8 +106,8 @@ const fallbackStages = [
     borderColor: "border-emerald-200",
     icon: Award
   },
-  { 
-    id: "in_progress", 
+  {
+    id: "in_progress",
     label: "In Progress",
     description: "Work in progress",
     color: "bg-orange-500",
@@ -116,8 +116,8 @@ const fallbackStages = [
     borderColor: "border-orange-200",
     icon: Activity
   },
-  { 
-    id: "awaiting_payment", 
+  {
+    id: "awaiting_payment",
     label: "Awaiting Payment",
     description: "Payment pending",
     color: "bg-red-500",
@@ -126,8 +126,8 @@ const fallbackStages = [
     borderColor: "border-red-200",
     icon: DollarSign
   },
-  { 
-    id: "project_delivered", 
+  {
+    id: "project_delivered",
     label: "Delivered",
     description: "Project completed",
     color: "bg-teal-500",
@@ -136,8 +136,8 @@ const fallbackStages = [
     borderColor: "border-teal-200",
     icon: CheckCircle
   },
-  { 
-    id: "close_deal", 
+  {
+    id: "close_deal",
     label: "Closed",
     description: "Deal finalized",
     color: "bg-slate-500",
@@ -256,6 +256,33 @@ export default function DealDetailPage() {
   const [responsibleDialogOpen, setResponsibleDialogOpen] = useState(false);
   const [selectedLinkedContactId, setSelectedLinkedContactId] = useState<string | null>(null);
   const [selectedSigningPartyId, setSelectedSigningPartyId] = useState<string | null>(null);
+  const [sidebarTab, setSidebarTab] = useState("activity");
+  const [interactionTab, setInteractionTab] = useState("activity");
+  const activitySectionRef = useRef<HTMLDivElement>(null);
+
+  const handleScrollToActivity = (tab: string = "activity", innerTab: string = "activity") => {
+    setSidebarTab(tab);
+    setInteractionTab(innerTab);
+    setTimeout(() => {
+      activitySectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleExport = () => {
+    if (!deal) return;
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(deal, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", `deal_${deal.id}.json`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+    toast.success("Deal data exported successfully");
+  };
 
   // Check if user can delete deals
   const canDelete = userRole?.role === 'super_admin' || userRole?.role === 'admin' || userRole?.role === 'manager' || deal?.user_id === user?.id;
@@ -272,16 +299,16 @@ export default function DealDetailPage() {
 
   // Use dynamic stages from DB, fall back to hardcoded
   const pipelineStages = (dbStages && dbStages.length > 0)
-    ? dbStages.map(s => ({ 
-        id: s.stage_key, 
-        label: s.stage_label,
-        description: fallbackStages.find(f => f.id === s.stage_key)?.description || "Stage description",
-        color: fallbackStages.find(f => f.id === s.stage_key)?.color || "bg-slate-500",
-        bgColor: fallbackStages.find(f => f.id === s.stage_key)?.bgColor || "bg-slate-50",
-        textColor: fallbackStages.find(f => f.id === s.stage_key)?.textColor || "text-slate-700",
-        borderColor: fallbackStages.find(f => f.id === s.stage_key)?.borderColor || "border-slate-200",
-        icon: fallbackStages.find(f => f.id === s.stage_key)?.icon || Clock
-      }))
+    ? dbStages.map(s => ({
+      id: s.stage_key,
+      label: s.stage_label,
+      description: fallbackStages.find(f => f.id === s.stage_key)?.description || "Stage description",
+      color: fallbackStages.find(f => f.id === s.stage_key)?.color || "bg-slate-500",
+      bgColor: fallbackStages.find(f => f.id === s.stage_key)?.bgColor || "bg-slate-50",
+      textColor: fallbackStages.find(f => f.id === s.stage_key)?.textColor || "text-slate-700",
+      borderColor: fallbackStages.find(f => f.id === s.stage_key)?.borderColor || "border-slate-200",
+      icon: fallbackStages.find(f => f.id === s.stage_key)?.icon || Clock
+    }))
     : fallbackStages;
 
   const stageOptions = pipelineStages.map(s => ({ value: s.id, label: s.label }));
@@ -324,16 +351,16 @@ export default function DealDetailPage() {
     Object.entries(form).forEach(([key, val]) => {
       if (val !== (deal as Record<string, unknown>)[key]) changes[key] = val;
     });
-    if (Object.keys(changes).length === 0) { 
-      setEditing(false); 
-      return; 
+    if (Object.keys(changes).length === 0) {
+      setEditing(false);
+      return;
     }
 
     updateDeal.mutate({ id: deal.id, ...changes }, {
       onSuccess: () => {
         setEditing(false);
         createActivity.mutate({
-          entityType: 'deal', 
+          entityType: 'deal',
           entityId: deal.id,
           activityType: 'update',
           title: 'Deal information updated',
@@ -366,7 +393,7 @@ export default function DealDetailPage() {
         onSuccess: () => {
           const stageName = pipelineStages.find(s => s.id === newStage)?.label || newStage;
           createActivity.mutate({
-            entityType: 'deal', 
+            entityType: 'deal',
             entityId: deal.id,
             activityType: 'stage_change',
             title: `Stage changed to ${stageName}`,
@@ -383,9 +410,9 @@ export default function DealDetailPage() {
       updateDeal.mutate({ id: deal.id, assigned_to: userId }, {
         onSuccess: () => {
           createActivity.mutate({
-            entityType: 'deal', 
+            entityType: 'deal',
             entityId: deal.id,
-            activityType: 'update', 
+            activityType: 'update',
             title: 'Changed responsible person',
           });
         }
@@ -442,16 +469,16 @@ export default function DealDetailPage() {
           {/* Header Content */}
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div className="flex flex-col md:flex-row md:items-center gap-6">
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => navigate("/crm/deals")}
                 className="gap-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 self-start md:self-auto"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back to Deals
               </Button>
-              
+
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                 <div className="relative">
                   <Avatar className="h-14 w-14 ring-4 ring-white shadow-lg">
@@ -462,7 +489,7 @@ export default function DealDetailPage() {
                   </Avatar>
                   <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 border-2 border-white rounded-full"></div>
                 </div>
-                
+
                 <div>
                   <div className="flex flex-wrap items-center gap-3 mb-1">
                     <h1 className="text-xl md:text-2xl font-bold text-slate-900 break-words max-w-[200px] sm:max-w-none">{deal.title}</h1>
@@ -492,24 +519,24 @@ export default function DealDetailPage() {
                 </div>
               </div>
             </div>
-            
+
             {/* Professional Action Buttons */}
             <div className="flex flex-wrap items-center gap-3">
               {editing ? (
                 <>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     onClick={() => { setEditing(false); setForm({ ...deal }); }}
                     className="gap-2 border-slate-300 text-slate-700"
                   >
                     Cancel
                   </Button>
-                  <Button 
-                    onClick={handleSave} 
-                    disabled={updateDeal.isPending} 
+                  <Button
+                    onClick={handleSave}
+                    disabled={updateDeal.isPending}
                     className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-lg"
                   >
-                    <Save className="h-4 w-4" /> 
+                    <Save className="h-4 w-4" />
                     {updateDeal.isPending ? 'Saving...' : 'Save Changes'}
                   </Button>
                 </>
@@ -517,9 +544,9 @@ export default function DealDetailPage() {
                 <>
                   {/* Quick Action Buttons */}
                   {linkedContact?.phone && (
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline"
+                      size="sm"
                       className="gap-2 text-emerald-600 border-emerald-200 hover:bg-emerald-50"
                       asChild
                     >
@@ -530,9 +557,9 @@ export default function DealDetailPage() {
                     </Button>
                   )}
                   {linkedContact?.email && (
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline"
+                      size="sm"
                       className="gap-2 text-blue-600 border-blue-200 hover:bg-blue-50"
                       asChild
                     >
@@ -542,29 +569,29 @@ export default function DealDetailPage() {
                       </a>
                     </Button>
                   )}
-                  
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setEditing(true)} 
+
+                  <Button
+                    variant="outline"
+                    onClick={() => setEditing(true)}
                     className="gap-2 border-slate-300"
                   >
-                    <Edit3 className="h-4 w-4" /> 
+                    <Edit3 className="h-4 w-4" />
                     Edit Deal
                   </Button>
-                  
+
                   {deal.converted_to_customer_id ? (
-                    <Button 
+                    <Button
                       onClick={() => navigate(`/crm/customers/${deal.converted_to_customer_id}`)}
-                      className="gap-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white shadow-lg"
+                      className="gap-2 bg-primary hover:bg-primary/80 text-white shadow-lg"
                     >
-                      <ArrowRightLeft className="h-4 w-4" /> 
+                      <ArrowRightLeft className="h-4 w-4" />
                       View Converted Customer
                     </Button>
                   ) : (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button className="gap-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white shadow-lg">
-                          <ArrowRightLeft className="h-4 w-4" /> 
+                          <ArrowRightLeft className="h-4 w-4" />
                           Convert to Customer
                         </Button>
                       </AlertDialogTrigger>
@@ -580,8 +607,8 @@ export default function DealDetailPage() {
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction 
-                            onClick={handleConvertToCustomer} 
+                          <AlertDialogAction
+                            onClick={handleConvertToCustomer}
                             disabled={convertDealToCustomer.isPending}
                             className="bg-emerald-600 hover:bg-emerald-700"
                           >
@@ -591,69 +618,78 @@ export default function DealDetailPage() {
                       </AlertDialogContent>
                     </AlertDialog>
                   )}
-                  
+
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="outline" size="icon" className="border-slate-300">
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuContent align="end" className="w-64 p-2 rounded-2xl shadow-xl border-slate-200 z-[100] pointer-events-auto">
+                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Communication</DropdownMenuLabel>
                       {linkedContact?.email && (
-                        <DropdownMenuItem onClick={() => copyToClipboard(linkedContact.email, 'Email')}>
-                          <Copy className="h-4 w-4 mr-2" />
-                          Copy Contact Email
+                        <DropdownMenuItem onClick={() => copyToClipboard(linkedContact.email, 'Email')} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                          <Mail className="h-4 w-4 text-blue-500" />
+                          <p className="font-medium text-sm">Copy Contact Email</p>
                         </DropdownMenuItem>
                       )}
                       {linkedContact?.phone && (
-                        <DropdownMenuItem onClick={() => copyToClipboard(linkedContact.phone, 'Phone')}>
-                          <Copy className="h-4 w-4 mr-2" />
-                          Copy Contact Phone
+                        <DropdownMenuItem onClick={() => copyToClipboard(linkedContact.phone, 'Phone')} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                          <Phone className="h-4 w-4 text-emerald-500" />
+                          <p className="font-medium text-sm">Copy Contact Phone</p>
                         </DropdownMenuItem>
                       )}
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem>
-                        <Eye className="h-4 w-4 mr-2" />
-                        View Activity Timeline
+                      <DropdownMenuSeparator className="my-2 bg-slate-100" />
+                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Reports & Data</DropdownMenuLabel>
+                      <DropdownMenuItem onClick={handlePrint} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                        <Printer className="h-4 w-4 text-orange-500" />
+                        <p className="font-medium text-sm">Print Deal Details</p>
                       </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <Calendar className="h-4 w-4 mr-2" />
-                        Schedule Meeting
+                      <DropdownMenuItem onClick={handleExport} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                        <Download className="h-4 w-4 text-emerald-500" />
+                        <p className="font-medium text-sm">Export as JSON</p>
                       </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <MessageSquare className="h-4 w-4 mr-2" />
-                        Send Message
+
+                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Reports & Data</DropdownMenuLabel>
+                      <DropdownMenuItem onClick={handlePrint} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                        <Printer className="h-4 w-4 text-orange-500" />
+                        <p className="font-medium text-sm">Print Client Details</p>
                       </DropdownMenuItem>
-                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={handleExport} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                        <Download className="h-4 w-4 text-emerald-500" />
+                        <p className="font-medium text-sm">Export as JSON</p>
+                      </DropdownMenuItem>
+
+                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Reports & Data</DropdownMenuLabel>
+                      <DropdownMenuItem onClick={handlePrint} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                        <Printer className="h-4 w-4 text-orange-500" />
+                        <p className="font-medium text-sm">Print Client Details</p>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleExport} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                        <Download className="h-4 w-4 text-emerald-500" />
+                        <p className="font-medium text-sm">Export as JSON</p>
+                      </DropdownMenuItem>
+
+                      <DropdownMenuSeparator className="my-2 bg-slate-100" />
+                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Quick Actions</DropdownMenuLabel>
+                      <DropdownMenuItem onClick={() => handleScrollToActivity("activity")} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                        <Activity className="h-4 w-4 text-purple-500" />
+                        <p className="font-medium text-sm">View Activity Timeline</p>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleScrollToActivity("activity", "booking")} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                        <Calendar className="h-4 w-4 text-orange-500" />
+                        <p className="font-medium text-sm">Schedule Meeting</p>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                        <MessageSquare className="h-4 w-4 text-indigo-500" />
+                        <p className="font-medium text-sm">Send Message</p>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator className="my-2 bg-slate-100" />
                       {canDelete && (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-600 focus:text-red-600">
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete Deal
-                            </DropdownMenuItem>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle className="flex items-center gap-2 text-red-600">
-                                <AlertCircle className="h-5 w-5" />
-                                Delete Deal
-                              </AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Are you sure you want to delete this deal? This action cannot be undone and will remove all associated data including activities, notes, and files.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction 
-                                onClick={handleDelete} 
-                                className="bg-red-600 hover:bg-red-700"
-                              >
-                                Delete Deal
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                        <DropdownMenuItem onClick={() => setForm(prev => ({ ...prev, showDeleteDialog: true }))} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-red-50 text-red-600 transition-colors">
+                          <Trash2 className="h-4 w-4" />
+                          <p className="font-medium text-sm">Delete Deal</p>
+                        </DropdownMenuItem>
                       )}
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -755,24 +791,24 @@ export default function DealDetailPage() {
           <h3 className="text-lg font-semibold text-slate-900 mb-2">Deal Pipeline Progress</h3>
           <p className="text-sm text-slate-600">Track your deal through each stage of the sales process</p>
         </div>
-        
+
         <div className="relative overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-200">
           <div className="flex items-center justify-between mb-4 min-w-[1000px] lg:min-w-0 px-4">
             {pipelineStages.map((stage, index) => {
               const isActive = stage.id === deal.stage;
               const isPassed = pipelineStages.findIndex(s => s.id === deal.stage) > index;
               const isClickable = !editing;
-              
+
               return (
                 <div key={stage.id} className="flex flex-col items-center flex-1">
-                  <div 
+                  <div
                     className={cn(
                       "relative flex items-center justify-center w-12 h-12 rounded-full border-2 transition-all duration-300 cursor-pointer",
-                      isActive 
-                        ? "bg-blue-600 border-blue-600 text-white shadow-lg scale-110" 
-                        : isPassed 
-                        ? "bg-emerald-500 border-emerald-500 text-white" 
-                        : "bg-white border-slate-300 text-slate-400 hover:border-slate-400",
+                      isActive
+                        ? "bg-blue-600 border-blue-600 text-white shadow-lg scale-110"
+                        : isPassed
+                          ? "bg-emerald-500 border-emerald-500 text-white"
+                          : "bg-white border-slate-300 text-slate-400 hover:border-slate-400",
                       isClickable && "hover:scale-105"
                     )}
                     onClick={() => isClickable && handleStageChange(stage.id)}
@@ -1098,9 +1134,9 @@ export default function DealDetailPage() {
                     <div className="h-10 px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 flex items-center">
                       <Badge className={cn(
                         form.priority === 'urgent' ? 'bg-red-100 text-red-700 border-red-200' :
-                        form.priority === 'high' ? 'bg-orange-100 text-orange-700 border-orange-200' :
-                        form.priority === 'medium' ? 'bg-blue-100 text-blue-700 border-blue-200' :
-                        'bg-slate-100 text-slate-700 border-slate-200'
+                          form.priority === 'high' ? 'bg-orange-100 text-orange-700 border-orange-200' :
+                            form.priority === 'medium' ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                              'bg-slate-100 text-slate-700 border-slate-200'
                       )}>
                         {(form.priority as string || 'Medium').toUpperCase()}
                       </Badge>
@@ -1203,51 +1239,67 @@ export default function DealDetailPage() {
               </CardContent>
             </Card>
           </div>
+        </div>
 
-          {/* Enhanced Sidebar - Activity & Files */}
-          <div className="lg:col-span-4 space-y-6">
-            <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-purple-100 rounded-lg">
-                      <Activity className="h-5 w-5 text-purple-600" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg text-slate-900">Activity & Documents</CardTitle>
-                      <CardDescription className="text-slate-600">Track interactions and manage files</CardDescription>
-                    </div>
+        {/* Activity & Documents Section - Standardized Full Width */}
+        <div className="mt-12">
+          <Card ref={activitySectionRef} className="shadow-2xl border-0 bg-white overflow-hidden rounded-3xl scroll-mt-24 border-t-4 border-t-primary/20">
+            <CardHeader className="pb-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-8 py-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-primary/10 rounded-2xl">
+                    <Activity className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl text-slate-900 font-bold">Activity, Timeline & Documents</CardTitle>
+                    <CardDescription className="text-slate-500 text-sm">Interaction history and shared resources for <strong>{deal.title}</strong></CardDescription>
                   </div>
                 </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                <Tabs defaultValue="activity" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2 mx-6 mb-4 bg-slate-100">
-                    <TabsTrigger value="activity" className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                      <Activity className="h-4 w-4" />
-                      Activity
-                    </TabsTrigger>
-                    <TabsTrigger value="files" className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                      <FileText className="h-4 w-4" />
-                      Files
-                    </TabsTrigger>
-                  </TabsList>
-                  
-                  <TabsContent value="activity" className="mt-0 px-6 pb-6">
-                    <div className="min-h-96">
-                      <InteractionPanel entityType="deal" entityId={deal.id} />
-                    </div>
-                  </TabsContent>
-                  
-                  <TabsContent value="files" className="mt-0 px-6 pb-6">
-                    <div className="min-h-96">
-                      <EntityFilesSection entityType="deal" entityId={deal.id} />
-                    </div>
-                  </TabsContent>
-                </Tabs>
-              </CardContent>
-            </Card>
-          </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">
+                    {sidebarTab === 'activity' ? 'Timeline View' : 'Files View'}
+                  </Badge>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Tabs value={sidebarTab} onValueChange={setSidebarTab} className="w-full">
+                <TabsList className="flex w-full justify-start gap-10 px-8 border-b border-slate-100 bg-slate-50/50 h-16 rounded-none">
+                  <TabsTrigger
+                    value="activity"
+                    className="relative px-4 h-full bg-transparent border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none rounded-none gap-2 text-base font-semibold transition-all hover:text-primary/70"
+                  >
+                    <Activity className="h-5 w-5" />
+                    Timeline & Interactions
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="files"
+                    className="relative px-4 h-full bg-transparent border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none rounded-none gap-2 text-base font-semibold transition-all hover:text-primary/70"
+                  >
+                    <FileText className="h-5 w-5" />
+                    Documents & Files
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="activity" className="mt-0 p-8">
+                  <div className="rounded-xl bg-white border border-slate-100 shadow-sm p-4 md:p-6 min-h-[500px]">
+                    <InteractionPanel
+                      entityType="deal"
+                      entityId={deal.id}
+                      activeTab={interactionTab}
+                      onTabChange={setInteractionTab}
+                    />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="files" className="mt-0 p-8">
+                  <div className="rounded-xl bg-white border border-slate-100 shadow-sm p-4 md:p-6 min-h-[500px]">
+                    <EntityFilesSection entityType="deal" entityId={deal.id} />
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

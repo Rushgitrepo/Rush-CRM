@@ -7,7 +7,9 @@ const getByEntity = async (req, res, next) => {
     const offset = (page - 1) * limit;
 
     const result = await db.query(
-      `SELECT a.*, p.full_name as user_name, p.avatar_url as user_avatar
+      `SELECT a.*, 
+              COALESCE(p.full_name, 'System') as user_name, 
+              COALESCE(p.avatar_url, 'https://api.dicebear.com/7.x/initials/svg?seed=System') as user_avatar
        FROM public.crm_activities a
        LEFT JOIN public.profiles p ON p.id = a.user_id
        WHERE a.entity_type = $1 AND a.entity_id = $2 AND a.org_id = $3
@@ -27,7 +29,9 @@ const getRecent = async (req, res, next) => {
     const { limit = 20 } = req.query;
 
     const result = await db.query(
-      `SELECT a.*, p.full_name as user_name, p.avatar_url as user_avatar
+      `SELECT a.*, 
+              COALESCE(p.full_name, 'System') as user_name, 
+              COALESCE(p.avatar_url, 'https://api.dicebear.com/7.x/initials/svg?seed=System') as user_avatar
        FROM public.crm_activities a
        LEFT JOIN public.profiles p ON p.id = a.user_id
        WHERE a.org_id = $1

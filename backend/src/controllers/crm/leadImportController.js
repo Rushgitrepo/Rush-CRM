@@ -326,16 +326,41 @@ const importLeads = async (req, res, next) => {
         const placeholders = values.map((_, idx) => `$${idx + 1}`).join(', ');
 
         // Insert lead
-        await db.query(
+        const result = await db.query(
           `INSERT INTO leads (${columns.join(', ')}) 
-           VALUES (${placeholders})`,
+           VALUES (${placeholders})
+           RETURNING id`,
           values
         );
+        const leadId = result.rows[0].id;
+        
+        // Log individual lead activity
+        await db.query(
+          `INSERT INTO crm_activities 
+           (org_id, user_id, entity_type, entity_id, activity_type, title, description)
+           VALUES ($1, $2, 'lead', $3, 'created', 'Lead Imported', $4)`,
+          [req.user.orgId, req.user.id, leadId, `Lead imported via bulk upload from ${path.basename(filePath)}`]
+        );
+
         successful++;
       } catch (err) {
         errors.push({ row: i + 1, error: err.message });
         failed++;
       }
+    }
+
+    // Log summary activity for the entire import
+    if (successful > 0) {
+      await db.query(
+        `INSERT INTO crm_activities 
+         (org_id, user_id, entity_type, entity_id, activity_type, title, description)
+         VALUES ($1, $2, 'system', $1, 'import', 'Bulk Lead Import', $3)`,
+        [
+          req.user.orgId, 
+          req.user.id, 
+          `Successfully imported ${successful} leads from ${path.basename(filePath)} (${failed} failed, ${duplicates} duplicates skipped)`
+        ]
+      );
     }
 
     // Update import record

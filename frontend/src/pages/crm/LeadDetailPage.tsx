@@ -1,27 +1,22 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
-  ArrowLeft, Pencil, Trash2, Save, ArrowRightLeft, Phone, Mail, Globe,
+  ArrowLeft, Trash2, Save, ArrowRightLeft, Phone, Mail, Globe,
   MapPin, Building2, User, Calendar, DollarSign, Tag, FileText,
-  Activity, MessageSquare, Clock, Star, MoreHorizontal, Copy, ExternalLink,
-  CheckCircle, XCircle, AlertCircle, Zap, ChevronDown, ChevronRight,
-  TrendingUp, Users, Target, Award, Briefcase, Calendar as CalendarIcon,
-  History, Plus, Edit3, Send, PhoneCall, Video, MessageCircle,
-  BarChart3, PieChart, TrendingDown, Eye, Filter, Search, Settings, Share2
+  Activity, MessageSquare, Clock, Star, MoreHorizontal, Copy,
+  CheckCircle, XCircle, AlertCircle, Zap, ChevronRight,
+  TrendingUp, Users, Target, Award, Briefcase, Calendar as CalendarIcon, Edit3, Send, PhoneCall, Eye, Filter, Search, Settings, Share2, Printer, Download
 } from "lucide-react";
 import { ClickToCall } from "@/components/telephony/ClickToCall";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { InteractionPanel } from "@/components/crm/InteractionPanel";
 import { CreatableSelect } from "@/components/crm/CreatableSelect";
 import { EntityFilesSection } from "@/components/crm/EntityFilesSection";
@@ -212,6 +207,33 @@ export default function LeadDetailPage() {
   const [showWorkspaceModal, setShowWorkspaceModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showConvertDialog, setShowConvertDialog] = useState(false);
+  const [sidebarTab, setSidebarTab] = useState("activity");
+  const [interactionTab, setInteractionTab] = useState("activity");
+  const activitySectionRef = useRef<HTMLDivElement>(null);
+
+  const handleScrollToActivity = (tab: string = "activity", innerTab: string = "activity") => {
+    setSidebarTab(tab);
+    setInteractionTab(innerTab);
+    setTimeout(() => {
+      activitySectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleExport = () => {
+    if (!lead) return;
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(lead, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", `lead_${lead.id}.json`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+    toast.success("Lead data exported successfully");
+  };
 
   useEffect(() => {
     if (lead) {
@@ -478,7 +500,7 @@ export default function LeadDetailPage() {
                       View Converted Deal
                     </Button>
                   ) : (
-                    <Button 
+                    <Button
                       className="gap-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white shadow-lg"
                       onClick={() => setShowConvertDialog(true)}
                     >
@@ -493,44 +515,110 @@ export default function LeadDetailPage() {
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuContent align="end" className="w-64 p-2 shadow-2xl border-slate-200 z-[100] bg-white pointer-events-auto">
+                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Communication</DropdownMenuLabel>
                       {lead.email && (
-                        <DropdownMenuItem onClick={() => copyToClipboard(lead.email, 'Email')}>
-                          <Copy className="h-4 w-4 mr-2" />
-                          Copy Email Address
+                        <DropdownMenuItem
+                          className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors"
+                          onClick={() => copyToClipboard(lead.email, 'Email')}
+                        >
+                          <div className="p-2 bg-blue-50 rounded-md">
+                            <Mail className="h-4 w-4 text-blue-600" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-sm text-slate-900">Copy Email Address</p>
+                            <p className="text-xs text-slate-500 truncate">{lead.email}</p>
+                          </div>
                         </DropdownMenuItem>
                       )}
                       {lead.phone && (
-                        <DropdownMenuItem onClick={() => copyToClipboard(lead.phone, 'Phone')}>
-                          <Copy className="h-4 w-4 mr-2" />
-                          Copy Phone Number
+                        <DropdownMenuItem
+                          className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors"
+                          onClick={() => copyToClipboard(lead.phone, 'Phone')}
+                        >
+                          <div className="p-2 bg-emerald-50 rounded-md">
+                            <Phone className="h-4 w-4 text-emerald-600" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-sm text-slate-900">Copy Phone Number</p>
+                            <p className="text-xs text-slate-500">{lead.phone}</p>
+                          </div>
                         </DropdownMenuItem>
                       )}
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem>
-                        <Eye className="h-4 w-4 mr-2" />
-                        View Activity Timeline
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <Calendar className="h-4 w-4 mr-2" />
-                        Schedule Meeting
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <MessageSquare className="h-4 w-4 mr-2" />
-                        Send Message
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => setShowWorkspaceModal(true)}>
-                        <Share2 className="h-4 w-4 mr-2" />
-                        Manage Workspace Access
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem 
-                        onClick={() => setShowDeleteDialog(true)} 
-                        className="text-red-600 focus:text-red-600 cursor-pointer"
+
+                      <DropdownMenuSeparator className="my-2 bg-slate-100" />
+
+                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Quick Jump</DropdownMenuLabel>
+                      <DropdownMenuItem
+                        className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors"
+                        onClick={() => handleScrollToActivity("activity")}
                       >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete Lead
+                        <div className="p-2 bg-purple-50 rounded-md">
+                          <Eye className="h-4 w-4 text-purple-600" />
+                        </div>
+                        <p className="font-semibold text-sm text-slate-900">View Activity Timeline</p>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors"
+                        onClick={() => handleScrollToActivity("activity", "booking")}
+                      >
+                        <div className="p-2 bg-orange-50 rounded-md">
+                          <Calendar className="h-4 w-4 text-orange-600" />
+                        </div>
+                        <p className="font-semibold text-sm text-slate-900">Schedule Meeting</p>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors"
+                        onClick={() => handleScrollToActivity("activity", "message")}
+                      >
+                        <div className="p-2 bg-indigo-50 rounded-md">
+                          <MessageSquare className="h-4 w-4 text-indigo-600" />
+                        </div>
+                        <p className="font-semibold text-sm text-slate-900">Send Message</p>
+                      </DropdownMenuItem>
+
+                      <DropdownMenuSeparator className="my-2 bg-slate-100" />
+
+                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Reports & Data</DropdownMenuLabel>
+                      <DropdownMenuItem
+                        className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors"
+                        onClick={handlePrint}
+                      >
+                        <div className="p-2 bg-orange-50 rounded-md">
+                          <Printer className="h-4 w-4 text-orange-600" />
+                        </div>
+                        <p className="font-semibold text-sm text-slate-900">Print Lead Details</p>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors"
+                        onClick={handleExport}
+                      >
+                        <div className="p-2 bg-emerald-50 rounded-md">
+                          <Download className="h-4 w-4 text-emerald-600" />
+                        </div>
+                        <p className="font-semibold text-sm text-slate-900">Export as JSON</p>
+                      </DropdownMenuItem>
+
+                      <DropdownMenuSeparator className="my-2 bg-slate-100" />
+
+                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Access & Admin</DropdownMenuLabel>
+                      <DropdownMenuItem
+                        className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors"
+                        onClick={() => setShowWorkspaceModal(true)}
+                      >
+                        <div className="p-2 bg-slate-100 rounded-md">
+                          <Share2 className="h-4 w-4 text-slate-600" />
+                        </div>
+                        <p className="font-semibold text-sm text-slate-900">Manage Workspace Access</p>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-red-50 group transition-colors"
+                        onClick={() => setShowDeleteDialog(true)}
+                      >
+                        <div className="p-2 bg-red-50 rounded-md group-hover:bg-red-100 transition-colors">
+                          <Trash2 className="h-4 w-4 text-red-600" />
+                        </div>
+                        <p className="font-semibold text-sm text-red-600">Delete Lead</p>
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -638,12 +726,12 @@ export default function LeadDetailPage() {
               <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200 shadow-lg">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-emerald-500 rounded-lg shadow-lg">
+                    <div className="p-2 bg-primary rounded-lg shadow-lg">
                       <Target className="h-5 w-5 text-white" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs text-emerald-600 font-medium uppercase tracking-wide truncate">Conversion</p>
-                      <p className="text-2xl font-bold text-emerald-900">67<span className="text-sm">%</span></p>
+                      <p className="text-xs text-primary font-medium uppercase tracking-wide truncate">Conversion</p>
+                      <p className="text-2xl font-bold text-primary">67<span className="text-sm">%</span></p>
                       <p className="text-xs text-emerald-700 truncate">Above Avg</p>
                     </div>
                   </div>
@@ -653,15 +741,15 @@ export default function LeadDetailPage() {
               <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 shadow-lg">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-purple-500 rounded-lg shadow-lg">
+                    <div className="p-2 bg-primary rounded-lg shadow-lg">
                       <Clock className="h-5 w-5 text-white" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs text-purple-600 font-medium uppercase tracking-wide truncate">Days</p>
-                      <p className="text-2xl font-bold text-purple-900">
+                      <p className="text-xs text-primary font-medium uppercase tracking-wide truncate">Days</p>
+                      <p className="text-2xl font-bold text-primary">
                         {lead.created_at ? Math.floor((new Date().getTime() - new Date(lead.created_at).getTime()) / (1000 * 60 * 60 * 24)) : 0}
                       </p>
-                      <p className="text-xs text-purple-700 truncate">Active Lead</p>
+                      <p className="text-xs text-primary truncate">Active Lead</p>
                     </div>
                   </div>
                 </CardContent>
@@ -1003,7 +1091,11 @@ export default function LeadDetailPage() {
                   </Button>
                 )}
 
-                <Button variant="outline" className="w-full justify-start gap-4 h-14 text-left border-2 hover:border-orange-300 hover:bg-orange-50 transition-all">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-4 h-14 text-left border-2 hover:border-orange-300 hover:bg-orange-50 transition-all"
+                  onClick={() => handleScrollToActivity("activity", "booking")}
+                >
                   <div className="p-3 bg-orange-100 rounded-xl">
                     <Calendar className="h-5 w-5 text-orange-600" />
                   </div>
@@ -1015,43 +1107,70 @@ export default function LeadDetailPage() {
               </CardContent>
             </Card>
 
-            {/* Activity & Files Dashboard */}
-            <Card className="shadow-xl border-0 bg-white">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-xl flex items-center gap-2">
-                  <Activity className="h-5 w-5 text-blue-600" />
-                  Activity & Documents
-                </CardTitle>
-                <CardDescription>Track interactions and manage files for this lead</CardDescription>
-              </CardHeader>
-              <CardContent className="p-0">
-                <Tabs defaultValue="activity" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2 mx-6 mt-0 mb-4 bg-slate-100 h-12">
-                    <TabsTrigger value="activity" className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm h-10 text-sm font-medium">
-                      <Activity className="h-4 w-4" />
-                      Activity Timeline
-                    </TabsTrigger>
-                    <TabsTrigger value="files" className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm h-10 text-sm font-medium">
-                      <FileText className="h-4 w-4" />
-                      Documents & Files
-                    </TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="activity" className="mx-6 mb-6 mt-0">
-                    <div className="border border-slate-200 rounded-lg bg-slate-50 p-6 min-h-[400px]">
-                      <InteractionPanel entityType="lead" entityId={lead.id} />
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="files" className="mx-6 mb-6 mt-0">
-                    <div className="border border-slate-200 rounded-lg bg-slate-50 p-6 min-h-[400px]">
-                      <EntityFilesSection entityType="lead" entityId={lead.id} />
-                    </div>
-                  </TabsContent>
-                </Tabs>
-              </CardContent>
-            </Card>
           </div>
+        </div>
+
+        {/* Activity & Documents Dashboard - Prominent Full Width Section */}
+        <div className="mt-12">
+          <Card ref={activitySectionRef} className="shadow-2xl border-0 bg-white scroll-mt-24 overflow-hidden border-t-4 border-t-primary/20">
+            <CardHeader className="pb-4 bg-gradient-to-r from-slate-50 to-white">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <CardTitle className="text-2xl flex items-center gap-3">
+                    <div className="p-2 bg-primary/10 rounded-lg">
+                      <Activity className="h-6 w-6 text-primary" />
+                    </div>
+                    Activity, Communication & Documents
+                  </CardTitle>
+                  <CardDescription className="text-base mt-1">
+                    Complete history of interactions and document management for <strong>{lead.title}</strong>
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">
+                    {sidebarTab === 'activity' ? 'Timeline View' : 'Files View'}
+                  </Badge>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Tabs value={sidebarTab} onValueChange={setSidebarTab} className="w-full">
+                <TabsList className="flex w-full items-center justify-start h-16 border-b border-slate-100 rounded-none bg-slate-50/50 px-6 gap-8">
+                  <TabsTrigger
+                    value="activity"
+                    className="relative px-4 h-full bg-transparent border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none rounded-none gap-2 text-base font-semibold transition-all hover:text-primary/70"
+                  >
+                    <Activity className="h-5 w-5" />
+                    Timeline & Interactions
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="files"
+                    className="relative px-4 h-full bg-transparent border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none rounded-none gap-2 text-base font-semibold transition-all hover:text-primary/70"
+                  >
+                    <FileText className="h-5 w-5" />
+                    Documents & Shared Files
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="activity" className="m-0 border-0 p-6 md:p-8">
+                  <div className="rounded-xl bg-white border border-slate-100 shadow-sm p-4 md:p-6 min-h-[500px]">
+                    <InteractionPanel
+                      entityType="lead"
+                      entityId={lead.id}
+                      activeTab={interactionTab}
+                      onTabChange={setInteractionTab}
+                    />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="files" className="m-0 border-0 p-6 md:p-8">
+                  <div className="rounded-xl bg-white border border-slate-100 shadow-sm p-4 md:p-6 min-h-[500px]">
+                    <EntityFilesSection entityType="lead" entityId={lead.id} />
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
@@ -1112,6 +1231,41 @@ export default function LeadDetailPage() {
               className="bg-red-600 hover:bg-red-700 h-10 px-6 font-semibold"
             >
               {deleteLead.isPending ? "Deleting..." : "Delete Permanently"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Workspace Management Modal */}
+      <AlertDialog open={showWorkspaceModal} onOpenChange={setShowWorkspaceModal}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-xl font-bold">
+              <Share2 className="h-6 w-6 text-primary" />
+              Workspace Access Control
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-600 py-2">
+              Manage who has access to this lead and its associated files. You can invite team members, set permissions, and track who is currently viewing this record.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+              <div className="flex items-center gap-3">
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback className="text-xs">U</AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="text-sm font-semibold">You (Owner)</p>
+                  <p className="text-xs text-slate-500">Full Access</p>
+                </div>
+              </div>
+              <Badge variant="outline" className="bg-white border-slate-200">Owner</Badge>
+            </div>
+            <p className="text-xs text-center text-slate-400 italic">Collaborative workspace features are coming soon to Rush CRM.</p>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setShowWorkspaceModal(false)} className="bg-primary hover:bg-primary/90 h-10 px-8 font-semibold">
+              Close
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

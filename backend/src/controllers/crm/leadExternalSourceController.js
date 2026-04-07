@@ -309,6 +309,15 @@ const receiveExternalLead = async (req, res, next) => {
       ]
     );
 
+    const leadId = result.rows[0].id;
+
+    // Log activity for external lead creation
+    await db.query(
+      `INSERT INTO public.crm_activities (org_id, entity_type, entity_id, activity_type, title, description)
+       VALUES ($1, 'lead', $2, 'created', 'External Lead Generated', $3)`,
+      [source.org_id, leadId, `Lead generated automatically from source: ${source.name}`]
+    );
+
     // Update source stats
     await db.query(
       `UPDATE lead_external_sources 
