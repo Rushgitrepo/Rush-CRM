@@ -73,3 +73,6 @@ yarn-error.log*
 package-lock.json
 yarn.lock
 pnpm-lock.yaml
+
+.claude/
+.vscode/
