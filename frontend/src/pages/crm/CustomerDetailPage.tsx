@@ -8,7 +8,7 @@ import {
   Briefcase, History, Plus, Edit3, Send, BarChart3,
   Search, Settings, X, Check, ArrowUp, Zap, MapPin,
   Globe, PhoneCall, History as HistoryIcon, PieChart,
-  TrendingDown, Eye, Filter, Share2, MoreVer, Printer, Download
+  TrendingDown, Eye, Filter, Share2, MoreVertical, Printer, Download
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -432,6 +432,22 @@ export default function CustomerDetailPage() {
                           <Trash2 className="h-4 w-4 text-red-600" />
                         </div>
                         <p className="font-semibold text-sm text-red-600">Delete Customer</p>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator className="my-2 bg-slate-100" />
+                      <DropdownMenuItem
+                        className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-orange-50 group transition-colors"
+                        onClick={() => {
+                          updateCustomer.mutate({ id: customer.id, status: 'unqualified' }, {
+                            onSuccess: () => {
+                              toast.success("Customer marked as unqualified");
+                            }
+                          });
+                        }}
+                      >
+                        <div className="p-2 bg-orange-50 rounded-md group-hover:bg-orange-100 transition-colors">
+                          <XCircle className="h-4 w-4 text-orange-600" />
+                        </div>
+                        <p className="font-semibold text-sm text-orange-600">Mark as Unqualified</p>
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>

@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Sparkles, Mail, Phone, Building2, Filter, Download, Upload, MoreHorizontal, Edit, Trash2, Eye, Globe } from "lucide-react";
+import { Plus, Sparkles, Mail, Phone, Building2, Filter, Download, Upload, MoreHorizontal, Edit, Trash2, Eye, Globe, XCircle } from "lucide-react";
 import { useLeads, useDeleteLead } from "@/hooks/useCrmData";
+import { useUpdateLead } from "@/hooks/useCrmMutations";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -64,6 +65,7 @@ export default function LeadsPage() {
     limit: pageSize
   });
   const deleteLead = useDeleteLead();
+  const updateLead = useUpdateLead();
 
   const leads: LeadRow[] = useMemo(() => {
     // Handle different response formats from the API
@@ -289,6 +291,15 @@ export default function LeadsPage() {
               <DropdownMenuItem onClick={() => navigate(`/crm/leads/${lead.id}/edit`)}>
                 <Edit className="h-4 w-4 mr-2" />
                 Edit Lead
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  updateLead.mutate({ id: lead.id, status: 'unqualified', stage: 'unqualified' });
+                }}
+              >
+                <XCircle className="h-4 w-4 mr-2 text-orange-600" />
+                Unqualify Lead
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem 

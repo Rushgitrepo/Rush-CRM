@@ -698,6 +698,30 @@ export default function DealDetailPage() {
                           <p className="font-semibold text-sm text-red-600">Delete Deal</p>
                         </DropdownMenuItem>
                       )}
+
+                      <DropdownMenuSeparator className="my-2 bg-slate-100" />
+                      <DropdownMenuItem
+                        className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-orange-50 group transition-colors"
+                        onClick={() => {
+                          updateDeal.mutate({ id: deal.id, status: 'unqualified', stage: 'unqualified' }, {
+                            onSuccess: () => {
+                              toast.success("Deal marked as unqualified");
+                              createActivity.mutate({
+                                entityType: 'deal',
+                                entityId: deal.id,
+                                activityType: 'status_change',
+                                title: 'Marked as Unqualified',
+                                description: 'Deal has been moved to the unqualified section',
+                              });
+                            }
+                          });
+                        }}
+                      >
+                        <div className="p-2 bg-orange-50 rounded-md group-hover:bg-orange-100 transition-colors">
+                          <XCircle className="h-4 w-4 text-orange-600" />
+                        </div>
+                        <p className="font-semibold text-sm text-orange-600">Mark as Unqualified</p>
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </>

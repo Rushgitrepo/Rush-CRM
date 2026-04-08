@@ -96,6 +96,7 @@ const navigation: NavItem[] = [
     children: [
       { title: "Leads", href: "/crm/leads", icon: UserPlus },
       { title: "Deals", href: "/crm/deals", icon: Handshake },
+      { title: "Unqualified", href: "/crm/unqualified", icon: ListFilter },
       { 
         title: "Customers", 
         href: "/crm/customers", 
