@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Send, Paperclip, ChevronDown, ChevronUp, X } from "lucide-react";
+import { Send, Paperclip, ChevronDown, ChevronUp, X, FileText } from "lucide-react";
 import { api } from '@/lib/api';
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -37,6 +37,9 @@ export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardE
   const queryClient = useQueryClient();
   const [showCcBcc, setShowCcBcc] = useState(false);
   const [sending, setSending] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const draftIdRef = useRef<string | null>(null);
+  const sentRef = useRef(false);
 
   const [form, setForm] = useState({
     mailbox_id: mailboxes[0]?.id || "",
@@ -82,6 +85,47 @@ export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardE
     });
   };
 
+  const hasContent = () =>
+    form.to.trim() !== "" || form.subject.trim() !== "" || form.body.trim() !== "";
+
+  const saveDraft = async (silent = false) => {
+    if (!hasContent()) return;
+    setSavingDraft(true);
+    try {
+      const payload = {
+        mailbox_id: form.mailbox_id,
+        to: form.to,
+        cc: form.cc,
+        bcc: form.bcc,
+        subject: form.subject,
+        body: form.body,
+        draft_id: draftIdRef.current ?? undefined,
+      };
+      const url = draftIdRef.current
+        ? `/email/drafts/${draftIdRef.current}`
+        : "/email/drafts";
+      const method = draftIdRef.current ? "patch" : "post";
+      const res = await api[method]<{ id: string }>(url, payload);
+      if (res?.id) draftIdRef.current = res.id;
+      queryClient.invalidateQueries({ queryKey: ["emails"] });
+      queryClient.invalidateQueries({ queryKey: ["email-counts"] });
+      if (!silent) toast.success("Draft saved");
+    } catch {
+      if (!silent) toast.error("Failed to save draft");
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
+  const handleClose = async (open: boolean) => {
+    if (!open && !sentRef.current && hasContent()) {
+      await saveDraft(true);
+      toast.success("Draft saved");
+    }
+    sentRef.current = false;
+    onOpenChange(open);
+  };
+
   const handleSend = async () => {
     if (!user) return;
     if (!form.to || !form.subject) {
@@ -107,9 +151,14 @@ export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardE
       });
       if (data?.error) throw new Error(data.error);
 
+      // Delete draft from DB if it was saved
+      if (draftIdRef.current) {
+        api.delete(`/email/messages/${draftIdRef.current}`).catch(() => {});
+      }
       toast.success("Email sent successfully");
       queryClient.invalidateQueries({ queryKey: ["emails"] });
       queryClient.invalidateQueries({ queryKey: ["email-counts"] });
+      sentRef.current = true;
       onOpenChange(false);
     } catch (err: any) {
       toast.error(err.message || "Failed to send email");
@@ -120,7 +169,7 @@ export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardE
 
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{replyTo ? "Reply" : forwardEmail ? "Forward" : "New Email"}</DialogTitle>
@@ -236,17 +285,27 @@ export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardE
             </Button>
           </div>
           <div className="flex items-center gap-3">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => onOpenChange(false)}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleClose(false)}
               className="rounded-full px-6"
             >
               Cancel
             </Button>
-            <Button 
-              onClick={handleSend} 
-              disabled={sending} 
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => saveDraft(false)}
+              disabled={savingDraft || !hasContent()}
+              className="rounded-full px-5"
+            >
+              <FileText className="mr-2 h-4 w-4" />
+              {savingDraft ? "Saving..." : "Save Draft"}
+            </Button>
+            <Button
+              onClick={handleSend}
+              disabled={sending}
               className="gradient-primary text-primary-foreground rounded-full px-8 shadow-lg hover:shadow-primary/20 transition-all"
             >
               <Send className="mr-2 h-4 w-4" />

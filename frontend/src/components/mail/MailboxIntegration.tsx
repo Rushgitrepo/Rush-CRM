@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Link2, Mail, Settings, Trash2, Plus } from "lucide-react";
 
 import { ConnectMailboxDialog } from "./ConnectMailboxDialog";
-import { api } from '@/lib/api';
+import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -16,6 +16,7 @@ const providers = [
     id: "gmail",
     name: "Gmail",
     authType: "oauth" as const,
+    color: "#EA4335",
     icon: (
       <svg viewBox="0 0 24 24" className="w-10 h-10">
         <path d="M22 6l-10 7L2 6V4l10 7 10-7v2z" fill="#EA4335" />
@@ -27,18 +28,21 @@ const providers = [
   },
   {
     id: "outlook",
-    name: "Outlook / Hotmail",
+    name: "Outlook",
     authType: "oauth" as const,
+    color: "#0078D4",
     icon: (
       <div className="w-10 h-10 rounded-lg bg-[#0078D4] flex items-center justify-center">
-        <span className="text-white font-bold text-xl">O</span>
+        <span className="text-white font-bold text-xl italic">O</span>
       </div>
     ),
   },
   {
     id: "icloud",
-    name: "iCloud",
+    name: "iCloud Mail",
     authType: "password" as const,
+    color: "#3693F5",
+    subtitle: "Secure Connect",
     icon: (
       <svg viewBox="0 0 24 24" className="w-10 h-10" fill="#3693F5">
         <path d="M19.35 10.04A7.49 7.49 0 0012 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 000 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" />
@@ -47,9 +51,9 @@ const providers = [
   },
   {
     id: "custom_imap",
-    name: "Custom mailbox",
-    subtitle: "IMAP+SMTP",
+    name: "Other IMAP",
     authType: "password" as const,
+    color: "#64748b",
     icon: (
       <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
         <Mail className="w-6 h-6 text-primary" />
@@ -63,8 +67,10 @@ interface MailboxIntegrationProps {
   onComposeClick?: () => void;
 }
 
-
-export function MailboxIntegration({ onMailboxConnected, onComposeClick }: MailboxIntegrationProps) {
+export function MailboxIntegration({
+  onMailboxConnected,
+  onComposeClick,
+}: MailboxIntegrationProps) {
   const [connectDialog, setConnectDialog] = useState<string | null>(null);
   const [oauthLoading, setOauthLoading] = useState<string | null>(null);
   const { user } = useAuth();
@@ -74,7 +80,7 @@ export function MailboxIntegration({ onMailboxConnected, onComposeClick }: Mailb
   const { data: connectedMailboxes = [], isLoading } = useQuery({
     queryKey: ["connected-mailboxes", user?.id],
     queryFn: async () => {
-      const data = await api.get<any[]>('/email/mailboxes');
+      const data = await api.get<any[]>("/email/mailboxes");
       return data || [];
     },
     enabled: !!user,
@@ -85,11 +91,13 @@ export function MailboxIntegration({ onMailboxConnected, onComposeClick }: Mailb
   const handleOAuthConnect = async (providerId: string) => {
     setOauthLoading(providerId);
     try {
-      const functionName = providerId === 'gmail' ? 'gmail-mail-auth' : 'outlook-mail-auth';
+      const functionName =
+        providerId === "gmail" ? "gmail-mail-auth" : "outlook-mail-auth";
       const data = await api.get<any>(`/email/oauth-url/${functionName}`);
-      if (!data?.authUrl) throw new Error('Failed to get auth URL');
+      if (!data?.authUrl) throw new Error("Failed to get auth URL");
       const isInIframe = window.self !== window.top;
-      if (isInIframe) window.open(data.authUrl, '_blank', 'width=600,height=700');
+      if (isInIframe)
+        window.open(data.authUrl, "_blank", "width=600,height=700");
       else window.location.href = data.authUrl;
     } catch (err: any) {
       console.error("OAuth error:", err);
@@ -109,8 +117,8 @@ export function MailboxIntegration({ onMailboxConnected, onComposeClick }: Mailb
 
   const handleDisconnect = async (id: string) => {
     await api.delete(`/email/mailboxes/${id}`);
-    toast.success('Mailbox disconnected');
-    queryClient.invalidateQueries({ queryKey: ['connected-mailboxes'] });
+    toast.success("Mailbox disconnected");
+    queryClient.invalidateQueries({ queryKey: ["connected-mailboxes"] });
   };
 
   const hasConnectedMailboxes = connectedMailboxes.length > 0;
@@ -119,16 +127,17 @@ export function MailboxIntegration({ onMailboxConnected, onComposeClick }: Mailb
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold text-foreground">Mailbox Integration</h1>
+          <h1 className="text-2xl font-bold text-foreground">
+            Mailbox Integration
+          </h1>
           <Settings className="h-5 w-5 text-muted-foreground cursor-pointer hover:text-foreground transition-colors" />
         </div>
         {hasConnectedMailboxes && (
           <div className="flex gap-2">
-            <Button 
-              className="gradient-primary text-primary-foreground" 
+            <Button
+              className="gradient-primary text-primary-foreground"
               onClick={onComposeClick || onMailboxConnected}
             >
-
               <Plus className="mr-2 h-4 w-4" />
               Compose Email
             </Button>
@@ -138,48 +147,57 @@ export function MailboxIntegration({ onMailboxConnected, onComposeClick }: Mailb
             </Button>
           </div>
         )}
-
       </div>
 
       {/* Connected Mailboxes */}
       {hasConnectedMailboxes && (
         <div className="space-y-3">
-          <h2 className="text-lg font-semibold text-foreground">Connected Mailboxes</h2>
+          <h2 className="text-lg font-semibold text-foreground">
+            Connected Mailboxes
+          </h2>
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
             {connectedMailboxes.map((mb) => {
               const prov = providers.find((p) => p.id === mb.provider);
               return (
                 <Card
                   key={mb.id}
-                  className="p-4 flex items-center justify-between hover:shadow-md transition-shadow cursor-pointer"
+                  className="p-3 w-full flex items-center justify-between hover:shadow-md transition-shadow cursor-pointer"
                   onClick={onMailboxConnected}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     <div className="shrink-0">{prov?.icon}</div>
-                    <div>
-                      <p className="font-medium text-sm">{mb.email_address}</p>
-                      <p className="text-xs text-muted-foreground capitalize">
-                        {mb.provider.replace("_", " ")} • {mb.sync_status === "synced" ? "Synced" : mb.sync_status}
+
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm truncate">
+                        {mb.email_address}
+                      </p>
+
+                      <p className="text-xs text-muted-foreground capitalize truncate">
+                        {mb.provider.replace("_", " ")} •{" "}
+                        {mb.sync_status === "synced"
+                          ? "Synced"
+                          : mb.sync_status}
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+
+                  <div className="flex items-center gap-2 shrink-0">
                     <Badge
                       variant={mb.is_active ? "default" : "secondary"}
                       className="text-xs"
                     >
                       {mb.access_token ? "OAuth" : "IMAP"}
                     </Badge>
+
                     <Button
                       variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
+                      className="text-destructive text-xs bg-red-500/20 hover:bg-destructive hover:text-destructive-foreground px-2 h-7"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleDisconnect(mb.id);
                       }}
                     >
-                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      Log Out
                     </Button>
                   </div>
                 </Card>
@@ -195,7 +213,8 @@ export function MailboxIntegration({ onMailboxConnected, onComposeClick }: Mailb
           Connect your email
         </h2>
         <p className="text-sm text-muted-foreground mb-8">
-          Gmail and Outlook use secure OAuth — no passwords needed. Your CRM will sync real emails.
+          Gmail and Outlook use secure OAuth — no passwords needed. Your CRM
+          will sync real emails.
         </p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-3xl mx-auto">
           {providers.map((provider) => {
@@ -223,13 +242,19 @@ export function MailboxIntegration({ onMailboxConnected, onComposeClick }: Mailb
                 <div className="text-center">
                   <p className="font-medium text-sm">{provider.name}</p>
                   {"subtitle" in provider && (
-                    <p className="text-xs text-muted-foreground">{provider.subtitle}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {provider.subtitle}
+                    </p>
                   )}
                   {provider.authType === "oauth" && !isConnected && (
-                    <p className="text-[10px] text-primary mt-1">Sign in with OAuth</p>
+                    <p className="text-[10px] text-primary mt-1">
+                      Sign in with OAuth
+                    </p>
                   )}
                   {provider.authType === "password" && !isConnected && (
-                    <p className="text-[10px] text-muted-foreground mt-1">App password</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      App password
+                    </p>
                   )}
                 </div>
               </Card>
@@ -246,7 +271,9 @@ export function MailboxIntegration({ onMailboxConnected, onComposeClick }: Mailb
           provider={connectDialog}
           onSuccess={() => {
             setConnectDialog(null);
-            queryClient.invalidateQueries({ queryKey: ["connected-mailboxes"] });
+            queryClient.invalidateQueries({
+              queryKey: ["connected-mailboxes"],
+            });
           }}
         />
       )}

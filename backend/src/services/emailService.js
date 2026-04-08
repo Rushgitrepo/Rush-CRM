@@ -63,20 +63,24 @@ class EmailService {
       const nodemailer = require('nodemailer');
       
       const config = mailbox.provider === 'icloud' ? {
-        host: 'smtp.mail.me.com',
-        port: 587,
-        secure: false, // TLS
+        host: mailbox.smtp_host && mailbox.smtp_host !== 'smtp.mail.me.com' ? mailbox.smtp_host : 'smtp.icloud.com',
+        port: mailbox.smtp_port === 587 ? 465 : (mailbox.smtp_port || 465),
+        secure: true, // Use implicit TLS on port 465 to bypass firewall blocks
+        pool: true,
+        connectionTimeout: 30000,
+        greetingTimeout: 30000,
+        socketTimeout: 60000,
         auth: {
-          user: mailbox.email_address,
-          pass: mailbox.refresh_token // App-specific password
+          user: mailbox.smtp_username || mailbox.email_address || process.env.SMTP_USERNAME,
+          pass: mailbox.encrypted_password || process.env.EMAIL_PASSWORD
         }
       } : {
-        host: mailbox.smtp_host,
-        port: mailbox.smtp_port,
-        secure: mailbox.smtp_port === 465,
+        host: mailbox.smtp_host || process.env.SMTP_HOST,
+        port: mailbox.smtp_port || parseInt(process.env.SMTP_PORT) || 587,
+        secure: (mailbox.smtp_port || parseInt(process.env.SMTP_PORT) || 587) === 465,
         auth: {
-          user: mailbox.email_address,
-          pass: mailbox.refresh_token
+          user: mailbox.smtp_username || mailbox.email_address || process.env.SMTP_USERNAME,
+          pass: mailbox.encrypted_password || process.env.EMAIL_PASSWORD
         }
       };
 

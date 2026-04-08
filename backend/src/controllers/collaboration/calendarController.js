@@ -83,7 +83,7 @@ const create = async (req, res, next) => {
       for (const invitee of invitees) {
         const attendeeEmail = typeof invitee === 'string' ? invitee : invitee.email;
         if (!attendeeEmail) continue;
-        
+
         await db.query(
           `INSERT INTO public.calendar_event_attendees (event_id, email, status, is_organizer, org_id)
            VALUES ($1, $2, $3, $4, $5)`,
@@ -98,7 +98,7 @@ const create = async (req, res, next) => {
     try {
       const emailService = require('../../services/emailService');
       const userResult = await db.query(
-        'SELECT u.email, o.name as org_name FROM users u JOIN organizations o ON u.organization_id = o.id WHERE u.id = $1', 
+        'SELECT u.email, o.name as org_name FROM users u JOIN organizations o ON u.organization_id = o.id WHERE u.id = $1',
         [req.user.id]
       );
       const userData = userResult.rows[0];
@@ -108,7 +108,7 @@ const create = async (req, res, next) => {
         const htmlBody = `
           <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
             <div style="background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); padding: 30px; color: white;">
-              <h1 style="margin: 0; font-size: 24px;">New Calendar Event</h1>
+              <h1 style="margin: 0; font-size: 24px;"> ${title} Event</h1>
               <p style="margin: 10px 0 0; opacity: 0.9;">${userData.org_name || 'Rush CRM'}</p>
             </div>
             <div style="padding: 30px; background: white;">
@@ -123,7 +123,14 @@ const create = async (req, res, next) => {
                 <h3 style="font-size: 14px; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; margin-bottom: 10px;">Description</h3>
                 <p style="color: #475569; line-height: 1.6;">${description || 'No description provided.'}</p>
               </div>
-
+              <div style="text-align: center; margin-top: 30px;">
+                <div style="display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
+                  <a href="https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${new Date(startTime).toISOString().replace(/[-:]/g, '').split('.')[0]}Z/${new Date(endTime).toISOString().replace(/[-:]/g, '').split('.')[0]}Z&details=${encodeURIComponent(description || '')}&location=${encodeURIComponent(location || '')}" target="_blank" style="color: #1a73e8; background: #f1f5f9; padding: 8px 16px; text-decoration: none; border-radius: 6px; font-size: 13px; font-weight: 500; border: 1px solid #e2e8f0;">
+                    Google Calendar
+                  </a>
+                  
+                </div>
+              </div>
 
               <hr style="margin: 30px 0; border: 0; border-top: 1px solid #f1f5f9;" />
               <p style="font-size: 12px; color: #94a3b8;">Sent via ${userData.org_name} CRM. Organizer: ${userData.email}</p>
@@ -170,7 +177,7 @@ const create = async (req, res, next) => {
           userData.email,
           ...(invitees.map(i => typeof i === 'string' ? i : i.email).filter(Boolean))
         ].map(email => email.toLowerCase().trim());
-        
+
         const uniqueRecipients = [...new Set(allRecipients)];
 
         // Send to each recipient separately
@@ -421,10 +428,10 @@ const getConnections = async (req, res, next) => {
 const disconnect = async (req, res, next) => {
   try {
     const { id } = req.params;
-    
+
     // The frontend passes provider names like "google". We support both UUIDs and provider names.
     const isUuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id);
-    
+
     let deletedProvider = id;
 
     if (isUuid) {
@@ -455,7 +462,7 @@ const disconnect = async (req, res, next) => {
 const connectICloud = async (req, res, next) => {
   try {
     const { appleId, appPassword } = req.body;
-    
+
     const email = appleId || process.env.APPLE_EMAIL;
     const password = appPassword || process.env.APPLE_PASSWORD;
 
@@ -486,7 +493,7 @@ const connectICloud = async (req, res, next) => {
 const syncEvents = async (req, res, next) => {
   try {
     const { provider = 'google' } = req.params;
-    
+
     // 1. Get tokens
     const connResult = await db.query(
       'SELECT * FROM public.calendar_connections WHERE org_id = $1 AND user_id = $2 AND provider = $3',
@@ -548,10 +555,10 @@ const syncEvents = async (req, res, next) => {
           is_all_day = EXCLUDED.is_all_day,
           updated_at = now()`,
         [
-          req.user.orgId, 
-          req.user.id, 
-          event.summary || '(No Title)', 
-          event.description || '', 
+          req.user.orgId,
+          req.user.id,
+          event.summary || '(No Title)',
+          event.description || '',
           event.location || '',
           startTime,
           endTime,
@@ -575,6 +582,51 @@ const syncEvents = async (req, res, next) => {
   }
 };
 
+const getEventIcs = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const result = await db.query(
+      'SELECT * FROM public.calendar_events WHERE id = $1',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).send('Event not found');
+    }
+
+    const event = result.rows[0];
+    const { title, description, start_time, end_time, location } = event;
+
+    const formatICSDate = (d) => new Date(d).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+    const icsContent = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//Rush CRM//Rush CRM Calendar//EN',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+      'BEGIN:VEVENT',
+      `UID:${event.id}@rush-crm.com`,
+      `DTSTAMP:${formatICSDate(new Date())}`,
+      `DTSTART:${formatICSDate(start_time)}`,
+      `DTEND:${formatICSDate(end_time)}`,
+      `SUMMARY:${title}`,
+      `DESCRIPTION:${description || '(No description)'}`,
+      `LOCATION:${location || '(No location)'}`,
+      'STATUS:CONFIRMED',
+      'SEQUENCE:0',
+      'END:VEVENT',
+      'END:VCALENDAR'
+    ].join('\r\n');
+
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', `inline; filename="event-${id}.ics"`);
+    res.send(icsContent);
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getEvents,
   getById,
@@ -588,5 +640,6 @@ module.exports = {
   getConnections,
   disconnect,
   syncEvents,
-  connectICloud
+  connectICloud,
+  getEventIcs
 };

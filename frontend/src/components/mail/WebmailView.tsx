@@ -148,9 +148,15 @@ export function WebmailView({ mailboxes, onBackToIntegration, initialOpenCompose
   };
 
   const handleDelete = async (id: string) => {
-    await api.patch(`/email/messages/${id}`, { folder: 'trash' });
+    const isTrash = activeFolder === 'trash';
+    if (isTrash) {
+      await api.post('/email/messages/bulk', { ids: [id], update: { deleted: true } });
+      toast.success("Permanently deleted");
+    } else {
+      await api.patch(`/email/messages/${id}`, { folder: 'trash' });
+      toast.success("Moved to trash");
+    }
     setSelectedEmail(null);
-    toast.success("Moved to trash");
     queryClient.invalidateQueries({ queryKey: ["emails"] });
     queryClient.invalidateQueries({ queryKey: ["email-counts"] });
   };
@@ -162,8 +168,14 @@ export function WebmailView({ mailboxes, onBackToIntegration, initialOpenCompose
       await api.post('/email/messages/bulk', { ids, update: { is_read: true } });
       toast.success(`Marked ${ids.length} as read`);
     } else if (action === 'trash') {
-      await api.post('/email/messages/bulk', { ids, update: { folder: 'trash' } });
-      toast.success(`Moved ${ids.length} to trash`);
+      const isTrash = activeFolder === 'trash';
+      if (isTrash) {
+        await api.post('/email/messages/bulk', { ids, update: { deleted: true } });
+        toast.success(`Permanently deleted ${ids.length} emails`);
+      } else {
+        await api.post('/email/messages/bulk', { ids, update: { folder: 'trash' } });
+        toast.success(`Moved ${ids.length} to trash`);
+      }
     } else if (action === 'archive') {
       await api.post('/email/messages/bulk', { ids, update: { folder: 'archive' } });
       toast.success(`Archived ${ids.length} emails`);
@@ -172,6 +184,7 @@ export function WebmailView({ mailboxes, onBackToIntegration, initialOpenCompose
     queryClient.invalidateQueries({ queryKey: ["emails"] });
     queryClient.invalidateQueries({ queryKey: ["email-counts"] });
   };
+
 
   const handleReply = (email: any) => {
     setReplyTo(email);
@@ -264,11 +277,12 @@ export function WebmailView({ mailboxes, onBackToIntegration, initialOpenCompose
                 disabled={isSyncing}
                 onClick={() => {
                   if (activeMailbox !== "all") {
-                    syncMailbox(activeMailbox);
+                    syncMailbox(activeMailbox, true);
                   } else {
-                    mailboxes.forEach((mb) => syncMailbox(mb.id));
+                    mailboxes.forEach((mb) => syncMailbox(mb.id, true));
                   }
                 }}
+
               >
                 <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
               </Button>

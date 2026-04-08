@@ -8,8 +8,9 @@ import { WebmailView } from "@/components/mail/WebmailView";
 export default function MailPage() {
   const { user } = useAuth();
   const [view, setView] = useState<"integration" | "webmail">("integration");
+  const [hasInitialSwitched, setHasInitialSwitched] = useState(false);
   const [openComposer, setOpenComposer] = useState(false);
-
+ 
   const { data: mailboxes = [], isLoading } = useQuery({
     queryKey: ["connected-mailboxes", user?.id],
     queryFn: async () => {
@@ -19,13 +20,14 @@ export default function MailPage() {
     },
     enabled: !!user,
   });
-
-  // Auto-switch to webmail view if mailboxes exist and we are in integration view
+ 
+  // Auto-switch to webmail view if mailboxes exist on initial load
   useEffect(() => {
-    if (mailboxes.length > 0 && view === "integration") {
+    if (!isLoading && mailboxes.length > 0 && !hasInitialSwitched) {
       setView("webmail");
+      setHasInitialSwitched(true);
     }
-  }, [mailboxes.length, view]);
+  }, [mailboxes.length, isLoading, hasInitialSwitched]);
 
   if (view === "webmail" && mailboxes.length > 0) {
     return (

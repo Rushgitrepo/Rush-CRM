@@ -7,6 +7,7 @@ const calendarController = require('../../controllers/collaboration/calendarCont
 // without auth headers. We use the 'state' parameter to identify the user.
 router.get('/auth/google/callback', calendarController.googleCallback);
 router.get('/auth/microsoft/callback', calendarController.microsoftCallback);
+router.get('/:id/ics', calendarController.getEventIcs);
 
 router.use(auth, requireOrg);
 

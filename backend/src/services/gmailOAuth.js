@@ -62,12 +62,14 @@ class GmailOAuthService {
     }
 
     const scopes = [
+      'https://mail.google.com/',
       'https://www.googleapis.com/auth/gmail.readonly',
       'https://www.googleapis.com/auth/gmail.send',
       'https://www.googleapis.com/auth/gmail.modify',
       'https://www.googleapis.com/auth/userinfo.email',
       'https://www.googleapis.com/auth/userinfo.profile'
     ];
+
 
     const authUrl = this.oauth2Client.generateAuthUrl({
       access_type: 'offline',
@@ -165,18 +167,20 @@ class GmailOAuthService {
   /**
    * List messages from Gmail
    */
-  async listMessages(accessToken, query = '', maxResults = 50) {
+  async listMessages(accessToken, query = '', maxResults = 50, pageToken = null) {
     this.oauth2Client.setCredentials({ access_token: accessToken });
     const gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
     
     const response = await gmail.users.messages.list({
       userId: 'me',
       q: query,
-      maxResults: maxResults
+      maxResults: maxResults,
+      pageToken: pageToken
     });
 
     return response.data;
   }
+
 
   /**
    * Get detailed message from Gmail
@@ -208,6 +212,120 @@ class GmailOAuthService {
       removeLabelIds
     });
   }
+
+  /**
+   * Trash messages in Gmail
+   */
+  async trashMessages(accessToken, messageIds) {
+    this.oauth2Client.setCredentials({ access_token: accessToken });
+    const gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
+    
+    for (const id of messageIds) {
+      await gmail.users.messages.trash({
+        userId: 'me',
+        id: id
+      });
+    }
+  }
+
+  /**
+   * Untrash messages in Gmail
+   */
+  async untrashMessages(accessToken, messageIds) {
+    this.oauth2Client.setCredentials({ access_token: accessToken });
+    const gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
+    
+    for (const id of messageIds) {
+      await gmail.users.messages.untrash({
+        userId: 'me',
+        id: id
+      });
+    }
+  }
+
+  /**
+   * Permanently delete messages in Gmail
+   */
+  async deleteMessages(accessToken, messageIds) {
+    this.oauth2Client.setCredentials({ access_token: accessToken });
+    const gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
+    
+    for (const id of messageIds) {
+      await gmail.users.messages.delete({
+        userId: 'me',
+        id: id
+      });
+    }
+  }
+
+  /**
+   * Create a draft in Gmail
+   */
+  async createDraft(accessToken, { to, cc, bcc, subject, body, html }) {
+    this.oauth2Client.setCredentials({ access_token: accessToken });
+    const gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
+
+    const raw = this._prepareRawEmail({ to, cc, bcc, subject, body, html });
+
+    const response = await gmail.users.drafts.create({
+      userId: 'me',
+      requestBody: {
+        message: {
+          raw: raw
+        }
+      }
+    });
+
+    return response.data;
+  }
+
+  /**
+   * Update a draft in Gmail
+   */
+  async updateDraft(accessToken, draftId, { to, cc, bcc, subject, body, html }) {
+    this.oauth2Client.setCredentials({ access_token: accessToken });
+    const gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
+
+    const raw = this._prepareRawEmail({ to, cc, bcc, subject, body, html });
+
+    const response = await gmail.users.drafts.update({
+      userId: 'me',
+      id: draftId,
+      requestBody: {
+        message: {
+          raw: raw
+        }
+      }
+    });
+
+    return response.data;
+  }
+
+  /**
+   * Prepare raw email for Gmail API
+   */
+  _prepareRawEmail({ to, cc, bcc, subject, body, html }) {
+    const utf8Subject = `=?utf-8?B?${Buffer.from(subject || '').toString('base64')}?=`;
+    const messageParts = [
+      `To: ${to || ''}`,
+      cc ? `Cc: ${cc}` : null,
+      bcc ? `Bcc: ${bcc}` : null,
+      `Subject: ${utf8Subject}`,
+      'MIME-Version: 1.0',
+      'Content-Type: text/html; charset=utf-8',
+      'Content-Transfer-Encoding: 7bit',
+      '',
+      html || body || '',
+    ].filter(Boolean);
+    
+    const message = messageParts.join('\n');
+    return Buffer.from(message)
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+  }
+
 
   /**
    * Send an email via Gmail API
