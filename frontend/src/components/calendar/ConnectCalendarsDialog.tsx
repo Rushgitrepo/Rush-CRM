@@ -1,6 +1,6 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Check, Settings, Calendar } from "lucide-react";
+import { Check, Settings, Calendar, RefreshCw, Trash2 } from "lucide-react";
 
 interface CalendarProvider {
   id: string;
@@ -15,7 +15,8 @@ interface ConnectCalendarsDialogProps {
   onOpenChange: (open: boolean) => void;
   connectedCalendars: string[];
   onConnect: (providerId: string) => void;
-  onManage: (providerId: string) => void;
+  onSync: (providerId: string) => void;
+  onDisconnect: (providerId: string) => void;
 }
 
 export function ConnectCalendarsDialog({
@@ -23,7 +24,8 @@ export function ConnectCalendarsDialog({
   onOpenChange,
   connectedCalendars,
   onConnect,
-  onManage,
+  onSync,
+  onDisconnect,
 }: ConnectCalendarsDialogProps) {
   const providers: CalendarProvider[] = [
     {
@@ -73,7 +75,7 @@ export function ConnectCalendarsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-w-2xl">
         <DialogHeader className="flex flex-row items-center gap-4 pb-4">
           <div className="relative">
             <div className="w-16 h-16 rounded-full bg-success/20 flex items-center justify-center">
@@ -120,18 +122,28 @@ export function ConnectCalendarsDialog({
                 </div>
               </div>
               {provider.connected ? (
-                <div className="flex items-center gap-2">
-                  <span className="flex items-center gap-1 text-success text-sm font-medium">
+                <div className="flex items-center gap-1">
+                  <span className="flex items-center gap-1 text-success text-sm font-medium mr-2 hidden sm:flex">
                     <Check className="w-4 h-4" />
                     CONNECTED
                   </span>
                   <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => onManage(provider.id)}
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1 text-sky-600 border-sky-400 hover:bg-sky-600 hover:text-white"
+                    onClick={() => onSync(provider.id)}
                   >
-                    <Settings className="w-4 h-4" />
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline ">Sync</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1 text-destructive border-red-400 hover:bg-red-500 hover:text-white"
+                    onClick={() => onDisconnect(provider.id)}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Remove</span>
                   </Button>
                 </div>
               ) : (

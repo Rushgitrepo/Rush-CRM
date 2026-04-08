@@ -26,7 +26,7 @@ interface ConnectMailboxDialogProps {
 const providerDefaults: Record<string, { imap_host: string; imap_port: number; smtp_host: string; smtp_port: number }> = {
   gmail: { imap_host: "imap.gmail.com", imap_port: 993, smtp_host: "smtp.gmail.com", smtp_port: 587 },
   outlook: { imap_host: "outlook.office365.com", imap_port: 993, smtp_host: "smtp.office365.com", smtp_port: 587 },
-  icloud: { imap_host: "imap.mail.me.com", imap_port: 993, smtp_host: "smtp.mail.me.com", smtp_port: 587 },
+  icloud: { imap_host: "imap.mail.me.com", imap_port: 993, smtp_host: "smtp.icloud.com", smtp_port: 465 },
   office365: { imap_host: "outlook.office365.com", imap_port: 993, smtp_host: "smtp.office365.com", smtp_port: 587 },
   exchange: { imap_host: "", imap_port: 993, smtp_host: "", smtp_port: 587 },
   yahoo: { imap_host: "imap.mail.yahoo.com", imap_port: 993, smtp_host: "smtp.mail.yahoo.com", smtp_port: 587 },
@@ -46,7 +46,7 @@ const providerNames: Record<string, string> = {
 };
 
 export function ConnectMailboxDialog({ open, onOpenChange, provider, onSuccess }: ConnectMailboxDialogProps) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { organization } = useOrganization();
   const [loading, setLoading] = useState(false);
   const defaults = providerDefaults[provider] || providerDefaults.custom_imap;
@@ -63,8 +63,10 @@ export function ConnectMailboxDialog({ open, onOpenChange, provider, onSuccess }
   });
 
   const handleSubmit = async () => {
-    if (!user || !organization) {
-      toast.error("You must be logged in");
+    const orgId = organization?.id || profile?.org_id || user?.orgId;
+    
+    if (!user || !orgId) {
+      toast.error("You must be logged in with an organization");
       return;
     }
     if (!form.email || !form.password) {
@@ -77,7 +79,7 @@ export function ConnectMailboxDialog({ open, onOpenChange, provider, onSuccess }
       // 1. Save mailbox record
       const mailbox = await api.post<any>('/email/mailboxes', {
         user_id: user.id,
-        org_id: organization.id,
+        org_id: orgId,
         provider,
         email_address: form.email,
         display_name: form.display_name || form.email,
@@ -128,7 +130,15 @@ export function ConnectMailboxDialog({ open, onOpenChange, provider, onSuccess }
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        <div className="space-y-4 py-2 pb-4">
+          {provider === 'icloud' && (
+            <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg flex items-start gap-2 text-xs text-blue-700">
+              <div className="mt-0.5">ℹ️</div>
+              <p>
+                <strong>iCloud Security:</strong> Use an <strong>App-Specific Password</strong> from <a href="https://appleid.apple.com" target="_blank" className="underline font-medium">appleid.apple.com</a>. Regular passwords will not work.
+              </p>
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="email">Email Address</Label>
             <Input

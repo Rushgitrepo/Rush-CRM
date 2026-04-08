@@ -56,7 +56,7 @@ export default function EmployeeAssignmentsPage() {
   const { data: assignmentsResp, isLoading } = useQuery({
     queryKey: ["employee-assignments", statusFilter],
     queryFn: () => api.get("/inventory/assignments", {
-      params: { status: statusFilter !== "all" ? statusFilter : undefined }
+      status: statusFilter !== "all" ? statusFilter : undefined
     }),
   });
 
@@ -73,7 +73,7 @@ export default function EmployeeAssignmentsPage() {
   // Fetch products
   const { data: productsResp } = useQuery({
     queryKey: ["products-list"],
-    queryFn: () => api.get("/products", { params: { status: "active" } }),
+    queryFn: () => api.get("/products", { status: "active" }),
   });
 
   const products = (productsResp as any)?.data || [];

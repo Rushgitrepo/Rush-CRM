@@ -1,0 +1,39 @@
+{
+  "name": "crm-backend",
+  "version": "1.0.0",
+  "description": "Backend API for CRM application",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "db:import": "node src/database/import-database.js",
+    "migrate": "node src/database/run-migrations.js"
+  },
+  "dependencies": {
+    "@sendgrid/mail": "^8.1.6",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "csv-parser": "^3.0.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "googleapis": "^171.4.0",
+    "helmet": "^7.1.0",
+    "joi": "^17.11.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^8.0.4",
+    "pg": "^8.11.3",
+    "socket.io": "^4.8.3",
+    "imapflow": "^1.2.18",
+    "mailparser": "^3.9.6",
+    "node-ical": "^0.26.0",
+    "tsdav": "^2.1.8",
+    "uuid": "^9.0.1",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}

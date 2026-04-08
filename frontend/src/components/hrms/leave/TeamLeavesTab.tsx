@@ -42,7 +42,7 @@ export default function TeamLeavesTab() {
   // Fetch team leave requests
   const { data: requestsResp, isLoading } = useQuery({
     queryKey: ["team-leave-requests", statusFilter],
-    queryFn: () => api.get("/leave", { params: { status: statusFilter !== "all" ? statusFilter : undefined } }),
+    queryFn: () => api.get("/leave", { status: statusFilter !== "all" ? statusFilter : undefined }),
     refetchInterval: 30000,
   });
   const allRequests = (requestsResp as any)?.data || [];

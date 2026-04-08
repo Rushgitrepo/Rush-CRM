@@ -60,7 +60,7 @@ export default function AttendancePage() {
 
   const { data: records = [], isLoading } = useQuery({
     queryKey: ["attendance", selectedDate, search],
-    queryFn: () => api.get<AttendanceRecord[]>("/hrms/attendance", { params: { date: selectedDate, search } }),
+    queryFn: () => api.get<AttendanceRecord[]>("/hrms/attendance", { date: selectedDate, search }),
     refetchInterval: 30000,
   });
 

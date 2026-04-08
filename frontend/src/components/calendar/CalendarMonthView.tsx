@@ -39,9 +39,15 @@ export function CalendarMonthView({ selectedDate, onDateSelect, events, onEventC
     d1.getDate() === d2.getDate() && d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear();
 
   const getEventsForDay = (date: Date) => {
+    const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0);
+    const dayEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59);
+
     return events.filter(e => {
       const eStart = new Date(e.start_time);
-      return isSameDay(eStart, date);
+      const eEnd = new Date(e.end_time);
+      // Event overlaps with this day if:
+      // event starts before the end of the day AND event ends after the start of the day
+      return eStart <= dayEnd && eEnd >= dayStart;
     });
   };
 
@@ -69,8 +75,9 @@ export function CalendarMonthView({ selectedDate, onDateSelect, events, onEventC
               className={`
                 min-h-[100px] p-3 border-r border-b border-slate-200 dark:border-slate-700 last:border-r-0 cursor-pointer transition-all duration-200
                 ${!isCurrentMonth ? 'bg-slate-50 dark:bg-slate-800/50 text-slate-400 dark:text-slate-600' : 'hover:bg-slate-50 dark:hover:bg-slate-800/30'}
-                ${isToday && isCurrentMonth ? 'bg-blue-50 dark:bg-blue-950/30' : ''}
+                ${isToday && isCurrentMonth ? 'ring-2 ring-inset ring-primary/20 bg-primary/5' : ''}
               `}
+
             >
               <div className="flex items-start justify-between mb-2">
                 {/* Month indicator for first week of previous/next month */}
@@ -96,7 +103,8 @@ export function CalendarMonthView({ selectedDate, onDateSelect, events, onEventC
                   <div
                     key={ev.id}
                     onClick={(e) => { e.stopPropagation(); onEventClick(ev); }}
-                    className={`text-xs leading-tight px-2 py-1 rounded-md text-white cursor-pointer hover:opacity-90 transition-opacity shadow-sm ${ev.color || 'bg-blue-500'}`}
+                    className="text-xs leading-tight px-2 py-1 rounded-md text-white cursor-pointer hover:opacity-90 transition-opacity shadow-sm"
+                    style={{ backgroundColor: ev.color || '#3b82f6' }}
                     title={ev.title}
                   >
                     <div className="truncate font-medium">{ev.title}</div>

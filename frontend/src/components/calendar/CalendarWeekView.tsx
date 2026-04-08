@@ -35,9 +35,15 @@ export function CalendarWeekView({ selectedDate, events, onEventClick, onSlotCli
   };
 
   const getEventsForDayHour = (date: Date, hour: number) => {
+    const slotStart = new Date(date.getFullYear(), date.getMonth(), date.getDate(), hour, 0, 0);
+    const slotEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate(), hour, 59, 59);
+
     return events.filter(e => {
-      const s = new Date(e.start_time);
-      return isSameDay(s, date) && s.getHours() === hour;
+      const eStart = new Date(e.start_time);
+      const eEnd = new Date(e.end_time);
+      // Event overlaps with this hour slot if:
+      // event starts before the end of the slot AND event ends after the start of the slot
+      return eStart <= slotEnd && eEnd >= slotStart;
     });
   };
 
@@ -82,7 +88,8 @@ export function CalendarWeekView({ selectedDate, events, onEventClick, onSlotCli
                       <div
                         key={ev.id}
                         onClick={(e) => { e.stopPropagation(); onEventClick(ev); }}
-                        className={`text-[10px] leading-tight px-2 py-1 rounded-md text-white truncate cursor-pointer hover:opacity-90 transition-opacity shadow-sm ${ev.color || 'bg-blue-500'}`}
+                        className="text-[10px] leading-tight px-2 py-1 rounded-md text-white truncate cursor-pointer hover:opacity-90 transition-opacity shadow-sm"
+                        style={{ backgroundColor: ev.color || '#3b82f6' }}
                         title={`${format(new Date(ev.start_time), 'h:mm a')} - ${ev.title}`}
                       >
                         <div className="font-medium">{format(new Date(ev.start_time), 'h:mm a')}</div>

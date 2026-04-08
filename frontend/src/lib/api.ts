@@ -375,11 +375,17 @@ export const rolesApi = {
 };
 
 export const calendarApi = {
-  getEvents: (params?: { startDate?: string; endDate?: string }) => api.get<any[]>('/calendar', params),
+  getEvents: (params?: { startDate?: string; endDate?: string; search?: string }) => api.get<any[]>('/calendar', params),
   getById: (id: string) => api.get<any>(`/calendar/${id}`),
   create: (data: any) => api.post<any>('/calendar', data),
   update: (id: string, data: any) => api.put<any>(`/calendar/${id}`, data),
   delete: (id: string) => api.delete(`/calendar/${id}`),
+  getGoogleAuthUrl: () => api.get<{ authUrl: string }>('/calendar/auth/google'),
+  getMicrosoftAuthUrl: () => api.get<{ authUrl: string }>('/calendar/auth/microsoft'),
+  getConnections: () => api.get<any[]>('/calendar/connections'),
+  sync: (provider: string) => api.post<{ success: boolean; count: number }>(`/calendar/sync/${provider}`),
+  disconnect: (id: string) => api.delete<{ success: boolean }>(`/calendar/connections/${id}`),
+  connectICloud: (appleId?: string, appPassword?: string) => api.post<{ success: boolean; message: string }>('/calendar/auth/icloud', { appleId, appPassword }),
 };
 
 export const workflowsApi = {
@@ -400,6 +406,37 @@ export const workflowsApi = {
 export const activitiesApi = {
   getRecent: (limit?: number) => api.get<any[]>('/activities', limit ? { limit: String(limit) } : undefined),
   getByEntity: (entityType: string, entityId: string) => api.get<any[]>(`/activities/${entityType}/${entityId}`),
+  create: (data: any) => api.post<any>('/activities', data),
+};
+
+export const crmCommentsApi = {
+  getByEntity: (entityType: string, entityId: string, params?: { page?: number; limit?: number }) => 
+    api.get<any[]>(`/crm-comments/${entityType}/${entityId}`, params),
+  create: (data: { entityType: string; entityId: string; content: string }) => 
+    api.post<any>('/crm-comments', data),
+  update: (id: string, content: string) => 
+    api.put<any>(`/crm-comments/${id}`, { content }),
+  delete: (id: string) => api.delete(`/crm-comments/${id}`),
+};
+
+export const crmDocumentsApi = {
+  getByEntity: (entityType: string, entityId: string, params?: { page?: number; limit?: number }) => 
+    api.get<any[]>(`/crm-documents/${entityType}/${entityId}`, params),
+  upload: (entityType: string, entityId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post<any>(`/crm-documents/${entityType}/${entityId}`, formData);
+  },
+  delete: (id: string) => api.delete(`/crm-documents/${id}`),
+};
+
+export const leadWorkspaceApi = {
+  getAvailable: (leadId: string) => api.get<any[]>(`/lead-workspace/${leadId}/available-workspaces`),
+  getShared: (leadId: string) => api.get<any[]>(`/lead-workspace/${leadId}/shared-workspaces`),
+  share: (leadId: string, data: { workspaceId: string; accessLevel: string; expiresAt?: string | null }) => 
+    api.post(`/lead-workspace/${leadId}/share`, data),
+  removeAccess: (leadId: string, workspaceId: string) => 
+    api.delete(`/lead-workspace/${leadId}/workspace/${workspaceId}`),
 };
 
 export const organizationApi = {
@@ -489,13 +526,24 @@ export const workgroupsApi = {
 };
 
 export const marketingApi = {
+  getDashboardStats: () => api.get<any>('/marketing/dashboard'),
   getCampaigns: () => api.get<any[]>('/marketing/campaigns'),
   createCampaign: (data: any) => api.post<any>('/marketing/campaigns', data),
   updateCampaign: (id: string, data: any) => api.put<any>(`/marketing/campaigns/${id}`, data),
   deleteCampaign: (id: string) => api.delete(`/marketing/campaigns/${id}`),
+  sendCampaign: (id: string) => api.post<any>(`/marketing/campaigns/${id}/send`),
+  sendTestEmail: (campaignId: string, testEmail: string) => api.post<any>('/marketing/campaigns/test-email', { campaignId, testEmail }),
+  trackEmailEvent: (campaignId: string, email: string, eventType: string) => api.post<any>('/marketing/campaigns/track-event', { campaignId, email, eventType }),
+  verifyEmailConfig: () => api.get<any>('/marketing/email/verify-config'),
   getLists: () => api.get<any[]>('/marketing/lists'),
   createList: (data: any) => api.post<any>('/marketing/lists', data),
   deleteList: (id: string) => api.delete(`/marketing/lists/${id}`),
+  getListMembers: (listId: string) => api.get<any[]>(`/marketing/lists/${listId}/members`),
+  addListMembers: (listId: string, contacts: any[]) => api.post<any>(`/marketing/lists/${listId}/members`, { contacts }),
+  exportListMembers: (listId: string) => {
+    const token = api.getToken();
+    window.open(`${API_BASE_URL}/marketing/lists/${listId}/export?token=${token}`, '_blank');
+  },
   getForms: () => api.get<any[]>('/marketing/forms'),
   createForm: (data: any) => api.post<any>('/marketing/forms', data),
   deleteForm: (id: string) => api.delete(`/marketing/forms/${id}`),
@@ -503,6 +551,7 @@ export const marketingApi = {
   createSequence: (data: any) => api.post<any>('/marketing/sequences', data),
   updateSequence: (id: string, data: any) => api.put<any>(`/marketing/sequences/${id}`, data),
   deleteSequence: (id: string) => api.delete(`/marketing/sequences/${id}`),
+  getAnalytics: (params?: { startDate?: string; endDate?: string }) => api.get<any>('/marketing/analytics', { params }),
   // Form submissions stub
   getFormSubmissions: (formId: string) => api.get<any[]>(`/marketing/forms/${formId}/submissions`),
   // Campaign events stub

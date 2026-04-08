@@ -45,7 +45,7 @@ export default function NotificationsPage() {
   // Fetch notifications
   const { data: notificationsResponse, isLoading } = useQuery({
     queryKey: ["hrms-notifications", filter],
-    queryFn: () => api.get("/hrms/notifications", { params: { filter } }),
+    queryFn: () => api.get("/hrms/notifications", { filter }),
     refetchInterval: 30000,
   });
 

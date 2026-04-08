@@ -33,7 +33,7 @@ export default function CreateWorkspacePage() {
         name: formData.name,
         type: formData.type,
         description: formData.description,
-        visibility: formData.visibility
+        is_private: formData.visibility === 'private'
       });
 
       toast.success('Workspace created successfully!', {

@@ -21,6 +21,8 @@ import {
 interface InteractionPanelProps {
   entityType: string;
   entityId: string;
+  activeTab?: string;
+  onTabChange?: (tab: string) => void;
 }
 
 const tabs = [
@@ -31,8 +33,10 @@ const tabs = [
   { id: "task", label: "Task", icon: CheckSquare },
 ];
 
-export function InteractionPanel({ entityType, entityId }: InteractionPanelProps) {
-  const [activeTab, setActiveTab] = useState("activity");
+export function InteractionPanel({ entityType, entityId, activeTab: externalTab, onTabChange }: InteractionPanelProps) {
+  const [internalTab, setInternalTab] = useState("activity");
+  const activeTab = externalTab || internalTab;
+  const setActiveTab = onTabChange || setInternalTab;
   const [commentText, setCommentText] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
@@ -48,30 +52,24 @@ export function InteractionPanel({ entityType, entityId }: InteractionPanelProps
   const handleSubmitComment = () => {
     if (!commentText.trim()) return;
     createComment.mutate({
-      entity_type: entityType,
-      entity_id: entityId,
+      entityType: entityType,
+      entityId: entityId,
       content: commentText,
-    });
-    createActivity.mutate({
-      entityType,
-      entityId,
-      activityType: 'comment',
-      title: 'Added a comment',
-      description: commentText.substring(0, 100),
     });
     setCommentText("");
   };
 
   const handleEditSave = (id: string) => {
     updateComment.mutate({
-      id, content: editText, entity_type: entityType, entity_id: entityId,
+      id, content: editText, entityType: entityType, entityId: entityId,
     });
     setEditingId(null);
   };
 
   // Merge activities and comments into a single timeline
+  // Since we use crm_activities for both now, we filter them to avoid duplicates
   const timeline = [
-    ...activities.map(a => ({
+    ...activities.filter(a => a.activity_type !== 'comment').map(a => ({
       id: a.id,
       type: 'activity' as const,
       content: a.title || a.description || a.activity_type,
@@ -79,15 +77,17 @@ export function InteractionPanel({ entityType, entityId }: InteractionPanelProps
       activityType: a.activity_type,
       createdAt: a.created_at,
       userId: a.user_id,
+      userName: a.user_name || (a.user_id === user?.id ? profile?.full_name : null),
     })),
     ...comments.map(c => ({
       id: c.id,
       type: 'comment' as const,
-      content: c.content,
+      content: c.content || c.description, // Support both formats
       detail: null,
       activityType: 'comment',
       createdAt: c.created_at,
       userId: c.user_id,
+      userName: c.user_name || (c.user_id === user?.id ? profile?.full_name : null),
       isEdited: c.is_edited,
     })),
   ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -186,7 +186,7 @@ export function InteractionPanel({ entityType, entityId }: InteractionPanelProps
                     "text-xs",
                     item.type === 'activity' ? "bg-chart-1/10 text-chart-1" : "bg-primary/10 text-primary"
                   )}>
-                    {item.type === 'activity' ? <Activity className="h-3 w-3" /> : "U"}
+                    {item.type === 'activity' ? <Activity className="h-3 w-3" /> : (item.userName?.charAt(0) || "U")}
                   </AvatarFallback>
                 </Avatar>
                 <div className="absolute left-1/2 top-7 bottom-0 w-px bg-border -translate-x-1/2" />
@@ -208,7 +208,12 @@ export function InteractionPanel({ entityType, entityId }: InteractionPanelProps
                       </div>
                     ) : (
                       <>
-                        <p className="text-sm">{item.content}</p>
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-xs font-bold text-slate-900 leading-none">
+                            {item.userName || "Unknown User"}
+                          </span>
+                        </div>
+                        <p className="text-sm text-slate-700 leading-relaxed">{item.content}</p>
                         {item.detail && item.type === 'activity' && (
                           <p className="text-xs text-muted-foreground mt-0.5">{item.detail}</p>
                         )}
@@ -231,7 +236,7 @@ export function InteractionPanel({ entityType, entityId }: InteractionPanelProps
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-destructive"
-                          onClick={() => deleteComment.mutate({ id: item.id, entity_type: entityType, entity_id: entityId })}
+                          onClick={() => deleteComment.mutate({ id: item.id, entityType: entityType, entityId: entityId })}
                         >
                           <Trash2 className="h-3 w-3 mr-2" /> Delete
                         </DropdownMenuItem>

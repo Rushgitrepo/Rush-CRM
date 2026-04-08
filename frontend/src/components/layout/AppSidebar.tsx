@@ -38,6 +38,7 @@ import {
   Megaphone,
   Target,
   ListFilter,
+  Building,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -73,6 +74,7 @@ const navigation: NavItem[] = [
     href: "/",
     icon: LayoutDashboard,
   },
+ 
   {
     title: "Tasks & Projects",
     href: "/tasks",
@@ -95,6 +97,7 @@ const navigation: NavItem[] = [
     children: [
       { title: "Leads", href: "/crm/leads", icon: UserPlus },
       { title: "Deals", href: "/crm/deals", icon: Handshake },
+      { title: "Unqualified", href: "/crm/unqualified", icon: ListFilter },
       { 
         title: "Customers", 
         href: "/crm/customers", 
@@ -236,7 +239,8 @@ export function AppSidebar() {
     if (hasNestedChildren) {
       return (
         <div key={child.href}>
-          <button
+          <NavLink
+            to={child.href}
             onClick={() => toggleSubItem(child.title)}
             className={cn(
               "flex w-full items-center justify-between gap-3 rounded-lg py-2 pl-11 pr-3 text-sm transition-colors",
@@ -255,7 +259,7 @@ export function AppSidebar() {
                 isExpanded && "rotate-180"
               )}
             />
-          </button>
+          </NavLink>
           
           {/* Inline expanded submenu */}
           {isExpanded && (
@@ -351,17 +355,14 @@ export function AppSidebar() {
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-sidebar border-r border-sidebar-border">
       {/* Logo */}
       <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-6">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg gradient-primary">
-          <Building2 className="h-5 w-5 text-primary-foreground" />
-        </div>
         <div>
-          <h1 className="text-lg font-bold text-sidebar-foreground">CRM Pro</h1>
+          <h1 className="text-lg font-bold text-sidebar-foreground">Rush Management</h1>
           <p className="text-xs text-sidebar-muted">Enterprise Suite</p>
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 px-3 py-4 overflow-y-auto h-[calc(100vh-4rem)]">
+      <nav className="flex-1 space-y-1 px-3 py-4 overflow-y-auto h-[calc(100vh-4rem)] custom-scrollbar">
         {filteredNavigation.map((item) => {
           if (item.children) {
             const isOpen = openSections.includes(item.title);
