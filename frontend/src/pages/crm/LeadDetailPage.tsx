@@ -391,7 +391,6 @@ export default function LeadDetailPage() {
                 <ArrowLeft className="h-4 w-4" />
                 Back to Leads
               </Button>
-
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                 <div className="relative">
                   <Avatar className="h-14 w-14 ring-4 ring-white shadow-lg">
@@ -402,7 +401,6 @@ export default function LeadDetailPage() {
                   </Avatar>
                   <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 border-2 border-white rounded-full"></div>
                 </div>
-
                 <div>
                   <div className="flex flex-wrap items-center gap-3 mb-1">
                     <h1 className="text-xl md:text-2xl font-bold text-slate-900 break-words max-w-[200px] sm:max-w-none">{lead.title}</h1>
@@ -650,7 +648,6 @@ export default function LeadDetailPage() {
           </div>
         </div>
       </div>
-
       {/* Enterprise Pipeline Progress Tracker */}
       <div className="px-6 pb-6">
         <div className="bg-gradient-to-r from-slate-50 to-primary/5 rounded-xl p-6 border border-slate-200">
@@ -673,7 +670,6 @@ export default function LeadDetailPage() {
                 const isActive = (form.stage || lead.stage) === stage.id;
                 const isPassed = pipelineStages.findIndex(s => s.id === (form.stage || lead.stage)) > index;
                 const isUnqualified = stage.id === 'unqualified' && isActive;
-
                 return (
                   <div
                     key={stage.id}
@@ -1024,7 +1020,6 @@ export default function LeadDetailPage() {
                   <p className="text-slate-600 font-medium">{lead.company_name}</p>
                   <p className="text-sm text-slate-500">{lead.designation}</p>
                 </div>
-
                 <div className="space-y-4">
                   <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
                     <span className="text-sm font-semibold text-slate-600">Current Status</span>
@@ -1033,19 +1028,16 @@ export default function LeadDetailPage() {
                       {lead.status || 'New Lead'}
                     </Badge>
                   </div>
-
                   <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
                     <span className="text-sm font-semibold text-slate-600">Potential Value</span>
                     <span className="font-bold text-lg text-emerald-600">
                       {lead.value ? `$${Number(lead.value).toLocaleString()}` : 'Not specified'}
                     </span>
                   </div>
-
                   <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
                     <span className="text-sm font-semibold text-slate-600">Lead Source</span>
                     <span className="text-sm font-semibold text-slate-900">{lead.source || 'Unknown'}</span>
                   </div>
-
                   <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
                     <span className="text-sm font-semibold text-slate-600">Date Created</span>
                     <span className="text-sm font-medium text-slate-700">

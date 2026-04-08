@@ -3,6 +3,11 @@ const router = express.Router();
 const { auth, requireOrg } = require('../../middleware/auth');
 const emailSyncController = require('../../controllers/collaboration/emailSyncController');
 
+// OAuth callback routes MUST be public because Google redirects the browser here
+// without auth headers. We use the 'state' parameter to identify the user.
+router.get('/oauth-callback', emailSyncController.oauthCallbackGet);
+router.post('/oauth-callback', emailSyncController.oauthCallback);
+
 router.use(auth, requireOrg);
 
 router.post('/sync', emailSyncController.sync);
@@ -17,9 +22,9 @@ router.get('/attachments', emailSyncController.getAttachments);
 router.get('/crm-links', emailSyncController.getCrmLinks);
 router.post('/crm-links', emailSyncController.createCrmLink);
 router.delete('/crm-links/:id', emailSyncController.deleteCrmLink);
-router.post('/oauth-callback', emailSyncController.oauthCallback);
-router.get('/oauth-callback', emailSyncController.oauthCallbackGet);
 router.get('/oauth-url/:provider', emailSyncController.getOauthUrl);
 router.post('/send', emailSyncController.sendEmail);
+router.post('/drafts', emailSyncController.saveDraft);
+router.patch('/drafts/:id', emailSyncController.saveDraft);
 
 module.exports = router;

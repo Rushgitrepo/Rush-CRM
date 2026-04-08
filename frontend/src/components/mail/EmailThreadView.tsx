@@ -77,23 +77,27 @@ function MessageCard({
         <div className="flex items-center gap-3 min-w-0">
           <Avatar className="h-9 w-9 shrink-0">
             <AvatarFallback className="bg-primary/10 text-primary text-sm">
-              {(msg.from_name || msg.from_address || "?")[0].toUpperCase()}
+              {(msg.from_name || msg.from_email || "?")[0].toUpperCase()}
             </AvatarFallback>
           </Avatar>
+
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <p className="font-medium text-sm truncate">
-                {msg.from_name || msg.from_address}
+                {msg.from_name || msg.from_email}
               </p>
+
               {!isExpanded && (
                 <span className="text-xs text-muted-foreground truncate max-w-[300px]">
-                  — {msg.snippet || msg.body_text?.substring(0, 60)}
+                  — {msg.snippet || msg.body?.substring(0, 60)}
                 </span>
+
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              to {(msg.to_addresses as any[])?.map((t: any) => t.email).join(", ")}
+              to {msg.to_email}
             </p>
+
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -112,12 +116,13 @@ function MessageCard({
       {isExpanded && (
         <div className="px-4 pb-4">
           <div className="prose prose-sm max-w-none text-foreground ml-12">
-            {msg.body_html ? (
-              <div dangerouslySetInnerHTML={{ __html: msg.body_html }} />
+            {msg.html_body ? (
+              <div dangerouslySetInnerHTML={{ __html: msg.html_body }} />
             ) : (
-              <p className="whitespace-pre-wrap">{msg.body_text}</p>
+              <p className="whitespace-pre-wrap">{msg.body}</p>
             )}
           </div>
+
 
           {/* Attachments */}
           {(attachments.length > 0 || msg.has_attachments) && (

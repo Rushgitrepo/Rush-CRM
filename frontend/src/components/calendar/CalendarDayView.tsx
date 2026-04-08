@@ -21,9 +21,15 @@ export function CalendarDayView({ selectedDate, events, onEventClick, onSlotClic
     d1.getDate() === d2.getDate() && d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear();
 
   const getEventsForHour = (hour: number) => {
+    const slotStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), hour, 0, 0);
+    const slotEnd = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), hour, 59, 59);
+
     return events.filter(e => {
-      const s = new Date(e.start_time);
-      return isSameDay(s, selectedDate) && s.getHours() === hour;
+      const eStart = new Date(e.start_time);
+      const eEnd = new Date(e.end_time);
+      // Event overlaps with this hour slot if:
+      // event starts before the end of the slot AND event ends after the start of the slot
+      return eStart <= slotEnd && eEnd >= slotStart;
     });
   };
 
@@ -57,7 +63,8 @@ export function CalendarDayView({ selectedDate, events, onEventClick, onSlotClic
                     <div
                       key={ev.id}
                       onClick={(e) => { e.stopPropagation(); onEventClick(ev); }}
-                      className={`text-xs px-3 py-2 rounded-lg text-white cursor-pointer hover:opacity-90 transition-all shadow-sm ${ev.color || 'bg-blue-500'}`}
+                      className="text-xs px-3 py-2 rounded-lg text-white cursor-pointer hover:opacity-90 transition-all shadow-sm"
+                      style={{ backgroundColor: ev.color || '#3b82f6' }}
                     >
                       <div className="flex items-center gap-2 font-medium">
                         <span>{format(new Date(ev.start_time), 'h:mm a')} – {format(new Date(ev.end_time), 'h:mm a')}</span>

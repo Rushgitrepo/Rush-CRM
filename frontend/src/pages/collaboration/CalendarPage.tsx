@@ -1,8 +1,11 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
+import { format } from "date-fns";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Plus, Search, Settings, ChevronLeft, ChevronRight, ChevronDown, Check, Users, Clock } from "lucide-react";
+import { Plus, Search, Settings, ChevronLeft, ChevronRight, ChevronDown, Check, Users, Clock, RefreshCw } from "lucide-react";
 import { CalendarMiniWidget } from "@/components/calendar/CalendarMiniWidget";
 import { CalendarDayView } from "@/components/calendar/CalendarDayView";
 import { CalendarWeekView } from "@/components/calendar/CalendarWeekView";
@@ -10,6 +13,7 @@ import { CalendarMonthView } from "@/components/calendar/CalendarMonthView";
 import { CalendarScheduleView } from "@/components/calendar/CalendarScheduleView";
 import { CalendarInvitationsView } from "@/components/calendar/CalendarInvitationsView";
 import { ConnectCalendarsDialog } from "@/components/calendar/ConnectCalendarsDialog";
+import { CalendarConnectSuccessDialog } from "@/components/calendar/CalendarConnectSuccessDialog";
 import { ManageCalendarDialog } from "@/components/calendar/ManageCalendarDialog";
 import { CalendarSettingsDialog } from "@/components/calendar/CalendarSettingsDialog";
 import { ICloudCredentialsDialog } from "@/components/calendar/ICloudCredentialsDialog";
@@ -17,7 +21,7 @@ import { CreateEventDialog } from "@/components/calendar/CreateEventDialog";
 import { EventDetailDialog } from "@/components/calendar/EventDetailDialog";
 import { useCalendarEvents, type CalendarEvent } from "@/hooks/useCalendarEvents";
 import { useCalendarConnections } from "@/hooks/useCalendarConnections";
-import { toast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/use-toast";
 
 type ViewType = "day" | "week" | "month" | "schedule" | "invitations";
 
@@ -47,6 +51,37 @@ export default function CalendarPage() {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [eventDetailOpen, setEventDetailOpen] = useState(false);
   const [defaultEventHour, setDefaultEventHour] = useState<number | undefined>();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [connectSuccessOpen, setConnectSuccessOpen] = useState(false);
+  const [connectedProvider, setConnectedProvider] = useState("");
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { connections, connect, sync, disconnect, connectICloud, syncICloudEvents, syncMicrosoftEvents, disconnectByProvider } = useCalendarConnections();
+
+  useEffect(() => {
+    const connected = searchParams.get('connected');
+    const error = searchParams.get('error');
+    if (connected) {
+      setConnectedProvider(connected);
+      setConnectSuccessOpen(true);
+      // Trigger auto-sync for newly connected provider
+      sync(connected);
+      // Clear params
+      setSearchParams({}, { replace: true });
+      // Refresh connections
+      queryClient.invalidateQueries({ queryKey: ['calendar-connections'] });
+    }
+    if (error) {
+      toast({
+        title: "Connection failed",
+        description: error,
+        variant: "destructive",
+      });
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams, queryClient, toast, sync]);
 
   // Compute date range for the current view
   const dateRange = useMemo(() => {
@@ -69,28 +104,54 @@ export default function CalendarPage() {
     return { start, end };
   }, [selectedDate, activeView]);
 
-  const { events, isLoading } = useCalendarEvents(dateRange.start, dateRange.end);
-  const { connections, connectCalendar, connectICloud, syncICloudEvents, syncMicrosoftEvents, disconnectByProvider } = useCalendarConnections();
+  const { events: rawEvents, isLoading } = useCalendarEvents(
+    searchQuery ? undefined : dateRange.start, 
+    searchQuery ? undefined : dateRange.end, 
+    searchQuery
+  );
+
+  const events = useMemo(() => {
+    if (!searchQuery.trim()) return rawEvents;
+    const query = searchQuery.toLowerCase();
+    return rawEvents.filter(e => {
+      const dateStr = format(new Date(e.start_time), 'EEEE MMMM d yyyy').toLowerCase(); // e.g. "monday april 12 2026"
+      return e.title.toLowerCase().includes(query) || 
+        e.description?.toLowerCase().includes(query) ||
+        e.location?.toLowerCase().includes(query) ||
+        dateStr.includes(query);
+    });
+  }, [rawEvents, searchQuery]);
 
   const connectedProviders = connections.map(c => c.provider);
   const hasConnectedCalendar = connectedProviders.length > 0;
 
-  const handleConnect = (providerId: string) => {
+  const handleConnect = async (providerId: string) => {
     if (providerId === "icloud") {
-      setConnectDialogOpen(false);
-      setIcloudDialogOpen(true);
+      try {
+        await connectICloud.mutateAsync({});
+        sync(providerId);
+        setConnectDialogOpen(false);
+      } catch (err) {
+        setConnectDialogOpen(false);
+        setIcloudDialogOpen(true);
+      }
       return;
     }
-    connectCalendar.mutate(providerId);
+    connect(providerId);
   };
 
   const handleICloudConnect = async (appleId: string, appPassword: string) => {
-    await connectICloud.mutateAsync({ appleId, appPassword });
-    setIcloudDialogOpen(false);
+    try {
+      await connectICloud.mutateAsync({ appleId, appPassword });
+      sync("icloud");
+      setIcloudDialogOpen(false);
+    } catch (err) {
+      // Error handled by mutation toast
+    }
   };
 
   const handleDisconnect = (providerId: string) => {
-    disconnectByProvider.mutate(providerId);
+    disconnect(providerId);
   };
 
   const handleManageCalendar = (providerId: string) => {
@@ -98,38 +159,11 @@ export default function CalendarPage() {
     setManageDialogOpen(true);
   };
 
-  const handleSync = () => {
-    if (selectedProvider === "icloud") {
-      const icloudConn = connections.find(c => c.provider === "icloud");
-      if (icloudConn) {
-        const now = new Date();
-        const threeMonthsAgo = new Date(now);
-        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-        const threeMonthsAhead = new Date(now);
-        threeMonthsAhead.setMonth(threeMonthsAhead.getMonth() + 3);
-        syncICloudEvents.mutate({
-          connectionId: icloudConn.id,
-          startDate: threeMonthsAgo.toISOString(),
-          endDate: threeMonthsAhead.toISOString(),
-        });
-        return;
-      }
-    }
-    if (selectedProvider === "microsoft") {
-      const msConn = connections.find(c => c.provider === "microsoft");
-      if (msConn) {
-        const now = new Date();
-        const threeMonthsAgo = new Date(now);
-        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-        const threeMonthsAhead = new Date(now);
-        threeMonthsAhead.setMonth(threeMonthsAhead.getMonth() + 3);
-        syncMicrosoftEvents.mutate({
-          connectionId: msConn.id,
-          startDate: threeMonthsAgo.toISOString(),
-          endDate: threeMonthsAhead.toISOString(),
-        });
-        return;
-      }
+  const handleSync = (providerId?: string) => {
+    const target = providerId || selectedProvider;
+    if (target) {
+      sync(target);
+      return;
     }
     toast({ title: "Syncing...", description: "Your calendar is being synchronized." });
   };
@@ -170,6 +204,18 @@ export default function CalendarPage() {
   };
 
   const renderView = () => {
+    // If searching, force schedule view to show results from any date
+    if (searchQuery.trim()) {
+      return (
+        <CalendarScheduleView 
+          onConnectClick={() => setConnectDialogOpen(true)} 
+          hasConnectedCalendar={hasConnectedCalendar} 
+          events={events} 
+          onEventClick={handleEventClick} 
+        />
+      );
+    }
+
     switch (activeView) {
       case "day":
         return <CalendarDayView selectedDate={selectedDate} events={events} onEventClick={handleEventClick} onSlotClick={handleSlotClick} />;
@@ -232,6 +278,8 @@ export default function CalendarPage() {
                 <Input 
                   placeholder="Search events..." 
                   className="pl-9 w-64 bg-white/60 border-slate-200 focus:bg-white dark:bg-slate-800/60 dark:border-slate-700" 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
 
@@ -294,10 +342,16 @@ export default function CalendarPage() {
                         variant="outline" 
                         size="sm" 
                         onClick={() => setSelectedDate(new Date())}
-                        className="px-4 bg-white dark:bg-slate-800"
+                        className={`px-4 rounded-lg border-primary/20 hover:bg-primary/5 transition-all
+                          ${format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') 
+                            ? 'bg-primary/10 text-primary border-primary/40 font-semibold' 
+                            : 'bg-white dark:bg-slate-800'
+                          }
+                        `}
                       >
                         Today
                       </Button>
+
                       <Button variant="ghost" size="icon" onClick={navigateNext} className="hover:bg-slate-100 dark:hover:bg-slate-800">
                         <ChevronRight className="h-4 w-4" />
                       </Button>
@@ -343,14 +397,25 @@ export default function CalendarPage() {
                             <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                             <span className="text-sm font-medium">{providerNames[conn.provider] || conn.provider}</span>
                           </div>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => handleManageCalendar(conn.provider)}
-                            className="text-xs"
-                          >
-                            Manage
-                          </Button>
+                          <div className="flex gap-1">
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => handleSync(conn.provider)}
+                              className="text-xs"
+                              title="Sync"
+                            >
+                              <RefreshCw className="w-3 h-3" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => handleManageCalendar(conn.provider)}
+                              className="text-xs"
+                            >
+                              Manage
+                            </Button>
+                          </div>
                         </div>
                       ))}
                       <Button 
@@ -407,7 +472,8 @@ export default function CalendarPage() {
         onOpenChange={setConnectDialogOpen}
         connectedCalendars={connectedProviders}
         onConnect={handleConnect}
-        onManage={handleManageCalendar}
+        onSync={(id) => sync(id)}
+        onDisconnect={(id) => disconnect(id)}
       />
       <ManageCalendarDialog
         open={manageDialogOpen}
@@ -433,7 +499,12 @@ export default function CalendarPage() {
       <EventDetailDialog
         open={eventDetailOpen}
         onOpenChange={setEventDetailOpen}
-        event={selectedEvent}
+        event={events.find(e => e.id === selectedEvent?.id) || selectedEvent}
+      />
+      <CalendarConnectSuccessDialog
+        open={connectSuccessOpen}
+        onOpenChange={setConnectSuccessOpen}
+        provider={connectedProvider}
       />
     </div>
   );

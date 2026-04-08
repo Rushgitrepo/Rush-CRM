@@ -17,13 +17,14 @@ interface CreateEventDialogProps {
 }
 
 const eventColors = [
-  { value: "bg-sky-500", label: "Blue" },
-  { value: "bg-emerald-500", label: "Green" },
-  { value: "bg-amber-500", label: "Yellow" },
-  { value: "bg-rose-500", label: "Red" },
-  { value: "bg-violet-500", label: "Purple" },
-  { value: "bg-orange-500", label: "Orange" },
+  { value: "#0ea5e9", label: "Blue" },    // sky-500
+  { value: "#10b981", label: "Green" },   // emerald-500
+  { value: "#f59e0b", label: "Yellow" },  // amber-500
+  { value: "#f43f5e", label: "Red" },     // rose-500
+  { value: "#8b5cf6", label: "Purple" },  // violet-500
+  { value: "#f97316", label: "Orange" },  // orange-500
 ];
+
 
 export function CreateEventDialog({ open, onOpenChange, defaultDate, defaultHour }: CreateEventDialogProps) {
   const { createEvent } = useCalendarEvents();
@@ -52,8 +53,9 @@ export function CreateEventDialog({ open, onOpenChange, defaultDate, defaultHour
   const [startTime, setStartTime] = useState(formatDateTimeLocal(getDefaultStart()));
   const [endTime, setEndTime] = useState(formatDateTimeLocal(getDefaultEnd()));
   const [isAllDay, setIsAllDay] = useState(false);
-  const [color, setColor] = useState("bg-sky-500");
+  const [color, setColor] = useState("#0ea5e9");
   const [attendeeEmail, setAttendeeEmail] = useState("");
+
   const [attendees, setAttendees] = useState<{ email: string; name?: string }[]>([]);
 
   const handleAddAttendee = () => {
@@ -69,16 +71,25 @@ export function CreateEventDialog({ open, onOpenChange, defaultDate, defaultHour
 
   const handleSubmit = () => {
     if (!title.trim()) return;
+    
+    // Auto-add the currently typed email if they forgot to click the plus button
+    let finalAttendees = [...attendees];
+    if (attendeeEmail.trim() && !finalAttendees.some(a => a.email === attendeeEmail.trim())) {
+      finalAttendees.push({ email: attendeeEmail.trim() });
+    }
 
     const input: CreateEventInput = {
       title: title.trim(),
       description: description || undefined,
       location: location || undefined,
-      startTime: new Date(startTime).toISOString(),
-      endTime: new Date(endTime).toISOString(),
+      startTime: startTime, // Use the literal local string
+      endTime: endTime,     // Use the literal local string
       allDay: isAllDay,
       color,
+      invitees: finalAttendees,
     };
+
+
 
     createEvent.mutate(input, {
       onSuccess: () => {
@@ -95,8 +106,9 @@ export function CreateEventDialog({ open, onOpenChange, defaultDate, defaultHour
     setStartTime(formatDateTimeLocal(getDefaultStart()));
     setEndTime(formatDateTimeLocal(getDefaultEnd()));
     setIsAllDay(false);
-    setColor("bg-sky-500");
+    setColor("#0ea5e9");
     setAttendeeEmail("");
+
     setAttendees([]);
   };
 
@@ -159,8 +171,10 @@ export function CreateEventDialog({ open, onOpenChange, defaultDate, defaultHour
               {eventColors.map(c => (
                 <button
                   key={c.value}
+                  type="button"
                   onClick={() => setColor(c.value)}
-                  className={`w-7 h-7 rounded-full ${c.value} transition-all ${color === c.value ? 'ring-2 ring-offset-2 ring-primary' : 'opacity-60 hover:opacity-100'}`}
+                  className={`w-7 h-7 rounded-full transition-all ${color === c.value ? 'ring-2 ring-offset-2 ring-primary' : 'opacity-60 hover:opacity-100'}`}
+                  style={{ backgroundColor: c.value }}
                   title={c.label}
                 />
               ))}
