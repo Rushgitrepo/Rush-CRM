@@ -18,7 +18,9 @@ export interface CalendarEvent {
   external_provider: string | null;
   created_at: string;
   updated_at: string;
+  attachments?: any[];
 }
+
 
 export interface EventAttendee {
   id: string;
@@ -41,17 +43,22 @@ export interface CreateEventInput {
   allDay?: boolean;
   recurrence?: string;
   color?: string;
+  attachments?: any[];
+  invitees?: any[];
 }
 
-export function useCalendarEvents(startDate?: Date, endDate?: Date) {
+
+
+export function useCalendarEvents(startDate?: Date, endDate?: Date, search?: string) {
   const queryClient = useQueryClient();
 
   const eventsQuery = useQuery({
-    queryKey: ['calendar-events', startDate?.toISOString(), endDate?.toISOString()],
+    queryKey: ['calendar-events', startDate?.toISOString(), endDate?.toISOString(), search],
     queryFn: async () => {
       const events = await calendarApi.getEvents({
         startDate: startDate?.toISOString(),
         endDate: endDate?.toISOString(),
+        search: search,
       });
       return events as CalendarEvent[];
     },
@@ -68,7 +75,11 @@ export function useCalendarEvents(startDate?: Date, endDate?: Date) {
         allDay: input.allDay,
         recurrence: input.recurrence,
         color: input.color,
+        attachments: input.attachments,
+        invitees: input.invitees,
       });
+
+
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
@@ -87,7 +98,9 @@ export function useCalendarEvents(startDate?: Date, endDate?: Date) {
         endTime: updates.endTime,
         allDay: updates.allDay,
         recurrence: updates.recurrence,
+        attachments: updates.attachments,
       });
+
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendar-events'] });

@@ -478,7 +478,6 @@ export default function DealDetailPage() {
                 <ArrowLeft className="h-4 w-4" />
                 Back to Deals
               </Button>
-
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                 <div className="relative">
                   <Avatar className="h-14 w-14 ring-4 ring-white shadow-lg">
@@ -489,7 +488,6 @@ export default function DealDetailPage() {
                   </Avatar>
                   <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 border-2 border-white rounded-full"></div>
                 </div>
-
                 <div>
                   <div className="flex flex-wrap items-center gap-3 mb-1">
                     <h1 className="text-xl md:text-2xl font-bold text-slate-900 break-words max-w-[200px] sm:max-w-none">{deal.title}</h1>
@@ -519,7 +517,6 @@ export default function DealDetailPage() {
                 </div>
               </div>
             </div>
-
             {/* Professional Action Buttons */}
             <div className="flex flex-wrap items-center gap-3">
               {editing ? (
@@ -822,7 +819,6 @@ export default function DealDetailPage() {
           <h3 className="text-lg font-semibold text-slate-900 mb-2">Deal Pipeline Progress</h3>
           <p className="text-sm text-slate-600">Track your deal through each stage of the sales process</p>
         </div>
-
         <div className="relative overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-200">
           <div className="flex items-center justify-between mb-4 min-w-[1000px] lg:min-w-0 px-4">
             {pipelineStages.map((stage, index) => {
