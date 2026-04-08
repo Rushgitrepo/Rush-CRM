@@ -102,6 +102,7 @@ import EnhancedAnalyticsPage from "./pages/marketing/EnhancedAnalyticsPage";
 // Other
 import PlaceholderPage from "./pages/PlaceholderPage";
 import SettingsPage from "./pages/SettingsPage";
+import UnqualifiedPage from "./pages/crm/UnqualifiedPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -147,6 +148,7 @@ const App = () => (
                   <Route path="/crm/leads/import" element={<LeadImportPage />} />
                   <Route path="/crm/leads/external-sources" element={<ExternalSourcesPage />} />
                   <Route path="/crm/leads/:id" element={<LeadDetailPage />} />
+                  <Route path="/crm/unqualified" element={<UnqualifiedPage />} />
                   <Route path="/workspaces/create" element={<CreateWorkspacePage />} />
                   <Route path="/crm/deals" element={<DealsPage />} />
                   <Route path="/crm/deals/create" element={<CreateDealPage />} />

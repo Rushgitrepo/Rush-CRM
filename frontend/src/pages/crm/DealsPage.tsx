@@ -1,7 +1,8 @@
 import { useMemo, useState, Suspense, lazy } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Sparkles, Phone, Mail, Building2, Layers, MoreHorizontal, Edit, Trash2, Eye, Download, Upload } from "lucide-react";
+import { Plus, Sparkles, Phone, Mail, Building2, Layers, MoreHorizontal, Edit, Trash2, Eye, Download, Upload, XCircle } from "lucide-react";
 import { useDeals, useDeleteDeal } from "@/hooks/useCrmData";
+import { useUpdateDeal } from "@/hooks/useCrmMutations";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -56,6 +57,7 @@ export default function DealsPage() {
 
   const { data: dbDeals, isLoading, isError } = useDeals();
   const deleteDeal = useDeleteDeal();
+  const updateDeal = useUpdateDeal();
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -237,6 +239,53 @@ export default function DealsPage() {
         <span className="text-sm text-muted-foreground">
           {deal.createdAt ? new Date(deal.createdAt).toLocaleDateString() : "—"}
         </span>
+      ),
+    },
+    {
+      key: "actions",
+      header: "",
+      render: (deal) => (
+        <div onClick={(e) => e.stopPropagation()}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => navigate(`/crm/deals/${deal.id}`)}>
+                <Eye className="h-4 w-4 mr-2" />
+                View Details
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate(`/crm/deals/${deal.id}/edit`)}>
+                <Edit className="h-4 w-4 mr-2" />
+                Edit Deal
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  updateDeal.mutate({ id: deal.id, status: 'unqualified', stage: 'unqualified' });
+                }}
+              >
+                <XCircle className="h-4 w-4 mr-2 text-orange-600" />
+                Unqualify Deal
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem 
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  if (await confirm('Are you sure you want to delete this deal?', { variant: 'destructive', title: 'Delete Deal' })) {
+                    deleteDeal.mutate(deal.id);
+                  }
+                }}
+                className="text-red-600"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Deal
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       ),
     },
   ];

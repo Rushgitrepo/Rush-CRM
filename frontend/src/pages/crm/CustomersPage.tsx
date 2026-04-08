@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Mail, Phone, Building2, Loader2, Sparkles, Upload } from "lucide-react";
+import { Plus, Mail, Phone, Building2, Loader2, Sparkles, Upload, XCircle, MoreHorizontal, Eye, Edit, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
@@ -13,7 +14,8 @@ import { PageHeader } from "@/components/crm/ui/PageHeader";
 import { DataToolbar } from "@/components/crm/ui/DataToolbar";
 import { EntityColumn, EntityTable } from "@/components/crm/ui/EntityTable";
 import { EmptyState } from "@/components/crm/ui/EmptyState";
-import { useCreateCustomer, useCustomers } from "@/hooks/useCrmData";
+import { useCreateCustomer, useCustomers, useUpdateCustomer, useDeleteCustomer } from "@/hooks/useCrmData";
+import { useCustomDialog } from "@/contexts/DialogContext";
 
 const statusBadge = (status?: string) => {
   const normalized = (status || "").toLowerCase();
@@ -31,7 +33,10 @@ export default function CustomersPage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", phone: "", status: "active", tier: "", industry: "" });
   const createCustomer = useCreateCustomer();
+  const updateCustomer = useUpdateCustomer();
+  const deleteCustomer = useDeleteCustomer();
   const { toast } = useToast();
+  const { confirm } = useCustomDialog();
 
   const { data, isLoading, isError } = useCustomers(search ? { search } : undefined) as {
     data?: any;
@@ -129,6 +134,49 @@ export default function CustomersPage() {
       align: "right",
       sortable: true,
       render: (c) => <span className="font-semibold">{c.total_revenue ? `$${Number(c.total_revenue).toLocaleString()}` : "—"}</span>,
+    },
+    {
+      key: "actions",
+      header: "",
+      render: (customer) => (
+        <div onClick={(e) => e.stopPropagation()}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => navigate(`/crm/customers/${customer.id}`)}>
+                <Eye className="h-4 w-4 mr-2" />
+                View Details
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  updateCustomer.mutate({ id: customer.id, status: 'unqualified' });
+                }}
+              >
+                <XCircle className="h-4 w-4 mr-2 text-orange-600" />
+                Unqualify Customer
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem 
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  if (await confirm('Are you sure you want to delete this customer?', { variant: 'destructive', title: 'Delete Customer' })) {
+                    deleteCustomer.mutate(customer.id);
+                  }
+                }}
+                className="text-red-600"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Customer
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      ),
     },
   ];
 
