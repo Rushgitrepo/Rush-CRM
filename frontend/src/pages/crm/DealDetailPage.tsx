@@ -1,14 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { 
-  ArrowLeft, Pencil, Trash2, Save, ArrowRightLeft, Phone, Mail, Globe, 
-  MapPin, Building2, User, Calendar, DollarSign, Tag, FileText, 
+import {
+  ArrowLeft, Pencil, Trash2, Save, ArrowRightLeft, Phone, Mail, Globe,
+  MapPin, Building2, User, Calendar, DollarSign, Tag, FileText,
   Activity, MessageSquare, Clock, Star, MoreHorizontal, Copy, ExternalLink,
-  CheckCircle, XCircle, AlertCircle, Zap, ChevronDown, ChevronRight, 
+  CheckCircle, XCircle, AlertCircle, Zap, ChevronDown, ChevronRight,
   TrendingUp, Users, Target, Award, Briefcase, Calendar as CalendarIcon,
-  History, Plus, Edit3, Send, PhoneCall, Video, MessageCircle, 
+  History, Plus, Edit3, Send, PhoneCall, Video, MessageCircle,
   BarChart3, PieChart, TrendingDown, Eye, Filter, Search, Settings, X,
-  ArrowUp, Check
+  ArrowUp, Check, Printer, Download, Share2
 } from "lucide-react";
 import { ClickToCall } from "@/components/telephony/ClickToCall";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { InteractionPanel } from "@/components/crm/InteractionPanel";
 import { CreatableSelect } from "@/components/crm/CreatableSelect";
@@ -46,8 +46,8 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 
 const fallbackStages = [
-  { 
-    id: "drawings_received", 
+  {
+    id: "drawings_received",
     label: "Drawings Received",
     description: "Initial drawings submitted",
     color: "bg-blue-500",
@@ -56,8 +56,8 @@ const fallbackStages = [
     borderColor: "border-blue-200",
     icon: FileText
   },
-  { 
-    id: "awaiting_proposal", 
+  {
+    id: "awaiting_proposal",
     label: "Awaiting Proposal",
     description: "Preparing proposal",
     color: "bg-yellow-500",
@@ -66,8 +66,8 @@ const fallbackStages = [
     borderColor: "border-yellow-200",
     icon: Clock
   },
-  { 
-    id: "proposal_sent", 
+  {
+    id: "proposal_sent",
     label: "Proposal Sent",
     description: "Proposal under review",
     color: "bg-purple-500",
@@ -76,8 +76,8 @@ const fallbackStages = [
     borderColor: "border-purple-200",
     icon: Send
   },
-  { 
-    id: "proposal_approved", 
+  {
+    id: "proposal_approved",
     label: "Proposal Approved",
     description: "Ready to proceed",
     color: "bg-green-500",
@@ -86,8 +86,8 @@ const fallbackStages = [
     borderColor: "border-green-200",
     icon: CheckCircle
   },
-  { 
-    id: "invoice_sent", 
+  {
+    id: "invoice_sent",
     label: "Invoice Sent",
     description: "Awaiting payment",
     color: "bg-indigo-500",
@@ -96,8 +96,8 @@ const fallbackStages = [
     borderColor: "border-indigo-200",
     icon: DollarSign
   },
-  { 
-    id: "project_approved", 
+  {
+    id: "project_approved",
     label: "Project Approved",
     description: "Project confirmed",
     color: "bg-emerald-500",
@@ -106,8 +106,8 @@ const fallbackStages = [
     borderColor: "border-emerald-200",
     icon: Award
   },
-  { 
-    id: "in_progress", 
+  {
+    id: "in_progress",
     label: "In Progress",
     description: "Work in progress",
     color: "bg-orange-500",
@@ -116,8 +116,8 @@ const fallbackStages = [
     borderColor: "border-orange-200",
     icon: Activity
   },
-  { 
-    id: "awaiting_payment", 
+  {
+    id: "awaiting_payment",
     label: "Awaiting Payment",
     description: "Payment pending",
     color: "bg-red-500",
@@ -126,8 +126,8 @@ const fallbackStages = [
     borderColor: "border-red-200",
     icon: DollarSign
   },
-  { 
-    id: "project_delivered", 
+  {
+    id: "project_delivered",
     label: "Delivered",
     description: "Project completed",
     color: "bg-teal-500",
@@ -136,8 +136,8 @@ const fallbackStages = [
     borderColor: "border-teal-200",
     icon: CheckCircle
   },
-  { 
-    id: "close_deal", 
+  {
+    id: "close_deal",
     label: "Closed",
     description: "Deal finalized",
     color: "bg-slate-500",
@@ -178,7 +178,7 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
           {label}
           {required && <span className="text-red-500">*</span>}
         </Label>
-        <div className="h-10 px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 flex items-center">
+        <div className="min-h-[2.5rem] px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 flex items-center">
           <span className="text-gray-400 italic">Not specified</span>
         </div>
       </div>
@@ -210,8 +210,8 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
           />
         )
       ) : (
-        <div className="h-10 px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 flex items-center">
-          <span className="text-gray-900 font-medium">{value}</span>
+        <div className="min-h-[2.5rem] px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 flex items-center">
+          <span className="text-gray-900 font-medium break-words w-full">{value}</span>
         </div>
       )}
     </div>
@@ -256,6 +256,33 @@ export default function DealDetailPage() {
   const [responsibleDialogOpen, setResponsibleDialogOpen] = useState(false);
   const [selectedLinkedContactId, setSelectedLinkedContactId] = useState<string | null>(null);
   const [selectedSigningPartyId, setSelectedSigningPartyId] = useState<string | null>(null);
+  const [sidebarTab, setSidebarTab] = useState("activity");
+  const [interactionTab, setInteractionTab] = useState("activity");
+  const activitySectionRef = useRef<HTMLDivElement>(null);
+
+  const handleScrollToActivity = (tab: string = "activity", innerTab: string = "activity") => {
+    setSidebarTab(tab);
+    setInteractionTab(innerTab);
+    setTimeout(() => {
+      activitySectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleExport = () => {
+    if (!deal) return;
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(deal, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", `deal_${deal.id}.json`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+    toast.success("Deal data exported successfully");
+  };
 
   // Check if user can delete deals
   const canDelete = userRole?.role === 'super_admin' || userRole?.role === 'admin' || userRole?.role === 'manager' || deal?.user_id === user?.id;
@@ -272,16 +299,16 @@ export default function DealDetailPage() {
 
   // Use dynamic stages from DB, fall back to hardcoded
   const pipelineStages = (dbStages && dbStages.length > 0)
-    ? dbStages.map(s => ({ 
-        id: s.stage_key, 
-        label: s.stage_label,
-        description: fallbackStages.find(f => f.id === s.stage_key)?.description || "Stage description",
-        color: fallbackStages.find(f => f.id === s.stage_key)?.color || "bg-slate-500",
-        bgColor: fallbackStages.find(f => f.id === s.stage_key)?.bgColor || "bg-slate-50",
-        textColor: fallbackStages.find(f => f.id === s.stage_key)?.textColor || "text-slate-700",
-        borderColor: fallbackStages.find(f => f.id === s.stage_key)?.borderColor || "border-slate-200",
-        icon: fallbackStages.find(f => f.id === s.stage_key)?.icon || Clock
-      }))
+    ? dbStages.map(s => ({
+      id: s.stage_key,
+      label: s.stage_label,
+      description: fallbackStages.find(f => f.id === s.stage_key)?.description || "Stage description",
+      color: fallbackStages.find(f => f.id === s.stage_key)?.color || "bg-slate-500",
+      bgColor: fallbackStages.find(f => f.id === s.stage_key)?.bgColor || "bg-slate-50",
+      textColor: fallbackStages.find(f => f.id === s.stage_key)?.textColor || "text-slate-700",
+      borderColor: fallbackStages.find(f => f.id === s.stage_key)?.borderColor || "border-slate-200",
+      icon: fallbackStages.find(f => f.id === s.stage_key)?.icon || Clock
+    }))
     : fallbackStages;
 
   const stageOptions = pipelineStages.map(s => ({ value: s.id, label: s.label }));
@@ -324,28 +351,20 @@ export default function DealDetailPage() {
     Object.entries(form).forEach(([key, val]) => {
       if (val !== (deal as Record<string, unknown>)[key]) changes[key] = val;
     });
-    if (Object.keys(changes).length === 0) { 
-      setEditing(false); 
-      return; 
+    if (Object.keys(changes).length === 0) {
+      setEditing(false);
+      return;
     }
 
     updateDeal.mutate({ id: deal.id, ...changes }, {
       onSuccess: () => {
         setEditing(false);
-        toast.success('Deal updated successfully', {
-          description: 'All changes have been saved to the database.',
-        });
         createActivity.mutate({
-          entityType: 'deal', 
+          entityType: 'deal',
           entityId: deal.id,
           activityType: 'update',
           title: 'Deal information updated',
           description: `Updated fields: ${Object.keys(changes).join(', ')}`,
-        });
-      },
-      onError: () => {
-        toast.error('Failed to update deal', {
-          description: 'Please try again or contact support if the issue persists.',
         });
       }
     });
@@ -353,16 +372,8 @@ export default function DealDetailPage() {
 
   const handleConvertToCustomer = () => {
     convertDealToCustomer.mutate(deal.id, {
-      onSuccess: () => {
-        toast.success('Deal converted to customer successfully', {
-          description: 'The deal has been moved to your customers section.',
-        });
-        navigate('/crm/customers');
-      },
-      onError: () => {
-        toast.error('Failed to convert deal to customer', {
-          description: 'Please try again or contact support.',
-        });
+      onSuccess: (data: any) => {
+        navigate(`/crm/customers/${data.id}`);
       }
     });
   };
@@ -370,11 +381,7 @@ export default function DealDetailPage() {
   const handleDelete = () => {
     deleteDeal.mutate(deal.id, {
       onSuccess: () => {
-        toast.success('Deal deleted successfully');
         navigate('/crm/deals');
-      },
-      onError: () => {
-        toast.error('Failed to delete deal');
       }
     });
   };
@@ -385,9 +392,8 @@ export default function DealDetailPage() {
       updateDeal.mutate({ id: deal.id, stage: newStage }, {
         onSuccess: () => {
           const stageName = pipelineStages.find(s => s.id === newStage)?.label || newStage;
-          toast.success(`Deal moved to ${stageName}`);
           createActivity.mutate({
-            entityType: 'deal', 
+            entityType: 'deal',
             entityId: deal.id,
             activityType: 'stage_change',
             title: `Stage changed to ${stageName}`,
@@ -403,11 +409,10 @@ export default function DealDetailPage() {
     if (!editing) {
       updateDeal.mutate({ id: deal.id, assigned_to: userId }, {
         onSuccess: () => {
-          toast.success('Responsible person updated');
           createActivity.mutate({
-            entityType: 'deal', 
+            entityType: 'deal',
             entityId: deal.id,
-            activityType: 'update', 
+            activityType: 'update',
             title: 'Changed responsible person',
           });
         }
@@ -451,30 +456,29 @@ export default function DealDetailPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       {/* Enterprise Header with Breadcrumb Navigation */}
       <div className="bg-white border-b border-slate-200 shadow-sm">
-        <div className="px-6 py-4">
+        <div className="px-4 md:px-6 py-4">
           {/* Professional Breadcrumb */}
-          <nav className="flex items-center gap-2 text-sm text-slate-500 mb-6">
+          <nav className="flex flex-wrap items-center gap-2 text-sm text-slate-500 mb-6">
             <span className="hover:text-slate-700 cursor-pointer">CRM</span>
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-4 w-4 shrink-0" />
             <span className="hover:text-slate-700 cursor-pointer" onClick={() => navigate('/crm/deals')}>Deals</span>
-            <ChevronRight className="h-4 w-4" />
-            <span className="text-slate-900 font-medium">{deal.title}</span>
+            <ChevronRight className="h-4 w-4 shrink-0" />
+            <span className="text-slate-900 font-medium truncate">{deal.title}</span>
           </nav>
 
           {/* Header Content */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-6">
-              <Button 
-                variant="ghost" 
-                size="sm" 
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div className="flex flex-col md:flex-row md:items-center gap-6">
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => navigate("/crm/deals")}
-                className="gap-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                className="gap-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 self-start md:self-auto"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back to Deals
               </Button>
-              
-              <div className="flex items-center gap-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                 <div className="relative">
                   <Avatar className="h-14 w-14 ring-4 ring-white shadow-lg">
                     <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${deal.title}`} />
@@ -484,16 +488,15 @@ export default function DealDetailPage() {
                   </Avatar>
                   <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 border-2 border-white rounded-full"></div>
                 </div>
-                
                 <div>
-                  <div className="flex items-center gap-3 mb-1">
-                    <h1 className="text-2xl font-bold text-slate-900">{deal.title}</h1>
-                    <Badge className={cn("gap-1 px-3 py-1 font-medium", getStatusColor(deal.stage))}>
+                  <div className="flex flex-wrap items-center gap-3 mb-1">
+                    <h1 className="text-xl md:text-2xl font-bold text-slate-900 break-words max-w-[200px] sm:max-w-none">{deal.title}</h1>
+                    <Badge className={cn("gap-1 px-3 py-1 font-medium whitespace-nowrap", getStatusColor(deal.stage))}>
                       {getStatusIcon(deal.stage)}
                       {pipelineStages.find(s => s.id === deal.stage)?.label || deal.stage}
                     </Badge>
                   </div>
-                  <div className="flex items-center gap-6 text-sm">
+                  <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
                     <div className="flex items-center gap-2 text-slate-600">
                       <Building2 className="h-4 w-4" />
                       <span className="font-medium">{linkedCompany?.name || 'No Company'}</span>
@@ -505,7 +508,7 @@ export default function DealDetailPage() {
                       </div>
                     )}
                     {deal.created_at && (
-                      <div className="flex items-center gap-1 text-slate-500">
+                      <div className="flex items-center gap-1 text-slate-500 whitespace-nowrap">
                         <CalendarIcon className="h-4 w-4" />
                         <span>Created {format(new Date(deal.created_at), 'MMM d, yyyy')}</span>
                       </div>
@@ -514,24 +517,23 @@ export default function DealDetailPage() {
                 </div>
               </div>
             </div>
-            
             {/* Professional Action Buttons */}
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               {editing ? (
                 <>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     onClick={() => { setEditing(false); setForm({ ...deal }); }}
-                    className="gap-2 border-slate-300 text-slate-700 hover:bg-slate-50"
+                    className="gap-2 border-slate-300 text-slate-700"
                   >
                     Cancel
                   </Button>
-                  <Button 
-                    onClick={handleSave} 
-                    disabled={updateDeal.isPending} 
+                  <Button
+                    onClick={handleSave}
+                    disabled={updateDeal.isPending}
                     className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-lg"
                   >
-                    <Save className="h-4 w-4" /> 
+                    <Save className="h-4 w-4" />
                     {updateDeal.isPending ? 'Saving...' : 'Save Changes'}
                   </Button>
                 </>
@@ -539,125 +541,184 @@ export default function DealDetailPage() {
                 <>
                   {/* Quick Action Buttons */}
                   {linkedContact?.phone && (
-                    <Button variant="outline" size="sm" className="gap-2 text-emerald-600 border-emerald-200 hover:bg-emerald-50">
-                      <Phone className="h-4 w-4" />
-                      Call
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+                      asChild
+                    >
+                      <a href={`tel:${linkedContact.phone}`}>
+                        <Phone className="h-4 w-4" />
+                        Call
+                      </a>
                     </Button>
                   )}
                   {linkedContact?.email && (
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline"
+                      size="sm"
                       className="gap-2 text-blue-600 border-blue-200 hover:bg-blue-50"
-                      onClick={() => window.open(`mailto:${linkedContact.email}`, '_blank')}
+                      asChild
                     >
-                      <Mail className="h-4 w-4" />
-                      Email
+                      <a href={`mailto:${linkedContact.email}`}>
+                        <Mail className="h-4 w-4" />
+                        Email
+                      </a>
                     </Button>
                   )}
-                  
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setEditing(true)} 
-                    className="gap-2 border-slate-300 hover:bg-slate-50"
+
+                  <Button
+                    variant="outline"
+                    onClick={() => setEditing(true)}
+                    className="gap-2 border-slate-300"
                   >
-                    <Edit3 className="h-4 w-4" /> 
+                    <Edit3 className="h-4 w-4" />
                     Edit Deal
                   </Button>
-                  
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button className="gap-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white shadow-lg">
-                        <ArrowRightLeft className="h-4 w-4" /> 
-                        Convert to Customer
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent className="max-w-md">
-                      <AlertDialogHeader>
-                        <AlertDialogTitle className="flex items-center gap-2">
-                          <Users className="h-5 w-5 text-emerald-600" />
-                          Convert Deal to Customer
-                        </AlertDialogTitle>
-                        <AlertDialogDescription className="text-slate-600">
-                          This will create a new customer from this deal's information and move it to your customers section. This action cannot be undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction 
-                          onClick={handleConvertToCustomer} 
-                          disabled={convertDealToCustomer.isPending}
-                          className="bg-emerald-600 hover:bg-emerald-700"
-                        >
-                          {convertDealToCustomer.isPending ? "Converting..." : "Convert to Customer"}
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                  
+
+                  {deal.converted_to_customer_id ? (
+                    <Button
+                      onClick={() => navigate(`/crm/customers/${deal.converted_to_customer_id}`)}
+                      className="gap-2 bg-primary hover:bg-primary/80 text-white shadow-lg"
+                    >
+                      <ArrowRightLeft className="h-4 w-4" />
+                      View Converted Customer
+                    </Button>
+                  ) : (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button className="gap-2 bg-primary hover:bg-primary/80 text-white shadow-lg">
+                          <ArrowRightLeft className="h-4 w-4" />
+                          Convert to Customer
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent className="max-w-md">
+                        <AlertDialogHeader>
+                          <AlertDialogTitle className="flex items-center gap-2">
+                            <Users className="h-5 w-5 text-emerald-600" />
+                            Convert Deal to Customer
+                          </AlertDialogTitle>
+                          <AlertDialogDescription className="text-slate-600">
+                            This will create a new customer from this deal's information and move it to your customers section. This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={handleConvertToCustomer}
+                            disabled={convertDealToCustomer.isPending}
+                            className="bg-emerald-600 hover:bg-emerald-700"
+                          >
+                            {convertDealToCustomer.isPending ? "Converting..." : "Convert to Customer"}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
+
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="icon" className="border-slate-300 hover:bg-slate-50">
+                      <Button variant="outline" size="icon" className="border-slate-300">
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuContent align="end" className="w-72 p-2 rounded-xl shadow-xl border-slate-200 z-[100] pointer-events-auto bg-white">
+                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Communication</DropdownMenuLabel>
                       {linkedContact?.email && (
-                        <DropdownMenuItem onClick={() => copyToClipboard(linkedContact.email, 'Email')}>
-                          <Copy className="h-4 w-4 mr-2" />
-                          Copy Contact Email
+                        <DropdownMenuItem onClick={() => copyToClipboard(linkedContact.email, 'Email')} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                          <div className="p-2 bg-blue-50 rounded-md">
+                            <Mail className="h-4 w-4 text-blue-600" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-sm text-slate-900">Copy Contact Email</p>
+                            <p className="text-xs text-slate-500 truncate">{linkedContact.email}</p>
+                          </div>
                         </DropdownMenuItem>
                       )}
                       {linkedContact?.phone && (
-                        <DropdownMenuItem onClick={() => copyToClipboard(linkedContact.phone, 'Phone')}>
-                          <Copy className="h-4 w-4 mr-2" />
-                          Copy Contact Phone
+                        <DropdownMenuItem onClick={() => copyToClipboard(linkedContact.phone, 'Phone')} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                          <div className="p-2 bg-emerald-50 rounded-md">
+                            <Phone className="h-4 w-4 text-emerald-600" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-sm text-slate-900">Copy Contact Phone</p>
+                            <p className="text-xs text-slate-500">{linkedContact.phone}</p>
+                          </div>
                         </DropdownMenuItem>
                       )}
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem>
-                        <Eye className="h-4 w-4 mr-2" />
-                        View Activity Timeline
+
+                      <DropdownMenuSeparator className="my-2 bg-slate-100" />
+
+                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Quick Jump</DropdownMenuLabel>
+                      <DropdownMenuItem className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors" onClick={() => handleScrollToActivity("activity")}>
+                        <div className="p-2 bg-purple-50 rounded-md">
+                          <Activity className="h-4 w-4 text-purple-600" />
+                        </div>
+                        <p className="font-semibold text-sm text-slate-900">View Activity Timeline</p>
                       </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <Calendar className="h-4 w-4 mr-2" />
-                        Schedule Meeting
+                      <DropdownMenuItem className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors" onClick={() => handleScrollToActivity("activity", "booking")}>
+                        <div className="p-2 bg-orange-50 rounded-md">
+                          <Calendar className="h-4 w-4 text-orange-600" />
+                        </div>
+                        <p className="font-semibold text-sm text-slate-900">Schedule Meeting</p>
                       </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <MessageSquare className="h-4 w-4 mr-2" />
-                        Send Message
+                      <DropdownMenuItem className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                        <div className="p-2 bg-indigo-50 rounded-md">
+                          <MessageSquare className="h-4 w-4 text-indigo-600" />
+                        </div>
+                        <p className="font-semibold text-sm text-slate-900">Send Message</p>
                       </DropdownMenuItem>
-                      <DropdownMenuSeparator />
+
+                      <DropdownMenuSeparator className="my-2 bg-slate-100" />
+
+                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Reports & Data</DropdownMenuLabel>
+                      <DropdownMenuItem className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors" onClick={handlePrint}>
+                        <div className="p-2 bg-orange-50 rounded-md">
+                          <Printer className="h-4 w-4 text-orange-600" />
+                        </div>
+                        <p className="font-semibold text-sm text-slate-900">Print Deal Details</p>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors" onClick={handleExport}>
+                        <div className="p-2 bg-emerald-50 rounded-md">
+                          <Download className="h-4 w-4 text-emerald-600" />
+                        </div>
+                        <p className="font-semibold text-sm text-slate-900">Export as JSON</p>
+                      </DropdownMenuItem>
+
+                      <DropdownMenuSeparator className="my-2 bg-slate-100" />
+
                       {canDelete && (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-600 focus:text-red-600">
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete Deal
-                            </DropdownMenuItem>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle className="flex items-center gap-2 text-red-600">
-                                <AlertCircle className="h-5 w-5" />
-                                Delete Deal
-                              </AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Are you sure you want to delete this deal? This action cannot be undone and will remove all associated data including activities, notes, and files.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction 
-                                onClick={handleDelete} 
-                                className="bg-red-600 hover:bg-red-700"
-                              >
-                                Delete Deal
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                        <DropdownMenuItem onClick={() => setForm(prev => ({ ...prev, showDeleteDialog: true }))} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-red-50 group transition-colors">
+                          <div className="p-2 bg-red-50 rounded-md group-hover:bg-red-100 transition-colors">
+                            <Trash2 className="h-4 w-4 text-red-600" />
+                          </div>
+                          <p className="font-semibold text-sm text-red-600">Delete Deal</p>
+                        </DropdownMenuItem>
                       )}
+
+                      <DropdownMenuSeparator className="my-2 bg-slate-100" />
+                      <DropdownMenuItem
+                        className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-orange-50 group transition-colors"
+                        onClick={() => {
+                          updateDeal.mutate({ id: deal.id, status: 'unqualified', stage: 'unqualified' }, {
+                            onSuccess: () => {
+                              toast.success("Deal marked as unqualified");
+                              createActivity.mutate({
+                                entityType: 'deal',
+                                entityId: deal.id,
+                                activityType: 'status_change',
+                                title: 'Marked as Unqualified',
+                                description: 'Deal has been moved to the unqualified section',
+                              });
+                            }
+                          });
+                        }}
+                      >
+                        <div className="p-2 bg-orange-50 rounded-md group-hover:bg-orange-100 transition-colors">
+                          <XCircle className="h-4 w-4 text-orange-600" />
+                        </div>
+                        <p className="font-semibold text-sm text-orange-600">Mark as Unqualified</p>
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </>
@@ -668,8 +729,8 @@ export default function DealDetailPage() {
       </div>
 
       {/* Enterprise Metrics Dashboard */}
-      <div className="px-6 py-6 bg-white border-b border-slate-200">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="px-4 md:px-6 py-6 bg-white border-b border-slate-200">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -753,29 +814,28 @@ export default function DealDetailPage() {
       </div>
 
       {/* Interactive Pipeline Progress */}
-      <div className="px-6 py-6 bg-white border-b border-slate-200">
+      <div className="px-4 md:px-6 py-6 bg-white border-b border-slate-200">
         <div className="mb-4">
           <h3 className="text-lg font-semibold text-slate-900 mb-2">Deal Pipeline Progress</h3>
           <p className="text-sm text-slate-600">Track your deal through each stage of the sales process</p>
         </div>
-        
-        <div className="relative">
-          <div className="flex items-center justify-between mb-4">
+        <div className="relative overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-200">
+          <div className="flex items-center justify-between mb-4 min-w-[1000px] lg:min-w-0 px-4">
             {pipelineStages.map((stage, index) => {
               const isActive = stage.id === deal.stage;
               const isPassed = pipelineStages.findIndex(s => s.id === deal.stage) > index;
               const isClickable = !editing;
-              
+
               return (
                 <div key={stage.id} className="flex flex-col items-center flex-1">
-                  <div 
+                  <div
                     className={cn(
                       "relative flex items-center justify-center w-12 h-12 rounded-full border-2 transition-all duration-300 cursor-pointer",
-                      isActive 
-                        ? "bg-blue-600 border-blue-600 text-white shadow-lg scale-110" 
-                        : isPassed 
-                        ? "bg-emerald-500 border-emerald-500 text-white" 
-                        : "bg-white border-slate-300 text-slate-400 hover:border-slate-400",
+                      isActive
+                        ? "bg-blue-600 border-blue-600 text-white shadow-lg scale-110"
+                        : isPassed
+                          ? "bg-emerald-500 border-emerald-500 text-white"
+                          : "bg-white border-slate-300 text-slate-400 hover:border-slate-400",
                       isClickable && "hover:scale-105"
                     )}
                     onClick={() => isClickable && handleStageChange(stage.id)}
@@ -814,10 +874,10 @@ export default function DealDetailPage() {
       </div>
 
       {/* Main Content Grid */}
-      <div className="px-6 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-7 gap-8">
+      <div className="px-4 md:px-6 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Professional Form Sections */}
-          <div className="lg:col-span-3 space-y-6">
+          <div className="lg:col-span-8 space-y-6">
             {/* Deal Information Card */}
             <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
               <CardHeader className="pb-4">
@@ -831,48 +891,17 @@ export default function DealDetailPage() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <Field
-                  label="Deal Title"
-                  value={form.title as string}
-                  onChange={(val) => set("title", val)}
-                  editing={editing}
-                  icon={<Briefcase className="h-4 w-4" />}
-                  required
-                />
-                <Field
-                  label="Contact Name"
-                  value={form.contact_name as string}
-                  onChange={(val) => set("contact_name", val)}
-                  editing={editing}
-                  icon={<User className="h-4 w-4" />}
-                  placeholder="Contact person name"
-                />
-                <Field
-                  label="Company Name"
-                  value={form.company_name as string}
-                  onChange={(val) => set("company_name", val)}
-                  editing={editing}
-                  icon={<Building2 className="h-4 w-4" />}
-                  placeholder="Company name"
-                />
-                <Field
-                  label="Email"
-                  value={form.email as string}
-                  onChange={(val) => set("email", val)}
-                  editing={editing}
-                  icon={<Mail className="h-4 w-4" />}
-                  type="email"
-                  placeholder="Contact email"
-                />
-                <Field
-                  label="Phone"
-                  value={form.phone as string}
-                  onChange={(val) => set("phone", val)}
-                  editing={editing}
-                  icon={<Phone className="h-4 w-4" />}
-                  placeholder="Contact phone"
-                />
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <Field
+                    label="Deal Title"
+                    value={form.title as string}
+                    onChange={(val) => set("title", val)}
+                    editing={editing}
+                    icon={<Briefcase className="h-4 w-4" />}
+                    required
+                  />
+                </div>
                 <Field
                   label="Deal Value"
                   value={form.value as string}
@@ -883,42 +912,135 @@ export default function DealDetailPage() {
                   placeholder="Enter deal value"
                 />
                 <Field
-                  label="Priority"
-                  value={form.priority as string}
-                  onChange={(val) => set("priority", val)}
+                  label="Currency"
+                  value={form.currency as string}
+                  onChange={(val) => set("currency", val)}
                   editing={editing}
-                  icon={<Star className="h-4 w-4" />}
-                  placeholder="Deal priority"
-                />
-                <Field
-                  label="Source"
-                  value={form.source as string}
-                  onChange={(val) => set("source", val)}
-                  editing={editing}
-                  icon={<Tag className="h-4 w-4" />}
-                  placeholder="Lead source"
+                  icon={<DollarSign className="h-4 w-4" />}
+                  placeholder="USD, EUR, etc."
                 />
                 <Field
                   label="Expected Close Date"
-                  value={form.expected_close_date as string}
+                  value={form.expected_close_date ? new Date(form.expected_close_date as string).toISOString().split('T')[0] : ""}
                   onChange={(val) => set("expected_close_date", val)}
                   editing={editing}
                   icon={<Calendar className="h-4 w-4" />}
                   type="date"
                 />
                 <Field
-                  label="Description"
-                  value={form.description as string}
-                  onChange={(val) => set("description", val)}
+                  label="Probability (%)"
+                  value={form.probability?.toString()}
+                  onChange={(val) => set("probability", parseInt(val) || 0)}
                   editing={editing}
-                  icon={<FileText className="h-4 w-4" />}
-                  multiline
-                  placeholder="Describe the deal details..."
+                  icon={<Target className="h-4 w-4" />}
+                  type="number"
                 />
+                <div className="md:col-span-2">
+                  <Field
+                    label="Description"
+                    value={form.description as string}
+                    onChange={(val) => set("description", val)}
+                    editing={editing}
+                    icon={<FileText className="h-4 w-4" />}
+                    multiline
+                    placeholder="Describe the deal details..."
+                  />
+                </div>
               </CardContent>
             </Card>
 
-            {/* Company & Contact Information */}
+            {/* Contact Information Card */}
+            <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+              <CardHeader className="pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-indigo-100 rounded-lg">
+                    <User className="h-5 w-5 text-indigo-600" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg text-slate-900">Contact Information</CardTitle>
+                    <CardDescription className="text-slate-600">Details of the primary contact</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      Linked Contact Profile
+                    </label>
+                    {editing ? (
+                      <Select value={form.contact_id as string} onValueChange={(val) => set("contact_id", val)}>
+                        <SelectTrigger className="border-slate-300 focus:border-blue-500 focus:ring-blue-500">
+                          <SelectValue placeholder="Select contact..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {contactOptions.map(option => (
+                            <SelectItem key={option.id} value={option.id}>
+                              <div>
+                                <div className="font-medium">{option.label}</div>
+                                {option.sublabel && <div className="text-xs text-slate-500">{option.sublabel}</div>}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="h-10 px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 flex items-center">
+                        <span className="text-slate-900 font-medium">
+                          {linkedContact ? `${linkedContact.first_name} ${linkedContact.last_name || ''}`.trim() : 'No contact selected'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <Field
+                  label="Contact Name"
+                  value={form.contact_name as string}
+                  onChange={(val) => set("contact_name", val)}
+                  editing={editing}
+                  icon={<User className="h-4 w-4" />}
+                  placeholder="Full name"
+                />
+                <Field
+                  label="Designation"
+                  value={form.designation as string}
+                  onChange={(val) => set("designation", val)}
+                  editing={editing}
+                  icon={<Briefcase className="h-4 w-4" />}
+                  placeholder="Job title"
+                />
+                <Field
+                  label="Email"
+                  value={form.email as string}
+                  onChange={(val) => set("email", val)}
+                  editing={editing}
+                  icon={<Mail className="h-4 w-4" />}
+                  type="email"
+                  placeholder="Email address"
+                />
+                <Field
+                  label="Phone"
+                  value={form.phone as string}
+                  onChange={(val) => set("phone", val)}
+                  editing={editing}
+                  icon={<Phone className="h-4 w-4" />}
+                  placeholder="Phone number"
+                />
+                <div className="md:col-span-2">
+                  <Field
+                    label="Address"
+                    value={form.address as string}
+                    onChange={(val) => set("address", val)}
+                    editing={editing}
+                    icon={<MapPin className="h-4 w-4" />}
+                    placeholder="Full address"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Company Information Card */}
             <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
               <CardHeader className="pb-4">
                 <div className="flex items-center gap-3">
@@ -926,117 +1048,285 @@ export default function DealDetailPage() {
                     <Building2 className="h-5 w-5 text-emerald-600" />
                   </div>
                   <div>
-                    <CardTitle className="text-lg text-slate-900">Company & Contact</CardTitle>
-                    <CardDescription className="text-slate-600">Associated company and contact information</CardDescription>
+                    <CardTitle className="text-lg text-slate-900">Company Information</CardTitle>
+                    <CardDescription className="text-slate-600">Organizational details</CardDescription>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
-                    <Building2 className="h-4 w-4" />
-                    Company
-                  </label>
-                  {editing ? (
-                    <Select value={form.company_id as string} onValueChange={(val) => set("company_id", val)}>
-                      <SelectTrigger className="border-slate-300 focus:border-blue-500 focus:ring-blue-500">
-                        <SelectValue placeholder="Select company..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {companyOptions.map(option => (
-                          <SelectItem key={option.id} value={option.id}>
-                            <div>
-                              <div className="font-medium">{option.label}</div>
-                              {option.sublabel && <div className="text-xs text-slate-500">{option.sublabel}</div>}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <div className="h-10 px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 flex items-center">
-                      <span className="text-slate-900 font-medium">{linkedCompany?.name || 'No company selected'}</span>
-                    </div>
-                  )}
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                      <Building2 className="h-4 w-4" />
+                      Linked Company Profile
+                    </label>
+                    {editing ? (
+                      <Select value={form.company_id as string} onValueChange={(val) => set("company_id", val)}>
+                        <SelectTrigger className="border-slate-300 focus:border-blue-500 focus:ring-blue-500">
+                          <SelectValue placeholder="Select company..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {companyOptions.map(option => (
+                            <SelectItem key={option.id} value={option.id}>
+                              <div>
+                                <div className="font-medium">{option.label}</div>
+                                {option.sublabel && <div className="text-xs text-slate-500">{option.sublabel}</div>}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="h-10 px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 flex items-center">
+                        <span className="text-slate-900 font-medium">{linkedCompany?.name || 'No company selected'}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    Primary Contact
-                  </label>
-                  {editing ? (
-                    <Select value={form.contact_id as string} onValueChange={(val) => set("contact_id", val)}>
-                      <SelectTrigger className="border-slate-300 focus:border-blue-500 focus:ring-blue-500">
-                        <SelectValue placeholder="Select contact..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {contactOptions.map(option => (
-                          <SelectItem key={option.id} value={option.id}>
-                            <div>
-                              <div className="font-medium">{option.label}</div>
-                              {option.sublabel && <div className="text-xs text-slate-500">{option.sublabel}</div>}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <div className="h-10 px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 flex items-center">
-                      <span className="text-slate-900 font-medium">
-                        {linkedContact ? `${linkedContact.first_name} ${linkedContact.last_name || ''}`.trim() : 'No contact selected'}
-                      </span>
-                    </div>
-                  )}
-                </div>
+                <Field
+                  label="Company Name"
+                  value={form.company_name as string}
+                  onChange={(val) => set("company_name", val)}
+                  editing={editing}
+                  icon={<Building2 className="h-4 w-4" />}
+                  placeholder="Legal company name"
+                />
+                <Field
+                  label="Website"
+                  value={form.website as string}
+                  onChange={(val) => set("website", val)}
+                  editing={editing}
+                  icon={<Globe className="h-4 w-4" />}
+                  placeholder="https://example.com"
+                />
+                <Field
+                  label="Company Phone"
+                  value={form.company_phone as string}
+                  onChange={(val) => set("company_phone", val)}
+                  editing={editing}
+                  icon={<Phone className="h-4 w-4" />}
+                  placeholder="Main office phone"
+                />
+                <Field
+                  label="Company Email"
+                  value={form.company_email as string}
+                  onChange={(val) => set("company_email", val)}
+                  editing={editing}
+                  icon={<Mail className="h-4 w-4" />}
+                  placeholder="General info email"
+                />
+                <Field
+                  label="Company Size"
+                  value={form.company_size as string}
+                  onChange={(val) => set("company_size", val)}
+                  editing={editing}
+                  icon={<Users className="h-4 w-4" />}
+                  placeholder="e.g., 50-100 employees"
+                />
               </CardContent>
             </Card>
-          </div>
 
-          {/* Enhanced Sidebar - Activity & Files */}
-          <div className="lg:col-span-4 space-y-6">
+            {/* Marketing & Qualification Card */}
             <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-purple-100 rounded-lg">
-                      <Activity className="h-5 w-5 text-purple-600" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg text-slate-900">Activity & Documents</CardTitle>
-                      <CardDescription className="text-slate-600">Track interactions and manage files</CardDescription>
-                    </div>
+              <CardHeader className="pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-amber-100 rounded-lg">
+                    <Target className="h-5 w-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg text-slate-900">Lead Qualification & Sales Info</CardTitle>
+                    <CardDescription className="text-slate-600">Marketing and qualification metadata</CardDescription>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="p-0">
-                <Tabs defaultValue="activity" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2 mx-6 mb-4 bg-slate-100">
-                    <TabsTrigger value="activity" className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                      <Activity className="h-4 w-4" />
-                      Activity
-                    </TabsTrigger>
-                    <TabsTrigger value="files" className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                      <FileText className="h-4 w-4" />
-                      Files
-                    </TabsTrigger>
-                  </TabsList>
-                  
-                  <TabsContent value="activity" className="mt-0 px-6 pb-6">
-                    <div className="min-h-96">
-                      <InteractionPanel entityType="deal" entityId={deal.id} />
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                    <Star className="h-4 w-4" />
+                    Priority
+                  </label>
+                  {editing ? (
+                    <Select value={form.priority as string} onValueChange={(val) => set("priority", val)}>
+                      <SelectTrigger className="border-slate-300">
+                        <SelectValue placeholder="Select priority..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">Low</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                        <SelectItem value="urgent">Urgent</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="h-10 px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 flex items-center">
+                      <Badge className={cn(
+                        form.priority === 'urgent' ? 'bg-red-100 text-red-700 border-red-200' :
+                          form.priority === 'high' ? 'bg-orange-100 text-orange-700 border-orange-200' :
+                            form.priority === 'medium' ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                              'bg-slate-100 text-slate-700 border-slate-200'
+                      )}>
+                        {(form.priority as string || 'Medium').toUpperCase()}
+                      </Badge>
                     </div>
-                  </TabsContent>
-                  
-                  <TabsContent value="files" className="mt-0 px-6 pb-6">
-                    <div className="min-h-96">
-                      <EntityFilesSection entityType="deal" entityId={deal.id} />
-                    </div>
-                  </TabsContent>
-                </Tabs>
+                  )}
+                </div>
+                <Field
+                  label="Lead Source"
+                  value={form.source as string}
+                  onChange={(val) => set("source", val)}
+                  editing={editing}
+                  icon={<Tag className="h-4 w-4" />}
+                  placeholder="e.g., Website, Referral"
+                />
+                <Field
+                  label="Sales Agent"
+                  value={form.agent_name as string}
+                  onChange={(val) => set("agent_name", val)}
+                  editing={editing}
+                  icon={<User className="h-4 w-4" />}
+                  placeholder="Attributed agent"
+                />
+                <Field
+                  label="Decision Maker"
+                  value={form.decision_maker as string}
+                  onChange={(val) => set("decision_maker", val)}
+                  editing={editing}
+                  icon={<Award className="h-4 w-4" />}
+                  placeholder="Primary decision maker"
+                />
+                <Field
+                  label="Service Interested"
+                  value={form.service_interested as string}
+                  onChange={(val) => set("service_interested", val)}
+                  editing={editing}
+                  icon={<Zap className="h-4 w-4" />}
+                  placeholder="Project/Service type"
+                />
+                <Field
+                  label="Source Info"
+                  value={form.source_info as string}
+                  onChange={(val) => set("source_info", val)}
+                  editing={editing}
+                  icon={<Search className="h-4 w-4" />}
+                  placeholder="Campaign details, UTM params, etc."
+                />
+              </CardContent>
+            </Card>
+
+            {/* Interaction Notes Card */}
+            <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+              <CardHeader className="pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-purple-100 rounded-lg">
+                    <History className="h-5 w-5 text-purple-600" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg text-slate-900">Interaction Notes & History</CardTitle>
+                    <CardDescription className="text-slate-600">Timeline and communication summaries</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <Field
+                  label="First Interaction Message"
+                  value={form.first_message as string}
+                  onChange={(val) => set("first_message", val)}
+                  editing={editing}
+                  icon={<MessageCircle className="h-4 w-4" />}
+                  multiline
+                  placeholder="Content of the very first message..."
+                />
+                <Field
+                  label="Cumulative Interaction Notes"
+                  value={form.interaction_notes as string}
+                  onChange={(val) => set("interaction_notes", val)}
+                  editing={editing}
+                  icon={<History className="h-4 w-4" />}
+                  multiline
+                  placeholder="Summary of all interactions during lead stage..."
+                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Field
+                    label="Last Touch"
+                    value={form.last_touch ? new Date(form.last_touch as string).toISOString().split('T')[0] : ""}
+                    onChange={(val) => set("last_touch", val)}
+                    editing={editing}
+                    icon={<Clock className="h-4 w-4" />}
+                    type="date"
+                  />
+                  <Field
+                    label="Next Follow Up"
+                    value={form.next_follow_up_date ? new Date(form.next_follow_up_date as string).toISOString().split('T')[0] : ""}
+                    onChange={(val) => set("next_follow_up_date", val)}
+                    editing={editing}
+                    icon={<CalendarIcon className="h-4 w-4" />}
+                    type="date"
+                  />
+                </div>
               </CardContent>
             </Card>
           </div>
+        </div>
+
+        {/* Activity & Documents Section - Standardized Full Width */}
+        <div className="mt-12">
+          <Card ref={activitySectionRef} className="shadow-2xl border-0 bg-white overflow-hidden rounded-3xl scroll-mt-24 border-t-4 border-t-primary/20">
+            <CardHeader className="pb-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-8 py-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-primary/10 rounded-2xl">
+                    <Activity className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl text-slate-900 font-bold">Activity, Timeline & Documents</CardTitle>
+                    <CardDescription className="text-slate-500 text-sm">Interaction history and shared resources for <strong>{deal.title}</strong></CardDescription>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">
+                    {sidebarTab === 'activity' ? 'Timeline View' : 'Files View'}
+                  </Badge>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Tabs value={sidebarTab} onValueChange={setSidebarTab} className="w-full">
+                <TabsList className="flex w-full justify-start gap-10 px-8 border-b border-slate-100 bg-slate-50/50 h-16 rounded-none">
+                  <TabsTrigger
+                    value="activity"
+                    className="relative px-4 h-full bg-transparent border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none rounded-none gap-2 text-base font-semibold transition-all hover:text-primary/70"
+                  >
+                    <Activity className="h-5 w-5" />
+                    Timeline & Interactions
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="files"
+                    className="relative px-4 h-full bg-transparent border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none rounded-none gap-2 text-base font-semibold transition-all hover:text-primary/70"
+                  >
+                    <FileText className="h-5 w-5" />
+                    Documents & Files
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="activity" className="mt-0 p-8">
+                  <div className="rounded-xl bg-white border border-slate-100 shadow-sm p-4 md:p-6 min-h-[500px]">
+                    <InteractionPanel
+                      entityType="deal"
+                      entityId={deal.id}
+                      activeTab={interactionTab}
+                      onTabChange={setInteractionTab}
+                    />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="files" className="mt-0 p-8">
+                  <div className="rounded-xl bg-white border border-slate-100 shadow-sm p-4 md:p-6 min-h-[500px]">
+                    <EntityFilesSection entityType="deal" entityId={deal.id} />
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

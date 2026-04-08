@@ -1,0 +1,56 @@
+{
+  "id": "60d737cf-3cb6-4cf6-998f-1850e79fd9b4",
+  "version": "2.0",
+  "name": "Practice",
+  "url": "https://www.google.com/",
+  "tests": [{
+    "id": "c9e21c8f-0c17-4154-86d2-3afe3fb608c7",
+    "name": "T_01",
+    "commands": [{
+      "id": "65004c35-e5cb-4783-be4b-c5124fe7fc7b",
+      "comment": "",
+      "command": "open",
+      "target": "https://www.google.com/",
+      "targets": [],
+      "value": ""
+    }, {
+      "id": "bdd1c994-756f-4ea9-ad52-5ed8255e264c",
+      "comment": "",
+      "command": "storeText",
+      "target": "textarea#APjFqb",
+      "targets": [],
+      "value": "haris"
+    }, {
+      "id": "26de1248-b5aa-4385-b8cc-c3e97faadada",
+      "comment": "",
+      "command": "click",
+      "target": "textarea.gLGyf",
+      "targets": [],
+      "value": ""
+    }, {
+      "id": "77730ab0-3a21-4b3e-b196-16198195051e",
+      "comment": "",
+      "command": "",
+      "target": "textarea#APjFqb[className=\"flex justify-center items-center\"",
+      "targets": [],
+      "value": ""
+    }, {
+      "id": "4b1270fa-1baf-4737-b083-d3609128af27",
+      "comment": "",
+      "command": "",
+      "target": "textarea.gLFyf[onClick=()=> setIsEditable(true)]",
+      "targets": [],
+      "value": ""
+    }]
+  }],
+  "suites": [{
+    "id": "37c55c4c-7b52-45cf-bbdd-f9e503a6958f",
+    "name": "Default Suite",
+    "persistSession": false,
+    "parallel": false,
+    "timeout": 300,
+    "tests": ["c9e21c8f-0c17-4154-86d2-3afe3fb608c7"]
+  }],
+  "urls": ["https://www.google.com/"],
+  "plugins": []
+}

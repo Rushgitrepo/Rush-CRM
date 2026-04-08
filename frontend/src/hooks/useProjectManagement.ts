@@ -46,8 +46,10 @@ export function useUpdateProject() {
   return useMutation({
     mutationFn: ({ id, ...u }: Partial<ProjectFull> & { id: string }) => 
       projectsApi.update(id, u),
-    onSuccess: () => {
+    onSuccess: (_, { id }) => {
       qc.invalidateQueries({ queryKey: ['projects'] });
+      qc.invalidateQueries({ queryKey: ['project', id] });
+      toast.success('Project updated');
     },
     onError: (e: Error) => toast.error('Failed: ' + e.message),
   });
@@ -93,7 +95,10 @@ export function useUpdateMilestone() {
     mutationFn: async ({ id, project_id, ...u }: any) => {
       return api.put(`/milestones/${id}`, u);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['project_milestones'] }),
+    onSuccess: (_, { project_id }) => {
+      qc.invalidateQueries({ queryKey: ['project_milestones', project_id] });
+      toast.success('Milestone updated');
+    },
     onError: (e: Error) => toast.error('Failed: ' + e.message),
   });
 }
@@ -136,7 +141,7 @@ export function useRemoveProjectMember() {
 
 export function useProjectTasks(projectId: string) {
   return useQuery({
-    queryKey: ['project_tasks', projectId],
+    queryKey: ['tasks', { projectId }],
     queryFn: () => tasksApi.getAll({ projectId }),
     enabled: !!projectId,
   });
@@ -170,7 +175,10 @@ export function useUpdateTimeEntry() {
     mutationFn: async ({ id, project_id, ...u }: any) => {
       return api.put(`/time-entries/${id}`, u);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['project_time_entries'] }),
+    onSuccess: (_, { project_id }) => {
+      qc.invalidateQueries({ queryKey: ['project_time_entries', project_id] });
+      toast.success('Time entry updated');
+    },
     onError: (e: Error) => toast.error('Failed: ' + e.message),
   });
 }

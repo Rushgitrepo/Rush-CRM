@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react";
-import { Plus, Mail, Phone, Building2, Loader2, Sparkles } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Plus, Mail, Phone, Building2, Loader2, Sparkles, Upload, XCircle, MoreHorizontal, Eye, Edit, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
@@ -12,7 +14,8 @@ import { PageHeader } from "@/components/crm/ui/PageHeader";
 import { DataToolbar } from "@/components/crm/ui/DataToolbar";
 import { EntityColumn, EntityTable } from "@/components/crm/ui/EntityTable";
 import { EmptyState } from "@/components/crm/ui/EmptyState";
-import { useCreateCustomer, useCustomers } from "@/hooks/useCrmData";
+import { useCreateCustomer, useCustomers, useUpdateCustomer, useDeleteCustomer } from "@/hooks/useCrmData";
+import { useCustomDialog } from "@/contexts/DialogContext";
 
 const statusBadge = (status?: string) => {
   const normalized = (status || "").toLowerCase();
@@ -23,13 +26,17 @@ const statusBadge = (status?: string) => {
 };
 
 export default function CustomersPage() {
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("recent");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", phone: "", status: "active", tier: "", industry: "" });
   const createCustomer = useCreateCustomer();
+  const updateCustomer = useUpdateCustomer();
+  const deleteCustomer = useDeleteCustomer();
   const { toast } = useToast();
+  const { confirm } = useCustomDialog();
 
   const { data, isLoading, isError } = useCustomers(search ? { search } : undefined) as {
     data?: any;
@@ -128,6 +135,49 @@ export default function CustomersPage() {
       sortable: true,
       render: (c) => <span className="font-semibold">{c.total_revenue ? `$${Number(c.total_revenue).toLocaleString()}` : "—"}</span>,
     },
+    {
+      key: "actions",
+      header: "",
+      render: (customer) => (
+        <div onClick={(e) => e.stopPropagation()}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => navigate(`/crm/customers/${customer.id}`)}>
+                <Eye className="h-4 w-4 mr-2" />
+                View Details
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  updateCustomer.mutate({ id: customer.id, status: 'unqualified' });
+                }}
+              >
+                <XCircle className="h-4 w-4 mr-2 text-orange-600" />
+                Unqualify Customer
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem 
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  if (await confirm('Are you sure you want to delete this customer?', { variant: 'destructive', title: 'Delete Customer' })) {
+                    deleteCustomer.mutate(customer.id);
+                  }
+                }}
+                className="text-red-600"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Customer
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      ),
+    },
   ];
 
   const handleCreate = () => {
@@ -155,75 +205,81 @@ export default function CustomersPage() {
           { label: "Filtered", value: filtered.length, tone: "success" },
         ]}
         actions={
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button className="gradient-primary">
-                <Plus className="mr-2 h-4 w-4" />
-                New Customer
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-lg">
-              <DialogHeader>
-                <DialogTitle>Create customer</DialogTitle>
-              </DialogHeader>
-              <div className="grid gap-4 py-2">
-                <div className="grid gap-2">
-                  <Label htmlFor="name">Name</Label>
-                  <Input
-                    id="name"
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    placeholder="Acme Corp"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    placeholder="contact@acme.com"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="phone">Phone</Label>
-                  <Input
-                    id="phone"
-                    value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    placeholder="(555) 123-4567"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate("/crm/leads/import")}>
+              <Upload className="mr-2 h-4 w-4" />
+              Import
+            </Button>
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger asChild>
+                <Button className="gradient-primary">
+                  <Plus className="mr-2 h-4 w-4" />
+                  New Customer
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Create customer</DialogTitle>
+                </DialogHeader>
+                <div className="grid gap-4 py-2">
                   <div className="grid gap-2">
-                    <Label>Status</Label>
+                    <Label htmlFor="name">Name</Label>
                     <Input
-                      value={form.status}
-                      onChange={(e) => setForm({ ...form, status: e.target.value })}
-                      placeholder="Active / VIP"
+                      id="name"
+                      value={form.name}
+                      onChange={(e) => setForm({ ...form, name: e.target.value })}
+                      placeholder="Acme Corp"
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label>Industry</Label>
+                    <Label htmlFor="email">Email</Label>
                     <Input
-                      value={form.industry}
-                      onChange={(e) => setForm({ ...form, industry: e.target.value })}
-                      placeholder="Construction"
+                      id="email"
+                      type="email"
+                      value={form.email}
+                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                      placeholder="contact@acme.com"
                     />
                   </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="phone">Phone</Label>
+                    <Input
+                      id="phone"
+                      value={form.phone}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      placeholder="(555) 123-4567"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="grid gap-2">
+                      <Label>Status</Label>
+                      <Input
+                        value={form.status}
+                        onChange={(e) => setForm({ ...form, status: e.target.value })}
+                        placeholder="Active / VIP"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Industry</Label>
+                      <Input
+                        value={form.industry}
+                        onChange={(e) => setForm({ ...form, industry: e.target.value })}
+                        placeholder="Construction"
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleCreate} disabled={createCustomer.isPending}>
-                  {createCustomer.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Save
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleCreate} disabled={createCustomer.isPending}>
+                    {createCustomer.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Save
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         }
       />
 
@@ -268,6 +324,7 @@ export default function CustomersPage() {
               columns={columns}
               isLoading={isLoading}
               pageSize={8}
+              onRowClick={(c) => navigate(`/crm/customers/${c.id}`)}
               emptyState={
                 <EmptyState
                   title="No customers yet"

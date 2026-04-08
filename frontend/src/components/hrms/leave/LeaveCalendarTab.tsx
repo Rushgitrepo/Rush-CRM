@@ -28,10 +28,8 @@ export default function LeaveCalendarTab() {
   const { data: calendarResp, isLoading } = useQuery({
     queryKey: ["leave-calendar", format(monthStart, "yyyy-MM-dd"), format(monthEnd, "yyyy-MM-dd")],
     queryFn: () => api.get("/leave/calendar/view", {
-      params: {
-        startDate: format(monthStart, "yyyy-MM-dd"),
-        endDate: format(monthEnd, "yyyy-MM-dd"),
-      },
+      startDate: format(monthStart, "yyyy-MM-dd"),
+      endDate: format(monthEnd, "yyyy-MM-dd"),
     }),
   });
 

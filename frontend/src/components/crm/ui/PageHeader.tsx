@@ -27,7 +27,7 @@ type PageHeaderProps = {
 
 export function PageHeader({ title, description, meta, actions, breadcrumb, subdued }: PageHeaderProps) {
   return (
-    <div className={cn("w-full", subdued ? "pb-2" : "pb-4 border-b border-border/60")}> 
+    <div className={cn("w-full", subdued ? "pb-2" : "pb-4 border-b border-border/60")}>
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="space-y-1">
           {breadcrumb}

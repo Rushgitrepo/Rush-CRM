@@ -1,7 +1,8 @@
 import { useMemo, useState, Suspense, lazy } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Sparkles, Phone, Mail, Building2, Layers, MoreHorizontal, Edit, Trash2, Eye, Download, Upload } from "lucide-react";
+import { Plus, Sparkles, Phone, Mail, Building2, Layers, MoreHorizontal, Edit, Trash2, Eye, Download, Upload, XCircle } from "lucide-react";
 import { useDeals, useDeleteDeal } from "@/hooks/useCrmData";
+import { useUpdateDeal } from "@/hooks/useCrmMutations";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,6 +12,8 @@ import { PageHeader } from "@/components/crm/ui/PageHeader";
 import { DataToolbar } from "@/components/crm/ui/DataToolbar";
 import { EntityTable, EntityColumn } from "@/components/crm/ui/EntityTable";
 import { EmptyState } from "@/components/crm/ui/EmptyState";
+import { AdvancedSearch } from "@/components/crm/ui/AdvancedSearch";
+import { useCustomDialog } from "@/contexts/DialogContext";
 import { DealsKanbanView } from "@/components/crm/deals/DealsKanbanView";
 import { DealsActivitiesView } from "@/components/crm/deals/DealsActivitiesView";
 import { DealsCalendarView } from "@/components/crm/deals/DealsCalendarView";
@@ -24,7 +27,7 @@ const statusTone = (status?: string) => {
   const s = (status || "").toLowerCase();
   if (s === "won" || s.includes("close")) return "bg-emerald-500/10 text-emerald-700 border-emerald-200";
   if (s === "lost" || s.includes("lost")) return "bg-rose-500/10 text-rose-700 border-rose-200";
-  if (s.includes("proposal")) return "bg-sky-500/10 text-sky-700 border-sky-200";
+  if (s.includes("proposal")) return "bg-primary/10 text-primary border-primary/20";
   return "bg-amber-500/10 text-amber-700 border-amber-200";
 };
 
@@ -44,6 +47,7 @@ type DealRow = {
 
 export default function DealsPage() {
   const navigate = useNavigate();
+  const { confirm } = useCustomDialog();
   const [view, setView] = useState<ViewType>("list");
   const [search, setSearch] = useState("");
   const [stage, setStage] = useState("all");
@@ -53,6 +57,7 @@ export default function DealsPage() {
 
   const { data: dbDeals, isLoading, isError } = useDeals();
   const deleteDeal = useDeleteDeal();
+  const updateDeal = useUpdateDeal();
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -73,7 +78,7 @@ export default function DealsPage() {
   const handleBulkDelete = async () => {
     if (selectedDeals.length === 0) return;
     
-    if (confirm(`Are you sure you want to delete ${selectedDeals.length} deals?`)) {
+    if (await confirm(`Are you sure you want to delete ${selectedDeals.length} deals?`, { variant: 'destructive', title: 'Confirm Bulk Deletion' })) {
       try {
         for (const dealId of selectedDeals) {
           await deleteDeal.mutateAsync(dealId);
@@ -81,7 +86,7 @@ export default function DealsPage() {
         setSelectedDeals([]);
         toast.success(`${selectedDeals.length} deals deleted successfully`);
       } catch (error) {
-        toast.error('Failed to delete deals');
+        // Error is handled by the mutate call above
       }
     }
   };
@@ -114,19 +119,23 @@ export default function DealsPage() {
 
   const deals: DealRow[] = useMemo(() => {
     return (dbDeals || []).map((d: any) => {
-      const contact = d.contacts;
-      const company = d.companies;
       const stageKey = (d.stage || "qualification").toLowerCase();
+      
+      const companyName = d.company || d.companyName || d.company_name || "";
+      const contactName = d.contactName || d.contact_name || d.name || "";
+      const email = d.contactEmail || d.email || d.companyEmail || d.company_email || "";
+      const phone = d.contactPhone || d.phone || d.companyPhone || d.company_phone || "";
+
       return {
         id: d.id,
         name: d.title || "Untitled Deal",
         stage: stageKey,
         status: d.status || d.stage || "open",
         value: Number(d.value) || 0,
-        company: company?.name || "",
-        contact: contact ? `${contact.first_name || ""} ${contact.last_name || ""}`.trim() : "",
-        email: contact?.email || "",
-        phone: contact?.phone || "",
+        company: companyName,
+        contact: contactName,
+        email: email,
+        phone: phone,
         createdAt: d.created_at,
         projectType: d.project_type,
       };
@@ -168,7 +177,14 @@ export default function DealsPage() {
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground flex items-center gap-2">
-            <Mail className="h-3 w-3" /> {deal.email || "—"}
+            <Mail className="h-3 w-3" /> 
+            {deal.email ? (
+              <a href={`mailto:${deal.email}`} className="hover:text-primary hover:underline transition-colors" onClick={(e) => e.stopPropagation()}>
+                {deal.email}
+              </a>
+            ) : (
+              "—"
+            )}
           </p>
         </div>
       ),
@@ -189,7 +205,13 @@ export default function DealsPage() {
       render: (deal) => (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Phone className="h-4 w-4" />
-          {deal.contact || deal.phone || "—"}
+          {deal.contact || deal.phone ? (
+            <a href={`tel:${deal.phone || deal.contact}`} className="hover:text-primary hover:underline transition-colors" onClick={(e) => e.stopPropagation()}>
+              {deal.contact || deal.phone}
+            </a>
+          ) : (
+            "—"
+          )}
         </div>
       ),
     },
@@ -217,6 +239,53 @@ export default function DealsPage() {
         <span className="text-sm text-muted-foreground">
           {deal.createdAt ? new Date(deal.createdAt).toLocaleDateString() : "—"}
         </span>
+      ),
+    },
+    {
+      key: "actions",
+      header: "",
+      render: (deal) => (
+        <div onClick={(e) => e.stopPropagation()}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => navigate(`/crm/deals/${deal.id}`)}>
+                <Eye className="h-4 w-4 mr-2" />
+                View Details
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate(`/crm/deals/${deal.id}/edit`)}>
+                <Edit className="h-4 w-4 mr-2" />
+                Edit Deal
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  updateDeal.mutate({ id: deal.id, status: 'unqualified', stage: 'unqualified' });
+                }}
+              >
+                <XCircle className="h-4 w-4 mr-2 text-orange-600" />
+                Unqualify Deal
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem 
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  if (await confirm('Are you sure you want to delete this deal?', { variant: 'destructive', title: 'Delete Deal' })) {
+                    deleteDeal.mutate(deal.id);
+                  }
+                }}
+                className="text-red-600"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Deal
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       ),
     },
   ];
@@ -247,7 +316,7 @@ export default function DealsPage() {
                 </Button>
               </div>
             )}
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={() => navigate("/crm/leads/import")}>
               <Upload className="h-4 w-4 mr-2" />
               Import
             </Button>
