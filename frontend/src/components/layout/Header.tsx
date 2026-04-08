@@ -191,7 +191,7 @@ export function TopBar() {
       <div className="flex items-center gap-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button className="gradient-primary gap-2">
+            <Button className="bg-primary hover:bg-primary/80 gap-2">
               <Plus className="h-4 w-4" />
               Quick Add
               <ChevronDown className="h-4 w-4" />
