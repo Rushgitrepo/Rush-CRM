@@ -24,6 +24,7 @@ import HomePage from "./pages/public/HomePage";
 import PrivacyPolicyPage from "./pages/public/PrivacyPolicyPage";
 import TermsOfServicePage from "./pages/public/TermsOfServicePage";
 import PublicApplicationForm from "./pages/public/PublicApplicationForm";
+import FormSubmittedSuccess from "./pages/public/FormSubmittedSuccess";
 // Collaboration
 import CalendarPage from "./pages/collaboration/CalendarPage";
 import DrivePage from "./pages/collaboration/DrivePage";
@@ -140,6 +141,7 @@ const App = () => (
                 <Route path="/terms" element={<TermsOfServicePage />} />
                 <Route path="/project-report/:token" element={<ProjectReportPage />} />
                 <Route path="/public/application-form/:token" element={<PublicApplicationForm />} />
+                <Route path="/form-submitted" element={<FormSubmittedSuccess />} />
                 
                 {/* Public Auth Routes */}
                 <Route path="/auth" element={<AuthPage />} />

@@ -225,7 +225,7 @@ SET default_table_access_method = heap;
 -- Name: activities; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.activities (
+CREATE TABLE IF NOT EXISTS public.activities (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     type character varying(50) NOT NULL,
@@ -252,7 +252,7 @@ ALTER TABLE public.activities OWNER TO postgres;
 -- Name: attendance; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.attendance (
+CREATE TABLE IF NOT EXISTS public.attendance (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     employee_id uuid,
@@ -290,7 +290,7 @@ ALTER TABLE public.attendance OWNER TO postgres;
 -- Name: calendar_event_attendees; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.calendar_event_attendees (
+CREATE TABLE IF NOT EXISTS public.calendar_event_attendees (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     event_id uuid,
     user_id uuid,
@@ -308,7 +308,7 @@ ALTER TABLE public.calendar_event_attendees OWNER TO postgres;
 -- Name: calendar_connections; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.calendar_connections (
+CREATE TABLE IF NOT EXISTS public.calendar_connections (
     id uuid DEFAULT public.gen_random_uuid() NOT NULL,
     org_id uuid,
     user_id uuid,
@@ -332,7 +332,7 @@ ALTER TABLE public.calendar_connections OWNER TO postgres;
 -- Name: calendar_events; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.calendar_events (
+CREATE TABLE IF NOT EXISTS public.calendar_events (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     title character varying(255) NOT NULL,
@@ -364,7 +364,7 @@ ALTER TABLE public.calendar_events OWNER TO postgres;
 -- Name: call_logs; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.call_logs (
+CREATE TABLE IF NOT EXISTS public.call_logs (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     contact_id uuid,
@@ -388,7 +388,7 @@ ALTER TABLE public.call_logs OWNER TO postgres;
 -- Name: companies; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.companies (
+CREATE TABLE IF NOT EXISTS public.companies (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
@@ -423,7 +423,7 @@ ALTER TABLE public.companies OWNER TO postgres;
 -- Name: connected_drives; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.connected_drives (
+CREATE TABLE IF NOT EXISTS public.connected_drives (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid,
     ownership character varying(50) NOT NULL,
@@ -445,7 +445,7 @@ ALTER TABLE public.connected_drives OWNER TO postgres;
 -- Name: connected_mailboxes; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.connected_mailboxes (
+CREATE TABLE IF NOT EXISTS public.connected_mailboxes (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     org_id uuid,
     user_id uuid,
@@ -476,7 +476,7 @@ ALTER TABLE public.connected_mailboxes OWNER TO postgres;
 -- Name: contacts; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.contacts (
+CREATE TABLE IF NOT EXISTS public.contacts (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     first_name character varying(100),
@@ -534,7 +534,7 @@ ALTER TABLE public.contacts OWNER TO postgres;
 -- Name: crm_activities; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.crm_activities (
+CREATE TABLE IF NOT EXISTS public.crm_activities (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     user_id uuid,
@@ -555,7 +555,7 @@ ALTER TABLE public.crm_activities OWNER TO postgres;
 -- Name: crm_comments; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.crm_comments (
+CREATE TABLE IF NOT EXISTS public.crm_comments (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     user_id uuid,
@@ -573,7 +573,7 @@ ALTER TABLE public.crm_comments OWNER TO postgres;
 -- Name: crm_documents; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.crm_documents (
+CREATE TABLE IF NOT EXISTS public.crm_documents (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     user_id uuid,
@@ -594,7 +594,7 @@ ALTER TABLE public.crm_documents OWNER TO postgres;
 -- Name: customers; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.customers (
+CREATE TABLE IF NOT EXISTS public.customers (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     contact_id uuid,
@@ -630,7 +630,7 @@ ALTER TABLE public.customers OWNER TO postgres;
 -- Name: deal_contacts; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.deal_contacts (
+CREATE TABLE IF NOT EXISTS public.deal_contacts (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     deal_id uuid NOT NULL,
@@ -648,7 +648,7 @@ ALTER TABLE public.deal_contacts OWNER TO postgres;
 -- Name: deal_signing_parties; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.deal_signing_parties (
+CREATE TABLE IF NOT EXISTS public.deal_signing_parties (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     deal_id uuid NOT NULL,
@@ -665,7 +665,7 @@ ALTER TABLE public.deal_signing_parties OWNER TO postgres;
 -- Name: deals; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.deals (
+CREATE TABLE IF NOT EXISTS public.deals (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     title character varying(255) NOT NULL,
@@ -789,7 +789,7 @@ COMMENT ON COLUMN public.deals.priority IS 'Deal priority: low, medium, high, ur
 -- Name: drive_activities; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.drive_activities (
+CREATE TABLE IF NOT EXISTS public.drive_activities (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     org_id uuid,
     user_id uuid,
@@ -807,7 +807,7 @@ ALTER TABLE public.drive_activities OWNER TO postgres;
 -- Name: drive_file_versions; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.drive_file_versions (
+CREATE TABLE IF NOT EXISTS public.drive_file_versions (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     file_id uuid,
     version_number integer NOT NULL,
@@ -824,7 +824,7 @@ ALTER TABLE public.drive_file_versions OWNER TO postgres;
 -- Name: drive_files; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.drive_files (
+CREATE TABLE IF NOT EXISTS public.drive_files (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
@@ -862,7 +862,7 @@ ALTER TABLE public.drive_files OWNER TO postgres;
 -- Name: drive_folders; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.drive_folders (
+CREATE TABLE IF NOT EXISTS public.drive_folders (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     org_id uuid,
     name character varying(255) NOT NULL,
@@ -884,7 +884,7 @@ ALTER TABLE public.drive_folders OWNER TO postgres;
 -- Name: drive_permissions; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.drive_permissions (
+CREATE TABLE IF NOT EXISTS public.drive_permissions (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     drive_id uuid,
     org_id uuid,
@@ -902,7 +902,7 @@ ALTER TABLE public.drive_permissions OWNER TO postgres;
 -- Name: emails; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.emails (
+CREATE TABLE IF NOT EXISTS public.emails (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     user_id uuid,
@@ -947,7 +947,7 @@ ALTER TABLE public.emails OWNER TO postgres;
 -- Name: employee_documents; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.employee_documents (
+CREATE TABLE IF NOT EXISTS public.employee_documents (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     employee_id uuid NOT NULL,
     org_id uuid NOT NULL,
@@ -980,7 +980,7 @@ COMMENT ON TABLE public.employee_documents IS 'Stores employee document uploads'
 -- Name: employee_leave_balances; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.employee_leave_balances (
+CREATE TABLE IF NOT EXISTS public.employee_leave_balances (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     employee_id uuid NOT NULL,
     leave_type_id uuid NOT NULL,
@@ -1011,7 +1011,7 @@ COMMENT ON TABLE public.employee_leave_balances IS 'Employee leave balance track
 -- Name: employee_product_assignments; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.employee_product_assignments (
+CREATE TABLE IF NOT EXISTS public.employee_product_assignments (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     employee_id uuid NOT NULL,
@@ -1036,7 +1036,7 @@ ALTER TABLE public.employee_product_assignments OWNER TO postgres;
 -- Name: employee_salaries; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.employee_salaries (
+CREATE TABLE IF NOT EXISTS public.employee_salaries (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     employee_id uuid NOT NULL,
@@ -1055,7 +1055,7 @@ ALTER TABLE public.employee_salaries OWNER TO postgres;
 -- Name: employees; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.employees (
+CREATE TABLE IF NOT EXISTS public.employees (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     user_id uuid,
@@ -1130,7 +1130,7 @@ ALTER TABLE public.employees OWNER TO postgres;
 -- Name: entity_drive_files; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.entity_drive_files (
+CREATE TABLE IF NOT EXISTS public.entity_drive_files (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     entity_type character varying(50) NOT NULL,
@@ -1156,7 +1156,7 @@ ALTER TABLE public.entity_drive_files OWNER TO postgres;
 -- Name: hrms_notifications; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.hrms_notifications (
+CREATE TABLE IF NOT EXISTS public.hrms_notifications (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     employee_id uuid,
@@ -1183,7 +1183,7 @@ ALTER TABLE public.hrms_notifications OWNER TO postgres;
 -- Name: invoice_items; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.invoice_items (
+CREATE TABLE IF NOT EXISTS public.invoice_items (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     invoice_id uuid,
     product_id uuid,
@@ -1204,7 +1204,7 @@ ALTER TABLE public.invoice_items OWNER TO postgres;
 -- Name: invoices; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.invoices (
+CREATE TABLE IF NOT EXISTS public.invoices (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     invoice_number character varying(100) NOT NULL,
@@ -1241,7 +1241,7 @@ ALTER TABLE public.invoices OWNER TO postgres;
 -- Name: lead_external_sources; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.lead_external_sources (
+CREATE TABLE IF NOT EXISTS public.lead_external_sources (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
@@ -1263,7 +1263,7 @@ ALTER TABLE public.lead_external_sources OWNER TO postgres;
 -- Name: lead_imports; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.lead_imports (
+CREATE TABLE IF NOT EXISTS public.lead_imports (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     workspace_id uuid,
@@ -1290,7 +1290,7 @@ ALTER TABLE public.lead_imports OWNER TO postgres;
 -- Name: lead_workspace_access; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.lead_workspace_access (
+CREATE TABLE IF NOT EXISTS public.lead_workspace_access (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     lead_id uuid NOT NULL,
     workspace_id uuid NOT NULL,
@@ -1308,7 +1308,7 @@ ALTER TABLE public.lead_workspace_access OWNER TO postgres;
 -- Name: lead_workspaces; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.lead_workspaces (
+CREATE TABLE IF NOT EXISTS public.lead_workspaces (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
@@ -1326,7 +1326,7 @@ ALTER TABLE public.lead_workspaces OWNER TO postgres;
 -- Name: leads; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.leads (
+CREATE TABLE IF NOT EXISTS public.leads (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     first_name character varying(100),
@@ -1403,7 +1403,7 @@ ALTER TABLE public.leads OWNER TO postgres;
 -- Name: leave_balances; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.leave_balances (
+CREATE TABLE IF NOT EXISTS public.leave_balances (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     employee_id uuid,
     leave_type_id uuid,
@@ -1422,7 +1422,7 @@ ALTER TABLE public.leave_balances OWNER TO postgres;
 -- Name: leave_request_comments; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.leave_request_comments (
+CREATE TABLE IF NOT EXISTS public.leave_request_comments (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     leave_request_id uuid NOT NULL,
     user_id uuid NOT NULL,
@@ -1446,7 +1446,7 @@ COMMENT ON TABLE public.leave_request_comments IS 'Comments and history for leav
 -- Name: leave_requests; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.leave_requests (
+CREATE TABLE IF NOT EXISTS public.leave_requests (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     employee_id uuid NOT NULL,
     leave_type_id uuid NOT NULL,
@@ -1490,7 +1490,7 @@ COMMENT ON TABLE public.leave_requests IS 'Leave requests with approval workflow
 -- Name: leave_types; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.leave_types (
+CREATE TABLE IF NOT EXISTS public.leave_types (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     name character varying(100) NOT NULL,
     code character varying(20) NOT NULL,
@@ -1533,7 +1533,7 @@ COMMENT ON TABLE public.leave_types IS 'Leave type definitions with policies and
 -- Name: marketing_ab_test_results; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.marketing_ab_test_results (
+CREATE TABLE IF NOT EXISTS public.marketing_ab_test_results (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     test_id uuid,
     variant_id uuid,
@@ -1552,7 +1552,7 @@ ALTER TABLE public.marketing_ab_test_results OWNER TO postgres;
 -- Name: marketing_ab_test_variants; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.marketing_ab_test_variants (
+CREATE TABLE IF NOT EXISTS public.marketing_ab_test_variants (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     test_id uuid,
     variant_name character varying(100) NOT NULL,
@@ -1574,7 +1574,7 @@ ALTER TABLE public.marketing_ab_test_variants OWNER TO postgres;
 -- Name: marketing_ab_tests; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.marketing_ab_tests (
+CREATE TABLE IF NOT EXISTS public.marketing_ab_tests (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
@@ -1599,7 +1599,7 @@ ALTER TABLE public.marketing_ab_tests OWNER TO postgres;
 -- Name: marketing_campaign_events; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.marketing_campaign_events (
+CREATE TABLE IF NOT EXISTS public.marketing_campaign_events (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     campaign_id uuid,
     contact_id uuid,
@@ -1621,7 +1621,7 @@ ALTER TABLE public.marketing_campaign_events OWNER TO postgres;
 -- Name: marketing_campaigns; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.marketing_campaigns (
+CREATE TABLE IF NOT EXISTS public.marketing_campaigns (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
@@ -1660,7 +1660,7 @@ ALTER TABLE public.marketing_campaigns OWNER TO postgres;
 -- Name: marketing_form_submissions; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.marketing_form_submissions (
+CREATE TABLE IF NOT EXISTS public.marketing_form_submissions (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     form_id uuid,
     contact_id uuid,
@@ -1679,7 +1679,7 @@ ALTER TABLE public.marketing_form_submissions OWNER TO postgres;
 -- Name: marketing_forms; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.marketing_forms (
+CREATE TABLE IF NOT EXISTS public.marketing_forms (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
@@ -1705,7 +1705,7 @@ ALTER TABLE public.marketing_forms OWNER TO postgres;
 -- Name: marketing_list_members; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.marketing_list_members (
+CREATE TABLE IF NOT EXISTS public.marketing_list_members (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     list_id uuid,
     contact_id uuid,
@@ -1725,7 +1725,7 @@ ALTER TABLE public.marketing_list_members OWNER TO postgres;
 -- Name: marketing_lists; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.marketing_lists (
+CREATE TABLE IF NOT EXISTS public.marketing_lists (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
@@ -1746,7 +1746,7 @@ ALTER TABLE public.marketing_lists OWNER TO postgres;
 -- Name: marketing_scoring_history; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.marketing_scoring_history (
+CREATE TABLE IF NOT EXISTS public.marketing_scoring_history (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     contact_id uuid,
     rule_id uuid,
@@ -1763,7 +1763,7 @@ ALTER TABLE public.marketing_scoring_history OWNER TO postgres;
 -- Name: marketing_scoring_rules; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.marketing_scoring_rules (
+CREATE TABLE IF NOT EXISTS public.marketing_scoring_rules (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
@@ -1783,7 +1783,7 @@ ALTER TABLE public.marketing_scoring_rules OWNER TO postgres;
 -- Name: marketing_segments; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.marketing_segments (
+CREATE TABLE IF NOT EXISTS public.marketing_segments (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
@@ -1803,7 +1803,7 @@ ALTER TABLE public.marketing_segments OWNER TO postgres;
 -- Name: marketing_sequence_enrollments; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.marketing_sequence_enrollments (
+CREATE TABLE IF NOT EXISTS public.marketing_sequence_enrollments (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     sequence_id uuid,
     contact_id uuid,
@@ -1822,7 +1822,7 @@ ALTER TABLE public.marketing_sequence_enrollments OWNER TO postgres;
 -- Name: marketing_sequence_steps; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.marketing_sequence_steps (
+CREATE TABLE IF NOT EXISTS public.marketing_sequence_steps (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     sequence_id uuid,
     step_order integer NOT NULL,
@@ -1842,7 +1842,7 @@ ALTER TABLE public.marketing_sequence_steps OWNER TO postgres;
 -- Name: marketing_sequences; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.marketing_sequences (
+CREATE TABLE IF NOT EXISTS public.marketing_sequences (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
@@ -1865,7 +1865,7 @@ ALTER TABLE public.marketing_sequences OWNER TO postgres;
 -- Name: marketing_templates; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.marketing_templates (
+CREATE TABLE IF NOT EXISTS public.marketing_templates (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
@@ -1890,7 +1890,7 @@ ALTER TABLE public.marketing_templates OWNER TO postgres;
 -- Name: marketing_webhook_logs; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.marketing_webhook_logs (
+CREATE TABLE IF NOT EXISTS public.marketing_webhook_logs (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     webhook_id uuid,
     event_type character varying(50) NOT NULL,
@@ -1910,7 +1910,7 @@ ALTER TABLE public.marketing_webhook_logs OWNER TO postgres;
 -- Name: marketing_webhook_queue; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.marketing_webhook_queue (
+CREATE TABLE IF NOT EXISTS public.marketing_webhook_queue (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     webhook_id uuid,
     event_type character varying(50) NOT NULL,
@@ -1929,7 +1929,7 @@ ALTER TABLE public.marketing_webhook_queue OWNER TO postgres;
 -- Name: marketing_webhooks; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.marketing_webhooks (
+CREATE TABLE IF NOT EXISTS public.marketing_webhooks (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
@@ -1951,7 +1951,7 @@ ALTER TABLE public.marketing_webhooks OWNER TO postgres;
 -- Name: notification_templates; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.notification_templates (
+CREATE TABLE IF NOT EXISTS public.notification_templates (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
@@ -1972,7 +1972,7 @@ ALTER TABLE public.notification_templates OWNER TO postgres;
 -- Name: notifications; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.notifications (
+CREATE TABLE IF NOT EXISTS public.notifications (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     user_id uuid,
@@ -1993,7 +1993,7 @@ ALTER TABLE public.notifications OWNER TO postgres;
 -- Name: organizations; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.organizations (
+CREATE TABLE IF NOT EXISTS public.organizations (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     name character varying(255) NOT NULL,
     domain character varying(255),
@@ -2009,7 +2009,7 @@ ALTER TABLE public.organizations OWNER TO postgres;
 -- Name: payroll; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.payroll (
+CREATE TABLE IF NOT EXISTS public.payroll (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     employee_id uuid,
@@ -2043,7 +2043,7 @@ ALTER TABLE public.payroll OWNER TO postgres;
 -- Name: permissions; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.permissions (
+CREATE TABLE IF NOT EXISTS public.permissions (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     name character varying(100) NOT NULL,
     resource character varying(100) NOT NULL,
@@ -2060,7 +2060,7 @@ ALTER TABLE public.permissions OWNER TO postgres;
 -- Name: pipeline_stages; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.pipeline_stages (
+CREATE TABLE IF NOT EXISTS public.pipeline_stages (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     pipeline character varying(100) DEFAULT 'default'::character varying,
@@ -2080,7 +2080,7 @@ ALTER TABLE public.pipeline_stages OWNER TO postgres;
 -- Name: product_batches; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.product_batches (
+CREATE TABLE IF NOT EXISTS public.product_batches (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     product_id uuid NOT NULL,
@@ -2102,7 +2102,7 @@ ALTER TABLE public.product_batches OWNER TO postgres;
 -- Name: products; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.products (
+CREATE TABLE IF NOT EXISTS public.products (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
@@ -2146,7 +2146,7 @@ ALTER TABLE public.products OWNER TO postgres;
 -- Name: profiles; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.profiles (
+CREATE TABLE IF NOT EXISTS public.profiles (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     user_id uuid,
     org_id uuid,
@@ -2173,7 +2173,7 @@ ALTER TABLE public.profiles OWNER TO postgres;
 -- Name: project_activity_logs; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.project_activity_logs (
+CREATE TABLE IF NOT EXISTS public.project_activity_logs (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     project_id uuid NOT NULL,
@@ -2193,7 +2193,7 @@ ALTER TABLE public.project_activity_logs OWNER TO postgres;
 -- Name: project_attachments; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.project_attachments (
+CREATE TABLE IF NOT EXISTS public.project_attachments (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     project_id uuid,
@@ -2216,7 +2216,7 @@ ALTER TABLE public.project_attachments OWNER TO postgres;
 -- Name: project_comments; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.project_comments (
+CREATE TABLE IF NOT EXISTS public.project_comments (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     project_id uuid,
@@ -2237,7 +2237,7 @@ ALTER TABLE public.project_comments OWNER TO postgres;
 -- Name: project_documents; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.project_documents (
+CREATE TABLE IF NOT EXISTS public.project_documents (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     project_id uuid,
     name character varying(255) NOT NULL,
@@ -2262,7 +2262,7 @@ ALTER TABLE public.project_documents OWNER TO postgres;
 -- Name: project_members; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.project_members (
+CREATE TABLE IF NOT EXISTS public.project_members (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     project_id uuid NOT NULL,
@@ -2280,7 +2280,7 @@ ALTER TABLE public.project_members OWNER TO postgres;
 -- Name: project_milestones; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.project_milestones (
+CREATE TABLE IF NOT EXISTS public.project_milestones (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     project_id uuid,
     name character varying(255) NOT NULL,
@@ -2307,7 +2307,7 @@ ALTER TABLE public.project_milestones OWNER TO postgres;
 -- Name: project_risks; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.project_risks (
+CREATE TABLE IF NOT EXISTS public.project_risks (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     project_id uuid,
     title character varying(255) NOT NULL,
@@ -2335,7 +2335,7 @@ ALTER TABLE public.project_risks OWNER TO postgres;
 -- Name: project_tasks; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.project_tasks (
+CREATE TABLE IF NOT EXISTS public.project_tasks (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     project_id uuid,
@@ -2369,7 +2369,7 @@ ALTER TABLE public.project_tasks OWNER TO postgres;
 -- Name: project_time_entries; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.project_time_entries (
+CREATE TABLE IF NOT EXISTS public.project_time_entries (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     project_id uuid,
@@ -2398,7 +2398,7 @@ ALTER TABLE public.project_time_entries OWNER TO postgres;
 -- Name: projects; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.projects (
+CREATE TABLE IF NOT EXISTS public.projects (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
@@ -2438,7 +2438,7 @@ ALTER TABLE public.projects OWNER TO postgres;
 -- Name: public_holidays; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.public_holidays (
+CREATE TABLE IF NOT EXISTS public.public_holidays (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     name character varying(255) NOT NULL,
@@ -2463,7 +2463,7 @@ COMMENT ON TABLE public.public_holidays IS 'Organization public holidays';
 -- Name: purchase_order_items; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.purchase_order_items (
+CREATE TABLE IF NOT EXISTS public.purchase_order_items (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     purchase_order_id uuid,
     product_id uuid,
@@ -2483,7 +2483,7 @@ ALTER TABLE public.purchase_order_items OWNER TO postgres;
 -- Name: purchase_orders; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.purchase_orders (
+CREATE TABLE IF NOT EXISTS public.purchase_orders (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     po_number character varying(100) NOT NULL,
@@ -2514,7 +2514,7 @@ ALTER TABLE public.purchase_orders OWNER TO postgres;
 -- Name: roles; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.roles (
+CREATE TABLE IF NOT EXISTS public.roles (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(100) NOT NULL,
@@ -2532,7 +2532,7 @@ ALTER TABLE public.roles OWNER TO postgres;
 -- Name: salary_components; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.salary_components (
+CREATE TABLE IF NOT EXISTS public.salary_components (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     name character varying(255) NOT NULL,
@@ -2552,7 +2552,7 @@ ALTER TABLE public.salary_components OWNER TO postgres;
 -- Name: salary_slip_items; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.salary_slip_items (
+CREATE TABLE IF NOT EXISTS public.salary_slip_items (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     salary_slip_id uuid NOT NULL,
     component_name character varying(255) NOT NULL,
@@ -2569,7 +2569,7 @@ ALTER TABLE public.salary_slip_items OWNER TO postgres;
 -- Name: salary_slips; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.salary_slips (
+CREATE TABLE IF NOT EXISTS public.salary_slips (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     employee_id uuid NOT NULL,
@@ -2598,7 +2598,7 @@ ALTER TABLE public.salary_slips OWNER TO postgres;
 -- Name: signing_parties; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.signing_parties (
+CREATE TABLE IF NOT EXISTS public.signing_parties (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
@@ -2619,7 +2619,7 @@ ALTER TABLE public.signing_parties OWNER TO postgres;
 -- Name: stock; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.stock (
+CREATE TABLE IF NOT EXISTS public.stock (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     product_id uuid,
@@ -2643,7 +2643,7 @@ ALTER TABLE public.stock OWNER TO postgres;
 -- Name: stock_adjustments; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.stock_adjustments (
+CREATE TABLE IF NOT EXISTS public.stock_adjustments (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     product_id uuid NOT NULL,
@@ -2667,7 +2667,7 @@ ALTER TABLE public.stock_adjustments OWNER TO postgres;
 -- Name: stock_movements; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.stock_movements (
+CREATE TABLE IF NOT EXISTS public.stock_movements (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     product_id uuid,
@@ -2695,7 +2695,7 @@ ALTER TABLE public.stock_movements OWNER TO postgres;
 -- Name: tasks; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.tasks (
+CREATE TABLE IF NOT EXISTS public.tasks (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     project_id uuid,
@@ -2734,7 +2734,7 @@ ALTER TABLE public.tasks OWNER TO postgres;
 -- Name: unibox_emails; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.unibox_emails (
+CREATE TABLE IF NOT EXISTS public.unibox_emails (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     external_id character varying(255),
@@ -2768,7 +2768,7 @@ ALTER TABLE public.unibox_emails OWNER TO postgres;
 -- Name: user_roles; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.user_roles (
+CREATE TABLE IF NOT EXISTS public.user_roles (
     user_id uuid NOT NULL,
     role_id uuid NOT NULL,
     id uuid DEFAULT public.uuid_generate_v4(),
@@ -2785,7 +2785,7 @@ ALTER TABLE public.user_roles OWNER TO postgres;
 -- Name: users; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.users (
+CREATE TABLE IF NOT EXISTS public.users (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     email character varying(255) NOT NULL,
@@ -2813,7 +2813,7 @@ ALTER TABLE public.users OWNER TO postgres;
 -- Name: vendors; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.vendors (
+CREATE TABLE IF NOT EXISTS public.vendors (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
@@ -2847,7 +2847,7 @@ ALTER TABLE public.vendors OWNER TO postgres;
 -- Name: warehouses; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.warehouses (
+CREATE TABLE IF NOT EXISTS public.warehouses (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
@@ -2879,7 +2879,7 @@ ALTER TABLE public.warehouses OWNER TO postgres;
 -- Name: workflow_actions; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.workflow_actions (
+CREATE TABLE IF NOT EXISTS public.workflow_actions (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     workflow_id uuid,
     action_order integer NOT NULL,
@@ -2899,7 +2899,7 @@ ALTER TABLE public.workflow_actions OWNER TO postgres;
 -- Name: workflow_execution_steps; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.workflow_execution_steps (
+CREATE TABLE IF NOT EXISTS public.workflow_execution_steps (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     execution_id uuid,
     action_id uuid,
@@ -2918,7 +2918,7 @@ ALTER TABLE public.workflow_execution_steps OWNER TO postgres;
 -- Name: workflow_executions; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.workflow_executions (
+CREATE TABLE IF NOT EXISTS public.workflow_executions (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     workflow_id uuid,
     status character varying(50) DEFAULT 'running'::character varying,
@@ -2941,7 +2941,7 @@ ALTER TABLE public.workflow_executions OWNER TO postgres;
 -- Name: workflows; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.workflows (
+CREATE TABLE IF NOT EXISTS public.workflows (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
@@ -2966,7 +2966,7 @@ ALTER TABLE public.workflows OWNER TO postgres;
 -- Name: workgroup_activities; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.workgroup_activities (
+CREATE TABLE IF NOT EXISTS public.workgroup_activities (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     workgroup_id uuid NOT NULL,
     user_id uuid,
@@ -2990,7 +2990,7 @@ COMMENT ON TABLE public.workgroup_activities IS 'Activity log for workgroups for
 -- Name: workgroup_channels; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.workgroup_channels (
+CREATE TABLE IF NOT EXISTS public.workgroup_channels (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     workgroup_id uuid NOT NULL,
     name character varying(255) NOT NULL,
@@ -3020,7 +3020,7 @@ COMMENT ON TABLE public.workgroup_channels IS 'Channels within workgroups for or
 -- Name: workgroup_files; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.workgroup_files (
+CREATE TABLE IF NOT EXISTS public.workgroup_files (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     workgroup_id uuid NOT NULL,
     channel_id uuid,
@@ -3053,7 +3053,7 @@ COMMENT ON TABLE public.workgroup_files IS 'Files shared within workgroups and c
 -- Name: workgroup_meeting_participants; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.workgroup_meeting_participants (
+CREATE TABLE IF NOT EXISTS public.workgroup_meeting_participants (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     meeting_id uuid NOT NULL,
     user_id uuid NOT NULL,
@@ -3075,7 +3075,7 @@ ALTER TABLE public.workgroup_meeting_participants OWNER TO postgres;
 -- Name: workgroup_meetings; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.workgroup_meetings (
+CREATE TABLE IF NOT EXISTS public.workgroup_meetings (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     workgroup_id uuid NOT NULL,
     channel_id uuid,
@@ -3113,7 +3113,7 @@ COMMENT ON TABLE public.workgroup_meetings IS 'Scheduled and active meetings wit
 -- Name: workgroup_members; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.workgroup_members (
+CREATE TABLE IF NOT EXISTS public.workgroup_members (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     workgroup_id uuid NOT NULL,
     user_id uuid NOT NULL,
@@ -3142,7 +3142,7 @@ COMMENT ON TABLE public.workgroup_members IS 'Members of workgroups with roles a
 -- Name: workgroup_notifications; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.workgroup_notifications (
+CREATE TABLE IF NOT EXISTS public.workgroup_notifications (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     workgroup_id uuid,
     user_id uuid,
@@ -3161,7 +3161,7 @@ ALTER TABLE public.workgroup_notifications OWNER TO postgres;
 -- Name: workgroup_posts; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.workgroup_posts (
+CREATE TABLE IF NOT EXISTS public.workgroup_posts (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     workgroup_id uuid NOT NULL,
     channel_id uuid,
@@ -3195,7 +3195,7 @@ COMMENT ON TABLE public.workgroup_posts IS 'Messages/posts within workgroups and
 -- Name: workgroups; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.workgroups (
+CREATE TABLE IF NOT EXISTS public.workgroups (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     name character varying(255) NOT NULL,
@@ -3257,7 +3257,7 @@ ALTER VIEW public.workgroup_stats OWNER TO postgres;
 -- Name: workgroup_wiki; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.workgroup_wiki (
+CREATE TABLE IF NOT EXISTS public.workgroup_wiki (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     workgroup_id uuid,
     title character varying(255) NOT NULL,
@@ -3276,7 +3276,7 @@ ALTER TABLE public.workgroup_wiki OWNER TO postgres;
 -- Name: workgroup_wiki_pages; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.workgroup_wiki_pages (
+CREATE TABLE IF NOT EXISTS public.workgroup_wiki_pages (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     workgroup_id uuid NOT NULL,
     user_id uuid NOT NULL,
@@ -7775,7 +7775,7 @@ ALTER TABLE ONLY public.workgroups
 -- Migration: project_templates
 -- 
 
-CREATE TABLE project_templates (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS project_templates (
     id UUID PRIMARY KEY DEFAULT public.uuid_generate_v4(),
     organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
     org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -7802,7 +7802,7 @@ CREATE TRIGGER update_project_templates_updated_at
 -- Name: project_invoices; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.project_invoices (
+CREATE TABLE IF NOT EXISTS public.project_invoices (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL PRIMARY KEY,
     org_id uuid NOT NULL REFERENCES public.organizations(id),
     project_id uuid NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
@@ -7823,7 +7823,7 @@ CREATE TABLE public.project_invoices (
 -- Name: project_notifications; Type: TABLE; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.project_notifications (
+CREATE TABLE IF NOT EXISTS public.project_notifications (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL PRIMARY KEY,
     org_id uuid NOT NULL,
     project_id uuid REFERENCES public.projects(id) ON DELETE CASCADE,
@@ -7858,7 +7858,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- 1. CAR WORKSPACES TABLE
 -- ============================================================================
 DROP TABLE IF EXISTS car_workspaces CASCADE;
-CREATE TABLE car_workspaces (
+CREATE TABLE IF NOT EXISTS car_workspaces (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id uuid NOT NULL,
   name character varying(255) NOT NULL,
@@ -7887,7 +7887,7 @@ CREATE INDEX idx_car_workspaces_admin ON car_workspaces(admin_id);
 -- 2. CAR INVENTORY TABLE
 -- ============================================================================
 DROP TABLE IF EXISTS car_inventory CASCADE;
-CREATE TABLE car_inventory (
+CREATE TABLE IF NOT EXISTS car_inventory (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id uuid NOT NULL,
   workspace_id uuid NOT NULL REFERENCES car_workspaces(id) ON DELETE CASCADE,
@@ -7983,7 +7983,7 @@ CREATE INDEX idx_car_inventory_stock ON car_inventory(stock_number);
 -- 3. CAR DOCUMENTS TABLE
 -- ============================================================================
 DROP TABLE IF EXISTS car_documents CASCADE;
-CREATE TABLE car_documents (
+CREATE TABLE IF NOT EXISTS car_documents (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id uuid NOT NULL,
   car_id uuid NOT NULL REFERENCES car_inventory(id) ON DELETE CASCADE,
@@ -8006,7 +8006,7 @@ CREATE INDEX idx_car_documents_type ON car_documents(document_type);
 -- 4. CAR INQUIRIES TABLE
 -- ============================================================================
 DROP TABLE IF EXISTS car_inquiries CASCADE;
-CREATE TABLE car_inquiries (
+CREATE TABLE IF NOT EXISTS car_inquiries (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id uuid NOT NULL,
   workspace_id uuid NOT NULL REFERENCES car_workspaces(id) ON DELETE CASCADE,
@@ -8048,7 +8048,7 @@ CREATE INDEX idx_car_inquiries_assigned ON car_inquiries(assigned_to);
 -- 5. CAR TEST DRIVES TABLE
 -- ============================================================================
 DROP TABLE IF EXISTS car_test_drives CASCADE;
-CREATE TABLE car_test_drives (
+CREATE TABLE IF NOT EXISTS car_test_drives (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id uuid NOT NULL,
   workspace_id uuid NOT NULL REFERENCES car_workspaces(id) ON DELETE CASCADE,
@@ -8099,7 +8099,7 @@ CREATE INDEX idx_car_test_drives_status ON car_test_drives(status);
 -- 6. CAR SALES TABLE
 -- ============================================================================
 DROP TABLE IF EXISTS car_sales CASCADE;
-CREATE TABLE car_sales (
+CREATE TABLE IF NOT EXISTS car_sales (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id uuid NOT NULL,
   workspace_id uuid NOT NULL REFERENCES car_workspaces(id) ON DELETE CASCADE,
@@ -8169,7 +8169,7 @@ CREATE INDEX idx_car_sales_status ON car_sales(payment_status);
 -- 7. CAR SERVICE HISTORY TABLE
 -- ============================================================================
 DROP TABLE IF EXISTS car_service_history CASCADE;
-CREATE TABLE car_service_history (
+CREATE TABLE IF NOT EXISTS car_service_history (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id uuid NOT NULL,
   car_id uuid NOT NULL REFERENCES car_inventory(id) ON DELETE CASCADE,
@@ -8198,7 +8198,7 @@ CREATE INDEX idx_car_service_date ON car_service_history(service_date);
 -- 8. CAR WORKSPACE MEMBERS TABLE
 -- ============================================================================
 DROP TABLE IF EXISTS car_workspace_members CASCADE;
-CREATE TABLE car_workspace_members (
+CREATE TABLE IF NOT EXISTS car_workspace_members (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   workspace_id uuid NOT NULL REFERENCES car_workspaces(id) ON DELETE CASCADE,
   user_id uuid NOT NULL,
@@ -8216,7 +8216,7 @@ CREATE INDEX idx_car_workspace_members_user ON car_workspace_members(user_id);
 -- 9. CAR ACTIVITY LOG TABLE
 -- ============================================================================
 DROP TABLE IF EXISTS car_activity_log CASCADE;
-CREATE TABLE car_activity_log (
+CREATE TABLE IF NOT EXISTS car_activity_log (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id uuid NOT NULL,
   workspace_id uuid REFERENCES car_workspaces(id) ON DELETE CASCADE,
@@ -8304,98 +8304,20 @@ COMMENT ON TABLE car_activity_log IS 'Activity tracking for audit trail';
 \unrestrict 6nAeLpWtRPQc2gVIjb1HB4J8nR28v4eXgw2Pb1PtmBToqw9vYXRrVUdAFniLluf
 
 
--- START OF RECENT MIGRATIONS APPENDED BY ANTIGRAVITY
 
--- File: backend\src\database\migrations\20240407_crm_activity_optimizations.sql
--- Migration: CRM Activity Attribution & Optimizations
--- Created: 2024-04-07
+-- =====================================================
+-- RECRUITMENT MANAGEMENT SYSTEM TABLES
+-- =====================================================
+-- Added: 2026-04-09T14:32:37.277Z
+-- Description: Complete recruitment module with job requisitions,
+--              candidates, interviews, and application forms
+-- =====================================================
 
--- 1. Ensure crm_activities has optimized indices for dashboard and detail lookups
-CREATE INDEX IF NOT EXISTS idx_crm_activities_org_created ON public.crm_activities(org_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_crm_activities_entity_lookup ON public.crm_activities(entity_type, entity_id);
-CREATE INDEX IF NOT EXISTS idx_crm_activities_user_id ON public.crm_activities(user_id);
-
--- 2. Add description column to crm_activities if it somehow doesn't exist (safety)
-DO $$ 
-BEGIN 
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='crm_activities' AND column_name='description') THEN
-        ALTER TABLE public.crm_activities ADD COLUMN description TEXT;
-    END IF;
-END $$;
-
--- 3. Ensure leads table has indices for common filters
-CREATE INDEX IF NOT EXISTS idx_leads_org_status ON public.leads(org_id, status);
-CREATE INDEX IF NOT EXISTS idx_leads_assigned_to ON public.leads(assigned_to);
-CREATE INDEX IF NOT EXISTS idx_leads_created_at ON public.leads(created_at DESC);
-
--- 4. Cleanup any orphan activities (optional but good for consistency)
--- DELETE FROM public.crm_activities WHERE user_id IS NULL AND org_id IS NULL;
-
--- 5. Update any 'Someone' activities to 'System' attribution conceptually 
--- (Our SQL fallback handles this dynamically, but we can also set metadata)
-COMMENT ON COLUMN public.crm_activities.user_id IS 'NULL user_id indicates a System or Automated activity';
-
-
--- File: backend\src\database\migrations\20260406_add_metadata_to_crm_activities.sql
-DO $$ 
-BEGIN 
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='crm_activities' AND column_name='metadata') THEN 
-        ALTER TABLE public.crm_activities ADD COLUMN metadata JSONB DEFAULT '{}'::jsonb; 
-    END IF; 
-END $$;
-
-
--- File: backend\src\database\migrations\20260406_add_missing_columns_warehouses.sql
-ALTER TABLE public.warehouses ADD COLUMN IF NOT EXISTS status character varying(50) DEFAULT 'active';
-ALTER TABLE public.warehouses ADD COLUMN IF NOT EXISTS created_by uuid;
-
-
--- File: backend\src\database\migrations\20260406_fix_inventory_constraints.sql
--- Fix not-null constraints that are causing issues with current controller logic
--- purchase_order_items: total_price is required by DB but not provided by controller
-ALTER TABLE public.purchase_order_items ALTER COLUMN total_price DROP NOT NULL;
-ALTER TABLE public.purchase_order_items ALTER COLUMN tax_rate SET DEFAULT 0;
-
--- stock_movements: movement_type is required by DB but controller uses 'type' column
-ALTER TABLE public.stock_movements ALTER COLUMN movement_type DROP NOT NULL;
-
--- Ensure consistency across other potential missing columns
-ALTER TABLE public.purchase_orders ALTER COLUMN order_date SET DEFAULT CURRENT_DATE;
-
-
--- File: backend\src\database\migrations\20260406_sync_customers_table_schema.sql
--- Migration: Sync customers table with CRM controllers
--- Created at: 2026-04-06
-
-ALTER TABLE public.customers 
-ADD COLUMN IF NOT EXISTS user_id uuid,
-ADD COLUMN IF NOT EXISTS name varchar(255),
-ADD COLUMN IF NOT EXISTS email varchar(255),
-ADD COLUMN IF NOT EXISTS phone varchar(50),
-ADD COLUMN IF NOT EXISTS tier varchar(50),
-ADD COLUMN IF NOT EXISTS total_revenue numeric(15,2) DEFAULT 0,
-ADD COLUMN IF NOT EXISTS tags jsonb DEFAULT '[]'::jsonb,
-ADD COLUMN IF NOT EXISTS lead_id uuid,
-ADD COLUMN IF NOT EXISTS deal_id uuid;
-
--- Optional: Link lifetime_value to total_revenue if needed, but the controller uses total_revenue
--- For now we just ensure columns exist to prevent 500 errors.
-
-
--- File: backend\src\database\migrations\20260406_update_project_invoice_status_list.sql
-
--- Add 'cancelled' to the allowed statuses for project invoices
-ALTER TABLE public.project_invoices DROP CONSTRAINT IF EXISTS project_invoices_status_check;
-ALTER TABLE public.project_invoices ADD CONSTRAINT project_invoices_status_check 
-    CHECK (status IN ('draft', 'sent', 'paid', 'void', 'overdue', 'cancelled'));
-
-
--- File: backend\src\database\migrations\20260409_create_recruitment_tables.sql
 -- Recruitment Management System Tables
 -- Migration: 20260409_create_recruitment_tables.sql
 
 -- 1. Job Requisitions Table
-CREATE TABLE IF NOT EXISTS job_requisitions (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS job_requisitions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     requisition_id VARCHAR(50) UNIQUE NOT NULL,
     position VARCHAR(255) NOT NULL,
@@ -8416,7 +8338,7 @@ CREATE TABLE IF NOT EXISTS job_requisitions (
 );
 
 -- 2. Requisition Approval Workflow Table
-CREATE TABLE IF NOT EXISTS requisition_approvals (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS requisition_approvals (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     requisition_id UUID REFERENCES job_requisitions(id) ON DELETE CASCADE,
     step_number INTEGER NOT NULL,
@@ -8433,7 +8355,7 @@ CREATE TABLE IF NOT EXISTS requisition_approvals (
 );
 
 -- 3. Job Advertisements Table
-CREATE TABLE IF NOT EXISTS job_advertisements (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS job_advertisements (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     requisition_id UUID REFERENCES job_requisitions(id) ON DELETE CASCADE,
     title VARCHAR(255) NOT NULL,
@@ -8449,7 +8371,7 @@ CREATE TABLE IF NOT EXISTS job_advertisements (
 );
 
 -- 4. Candidates Table
-CREATE TABLE IF NOT EXISTS candidates (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS candidates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     requisition_id UUID REFERENCES job_requisitions(id),
     full_name VARCHAR(255) NOT NULL,
@@ -8501,9 +8423,22 @@ CREATE TABLE IF NOT EXISTS candidates (
     cv_url TEXT,
     cv_filename VARCHAR(255),
     
+    -- Public Form Access (for digital form filling)
+    form_token VARCHAR(255),
+    form_token_expires_at TIMESTAMP,
+    father_name VARCHAR(255),
+    father_occupation VARCHAR(255),
+    mobile_no VARCHAR(50),
+    blood_group VARCHAR(10),
+    number_of_children INTEGER DEFAULT 0,
+    residence_type VARCHAR(50),
+    academic_records JSONB,
+    work_experience JSONB,
+    joining_availability VARCHAR(255),
+    
     -- Status & Tracking
-    status VARCHAR(50) DEFAULT 'cv_received', -- cv_received, shortlisted, interview_scheduled, interviewed, final_round, selected, rejected
-    source VARCHAR(100), -- job_board, referral, direct, etc.
+    status VARCHAR(50) DEFAULT 'cv_received', -- cv_received, screened_passed, screened_failed, shortlisted, interview_scheduled, interviewed, form_completed, final_round, selected, rejected
+    source VARCHAR(100), -- job_board, referral, direct, cv_upload, etc.
     skills TEXT[], -- Array of skills
     
     -- Metadata
@@ -8512,8 +8447,11 @@ CREATE TABLE IF NOT EXISTS candidates (
     organization_id UUID REFERENCES organizations(id)
 );
 
+-- Create index on form_token for faster lookups
+CREATE INDEX IF NOT EXISTS idx_candidates_form_token ON candidates(form_token);
+
 -- 5. Application Forms Table
-CREATE TABLE IF NOT EXISTS candidate_application_forms (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS candidate_application_forms (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     candidate_id UUID REFERENCES candidates(id) ON DELETE CASCADE,
     requisition_id UUID REFERENCES job_requisitions(id),
@@ -8526,7 +8464,7 @@ CREATE TABLE IF NOT EXISTS candidate_application_forms (
 );
 
 -- 6. Interviews Table
-CREATE TABLE IF NOT EXISTS candidate_interviews (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS candidate_interviews (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     candidate_id UUID REFERENCES candidates(id) ON DELETE CASCADE,
     requisition_id UUID REFERENCES job_requisitions(id),
@@ -8552,7 +8490,7 @@ CREATE TABLE IF NOT EXISTS candidate_interviews (
 );
 
 -- 7. Interview Feedback Table (for collaborative hiring)
-CREATE TABLE IF NOT EXISTS interview_feedback (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS interview_feedback (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     interview_id UUID REFERENCES candidate_interviews(id) ON DELETE CASCADE,
     candidate_id UUID REFERENCES candidates(id),
@@ -8566,7 +8504,7 @@ CREATE TABLE IF NOT EXISTS interview_feedback (
 );
 
 -- 8. Candidate Timeline/Activity Log
-CREATE TABLE IF NOT EXISTS candidate_timeline (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS candidate_timeline (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     candidate_id UUID REFERENCES candidates(id) ON DELETE CASCADE,
     activity_type VARCHAR(100) NOT NULL, -- application_received, shortlisted, interview_scheduled, interviewed, selected, rejected
@@ -8600,601 +8538,6 @@ COMMENT ON TABLE interview_feedback IS 'Collaborative feedback from multiple int
 COMMENT ON TABLE candidate_timeline IS 'Activity log for candidate journey';
 
 
--- File: backend\src\database\migrations\20260409_add_advanced_recruitment_features.sql
--- Advanced Recruitment Features Migration
--- Migration: 20260409_add_advanced_recruitment_features.sql
--- Adds: Offer Management, Candidate Scoring, Talent Pool, Job Templates, Background Verification
-
 -- =====================================================
--- 1. OFFER MANAGEMENT SYSTEM
+-- END OF RECRUITMENT MANAGEMENT SYSTEM
 -- =====================================================
-
--- Job Offers Table
-CREATE TABLE IF NOT EXISTS job_offers (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    candidate_id UUID REFERENCES candidates(id) ON DELETE CASCADE,
-    requisition_id UUID REFERENCES job_requisitions(id),
-    offer_number VARCHAR(50) UNIQUE NOT NULL,
-    
-    -- Position Details
-    position VARCHAR(255) NOT NULL,
-    department VARCHAR(100) NOT NULL,
-    grade VARCHAR(50),
-    reporting_manager VARCHAR(255),
-    work_location VARCHAR(255),
-    employment_type VARCHAR(50) DEFAULT 'full_time', -- full_time, part_time, contract, internship
-    
-    -- Compensation Package
-    base_salary DECIMAL(12,2) NOT NULL,
-    currency VARCHAR(10) DEFAULT 'PKR',
-    salary_frequency VARCHAR(20) DEFAULT 'monthly', -- monthly, annual
-    bonus_percentage DECIMAL(5,2),
-    allowances JSONB, -- {housing: 50000, transport: 15000, medical: 25000}
-    benefits TEXT,
-    
-    -- Offer Terms
-    start_date DATE NOT NULL,
-    probation_period INTEGER DEFAULT 90, -- days
-    notice_period INTEGER DEFAULT 30, -- days
-    working_hours VARCHAR(50) DEFAULT '9 AM - 6 PM',
-    
-    -- Offer Status & Timeline
-    status VARCHAR(50) DEFAULT 'draft', -- draft, pending_approval, approved, sent, accepted, rejected, withdrawn, expired
-    offer_sent_date TIMESTAMP,
-    response_deadline DATE,
-    accepted_date TIMESTAMP,
-    rejected_date TIMESTAMP,
-    rejection_reason TEXT,
-    
-    -- Approval Workflow
-    created_by UUID REFERENCES users(id),
-    approved_by UUID REFERENCES users(id),
-    approved_date TIMESTAMP,
-    
-    -- Additional Terms
-    special_conditions TEXT,
-    offer_letter_template TEXT,
-    offer_letter_url TEXT,
-    
-    -- Metadata
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    organization_id UUID REFERENCES organizations(id)
-);
-
--- Offer Approval Workflow
-CREATE TABLE IF NOT EXISTS offer_approvals (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    offer_id UUID REFERENCES job_offers(id) ON DELETE CASCADE,
-    step_number INTEGER NOT NULL,
-    approver_role VARCHAR(100) NOT NULL, -- HR Manager, Department Head, Finance, CEO
-    approver_id UUID REFERENCES users(id),
-    approver_name VARCHAR(255),
-    status VARCHAR(50) DEFAULT 'pending', -- pending, approved, rejected
-    comments TEXT,
-    action_date TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(offer_id, step_number)
-);
-
--- =====================================================
--- 2. CANDIDATE SCORING & RANKING SYSTEM
--- =====================================================
-
--- Scoring Criteria Templates
-CREATE TABLE IF NOT EXISTS scoring_criteria (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    criteria_name VARCHAR(100) NOT NULL,
-    category VARCHAR(50) NOT NULL, -- technical, behavioral, experience, education
-    description TEXT,
-    max_score INTEGER DEFAULT 100,
-    weight_percentage DECIMAL(5,2) DEFAULT 100.00,
-    is_active BOOLEAN DEFAULT true,
-    created_by UUID REFERENCES users(id),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    organization_id UUID REFERENCES organizations(id)
-);
-
--- Candidate Scores
-CREATE TABLE IF NOT EXISTS candidate_scores (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    candidate_id UUID REFERENCES candidates(id) ON DELETE CASCADE,
-    criteria_id UUID REFERENCES scoring_criteria(id),
-    interview_id UUID REFERENCES candidate_interviews(id),
-    
-    -- Scoring Details
-    raw_score INTEGER CHECK (raw_score >= 0 AND raw_score <= 100),
-    weighted_score DECIMAL(8,2),
-    comments TEXT,
-    
-    -- Scorer Information
-    scored_by UUID REFERENCES users(id),
-    scorer_name VARCHAR(255),
-    scorer_role VARCHAR(100),
-    
-    -- Metadata
-    scored_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
-    -- Unique constraint for ON CONFLICT
-    UNIQUE(candidate_id, criteria_id, scored_by)
-);
-
--- Overall Candidate Rankings
-CREATE TABLE IF NOT EXISTS candidate_rankings (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    candidate_id UUID REFERENCES candidates(id) ON DELETE CASCADE,
-    requisition_id UUID REFERENCES job_requisitions(id),
-    
-    -- Ranking Details
-    total_score DECIMAL(8,2),
-    rank_position INTEGER,
-    percentile DECIMAL(5,2),
-    
-    -- Score Breakdown
-    technical_score DECIMAL(8,2),
-    behavioral_score DECIMAL(8,2),
-    experience_score DECIMAL(8,2),
-    education_score DECIMAL(8,2),
-    
-    -- Ranking Status
-    is_current BOOLEAN DEFAULT true,
-    ranking_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    calculated_by UUID REFERENCES users(id),
-    
-    -- Unique constraint for ON CONFLICT
-    UNIQUE(candidate_id, requisition_id)
-);
-
--- =====================================================
--- 3. TALENT POOL MANAGEMENT
--- =====================================================
-
--- Talent Pools
-CREATE TABLE IF NOT EXISTS talent_pools (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    pool_name VARCHAR(255) NOT NULL,
-    description TEXT,
-    pool_type VARCHAR(50) DEFAULT 'skill_based', -- skill_based, department_based, level_based, custom
-    
-    -- Pool Criteria
-    target_skills TEXT[],
-    target_departments TEXT[],
-    target_experience_min INTEGER, -- years
-    target_experience_max INTEGER, -- years
-    target_education_level VARCHAR(100),
-    
-    -- Pool Management
-    created_by UUID REFERENCES users(id),
-    managed_by UUID REFERENCES users(id),
-    is_active BOOLEAN DEFAULT true,
-    
-    -- Metadata
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    organization_id UUID REFERENCES organizations(id)
-);
-
--- Talent Pool Members
-CREATE TABLE IF NOT EXISTS talent_pool_members (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    pool_id UUID REFERENCES talent_pools(id) ON DELETE CASCADE,
-    candidate_id UUID REFERENCES candidates(id) ON DELETE CASCADE,
-    
-    -- Membership Details
-    added_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    added_by UUID REFERENCES users(id),
-    status VARCHAR(50) DEFAULT 'active', -- active, inactive, hired_elsewhere, not_interested
-    
-    -- Engagement Tracking
-    last_contacted DATE,
-    contact_frequency VARCHAR(50), -- weekly, monthly, quarterly
-    notes TEXT,
-    
-    -- Performance in Pool
-    pool_score DECIMAL(8,2),
-    availability_status VARCHAR(50) DEFAULT 'available', -- available, not_available, considering_offers
-    
-    UNIQUE(pool_id, candidate_id)
-);
-
--- =====================================================
--- 4. JOB TEMPLATES SYSTEM
--- =====================================================
-
--- Job Description Templates
-CREATE TABLE IF NOT EXISTS job_templates (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    template_name VARCHAR(255) NOT NULL,
-    template_code VARCHAR(50) UNIQUE NOT NULL,
-    
-    -- Template Classification
-    department VARCHAR(100),
-    position_level VARCHAR(50), -- entry, mid, senior, executive
-    job_family VARCHAR(100), -- engineering, sales, marketing, hr
-    grade VARCHAR(50),
-    
-    -- Template Content
-    job_title_template VARCHAR(255),
-    job_description_template TEXT,
-    key_responsibilities TEXT,
-    required_qualifications TEXT,
-    preferred_qualifications TEXT,
-    required_skills TEXT[],
-    preferred_skills TEXT[],
-    
-    -- Compensation Guidelines
-    salary_range_min DECIMAL(12,2),
-    salary_range_max DECIMAL(12,2),
-    standard_benefits TEXT,
-    
-    -- Template Metadata
-    is_active BOOLEAN DEFAULT true,
-    usage_count INTEGER DEFAULT 0,
-    created_by UUID REFERENCES users(id),
-    last_used_date TIMESTAMP,
-    
-    -- Version Control
-    version VARCHAR(10) DEFAULT '1.0',
-    parent_template_id UUID REFERENCES job_templates(id),
-    
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    organization_id UUID REFERENCES organizations(id)
-);
-
--- =====================================================
--- 5. BACKGROUND VERIFICATION SYSTEM
--- =====================================================
-
--- Background Check Types
-CREATE TABLE IF NOT EXISTS background_check_types (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    check_type_name VARCHAR(100) NOT NULL,
-    check_category VARCHAR(50) NOT NULL, -- education, employment, criminal, reference, identity, credit
-    description TEXT,
-    is_mandatory BOOLEAN DEFAULT false,
-    typical_duration_days INTEGER DEFAULT 7,
-    cost_estimate DECIMAL(10,2),
-    vendor_name VARCHAR(255),
-    is_active BOOLEAN DEFAULT true,
-    organization_id UUID REFERENCES organizations(id)
-);
-
--- Background Checks
-CREATE TABLE IF NOT EXISTS background_checks (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    candidate_id UUID REFERENCES candidates(id) ON DELETE CASCADE,
-    check_type_id UUID REFERENCES background_check_types(id),
-    
-    -- Check Details
-    check_reference_number VARCHAR(100),
-    status VARCHAR(50) DEFAULT 'pending', -- pending, in_progress, completed, failed, cancelled
-    priority VARCHAR(20) DEFAULT 'normal', -- low, normal, high, urgent
-    
-    -- Timeline
-    initiated_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    expected_completion_date DATE,
-    completed_date TIMESTAMP,
-    
-    -- Results
-    result VARCHAR(50), -- clear, concerns_found, failed, inconclusive
-    result_details TEXT,
-    verification_score INTEGER CHECK (verification_score >= 0 AND verification_score <= 100),
-    
-    -- Verification Details
-    verified_by VARCHAR(255), -- External agency or internal team
-    verification_method VARCHAR(100),
-    documents_verified TEXT[],
-    
-    -- Cost & Vendor
-    cost_incurred DECIMAL(10,2),
-    vendor_used VARCHAR(255),
-    vendor_reference VARCHAR(100),
-    
-    -- Internal Tracking
-    initiated_by UUID REFERENCES users(id),
-    reviewed_by UUID REFERENCES users(id),
-    review_comments TEXT,
-    
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- =====================================================
--- 6. ANALYTICS & METRICS TABLES
--- =====================================================
-
--- Recruitment Metrics
-CREATE TABLE IF NOT EXISTS recruitment_metrics (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    metric_type VARCHAR(100) NOT NULL, -- time_to_hire, cost_per_hire, source_effectiveness, etc.
-    metric_period VARCHAR(50) NOT NULL, -- daily, weekly, monthly, quarterly, yearly
-    period_start_date DATE NOT NULL,
-    period_end_date DATE NOT NULL,
-    
-    -- Metric Values
-    metric_value DECIMAL(15,4),
-    metric_unit VARCHAR(50), -- days, currency, percentage, count
-    
-    -- Dimensions
-    department VARCHAR(100),
-    position_level VARCHAR(50),
-    requisition_id UUID REFERENCES job_requisitions(id),
-    
-    -- Metadata
-    calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    calculated_by UUID REFERENCES users(id),
-    organization_id UUID REFERENCES organizations(id)
-);
-
--- Source Effectiveness Tracking
-CREATE TABLE IF NOT EXISTS recruitment_sources (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    source_name VARCHAR(100) NOT NULL,
-    source_type VARCHAR(50) NOT NULL, -- job_board, social_media, referral, direct, agency
-    source_url VARCHAR(500),
-    
-    -- Effectiveness Metrics
-    total_applications INTEGER DEFAULT 0,
-    qualified_applications INTEGER DEFAULT 0,
-    interviews_scheduled INTEGER DEFAULT 0,
-    offers_made INTEGER DEFAULT 0,
-    hires_made INTEGER DEFAULT 0,
-    
-    -- Cost Metrics
-    cost_per_application DECIMAL(10,2),
-    cost_per_hire DECIMAL(10,2),
-    
-    -- Performance Metrics
-    quality_score DECIMAL(5,2), -- Based on hire success rate
-    time_to_fill_avg DECIMAL(8,2), -- Average days
-    
-    is_active BOOLEAN DEFAULT true,
-    organization_id UUID REFERENCES organizations(id)
-);
-
--- =====================================================
--- INDEXES FOR PERFORMANCE
--- =====================================================
-
--- Offer Management Indexes
-CREATE INDEX idx_job_offers_candidate ON job_offers(candidate_id);
-CREATE INDEX idx_job_offers_status ON job_offers(status);
-CREATE INDEX idx_job_offers_created_date ON job_offers(created_at DESC);
-
--- Scoring System Indexes
-CREATE INDEX idx_candidate_scores_candidate ON candidate_scores(candidate_id);
-CREATE INDEX idx_candidate_rankings_requisition ON candidate_rankings(requisition_id);
-CREATE INDEX idx_candidate_rankings_score ON candidate_rankings(total_score DESC);
-
--- Talent Pool Indexes
-CREATE INDEX idx_talent_pool_members_pool ON talent_pool_members(pool_id);
-CREATE INDEX idx_talent_pool_members_candidate ON talent_pool_members(candidate_id);
-CREATE INDEX idx_talent_pool_members_status ON talent_pool_members(status);
-
--- Background Check Indexes
-CREATE INDEX idx_background_checks_candidate ON background_checks(candidate_id);
-CREATE INDEX idx_background_checks_status ON background_checks(status);
-CREATE INDEX idx_background_checks_completion ON background_checks(expected_completion_date);
-
--- Analytics Indexes
-CREATE INDEX idx_recruitment_metrics_type_period ON recruitment_metrics(metric_type, period_start_date);
-CREATE INDEX idx_recruitment_sources_effectiveness ON recruitment_sources(quality_score DESC);
-
--- =====================================================
--- TABLE COMMENTS
--- =====================================================
-
-COMMENT ON TABLE job_offers IS 'Comprehensive offer management with approval workflow';
-COMMENT ON TABLE candidate_scores IS 'Multi-criteria candidate scoring system';
-COMMENT ON TABLE talent_pools IS 'Talent pool management for future opportunities';
-COMMENT ON TABLE job_templates IS 'Standardized job description templates';
-COMMENT ON TABLE background_checks IS 'Background verification and compliance tracking';
-COMMENT ON TABLE recruitment_metrics IS 'Analytics and KPI tracking for recruitment process';
-
--- =====================================================
--- DEFAULT DATA SETUP
--- =====================================================
-
--- Insert Default Scoring Criteria
-INSERT INTO scoring_criteria (criteria_name, category, description, max_score, weight_percentage, organization_id) VALUES
-('Technical Skills', 'technical', 'Assessment of job-specific technical competencies', 100, 30.00, NULL),
-('Communication Skills', 'behavioral', 'Verbal and written communication effectiveness', 100, 20.00, NULL),
-('Problem Solving', 'behavioral', 'Analytical thinking and problem resolution abilities', 100, 25.00, NULL),
-('Cultural Fit', 'behavioral', 'Alignment with company values and team dynamics', 100, 15.00, NULL),
-('Experience Relevance', 'experience', 'Relevance and depth of previous work experience', 100, 10.00, NULL);
-
--- Insert Default Background Check Types
-INSERT INTO background_check_types (check_type_name, check_category, description, is_mandatory, typical_duration_days) VALUES
-('Education Verification', 'education', 'Verify educational qualifications and degrees', true, 5),
-('Employment History', 'employment', 'Verify previous employment and references', true, 7),
-('Identity Verification', 'identity', 'Verify identity documents (CNIC, Passport)', true, 2),
-('Reference Check', 'reference', 'Contact and verify professional references', false, 3),
-('Criminal Background', 'criminal', 'Check for criminal history and legal issues', false, 10);
-
--- Insert Default Recruitment Sources
-INSERT INTO recruitment_sources (source_name, source_type, source_url) VALUES
-('LinkedIn', 'social_media', 'https://linkedin.com'),
-('Indeed', 'job_board', 'https://indeed.com'),
-('Employee Referral', 'referral', NULL),
-('Company Website', 'direct', NULL),
-('University Campus', 'direct', NULL),
-('Recruitment Agency', 'agency', NULL);
-
--- File: backend\src\database\migrations\20260409_add_form_token_to_candidates.sql
--- Add form token columns to candidates table for public form access
-
-ALTER TABLE candidates 
-ADD COLUMN IF NOT EXISTS form_token VARCHAR(255),
-ADD COLUMN IF NOT EXISTS form_token_expires_at TIMESTAMP,
-ADD COLUMN IF NOT EXISTS father_name VARCHAR(255),
-ADD COLUMN IF NOT EXISTS father_occupation VARCHAR(255),
-ADD COLUMN IF NOT EXISTS mobile_no VARCHAR(50),
-ADD COLUMN IF NOT EXISTS blood_group VARCHAR(10),
-ADD COLUMN IF NOT EXISTS number_of_children INTEGER DEFAULT 0,
-ADD COLUMN IF NOT EXISTS residence_type VARCHAR(50),
-ADD COLUMN IF NOT EXISTS academic_records JSONB,
-ADD COLUMN IF NOT EXISTS work_experience JSONB,
-ADD COLUMN IF NOT EXISTS joining_availability VARCHAR(255);
-
--- Create index on form_token for faster lookups
-CREATE INDEX IF NOT EXISTS idx_candidates_form_token ON candidates(form_token);
-
-
--- File: backend\src\database\migrations\20260409_add_screening_columns.sql
--- Add screening and workflow columns to existing recruitment tables
--- Migration: 20260409_add_screening_columns.sql
-
--- Add screening columns to candidates table
-ALTER TABLE candidates 
-ADD COLUMN IF NOT EXISTS screening_notes TEXT,
-ADD COLUMN IF NOT EXISTS screening_date TIMESTAMP,
-ADD COLUMN IF NOT EXISTS screened_by UUID REFERENCES users(id),
-ADD COLUMN IF NOT EXISTS screened_by_name VARCHAR(255);
-
--- Update status enum to include new screening statuses
--- Note: PostgreSQL doesn't have ENUM modification, so we use CHECK constraints
-ALTER TABLE candidates DROP CONSTRAINT IF EXISTS candidates_status_check;
-ALTER TABLE candidates ADD CONSTRAINT candidates_status_check 
-CHECK (status IN (
-    'cv_received', 
-    'screened_passed', 
-    'screened_failed', 
-    'shortlisted', 
-    'interview_scheduled', 
-    'interviewed', 
-    'final_round', 
-    'form_generated',
-    'selected', 
-    'rejected'
-));
-
--- Add interview scheduling columns to candidates table
-ALTER TABLE candidates 
-ADD COLUMN IF NOT EXISTS interview_date DATE,
-ADD COLUMN IF NOT EXISTS interview_time TIME,
-ADD COLUMN IF NOT EXISTS interview_location VARCHAR(255),
-ADD COLUMN IF NOT EXISTS interview_type VARCHAR(100);
-
--- Add grade-specific form fields for different positions
-ALTER TABLE candidates 
-ADD COLUMN IF NOT EXISTS leadership_experience TEXT,
-ADD COLUMN IF NOT EXISTS strategic_planning TEXT,
-ADD COLUMN IF NOT EXISTS budget_management TEXT,
-ADD COLUMN IF NOT EXISTS team_size_managed INTEGER,
-ADD COLUMN IF NOT EXISTS project_management TEXT,
-ADD COLUMN IF NOT EXISTS technical_skills TEXT,
-ADD COLUMN IF NOT EXISTS certifications TEXT,
-ADD COLUMN IF NOT EXISTS internship_experience TEXT,
-ADD COLUMN IF NOT EXISTS academic_projects TEXT,
-ADD COLUMN IF NOT EXISTS extracurricular TEXT;
-
--- Create index for screening status
-CREATE INDEX IF NOT EXISTS idx_candidates_screening_status ON candidates(status) WHERE status IN ('screened_passed', 'screened_failed');
-CREATE INDEX IF NOT EXISTS idx_candidates_screening_date ON candidates(screening_date);
-
--- Add comments
-COMMENT ON COLUMN candidates.screening_notes IS 'Notes from initial CV screening process';
-COMMENT ON COLUMN candidates.screening_date IS 'Date when screening was completed';
-COMMENT ON COLUMN candidates.screened_by IS 'User who performed the screening';
-COMMENT ON COLUMN candidates.interview_date IS 'Scheduled interview date';
-COMMENT ON COLUMN candidates.interview_time IS 'Scheduled interview time';
-COMMENT ON COLUMN candidates.interview_location IS 'Interview location or meeting link';
-COMMENT ON COLUMN candidates.leadership_experience IS 'Leadership experience for senior positions';
-COMMENT ON COLUMN candidates.project_management IS 'Project management experience for mid-level positions';
-COMMENT ON COLUMN candidates.academic_projects IS 'Academic projects for entry-level positions';
-
--- File: backend\src\database\migrations\20260409_fix_scoring_constraints.sql
--- Fix Scoring Tables Constraints
--- Migration: 20260409_fix_scoring_constraints.sql
--- Adds unique constraints for ON CONFLICT clauses
-
--- Add unique constraint to candidate_scores if not exists
-DO $$ 
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint 
-        WHERE conname = 'candidate_scores_unique_constraint'
-    ) THEN
-        ALTER TABLE candidate_scores 
-        ADD CONSTRAINT candidate_scores_unique_constraint 
-        UNIQUE (candidate_id, criteria_id, scored_by);
-    END IF;
-END $$;
-
--- Add unique constraint to candidate_rankings if not exists
-DO $$ 
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint 
-        WHERE conname = 'candidate_rankings_unique_constraint'
-    ) THEN
-        ALTER TABLE candidate_rankings 
-        ADD CONSTRAINT candidate_rankings_unique_constraint 
-        UNIQUE (candidate_id, requisition_id);
-    END IF;
-END $$;
-
--- Create indexes if they don't exist
-CREATE INDEX IF NOT EXISTS idx_candidate_scores_unique 
-ON candidate_scores(candidate_id, criteria_id, scored_by);
-
-CREATE INDEX IF NOT EXISTS idx_candidate_rankings_unique 
-ON candidate_rankings(candidate_id, requisition_id);
-
--- Add comments
-COMMENT ON CONSTRAINT candidate_scores_unique_constraint ON candidate_scores 
-IS 'Ensures one score per candidate per criteria per scorer';
-
-COMMENT ON CONSTRAINT candidate_rankings_unique_constraint ON candidate_rankings 
-IS 'Ensures one ranking per candidate per requisition';
-
-
--- File: backend\src\database\migrations\20260409_update_candidate_status_enum.sql
--- Update candidate status constraints to include new offer-related statuses
--- Migration: 20260409_update_candidate_status_enum.sql
-
--- Drop existing constraint if it exists
-ALTER TABLE candidates DROP CONSTRAINT IF EXISTS candidates_status_check;
-
--- Add new constraint with offer-related statuses
-ALTER TABLE candidates ADD CONSTRAINT candidates_status_check 
-CHECK (status IN (
-    'cv_received', 
-    'screened_passed', 
-    'screened_failed', 
-    'shortlisted', 
-    'interview_scheduled', 
-    'interviewed', 
-    'final_round', 
-    'form_generated',
-    'offer_pending',
-    'offer_sent',
-    'offer_accepted',
-    'offer_rejected',
-    'selected', 
-    'rejected',
-    'hired',
-    'onboarding'
-));
-
--- Add comment
-COMMENT ON COLUMN candidates.status IS 'Candidate status throughout recruitment lifecycle including offer management';
-
--- File: backend\src\database\migrations\20260409_update_interview_status.sql
--- Update interview status constraints to include in_progress
--- Migration: 20260409_update_interview_status.sql
-
--- Drop existing constraint if it exists
-ALTER TABLE candidate_interviews DROP CONSTRAINT IF EXISTS candidate_interviews_status_check;
-
--- Add new constraint with in_progress status
-ALTER TABLE candidate_interviews ADD CONSTRAINT candidate_interviews_status_check 
-CHECK (status IN ('scheduled', 'in_progress', 'completed', 'cancelled'));
-
--- Add comment
-COMMENT ON COLUMN candidate_interviews.status IS 'Interview status: scheduled, in_progress, completed, cancelled';
-
--- END OF RECENT MIGRATIONS APPENDED BY ANTIGRAVITY
-
