@@ -13,8 +13,8 @@ const PORT = process.env.PORT || 3000;
 
 app.use(helmet());
 app.use(cors({
-  origin: true, // Allow all origins in development
-  credentials: [`http://localhost:${PORT}`, "https://rms.rushcorporation.com"],
+  origin: [`http://localhost:${PORT}`, "https://rms.rushcorporation.com"], // Allow all origins in development
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
