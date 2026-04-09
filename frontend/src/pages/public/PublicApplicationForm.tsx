@@ -131,10 +131,8 @@ export default function PublicApplicationForm() {
 
       toast.success('Application form submitted successfully!');
       
-      // Show success message
-      setTimeout(() => {
-        window.location.href = '/form-submitted';
-      }, 2000);
+      // Redirect to success page
+      window.location.href = '/form-submitted';
     } catch (error: any) {
       console.error('Error submitting form:', error);
       toast.error(error.message || 'Failed to submit form');
