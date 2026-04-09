@@ -117,6 +117,13 @@ const multerConfig = {
     limits: { fileSize: 10 * 1024 * 1024 },
     fileFilter: imageFilter,
   }),
+  
+  // CV uploads (10MB limit) - Memory storage for parsing
+  cvs: multer({
+    storage: multer.memoryStorage(), // Store in memory for parsing
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: documentFilter,
+  }),
 };
 
 module.exports = multerConfig;

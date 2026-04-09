@@ -38,6 +38,9 @@ import {
   Megaphone,
   Target,
   ListFilter,
+  UserCog,
+  CheckCircle,
+  MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -122,6 +125,22 @@ const navigation: NavItem[] = [
       { title: "Leave Management", href: "/hrms/leave", icon: Calendar },
       { title: "Payroll", href: "/hrms/payroll", icon: DollarSign },
       { title: "Notifications", href: "/hrms/notifications", icon: Bell },
+    ],
+  },
+  {
+    title: "Recruitment",
+    icon: UserCog,
+    children: [
+      { title: "Dashboard", href: "/recruitment", icon: LayoutDashboard },
+      { title: "Approvals", href: "/recruitment/approvals", icon: CheckCircle },
+      { title: "Requisitions", href: "/recruitment/requisitions", icon: FileText },
+      { title: "New Requisition", href: "/recruitment/requisitions/new", icon: UserPlus },
+      { title: "Candidates", href: "/recruitment/candidates", icon: Users },
+      { title: "Interviews", href: "/recruitment/interviews", icon: MessageSquare },
+      { title: "Offers", href: "/recruitment/offers", icon: DollarSign },
+      { title: "Scoring", href: "/recruitment/scoring", icon: Target },
+      { title: "Talent Pool", href: "/recruitment/talent-pool", icon: UsersRound },
+      { title: "Analytics", href: "/recruitment/analytics", icon: BarChart3 },
     ],
   },
   {
