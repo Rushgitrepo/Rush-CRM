@@ -9,14 +9,16 @@ const rateLimit = require('express-rate-limit');
 const appRoutes = require('./app');
 
 const app = express();
+const PORT = process.env.PORT || 3000;
 
 app.use(helmet());
 app.use(cors({
   origin: true, // Allow all origins in development
-  credentials: true,
+  credentials: [`http://localhost:${PORT}`, "https://rms.rushcorporation.com"],
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+
 app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -38,7 +40,6 @@ const realtimeService = require('./services/realtimeService');
 const scheduledWorkflows = require('./services/scheduledWorkflows');
 const imapIdleService = require('./services/imapIdleService');
 
-const PORT = process.env.PORT || 3001;
 
 async function bootstrap() {
   try {
