@@ -83,9 +83,7 @@ export default function AuthPage() {
         return;
       }
 
-      const { error: authError } = await signUp(email, password, {
-        full_name: fullName,
-      });
+      const { error: authError } = await signUp(email, password, fullName);
 
       if (authError) {
         setError(authError.message);

@@ -26,7 +26,7 @@ export default function ForgotPasswordPage() {
 
     try {
       emailSchema.parse(email);
-      
+
       const { error: apiError } = await authApi.forgotPassword(email);
       if (apiError) {
         setError((apiError as any).message || 'Failed to send reset email');
@@ -50,14 +50,14 @@ export default function ForgotPasswordPage() {
       {/* Left Pane: Brand & Visual */}
       <div className="hidden lg:flex relative overflow-hidden bg-slate-900 border-r border-slate-800">
         <div className="absolute inset-0 z-0">
-          <img 
-            src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=2000" 
-            alt="Recovery background" 
+          <img
+            src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=2000"
+            alt="Recovery background"
             className="w-full h-full object-cover opacity-20 scale-105"
           />
           <div className="absolute inset-0 bg-gradient-to-tr from-slate-950 via-slate-900/40 to-transparent" />
         </div>
-        
+
         <div className="relative z-10 p-16 flex flex-col justify-between w-full h-full">
           <div>
             <div className="flex items-center gap-3 mb-12">
@@ -66,12 +66,12 @@ export default function ForgotPasswordPage() {
               </div>
               <span className="text-2xl font-bold tracking-tighter text-white uppercase">Rush Management</span>
             </div>
-            
+
             <h2 className="text-6xl font-extralight text-white leading-[1.1] mb-8 tracking-tighter">
               Account <br />
               <span className="text-slate-400">Recovery.</span>
             </h2>
-            
+
             <div className="space-y-6">
               {[
                 { title: 'Secure Verification', desc: 'Industry-standard protocols to verify your identity.' },
@@ -90,7 +90,7 @@ export default function ForgotPasswordPage() {
               ))}
             </div>
           </div>
-          
+
           <div className="text-slate-500 text-[10px] font-black uppercase tracking-[0.4em]">
             Rush Resource Management System v2.0
           </div>
@@ -101,7 +101,7 @@ export default function ForgotPasswordPage() {
       <div className="flex flex-col justify-center items-center p-8 lg:p-24 bg-white dark:bg-slate-950">
         <div className="w-full max-w-[400px]">
           <div className="mb-10 lg:hidden text-center">
-             <div className="flex items-center justify-center gap-2 mb-4">
+            <div className="flex items-center justify-center gap-2 mb-4">
               <div className="w-8 h-8 bg-slate-900 dark:bg-white flex items-center justify-center rounded-lg">
                 <LayoutGrid className="w-4 h-4 text-white dark:text-slate-900" />
               </div>
@@ -114,8 +114,8 @@ export default function ForgotPasswordPage() {
               Forgot Password
             </h3>
             <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-relaxed">
-              {emailSent 
-                ? "Recovery link dispatched successfully" 
+              {emailSent
+                ? "Recovery link dispatched successfully"
                 : "Enter your email to receive a recovery link"}
             </p>
           </div>
@@ -138,7 +138,7 @@ export default function ForgotPasswordPage() {
                   A secure link has been sent to <strong className="text-slate-900 dark:text-white">{sentTo}</strong>. Please check your inbox.
                 </p>
               </div>
-              
+
               <Link to="/auth" className="block">
                 <Button variant="outline" className="w-full h-12 border-slate-200 dark:border-slate-800 rounded-xl font-bold uppercase tracking-[0.2em] text-[10px] hover:bg-slate-50 dark:hover:bg-white/5 transition-all group">
                   <ArrowLeft className="mr-2 h-3.5 w-3.5 group-hover:-translate-x-1 transition-transform" />
@@ -186,7 +186,7 @@ export default function ForgotPasswordPage() {
           )}
 
           <div className="mt-12 pt-8 border-t border-slate-100 dark:border-slate-900">
-             <p className="text-center text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest leading-relaxed">
+            <p className="text-center text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest leading-relaxed">
               If you have issues resetting your password, <br />
               contact your <a href="#" className="text-primary hover:underline">System Administrator</a>
             </p>
