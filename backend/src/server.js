@@ -9,11 +9,11 @@ const rateLimit = require('express-rate-limit');
 const appRoutes = require('./app');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4000;
 
 app.use(helmet());
 app.use(cors({
-  origin: [`http://localhost:${PORT}`, "https://rms.rushcorporation.com"], // Allow all origins in development
+  origin: [`http://localhost:${process.env.APP_URL.slice(17)}`, "https://rms.rushcorporation.com"], // Allow all origins in development
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
