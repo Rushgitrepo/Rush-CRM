@@ -10,7 +10,7 @@ async function callDriveFunction(
   const token = localStorage.getItem("token");
   if (!token) throw new Error("Not authenticated");
 
-  const response = await fetch(`${API_URL}/drives/google-drive/${action}`, {
+  const response = await fetch(`${API_URL}/drives/integrations/google-drive/${action}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -31,6 +31,10 @@ export interface DriveFile {
   thumbnailLink?: string;
   webViewLink?: string;
   parents?: string[];
+  starred?: boolean;
+  appProperties?: {
+    offline?: string;
+  };
 }
 
 export interface ListFilesResponse {
@@ -62,11 +66,12 @@ export const googleDriveService = {
     if (!response.ok) throw new Error(data.error || "Failed to exchange code");
   },
 
-  async listFiles(driveId: string, folderId?: string, pageToken?: string): Promise<ListFilesResponse> {
+  async listFiles(driveId: string, folderId?: string, pageToken?: string, filter?: string): Promise<ListFilesResponse> {
     const response = await callDriveFunction("google-drive-files", "list", {
       driveId,
       folderId: folderId || "root",
       pageToken,
+      filter,
     });
     
     const data = await response.json();
@@ -105,7 +110,81 @@ export const googleDriveService = {
     });
     
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Failed to delete");
+    if (!response.ok) throw new Error(data.error || "Failed to move to trash");
+  },
+
+  async restore(driveId: string, fileId: string): Promise<void> {
+    const response = await callDriveFunction("google-drive-files", "restore", {
+      driveId,
+      fileId,
+    });
+    
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Failed to restore file");
+  },
+
+  async permanentDelete(driveId: string, fileId: string): Promise<void> {
+    const response = await callDriveFunction("google-drive-files", "permanent-delete", {
+      driveId,
+      fileId,
+    });
+    
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Failed to permanently delete file");
+  },
+
+  async toggleStar(driveId: string, fileId: string, starred: boolean): Promise<void> {
+    const response = await callDriveFunction("google-drive-files", "toggle-star", {
+      driveId,
+      fileId,
+      starred,
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Failed to update star status");
+  },
+
+  async toggleSpam(driveId: string, fileId: string, spam: boolean): Promise<void> {
+    const response = await callDriveFunction("google-drive-files", "toggle-spam", {
+      driveId,
+      fileId,
+      spam,
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Failed to update spam status");
+  },
+
+  async toggleOffline(driveId: string, fileId: string, offline: boolean): Promise<void> {
+    const response = await callDriveFunction("google-drive-files", "toggle-offline", {
+      driveId,
+      fileId,
+      offline,
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Failed to update offline status");
+  },
+
+  async share(driveId: string, fileId: string, email: string, role: string = 'reader'): Promise<void> {
+    const response = await callDriveFunction("google-drive-files", "share", {
+      driveId,
+      fileId,
+      email,
+      role,
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Failed to share file");
+  },
+
+  async createGoogleFile(driveId: string, type: 'doc' | 'sheet' | 'slide', name?: string, parentId?: string): Promise<DriveFile> {
+    const response = await callDriveFunction("google-drive-files", "create-google-file", {
+      driveId,
+      type,
+      name,
+      parentId,
+    });
+    
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || `Failed to create google ${type}`);
+    return data;
   },
 
   async move(driveId: string, fileId: string, newParentId: string, currentParentId?: string): Promise<DriveFile> {

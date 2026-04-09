@@ -449,14 +449,20 @@ export const organizationApi = {
 
 export const driveApi = {
   // Folders
-  getFolders: (parentId?: string) => api.get<any[]>('/drive/folders', parentId ? { parent_id: parentId } : undefined),
+  getFolders: (parentId?: string, trash?: boolean) => api.get<any[]>('/drive/folders', { 
+    parent_id: parentId,
+    trash: trash ? 'true' : undefined
+  }),
   createFolder: (data: { name: string; parent_folder_id?: string; color?: string }) => api.post<any>('/drive/folders', data),
   deleteFolder: (id: string) => api.delete(`/drive/folders/${id}`),
+  restoreFolder: (id: string) => api.post(`/drive/folders/${id}/restore`),
+  permanentDeleteFolder: (id: string) => api.delete(`/drive/folders/${id}/permanent`),
   
   // Files
-  getFiles: (folderId?: string, recent?: boolean) => api.get<any[]>('/drive/files', { 
+  getFiles: (folderId?: string, recent?: boolean, trash?: boolean) => api.get<any[]>('/drive/files', { 
     folder_id: folderId, 
-    recent: recent ? 'true' : undefined 
+    recent: recent ? 'true' : undefined,
+    trash: trash ? 'true' : undefined
   }),
   uploadFile: (file: File, folderId?: string) => {
     const formData = new FormData();
@@ -467,9 +473,17 @@ export const driveApi = {
     return api.post<any>('/drive/files/upload', formData);
   },
   deleteFile: (id: string) => api.delete(`/drive/files/${id}`),
+  restoreFile: (id: string) => api.post(`/drive/files/${id}/restore`),
+  permanentDeleteFile: (id: string) => api.delete(`/drive/files/${id}/permanent`),
+  bulkRestore: (ids: string[]) => api.post('/drive/bulk/restore', { ids }),
+  bulkMoveToTrash: (ids: string[]) => api.post('/drive/bulk/trash', { ids }),
+  bulkPermanentDelete: (ids: string[]) => api.post('/drive/bulk/delete-permanent', { ids }),
   
   // Activities
   getActivities: () => api.get<any[]>('/drive/activities'),
+
+  // Search
+  search: (query: string) => api.get<any[]>('/drive/search', { q: query }),
 };
 
 export const workgroupsApi = {

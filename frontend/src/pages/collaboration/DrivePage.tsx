@@ -1,8 +1,24 @@
 import { useState, useEffect, useRef } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate, useParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +50,12 @@ import {
   Loader2,
   ArrowLeft,
   Upload,
+  Download,
+  X,
+  Undo2,
+  AlertTriangle,
+  RefreshCw,
+  CheckCircle2,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { ConnectCompanyDriveDialog } from "@/components/drive/ConnectCompanyDriveDialog";
@@ -46,22 +68,33 @@ import { NetworkDriveBrowser } from "@/components/drive/NetworkDriveBrowser";
 import { OneDriveBrowser } from "@/components/drive/OneDriveBrowser";
 import { CreateFolderDialog } from "@/components/drive/CreateFolderDialog";
 import { useConnectedDrives, ConnectedDrive } from "@/hooks/useDrives";
-import { useDriveFolders, useDriveFiles, useDriveSearch, formatFileSize, formatDate, getFileTypeFromMime } from "@/hooks/useDriveData";
+import {
+  useDriveFolders,
+  useDriveFiles,
+  useDriveSearch,
+  formatFileSize,
+  formatDate,
+  getFileTypeFromMime,
+} from "@/hooks/useDriveData";
 import { googleDriveService } from "@/services/googleDriveService";
 import { toast } from "sonner";
 
 type ViewMode = "list" | "grid" | "compact";
 
 const folderColors: Record<string, string> = {
-  "folder-sky": "hsl(var(--primary))",
-  "folder-blue": "hsl(210 100% 50%)",
+  "folder-blue": "hsl(var(--primary))",
+  "folder-orange": "hsl(24, 100%, 50%)",
+  "folder-rose": "hsl(350 89% 60%)",
   "folder-violet": "hsl(270 100% 60%)",
   "folder-amber": "hsl(40 100% 50%)",
+  "folder-green": "hsl(120 100% 50%)",
 };
 
 export default function DrivePage() {
   const { userRole } = useAuth();
+  const { driveId: paramDriveId } = useParams<{ driveId: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("date_changed");
@@ -69,8 +102,28 @@ export default function DrivePage() {
   const [personalDriveDialogOpen, setPersonalDriveDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [createFolderDialogOpen, setCreateFolderDialogOpen] = useState(false);
-  const [browsingDrive, setBrowsingDrive] = useState<ConnectedDrive | null>(null);
+  const [browsingDrive, setBrowsingDrive] = useState<ConnectedDrive | null>(
+    null,
+  );
   const [processingOAuth, setProcessingOAuth] = useState(false);
+  const [previewFile, setPreviewFile] = useState<{
+    id: string;
+    name: string;
+    url: string;
+    mimeType: string;
+  } | null>(null);
+  const [currentFolderName, setCurrentFolderName] = useState<string | null>(
+    null,
+  );
+  const [previewText, setPreviewText] = useState<string | null>(null);
+  const [isTextLoading, setIsTextLoading] = useState(false);
+  const [isRecycleBin, setIsRecycleBin] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    id: string;
+    name: string;
+    type: "file" | "folder";
+    permanent?: boolean;
+  } | null>(null);
 
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
@@ -79,29 +132,122 @@ export default function DrivePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: allDrives } = useConnectedDrives();
-  const isAdmin = userRole?.role === "admin" || userRole?.role === "super_admin";
+  const isAdmin =
+    userRole?.role === "admin" || userRole?.role === "super_admin";
 
   // Use real data hooks
-  const { folders, createFolder, deleteFolder } = useDriveFolders(selectedFolder);
-  const { files, uploadFile, deleteFile } = useDriveFiles(selectedFolder, true);
+  const { folders, createFolder, deleteFolder, permanentDeleteFolder } =
+    useDriveFolders(selectedFolder || undefined, isRecycleBin);
+  const {
+    files,
+    uploadFile,
+    deleteFile,
+    restoreFile,
+    permanentDeleteFile,
+    bulkRestoreItems,
+    bulkMoveToTrashItems,
+    bulkPermanentDeleteItems,
+  } = useDriveFiles(selectedFolder || undefined, undefined, isRecycleBin);
   const searchResults = useDriveSearch(searchQuery);
 
   // Use search results if searching, otherwise use regular files
-  const displayFiles = searchQuery.length >= 2 ? searchResults.data?.filter(item => item.type === 'file') || [] : files;
-  const displayFolders = searchQuery.length >= 2 ? searchResults.data?.filter(item => item.type === 'folder') || [] : folders;
+  const displayFiles =
+    searchQuery.length >= 2
+      ? searchResults.data?.filter((item) => item.type === "file") || []
+      : files;
+  const displayFolders =
+    searchQuery.length >= 2
+      ? searchResults.data?.filter((item) => item.type === "folder") || []
+      : folders;
 
   const handleFolderClick = (folderId: string, folderName: string) => {
+    setSelectedFiles([]);
     setSelectedFolder(folderId);
+    setCurrentFolderName(folderName);
     toast.success(`Opening ${folderName} folder`);
   };
 
   const handleBackToRoot = () => {
+    setSelectedFiles([]);
+    setIsRecycleBin(false);
     setSelectedFolder(null);
+    setCurrentFolderName(null);
     toast.info("Back to My Drive");
   };
 
-  const handleFileClick = (fileName: string) => {
-    toast.success(`Opening ${fileName}`);
+  const getFileUrl = (url: string | null) => {
+    if (!url) return undefined;
+    const baseUrl =
+      import.meta.env.VITE_API_URL?.replace("/api", "") ||
+      "http://localhost:3001";
+    return `${baseUrl}${url}`;
+  };
+
+  const handleFileClick = async (
+    fileName: string,
+    fileUrl: string | null = null,
+    mimeType: string = "",
+    fileId: string = "",
+  ) => {
+    if (fileUrl) {
+      const fullUrl = getFileUrl(fileUrl) || "";
+      setPreviewFile({ id: fileId, name: fileName, url: fullUrl, mimeType });
+      setPreviewText(null);
+
+      // If it's a text file or has no extension/is .env, try to fetch content
+      const isText =
+        mimeType.startsWith("text/") ||
+        fileName.endsWith(".env") ||
+        fileName.endsWith(".js") ||
+        fileName.endsWith(".ts") ||
+        fileName.endsWith(".json") ||
+        fileName.endsWith(".sql");
+
+      if (isText) {
+        setIsTextLoading(true);
+        try {
+          const response = await fetch(fullUrl);
+          const text = await response.text();
+          setPreviewText(text);
+        } catch (error) {
+          console.error("Error fetching preview text:", error);
+          setPreviewText("Failed to load file content.");
+        } finally {
+          setIsTextLoading(false);
+        }
+      }
+    } else {
+      toast.success(`Opening ${fileName}`);
+    }
+  };
+
+  const handleDownload = async (fileName: string, fileUrl: string | null) => {
+    if (!fileUrl) {
+      toast.error("File URL not found");
+      return;
+    }
+
+    try {
+      const url = getFileUrl(fileUrl);
+      if (!url) return;
+
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+
+      toast.success(`Downloading ${fileName}`);
+    } catch (error) {
+      console.error("Download error:", error);
+      toast.error("Failed to download file");
+    }
   };
 
   const handleFileUpload = () => {
@@ -109,15 +255,17 @@ export default function DrivePage() {
       toast.error("Please select a folder first by clicking on it!");
       return;
     }
-    
-    const input = document.createElement('input');
-    input.type = 'file';
+
+    const input = document.createElement("input");
+    input.type = "file";
     input.multiple = true;
     input.onchange = (e) => {
       const files = (e.target as HTMLInputElement).files;
       if (files && files.length > 0) {
-        const folderName = folders.find(f => f.id === selectedFolder)?.name || 'Selected folder';
-        Array.from(files).forEach(file => {
+        const folderName =
+          folders.find((f) => f.id === selectedFolder)?.name ||
+          "Selected folder";
+        Array.from(files).forEach((file) => {
           uploadFile.mutate({ file, folderId: selectedFolder || undefined });
         });
         toast.success(`Uploading ${files.length} file(s) to ${folderName}`);
@@ -134,17 +282,64 @@ export default function DrivePage() {
     createFolder.mutate({
       name: name,
       parent_folder_id: selectedFolder || undefined,
-      color: color
+      color: color,
     });
   };
 
   const handleRecycleBin = () => {
-    toast.info("Recycle Bin - Deleted files will appear here");
+    setSelectedFiles([]);
+    setIsRecycleBin(true);
+    setSelectedFolder(null);
+    toast.info("Showing deleted files and folders");
+  };
+
+  const toggleSelection = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setSelectedFiles((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
+    );
+  };
+
+  const handleSelectAll = (visibleItems: any[]) => {
+    if (
+      selectedFiles.length === visibleItems.length &&
+      visibleItems.length > 0
+    ) {
+      setSelectedFiles([]);
+    } else {
+      setSelectedFiles(visibleItems.map((i) => i.id));
+    }
+  };
+
+  const handleConfirmDelete = () => {
+    if (!deleteConfirmation) return;
+
+    if (deleteConfirmation.id === "bulk") {
+      if (deleteConfirmation.permanent) {
+        bulkPermanentDeleteItems.mutate(selectedFiles);
+        setSelectedFiles([]);
+      }
+    } else {
+      if (deleteConfirmation.permanent) {
+        if (deleteConfirmation.type === "file") {
+          permanentDeleteFile.mutate(deleteConfirmation.id);
+        } else {
+          permanentDeleteFolder.mutate(deleteConfirmation.id);
+        }
+      } else if (deleteConfirmation.type === "file") {
+        deleteFile.mutate(deleteConfirmation.id);
+      } else {
+        deleteFolder.mutate(deleteConfirmation.id);
+      }
+    }
+    setDeleteConfirmation(null);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragOver(true);
+    if (selectedFolder && !isRecycleBin) {
+      setIsDragOver(true);
+    }
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
@@ -155,19 +350,20 @@ export default function DrivePage() {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
-    
+
     if (!selectedFolder) {
       toast.error("Please select a folder first by clicking on it!");
       return;
     }
-    
-    const droppedFiles = Array.from(e.dataTransfer.files);
-    if (droppedFiles.length > 0) {
-      const folderName = folders.find(f => f.id === selectedFolder)?.name || 'Selected folder';
-      droppedFiles.forEach(file => {
-        uploadFile.mutate({ file, folderId: selectedFolder || undefined });
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const folderName =
+        folders.find((f) => f.id === selectedFolder)?.name || "Selected folder";
+      Array.from(files).forEach((file) => {
+        uploadFile.mutate({ file, folderId: selectedFolder });
       });
-      toast.success(`Uploading ${droppedFiles.length} file(s) to ${folderName}`);
+      toast.success(`Uploading ${files.length} file(s) to ${folderName}`);
     }
   };
 
@@ -176,93 +372,121 @@ export default function DrivePage() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey) {
         switch (e.key) {
-          case 'u':
+          case "u":
             e.preventDefault();
             handleFileUpload();
             break;
-          case 'n':
+          case "n":
             e.preventDefault();
             handleCreateFolder();
             break;
-          case 'f':
+          case "f":
             e.preventDefault();
-            (document.querySelector('input[placeholder="Filter and search"]') as HTMLInputElement)?.focus();
+            (
+              document.querySelector(
+                'input[placeholder="Filter and search"]',
+              ) as HTMLInputElement
+            )?.focus();
             break;
         }
       }
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         setSelectedFolder(null);
-        setSearchQuery('');
+        setSearchQuery("");
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Handle OAuth callback
+  // Handle OAuth success/error from backend redirect
   useEffect(() => {
-    const code = searchParams.get("code");
-    const state = searchParams.get("state");
-    
-    if (code && state) {
-      handleOAuthCallback(code, state);
-    }
-  }, [searchParams]);
+    const connected = searchParams.get("connected");
+    const error = searchParams.get("error");
+    const driveId = searchParams.get("driveId");
 
-  const handleOAuthCallback = async (code: string, encodedState: string) => {
-    try {
-      setProcessingOAuth(true);
-      const state = JSON.parse(atob(encodedState));
-      const redirectUri = `${window.location.origin}/collaboration/drive`;
-      
-      await googleDriveService.exchangeCode(code, redirectUri, state.driveId);
-      
+    if (connected === "google_drive") {
       toast.success("Google Drive connected successfully!");
-      
-      // Clear URL params
-      setSearchParams({});
-    } catch (error: any) {
-      console.error("OAuth callback error:", error);
-      toast.error(error.message || "Failed to complete Google Drive connection");
-    } finally {
-      setProcessingOAuth(false);
+      if (driveId) {
+        navigate(`/collaboration/drive/personal/${driveId}`);
+      }
+      setSearchParams({}, { replace: true });
+    } else if (error) {
+      toast.error(error || "Failed to connect Google Drive");
+      setSearchParams({}, { replace: true });
     }
-  };
+  }, [searchParams, setSearchParams, navigate]);
 
   const handleBrowseDrive = (drive: ConnectedDrive) => {
-    const isNetworkDriveType = ["network_smb", "network_nfs", "network_webdav"].includes(drive.drive_type);
-    
+    const isNetworkDriveType = [
+      "network_smb",
+      "network_nfs",
+      "network_webdav",
+    ].includes(drive.drive_type);
+
     // Network drives are always considered connected
-    if (!isNetworkDriveType && !drive.access_token && drive.drive_type === "google_drive") {
-      toast.error("This drive is not yet connected. Please authenticate first.");
+    if (
+      !isNetworkDriveType &&
+      !drive.access_token &&
+      drive.drive_type === "google_drive"
+    ) {
+      toast.error(
+        "This drive is not yet connected. Please authenticate first.",
+      );
       return;
     }
-    // For OneDrive, we need a connection in onedrive_connections table
-    // The connected_drives record just tracks it in the UI
+    // Update URL
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set("driveId", drive.id);
+    setSearchParams(newParams);
+    
     setBrowsingDrive(drive);
   };
 
-  const isNetworkDrive = (drive: ConnectedDrive) => 
+  // Restore session from URL driveId
+  useEffect(() => {
+    const urlDriveId = searchParams.get("driveId");
+    if (urlDriveId && allDrives && !browsingDrive) {
+        const driveToRestore = allDrives.find(d => d.id === urlDriveId);
+        if (driveToRestore) {
+            setBrowsingDrive(driveToRestore);
+        }
+    }
+  }, [allDrives, searchParams, browsingDrive]);
+
+  const isNetworkDrive = (drive: ConnectedDrive) =>
     ["network_smb", "network_nfs", "network_webdav"].includes(drive.drive_type);
 
   const getFileIcon = (mimeType: string) => {
     const fileType = getFileTypeFromMime(mimeType);
     switch (fileType) {
       case "image":
-        return <Image className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />;
+        return (
+          <Image className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+        );
       case "pdf":
         return <FileText className="h-5 w-5 text-red-600 dark:text-red-400" />;
       case "document":
-        return <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />;
+        return (
+          <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+        );
       case "presentation":
-        return <FileText className="h-5 w-5 text-orange-600 dark:text-orange-400" />;
+        return (
+          <FileText className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+        );
       case "spreadsheet":
-        return <FileText className="h-5 w-5 text-green-600 dark:text-green-400" />;
+        return (
+          <FileText className="h-5 w-5 text-green-600 dark:text-green-400" />
+        );
       case "video":
-        return <File className="h-5 w-5 text-purple-600 dark:text-purple-400" />;
+        return (
+          <File className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+        );
       case "text":
-        return <FileText className="h-5 w-5 text-gray-600 dark:text-gray-400" />;
+        return (
+          <FileText className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+        );
       default:
         return <File className="h-5 w-5 text-primary" />;
     }
@@ -274,9 +498,14 @@ export default function DrivePage() {
       case "name":
         return a.name.localeCompare(b.name);
       case "date_created":
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        return (
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
       case "date_changed":
-        return new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime();
+        return (
+          new Date(b.updated_at || b.created_at).getTime() -
+          new Date(a.updated_at || a.created_at).getTime()
+        );
       default:
         return 0;
     }
@@ -289,9 +518,14 @@ export default function DrivePage() {
       case "size":
         return (b.file_size || 0) - (a.file_size || 0);
       case "date_created":
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        return (
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
       case "date_changed":
-        return new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime();
+        return (
+          new Date(b.updated_at || b.created_at).getTime() -
+          new Date(a.updated_at || a.created_at).getTime()
+        );
       default:
         return 0;
     }
@@ -309,22 +543,35 @@ export default function DrivePage() {
     return (
       <div className="h-[calc(100vh-120px)]">
         {isNetworkDrive(browsingDrive) ? (
-          <NetworkDriveBrowser drive={browsingDrive} onClose={() => setBrowsingDrive(null)} />
+          <NetworkDriveBrowser
+            drive={browsingDrive}
+            onClose={() => setBrowsingDrive(null)}
+          />
         ) : browsingDrive.drive_type === "onedrive" ? (
-          <OneDriveBrowser 
+          <OneDriveBrowser
             displayName={browsingDrive.display_name}
-            onClose={() => setBrowsingDrive(null)} 
+            onClose={() => setBrowsingDrive(null)}
           />
         ) : (
-          <DriveBrowser drive={browsingDrive} onClose={() => setBrowsingDrive(null)} />
+          <DriveBrowser
+            drive={browsingDrive}
+            onClose={() => {
+                setBrowsingDrive(null);
+                const newParams = new URLSearchParams(searchParams);
+                newParams.delete("driveId");
+                newParams.delete("folder");
+                newParams.delete("filter");
+                setSearchParams(newParams);
+            }}
+          />
         )}
       </div>
     );
   }
 
   return (
-    <div 
-      className={`space-y-4 ${isDragOver ? 'bg-blue-50 dark:bg-blue-950/20' : ''}`}
+    <div
+      className={`space-y-4 ${isDragOver ? "bg-blue-50 dark:bg-blue-950/20" : ""}`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -341,7 +588,8 @@ export default function DrivePage() {
                     Drop files here to upload
                   </p>
                   <p className="text-sm text-muted-foreground mt-2">
-                    Files will be uploaded to: {folders.find(f => f.id === selectedFolder)?.name}
+                    Files will be uploaded to:{" "}
+                    {folders.find((f) => f.id === selectedFolder)?.name}
                   </p>
                 </>
               ) : (
@@ -374,11 +622,14 @@ export default function DrivePage() {
       {/* Header with Title, Add Button, and Search */}
       <div className="flex items-center gap-4">
         <h1 className="text-2xl font-bold text-foreground">My Drive</h1>
-        
+
         {/* Add Dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-primary-foreground">
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700 text-primary-foreground"
+              disabled={isRecycleBin}
+            >
               <Plus className="h-4 w-4 mr-1" />
               Add
               <ChevronDown className="h-4 w-4 ml-1" />
@@ -387,7 +638,9 @@ export default function DrivePage() {
           <DropdownMenuContent align="start" className="w-56">
             <DropdownMenuItem onSelect={handleFileUpload}>
               <FileUp className="h-4 w-4 mr-2" />
-              {selectedFolder ? "Upload to Current Folder" : "Upload File (Select folder first)"}
+              {selectedFolder
+                ? "Upload to Current Folder"
+                : "Upload File (Select folder first)"}
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={handleCreateFolder}>
               <FolderPlus className="h-4 w-4 mr-2" />
@@ -400,9 +653,39 @@ export default function DrivePage() {
                 Google Docs
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent>
-                <DropdownMenuItem onSelect={() => window.open('https://docs.new', '_blank', 'noopener,noreferrer')}>Document</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => window.open('https://sheets.new', '_blank', 'noopener,noreferrer')}>Spreadsheet</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => window.open('https://slides.new', '_blank', 'noopener,noreferrer')}>Presentation</DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() =>
+                    window.open(
+                      "https://docs.new",
+                      "_blank",
+                      "noopener,noreferrer",
+                    )
+                  }
+                >
+                  Document
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() =>
+                    window.open(
+                      "https://sheets.new",
+                      "_blank",
+                      "noopener,noreferrer",
+                    )
+                  }
+                >
+                  Spreadsheet
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() =>
+                    window.open(
+                      "https://slides.new",
+                      "_blank",
+                      "noopener,noreferrer",
+                    )
+                  }
+                >
+                  Presentation
+                </DropdownMenuItem>
               </DropdownMenuSubContent>
             </DropdownMenuSub>
             <DropdownMenuSub>
@@ -411,9 +694,39 @@ export default function DrivePage() {
                 MS Office Online
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent>
-                <DropdownMenuItem onSelect={() => window.open('https://word.new', '_blank', 'noopener,noreferrer')}>Word Document</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => window.open('https://excel.new', '_blank', 'noopener,noreferrer')}>Excel Spreadsheet</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => window.open('https://powerpoint.new', '_blank', 'noopener,noreferrer')}>PowerPoint</DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() =>
+                    window.open(
+                      "https://word.new",
+                      "_blank",
+                      "noopener,noreferrer",
+                    )
+                  }
+                >
+                  Word Document
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() =>
+                    window.open(
+                      "https://excel.new",
+                      "_blank",
+                      "noopener,noreferrer",
+                    )
+                  }
+                >
+                  Excel Spreadsheet
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() =>
+                    window.open(
+                      "https://powerpoint.new",
+                      "_blank",
+                      "noopener,noreferrer",
+                    )
+                  }
+                >
+                  PowerPoint
+                </DropdownMenuItem>
               </DropdownMenuSubContent>
             </DropdownMenuSub>
             <DropdownMenuSeparator />
@@ -423,10 +736,6 @@ export default function DrivePage() {
                 Connect Company Drive
               </DropdownMenuItem>
             )}
-            <DropdownMenuItem onClick={() => setPersonalDriveDialogOpen(true)}>
-              <Cloud className="h-4 w-4 mr-2" />
-              Connect Personal Drive
-            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -450,7 +759,18 @@ export default function DrivePage() {
           <Trash2 className="h-4 w-4" />
           Recycle Bin
         </Button>
-        <Button variant="ghost" size="icon" onClick={() => setSettingsDialogOpen(true)}>
+        <Button
+          className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
+          onClick={() => setPersonalDriveDialogOpen(true)}
+        >
+          <Cloud className="h-4 w-4" />
+          Connect Drive
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setSettingsDialogOpen(true)}
+        >
           <Settings className="h-5 w-5" />
         </Button>
       </div>
@@ -458,38 +778,123 @@ export default function DrivePage() {
       {/* Secondary Header - Breadcrumb, Info, Sort, View Toggle */}
       <div className="flex items-center justify-between text-sm">
         <div className="flex items-center gap-2 text-muted-foreground">
-          <span 
+          <span
             className="font-medium text-foreground cursor-pointer hover:underline"
             onClick={handleBackToRoot}
           >
             My Drive
           </span>
+          {isRecycleBin && (
+            <>
+              <span>/</span>
+              <span className="font-medium text-red-600 dark:text-red-400">
+                Recycle Bin
+              </span>
+            </>
+          )}
           {selectedFolder && (
             <>
               <span>/</span>
               <span className="font-medium text-blue-600 dark:text-blue-400">
-                {folders.find(f => f.id === selectedFolder)?.name || 'Unknown Folder'}
+                {currentFolderName || "Loading..."}
               </span>
             </>
           )}
+          {(displayFolders.length > 0 || displayFiles.length > 0) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs ml-2 hover:bg-primary"
+              onClick={() =>
+                handleSelectAll([...displayFolders, ...displayFiles])
+              }
+            >
+              {selectedFiles.length > 0 &&
+              selectedFiles.length ===
+                displayFolders.length + displayFiles.length
+                ? "Deselect All"
+                : "Select All"}
+            </Button>
+          )}
         </div>
-        
+
+        {selectedFiles.length > 0 && (
+          <div className="flex-1 mx-4 px-4 py-1.5 bg-primary/5 border border-primary/20 rounded-full flex items-center justify-between animate-in slide-in-from-top-2 duration-300">
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-semibold text-primary px-2 py-0.5 bg-primary/10 rounded-full">
+                {selectedFiles.length}
+              </span>
+              <span className="text-sm font-medium">Selected</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedFiles([])}
+                className="h-7 text-xs text-muted-foreground hover:text-foreground"
+              >
+                Clear
+              </Button>
+            </div>
+            <div className="flex items-center gap-2">
+              {isRecycleBin ? (
+                <>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      bulkRestoreItems.mutate(selectedFiles);
+                      setSelectedFiles([]);
+                    }}
+                    className="h-8 gap-2 bg-emerald-600 hover:bg-emerald-700"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    Restore
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => {
+                      setDeleteConfirmation({
+                        id: "bulk",
+                        name: `${selectedFiles.length} items`,
+                        type: "file",
+                        permanent: true,
+                      });
+                    }}
+                    className="h-8 gap-2"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    bulkMoveToTrashItems.mutate(selectedFiles);
+                    setSelectedFiles([]);
+                  }}
+                  className="h-8 gap-2 text-red-600 hover:bg-red-500 hover:text-white"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Move to Trash
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center gap-4">
-          <span className="text-muted-foreground">
-            Files deleted to the Recycle Bin are kept for 30 days
-          </span>
-          
           {/* Sort Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="gap-1">
-                {sortOptions.find(o => o.value === sortBy)?.label}
+                {sortOptions.find((o) => o.value === sortBy)?.label}
                 <ChevronDown className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {sortOptions.map((option) => (
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   key={option.value}
                   onClick={() => setSortBy(option.value)}
                 >
@@ -538,37 +943,63 @@ export default function DrivePage() {
               {viewMode === "grid" ? (
                 <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                   {sortedFolders.map((folder) => (
-                    <Card 
-                      key={folder.id} 
+                    <Card
+                      key={folder.id}
                       className="cursor-pointer hover:shadow-md transition-all group relative overflow-hidden"
                       onClick={() => handleFolderClick(folder.id, folder.name)}
                     >
                       <CardContent className="p-0">
                         <div className="relative">
                           {/* Folder visual */}
-                          <div 
+                          <div
                             className="h-24 rounded-t-lg relative"
-                            style={{ backgroundColor: folderColors[folder.color] || folderColors['folder-blue'] }}
+                            style={{
+                              backgroundColor:
+                                folderColors[folder.color] ||
+                                folderColors["folder-blue"],
+                            }}
                           >
                             <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-background/20 to-transparent" />
                             <div className="absolute top-2 left-2 w-8 h-2 bg-white/30 rounded-full" />
                           </div>
                           {/* Folder tab */}
-                          <div 
+                          <div
                             className="absolute top-0 left-0 w-12 h-4 rounded-t-md -translate-y-1"
-                            style={{ backgroundColor: folderColors[folder.color] || folderColors['folder-blue'] }}
+                            style={{
+                              backgroundColor:
+                                folderColors[folder.color] ||
+                                folderColors["folder-blue"],
+                            }}
                           />
                         </div>
+                        {/* Selection Checkbox Overlay */}
+                        <div
+                          className={`absolute top-2 left-2 z-10  transition-opacity ${selectedFiles.includes(folder.id) ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+                          onClick={(e) => toggleSelection(folder.id, e)}
+                        >
+                          <div
+                            className={`h-5 w-5 rounded-full bg-white border-2 flex items-center justify-center transition-colors ${selectedFiles.includes(folder.id) ? "bg-primary border-primary" : "bg-white/50 border-white hover:border-primary/50"}`}
+                          >
+                            {selectedFiles.includes(folder.id) && (
+                              <CheckCircle2 className="h-3 w-3 text-primary" />
+                            )}
+                          </div>
+                        </div>
                         <div className="p-3 bg-card">
-                          <p className="font-medium text-sm truncate">{folder.name}</p>
-                          <p className="text-xs text-muted-foreground">{folder.file_count} files • {formatFileSize(folder.total_size)}</p>
+                          <p className="font-medium text-sm truncate">
+                            {folder.name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {folder.file_count} files •{" "}
+                            {formatFileSize(folder.total_size)}
+                          </p>
                         </div>
                         {/* Menu button */}
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
+                            <Button
+                              variant="ghost"
+                              size="icon"
                               className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 hover:bg-white"
                               onClick={(e) => e.stopPropagation()}
                             >
@@ -576,19 +1007,41 @@ export default function DrivePage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent>
-                            <DropdownMenuItem onClick={() => handleFolderClick(folder.id, folder.name)}>
+                            <DropdownMenuItem
+                              onClick={() =>
+                                handleFolderClick(folder.id, folder.name)
+                              }
+                            >
                               Open
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => toast.success(`Renaming ${folder.name}`)}>
+                            <DropdownMenuItem
+                              onClick={() =>
+                                toast.success(`Renaming ${folder.name}`)
+                              }
+                            >
                               Rename
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => toast.success(`Sharing ${folder.name}`)}>
+                            <DropdownMenuItem
+                              onClick={() =>
+                                toast.success(`Sharing ${folder.name}`)
+                              }
+                            >
                               Share
                             </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => deleteFolder.mutate(folder.id)}>
+                            <DropdownMenuItem
+                              className="text-red-600 focus:text-red-600"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteConfirmation({
+                                  id: folder.id,
+                                  name: folder.name,
+                                  type: "folder",
+                                  permanent: isRecycleBin,
+                                });
+                              }}
+                            >
                               <Trash2 className="h-4 w-4 mr-2" />
-                              Delete
+                              {isRecycleBin ? "Delete Permanently" : "Delete"}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -601,21 +1054,42 @@ export default function DrivePage() {
                   <CardContent className="p-0">
                     <div className="divide-y">
                       {sortedFolders.map((folder) => (
-                        <div 
-                          key={folder.id} 
+                        <div
+                          key={folder.id}
                           className="flex items-center justify-between p-3 hover:bg-muted/50 transition-colors cursor-pointer"
-                          onClick={() => handleFolderClick(folder.id, folder.name)}
+                          onClick={() =>
+                            handleFolderClick(folder.id, folder.name)
+                          }
                         >
                           <div className="flex items-center gap-3">
-                            <div 
+                            <div
+                              className="shrink-0 transition-opacity"
+                              onClick={(e) => toggleSelection(folder.id, e)}
+                            >
+                              <div
+                                className={`h-5 w-5 rounded-full border-2 flex items-center justify-center ${selectedFiles.includes(folder.id) ? "bg-primary border-primary" : "bg-muted-foreground/20 border-transparent hover:border-primary/50"}`}
+                              >
+                                {selectedFiles.includes(folder.id) && (
+                                  <CheckCircle2 className="h-3 w-3 text-primary-foreground" />
+                                )}
+                              </div>
+                            </div>
+                            <div
                               className="p-2 rounded-lg"
-                              style={{ backgroundColor: folderColors[folder.color] || folderColors['folder-blue'] }}
+                              style={{
+                                backgroundColor:
+                                  folderColors[folder.color] ||
+                                  folderColors["folder-blue"],
+                              }}
                             >
                               <FolderOpen className="h-5 w-5 text-primary-foreground" />
                             </div>
                             <div>
                               <p className="font-medium">{folder.name}</p>
-                              <p className="text-sm text-muted-foreground">{folder.file_count} files • {formatFileSize(folder.total_size)}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {folder.file_count} files •{" "}
+                                {formatFileSize(folder.total_size)}
+                              </p>
                             </div>
                           </div>
                           <Button variant="ghost" size="icon">
@@ -631,38 +1105,293 @@ export default function DrivePage() {
           ) : (
             <Card>
               <CardContent className="p-6 text-center">
-                <p className="text-muted-foreground">No folders found matching your search.</p>
+                <p className="text-muted-foreground">
+                  No folders found matching your search.
+                </p>
               </CardContent>
             </Card>
           )}
 
-          {/* Connected Drives */}
-          <div className="grid gap-4 md:grid-cols-2">
-            <CompanyDrivesList onBrowse={handleBrowseDrive} />
-            <PersonalDrivesList onBrowse={handleBrowseDrive} />
-          </div>
+          {/* Root Files Section */}
+          {sortedFiles.length > 0 && (
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold mb-3">Files</h2>
+              {viewMode === "grid" ? (
+                <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+                  {sortedFiles.map((file) => (
+                    <Card className="group relative cursor-pointer hover:shadow-sm transition-all">
+                      <CardContent className="p-3">
+                        <div className="flex flex-col items-center text-center space-y-2">
+                          {file.mime_type?.startsWith("image/") &&
+                          file.file_url ? (
+                            <div className="w-12 h-12 overflow-hidden rounded-lg flex items-center justify-center shrink-0">
+                              <img
+                                src={getFileUrl(file.file_url)}
+                                alt={file.name}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center shrink-0">
+                              {getFileIcon(file.mime_type)}
+                            </div>
+                          )}
 
-          {/* Instructions */}
-          <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
-            <CardContent className="p-6">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <FolderOpen className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                          <div className="w-full min-w-0">
+                            <p
+                              className="font-medium text-sm truncate"
+                              title={file.name}
+                            >
+                              {file.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {formatFileSize(file.file_size)}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Selection Checkbox */}
+                        <div
+                          className={`absolute top-2 left-2 z-10 transition-opacity
+                               ${
+                                 selectedFiles.includes(file.id)
+                                   ? "opacity-100"
+                                   : "opacity-0 group-hover:opacity-100"
+                               }`}
+                          onClick={(e) => toggleSelection(file.id, e)}
+                        >
+                          <div
+                            className={`h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all
+                               ${
+                                 selectedFiles.includes(file.id)
+                                   ? "bg-primary border-primary"
+                                   : "bg-white/70 border-white group-hover:bg-primary group-hover:border-primary"
+                               }`}
+                          >
+                            <CheckCircle2
+                              className={`h-3 w-3 transition-opacity
+                               ${
+                                 selectedFiles.includes(file.id)
+                                   ? "opacity-100 text-white"
+                                   : "opacity-0"
+                               }`}
+                            />
+                          </div>
+                        </div>
+
+                        {/* 3 dots menu */}
+                        <div className="absolute top-2 right-2 opacity-60 hover:opacity-100 transition-opacity">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 bg-white/80 dark:bg-slate-800/80"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleFileClick(
+                                    file.name,
+                                    file.file_url,
+                                    file.mime_type || "",
+                                    file.id,
+                                  );
+                                }}
+                              >
+                                Open
+                              </DropdownMenuItem>
+
+                              {isRecycleBin ? (
+                                <>
+                                  <DropdownMenuItem
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      restoreFile.mutate(file.id);
+                                    }}
+                                  >
+                                    <Undo2 className="h-4 w-4 mr-2" />
+                                    Restore
+                                  </DropdownMenuItem>
+
+                                  <DropdownMenuItem
+                                    className="text-red-600 focus:text-red-600"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setDeleteConfirmation({
+                                        id: file.id,
+                                        name: file.name,
+                                        type: "file",
+                                        permanent: true,
+                                      });
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Delete
+                                  </DropdownMenuItem>
+                                </>
+                              ) : (
+                                <DropdownMenuItem
+                                  className="text-red-600 focus:text-red-600"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeleteConfirmation({
+                                      id: file.id,
+                                      name: file.name,
+                                      type: "file",
+                                    });
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-2">
-                    How to use your Drive
-                  </h3>
-                  <div className="space-y-2 text-sm text-blue-800 dark:text-blue-200">
-                    <p>• <strong>Click on any folder</strong> to open it and see its contents</p>
-                    <p>• <strong>Upload files</strong> by clicking a folder first, then using the upload button</p>
-                    <p>• <strong>Create new folders</strong> using the "Add" button above</p>
-                    <p>• <strong>Organize your files</strong> by moving them into appropriate folders</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              ) : (
+                <Card>
+                  <CardContent className="p-0">
+                    <div className="divide-y">
+                      {sortedFiles.map((file) => (
+                        <div
+                          key={file.id}
+                          className="flex items-center justify-between p-3 hover:bg-muted/50 transition-colors cursor-pointer"
+                          onClick={() =>
+                            handleFileClick(
+                              file.name,
+                              file.file_url,
+                              file.mime_type || "",
+                              file.id,
+                            )
+                          }
+                        >
+                          <div className="flex items-center gap-3 overflow-hidden">
+                            {file.mime_type?.startsWith("image/") &&
+                            file.file_url ? (
+                              <div className="w-8 h-8 rounded-lg overflow-hidden bg-muted flex items-center justify-center shrink-0">
+                                <img
+                                  src={getFileUrl(file.file_url)}
+                                  alt={file.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            ) : (
+                              <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center shrink-0">
+                                {getFileIcon(file.mime_type)}
+                              </div>
+                            )}
+                            <div
+                              className="shrink-0 transition-opacity"
+                              onClick={(e) => toggleSelection(file.id, e)}
+                            >
+                              <div
+                                className={`h-5 w-5 rounded-full border-2 flex items-center justify-center ${selectedFiles.includes(file.id) ? "bg-primary border-primary" : "bg-muted-foreground/20 border-transparent hover:border-primary/50"}`}
+                              >
+                                {selectedFiles.includes(file.id) && (
+                                  <CheckCircle2 className="h-3 w-3 text-primary-foreground" />
+                                )}
+                              </div>
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-medium truncate">
+                                {file.name}
+                              </p>
+                              <p className="text-sm text-muted-foreground truncate">
+                                {formatFileSize(file.file_size)} •{" "}
+                                {formatDate(file.created_at)}
+                              </p>
+                            </div>
+                          </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                }}
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleFileClick(
+                                    file.name,
+                                    file.file_url,
+                                    file.mime_type || "",
+                                    file.id,
+                                  );
+                                }}
+                              >
+                                Open
+                              </DropdownMenuItem>
+                              {isRecycleBin ? (
+                                <>
+                                  <DropdownMenuItem
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      restoreFile.mutate(file.id);
+                                    }}
+                                  >
+                                    <Undo2 className="h-4 w-4 mr-2" />
+                                    Restore
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    className="text-red-600 focus:text-red-600"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setDeleteConfirmation({
+                                        id: file.id,
+                                        name: file.name,
+                                        type: "file",
+                                        permanent: true,
+                                      });
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Delete Permanently
+                                  </DropdownMenuItem>
+                                </>
+                              ) : (
+                                <DropdownMenuItem
+                                  className="text-red-600 focus:text-red-600"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeleteConfirmation({
+                                      id: file.id,
+                                      name: file.name,
+                                      type: "file",
+                                    });
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
         </div>
       ) : (
         // Show folder contents when a folder is selected
@@ -670,8 +1399,8 @@ export default function DrivePage() {
           {/* Folder Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 size="icon"
                 onClick={() => setSelectedFolder(null)}
                 className="h-8 w-8"
@@ -681,26 +1410,35 @@ export default function DrivePage() {
               <div className="flex items-center gap-2">
                 <FolderOpen className="h-5 w-5 text-blue-600" />
                 <h2 className="text-xl font-semibold">
-                  {folders.find(f => f.id === selectedFolder)?.name || 'Folder'}
+                  {folders.find((f) => f.id === selectedFolder)?.name ||
+                    "Folder"}
                 </h2>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => fileInputRef.current?.click()}
-                className="gap-2"
-              >
-                <Upload className="h-4 w-4" />
-                Upload Files
-              </Button>
+              {!isRecycleBin && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="gap-2"
+                >
+                  <Upload className="h-4 w-4" />
+                  Upload Files
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
+                onClick={() =>
+                  setViewMode(viewMode === "grid" ? "list" : "grid")
+                }
               >
-                {viewMode === "grid" ? <List className="h-4 w-4" /> : <Grid3X3 className="h-4 w-4" />}
+                {viewMode === "grid" ? (
+                  <List className="h-4 w-4" />
+                ) : (
+                  <Grid3X3 className="h-4 w-4" />
+                )}
               </Button>
             </div>
           </div>
@@ -710,24 +1448,145 @@ export default function DrivePage() {
             viewMode === "grid" ? (
               <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
                 {sortedFiles.map((file) => (
-                  <Card 
-                    key={file.id} 
-                    className="cursor-pointer hover:shadow-md transition-all group"
-                    onClick={() => handleFileClick(file.name)}
+                  <Card
+                    key={file.id}
+                    className="cursor-pointer hover:shadow-md transition-all group relative"
+                    onClick={() =>
+                      handleFileClick(
+                        file.name,
+                        file.file_url,
+                        file.mime_type || "",
+                        file.id,
+                      )
+                    }
                   >
                     <CardContent className="p-3">
                       <div className="flex flex-col items-center text-center space-y-2">
-                        <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
-                          <FileText className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                        </div>
-                        <div className="w-full">
-                          <p className="font-medium text-sm truncate" title={file.name}>
+                        {file.mime_type?.startsWith("image/") &&
+                        file.file_url ? (
+                          <div className="w-12 h-12 overflow-hidden rounded-lg bg-muted flex items-center justify-center shrink-0">
+                            <img
+                              src={getFileUrl(file.file_url)}
+                              alt={file.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center shrink-0">
+                            {getFileIcon(file.mime_type)}
+                          </div>
+                        )}
+                        <div className="w-full min-w-0">
+                          <p
+                            className="font-medium text-sm truncate"
+                            title={file.name}
+                          >
                             {file.name}
                           </p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-xs text-muted-foreground truncate">
                             {formatFileSize(file.file_size)}
                           </p>
                         </div>
+                      </div>
+
+                      {/* Selection Checkbox Overlay */}
+                      <div
+                        className={`absolute top-2 left-2 z-10 transition-opacity ${selectedFiles.includes(file.id) ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+                        onClick={(e) => toggleSelection(file.id, e)}
+                      >
+                        <div
+                          className={`h-5 w-5 rounded-full border-2 flex items-center justify-center transition-colors ${selectedFiles.includes(file.id) ? "bg-primary border-primary" : "bg-white/50 border-white hover:border-primary/50"}`}
+                        >
+                          {selectedFiles.includes(file.id) && (
+                            <CheckCircle2 className="h-3 w-3 text-primary-foreground" />
+                          )}
+                        </div>
+                      </div>
+
+                      {/* File actions menu */}
+                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 bg-white/80 hover:bg-white dark:bg-slate-800/80 dark:hover:bg-slate-800"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleFileClick(
+                                  file.name,
+                                  file.file_url,
+                                  file.mime_type || "",
+                                  file.id,
+                                );
+                              }}
+                            >
+                              Open
+                            </DropdownMenuItem>
+                            {!isRecycleBin && (
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDownload(file.name, file.file_url);
+                                }}
+                              >
+                                <Download className="h-4 w-4 mr-2" />
+                                Download
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuSeparator />
+                            {isRecycleBin ? (
+                              <>
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    restoreFile.mutate(file.id);
+                                  }}
+                                >
+                                  <Undo2 className="h-4 w-4 mr-2" />
+                                  Restore
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-red-600 focus:text-red-600"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeleteConfirmation({
+                                      id: file.id,
+                                      name: file.name,
+                                      type: "file",
+                                      permanent: true,
+                                    });
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete Permanently
+                                </DropdownMenuItem>
+                              </>
+                            ) : (
+                              <DropdownMenuItem
+                                className="text-red-600 focus:text-red-600"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeleteConfirmation({
+                                    id: file.id,
+                                    name: file.name,
+                                    type: "file",
+                                  });
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </CardContent>
                   </Card>
@@ -738,25 +1597,136 @@ export default function DrivePage() {
                 <CardContent className="p-0">
                   <div className="divide-y">
                     {sortedFiles.map((file) => (
-                      <div 
-                        key={file.id} 
+                      <div
+                        key={file.id}
                         className="flex items-center justify-between p-3 hover:bg-muted/50 transition-colors cursor-pointer"
-                        onClick={() => handleFileClick(file.name)}
+                        onClick={() =>
+                          handleFileClick(
+                            file.name,
+                            file.file_url,
+                            file.mime_type || "",
+                            file.id,
+                          )
+                        }
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
-                            <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        <div className="flex items-center gap-3 overflow-hidden">
+                          {file.mime_type?.startsWith("image/") &&
+                          file.file_url ? (
+                            <div className="w-8 h-8 rounded-lg overflow-hidden bg-muted flex items-center justify-center shrink-0">
+                              <img
+                                src={getFileUrl(file.file_url)}
+                                alt={file.name}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center shrink-0">
+                              {getFileIcon(file.mime_type)}
+                            </div>
+                          )}
+                          <div
+                            className="shrink-0 transition-opacity"
+                            onClick={(e) => toggleSelection(file.id, e)}
+                          >
+                            <div
+                              className={`h-5 w-5 rounded-full border-2 flex items-center justify-center ${selectedFiles.includes(file.id) ? "bg-primary border-primary" : "bg-muted-foreground/20 border-transparent hover:border-primary/50"}`}
+                            >
+                              {selectedFiles.includes(file.id) && (
+                                <CheckCircle2 className="h-3 w-3 text-primary-foreground" />
+                              )}
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-medium">{file.name}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {formatFileSize(file.file_size)} • {formatDate(file.created_at)}
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{file.name}</p>
+                            <p className="text-sm text-muted-foreground truncate">
+                              {formatFileSize(file.file_size)} •{" "}
+                              {formatDate(file.created_at)}
                             </p>
                           </div>
                         </div>
-                        <Button variant="ghost" size="icon">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                              }}
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleFileClick(
+                                  file.name,
+                                  file.file_url,
+                                  file.mime_type || "",
+                                  file.id,
+                                );
+                              }}
+                            >
+                              Open
+                            </DropdownMenuItem>
+                            {!isRecycleBin && (
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDownload(file.name, file.file_url);
+                                }}
+                              >
+                                <Download className="h-4 w-4 mr-2" />
+                                Download
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuSeparator />
+                            {isRecycleBin ? (
+                              <>
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    restoreFile.mutate(file.id);
+                                  }}
+                                >
+                                  <Undo2 className="h-4 w-4 mr-2" />
+                                  Restore
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-red-600 focus:text-red-600"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeleteConfirmation({
+                                      id: file.id,
+                                      name: file.name,
+                                      type: "file",
+                                      permanent: true,
+                                    });
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete Permanently
+                                </DropdownMenuItem>
+                              </>
+                            ) : (
+                              <DropdownMenuItem
+                                className="text-red-600 focus:text-red-600"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeleteConfirmation({
+                                    id: file.id,
+                                    name: file.name,
+                                    type: "file",
+                                  });
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     ))}
                   </div>
@@ -771,17 +1741,25 @@ export default function DrivePage() {
                     <FolderOpen className="h-8 w-8 text-muted-foreground" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold mb-2">This folder is empty</h3>
+                    <h3 className="text-lg font-semibold mb-2">
+                      {isRecycleBin
+                        ? "Recycle Bin is empty"
+                        : "This folder is empty"}
+                    </h3>
                     <p className="text-muted-foreground mb-4">
-                      Upload files to get started organizing your content
+                      {isRecycleBin
+                        ? "Items you delete will appear here for 30 days"
+                        : "Upload files to get started organizing your content"}
                     </p>
-                    <Button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="gap-2"
-                    >
-                      <Upload className="h-4 w-4" />
-                      Upload Your First File
-                    </Button>
+                    {!isRecycleBin && (
+                      <Button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="gap-2"
+                      >
+                        <Upload className="h-4 w-4" />
+                        Upload Your First File
+                      </Button>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -795,7 +1773,10 @@ export default function DrivePage() {
         <div className="flex items-center gap-4">
           {selectedFolder ? (
             <>
-              <span>Viewing folder: {folders.find(f => f.id === selectedFolder)?.name}</span>
+              <span>
+                Viewing folder:{" "}
+                {folders.find((f) => f.id === selectedFolder)?.name}
+              </span>
               <span>{sortedFiles.length} files</span>
             </>
           ) : (
@@ -807,13 +1788,151 @@ export default function DrivePage() {
         </div>
         <div className="flex items-center gap-4">
           <span>
-            {selectedFolder 
-              ? "Upload files to this folder using the upload button" 
-              : "Click on folders to view and upload files"
-            }
+            {selectedFolder
+              ? "Upload files to this folder using the upload button"
+              : ""}
           </span>
         </div>
       </div>
+
+      {/* File Preview Dialog */}
+      {previewFile && (
+        <Dialog
+          open={!!previewFile}
+          onOpenChange={(open) => !open && setPreviewFile(null)}
+        >
+          <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0 overflow-hidden">
+            <DialogHeader className="p-4 border-b flex flex-row items-center justify-between space-y-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
+              <div className="min-w-0 flex-1">
+                <DialogTitle className="truncate pr-4 text-base font-semibold">
+                  {previewFile.name}
+                </DialogTitle>
+                <p className="text-xs text-muted-foreground truncate">
+                  {previewFile.mimeType}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 pr-8">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-2"
+                  onClick={() =>
+                    handleDownload(
+                      previewFile.name,
+                      previewFile.url.replace(
+                        import.meta.env.VITE_API_URL?.replace("/api", "") ||
+                          "http://localhost:3001",
+                        "",
+                      ),
+                    )
+                  }
+                >
+                  <Download className="h-4 w-4" />
+                  Download
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
+                  onClick={() => {
+                    setDeleteConfirmation({
+                      id: previewFile.id,
+                      name: previewFile.name,
+                      type: "file",
+                      permanent: isRecycleBin,
+                    });
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  {isRecycleBin ? "Delete Permanently" : "Delete"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-full"
+                  onClick={() => setPreviewFile(null)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </DialogHeader>
+            <div className="flex-1 overflow-hidden bg-muted/20 flex flex-col">
+              {isTextLoading ? (
+                <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-4">
+                  <Loader2 className="h-10 w-10 animate-spin text-primary/50" />
+                  <p className="text-muted-foreground animate-pulse">
+                    Loading file content...
+                  </p>
+                </div>
+              ) : previewText !== null ? (
+                <div className="flex-1 overflow-auto p-6">
+                  <pre className="bg-card text-card-foreground p-6 rounded-xl border border-border/50 shadow-sm font-mono text-sm leading-relaxed whitespace-pre-wrap break-all overflow-x-auto ring-1 ring-inset ring-white/10">
+                    {previewText}
+                  </pre>
+                </div>
+              ) : previewFile.mimeType.startsWith("image/") ? (
+                <div className="flex-1 overflow-auto flex items-center justify-center p-4">
+                  <img
+                    src={previewFile.url}
+                    alt={previewFile.name}
+                    className="max-w-full max-h-full object-contain shadow-2xl rounded-sm transition-all duration-300"
+                  />
+                </div>
+              ) : previewFile.mimeType === "application/pdf" ? (
+                <iframe
+                  src={previewFile.url}
+                  className="w-full h-full border-none shadow-inner bg-white"
+                  title={previewFile.name}
+                />
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
+                  <div className="relative mb-6">
+                    <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center transform rotate-3 transition-transform hover:rotate-0">
+                      <File className="h-10 w-10 text-primary" />
+                    </div>
+                    <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-background border-4 border-muted/20 rounded-full flex items-center justify-center">
+                      <Settings className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2">
+                    No preview available
+                  </h3>
+                  <p className="text-muted-foreground max-w-xs mb-8">
+                    We can't preview this file type directly, but you can
+                    download it or try opening it in a new tab.
+                  </p>
+                  <div className="flex gap-3">
+                    <Button
+                      variant="default"
+                      onClick={() => window.open(previewFile.url, "_blank")}
+                      className="gap-2"
+                    >
+                      Open in New Tab
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        handleDownload(
+                          previewFile.name,
+                          previewFile.url.replace(
+                            import.meta.env.VITE_API_URL?.replace("/api", "") ||
+                              "http://localhost:3001",
+                            "",
+                          ),
+                        )
+                      }
+                      className="gap-2"
+                    >
+                      <Download className="h-4 w-4" />
+                      Download
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Dialogs */}
       <CreateFolderDialog
@@ -821,18 +1940,21 @@ export default function DrivePage() {
         onOpenChange={setCreateFolderDialogOpen}
         onCreateFolder={handleCreateFolderSubmit}
       />
-      <ConnectCompanyDriveDialog 
-        open={companyDriveDialogOpen} 
-        onOpenChange={setCompanyDriveDialogOpen} 
+      <ConnectCompanyDriveDialog
+        open={companyDriveDialogOpen}
+        onOpenChange={setCompanyDriveDialogOpen}
       />
-      <ConnectPersonalDriveDialog 
-        open={personalDriveDialogOpen} 
+      <ConnectPersonalDriveDialog
+        open={personalDriveDialogOpen}
         onOpenChange={setPersonalDriveDialogOpen}
-        connectedDrives={(allDrives ?? []).filter(d => d.ownership === "personal").map(d => d.drive_type)}
+        connectedDrives={(allDrives ?? [])
+          .filter((d) => d.ownership === "personal")
+          .map((d) => d.drive_type)}
+        onBrowse={handleBrowseDrive}
       />
-      <DriveSettingsDialog 
-        open={settingsDialogOpen} 
-        onOpenChange={setSettingsDialogOpen} 
+      <DriveSettingsDialog
+        open={settingsDialogOpen}
+        onOpenChange={setSettingsDialogOpen}
       />
 
       {/* Hidden file input */}
@@ -844,8 +1966,10 @@ export default function DrivePage() {
         onChange={(e) => {
           const files = e.target.files;
           if (files && files.length > 0 && selectedFolder) {
-            const folderName = folders.find(f => f.id === selectedFolder)?.name || 'Selected folder';
-            Array.from(files).forEach(file => {
+            const folderName =
+              folders.find((f) => f.id === selectedFolder)?.name ||
+              "Selected folder";
+            Array.from(files).forEach((file) => {
               uploadFile.mutate({ file, folderId: selectedFolder });
             });
             toast.success(`Uploading ${files.length} file(s) to ${folderName}`);
@@ -853,9 +1977,46 @@ export default function DrivePage() {
             toast.error("Please select a folder first by clicking on it!");
           }
           // Reset the input value so the same file can be selected again
-          e.target.value = '';
+          e.target.value = "";
         }}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        open={!!deleteConfirmation}
+        onOpenChange={(open) => !open && setDeleteConfirmation(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+              {deleteConfirmation?.permanent
+                ? "Permanently Delete?"
+                : "Move to Trash?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteConfirmation?.permanent
+                ? `Are you sure you want to permanently delete "${deleteConfirmation?.name}"? This action cannot be undone.`
+                : `Are you sure you want to move "${deleteConfirmation?.name}" to the Recycle Bin?`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className={
+                deleteConfirmation?.permanent
+                  ? "bg-red-600 hover:bg-red-700"
+                  : "bg-blue-600 hover:bg-blue-700"
+              }
+            >
+              {deleteConfirmation?.permanent
+                ? "Delete Permanently"
+                : "Move to Trash"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

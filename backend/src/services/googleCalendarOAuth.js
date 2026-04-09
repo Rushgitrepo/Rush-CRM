@@ -10,7 +10,7 @@ class GoogleCalendarOAuthService {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
     // Reverting to the calendar-specific redirect URI since it's registered in the console
-    const redirectUri = process.env.GOOGLE_CALENDER_REDIRECT_URI || 'http://localhost:4000/api/calendar/auth/google/callback';
+    const redirectUri = process.env.GOOGLE_CALENDER_REDIRECT_URI;
 
     if (!clientId || !clientSecret || clientId.includes('your-')) {
       console.warn('⚠️  Google Calendar OAuth credentials not configured properly.');

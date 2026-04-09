@@ -10,7 +10,7 @@ class RealtimeService {
   initialize(server) {
     this.io = new Server(server, {
       cors: {
-        origin: process.env.FRONTEND_URL || 'http://localhost:8080',
+        origin: process.env.FRONTEND_URL,
         credentials: true,
       },
     });
@@ -113,6 +113,11 @@ class RealtimeService {
   // Webhook events
   emitWebhookTriggered(orgId, webhookId, status) {
     this.io.to(`org:${orgId}`).emit('webhook:triggered', { webhookId, status });
+  }
+
+  // Drive events
+  emitDriveUpdate(orgId, data) {
+    this.io.to(`org:${orgId}`).emit('drive:update', data);
   }
 
   // Broadcast to organization
