@@ -134,9 +134,9 @@ export default function AuthPage() {
 
             <div className="space-y-6">
               {[
-                { title: 'Unified Operations', desc: 'Centralized command for your entire enterprise.' },
-                { title: 'Predictive Intelligence', desc: 'Real-time analytics for faster decision making.' },
-                { title: 'Secure Infrastructure', desc: 'Military-grade encryption for all your data.' }
+                { title: 'Integrated Ecosystem', desc: 'Sync your CRM, HRMS, and Inventory in one seamless command center.' },
+                { title: 'Data-Driven Growth', desc: 'Transform raw leads into loyal customers.' },
+                { title: 'Enterprise Security', desc: 'Protect your business with multi-tenant isolation' }
               ].map((item, idx) => (
                 <div key={idx} className="flex gap-4 items-start group">
                   <div className="mt-1 w-5 h-5 rounded-full border border-slate-700 flex items-center justify-center group-hover:border-white transition-colors">
@@ -149,10 +149,6 @@ export default function AuthPage() {
                 </div>
               ))}
             </div>
-          </div>
-
-          <div className="text-slate-500 text-[10px] font-black uppercase tracking-[0.4em]">
-            Rush Resource Management System v2.0
           </div>
         </div>
       </div>
@@ -218,7 +214,6 @@ export default function AuthPage() {
                     id="signin-email"
                     name="email"
                     type="email"
-                    placeholder="name@company.com"
                     required
                     disabled={isLoading}
                     className="h-12 border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-sm rounded-xl focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-white/5 transition-all"
@@ -238,7 +233,6 @@ export default function AuthPage() {
                     id="signin-password"
                     name="password"
                     type="password"
-                    placeholder="••••••••"
                     required
                     disabled={isLoading}
                     className="h-12 border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-sm rounded-xl focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-white/5 transition-all"
@@ -269,7 +263,6 @@ export default function AuthPage() {
                     id="signup-name"
                     name="fullName"
                     type="text"
-                    placeholder="Alex Rush"
                     required
                     disabled={isLoading}
                     className="h-12 border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-sm rounded-xl focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-white/5 transition-all"
@@ -284,7 +277,6 @@ export default function AuthPage() {
                     id="signup-email"
                     name="email"
                     type="email"
-                    placeholder="name@company.com"
                     required
                     disabled={isLoading}
                     className="h-12 border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-sm rounded-xl focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-white/5 transition-all"
@@ -299,7 +291,6 @@ export default function AuthPage() {
                     id="signup-password"
                     name="password"
                     type="password"
-                    placeholder="••••••••"
                     required
                     disabled={isLoading}
                     className="h-12 border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-sm rounded-xl focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-white/5 transition-all"
@@ -314,7 +305,6 @@ export default function AuthPage() {
                     id="signup-confirm"
                     name="confirmPassword"
                     type="password"
-                    placeholder="••••••••"
                     required
                     disabled={isLoading}
                     className="h-12 border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-sm rounded-xl focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-white/5 transition-all"
