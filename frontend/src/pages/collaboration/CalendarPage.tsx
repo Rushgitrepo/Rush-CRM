@@ -286,7 +286,7 @@ export default function CalendarPage() {
               <Button 
                 variant="ghost" 
                 size="icon" 
-                className="rounded-lg bg-white/60 hover:bg-white dark:bg-slate-800/60 dark:hover:bg-slate-800" 
+                className="rounded-lg bg-white/60 hover:bg-primary dark:bg-slate-800/60 dark:hover:bg-slate-800" 
                 onClick={() => setSettingsDialogOpen(true)}
               >
                 <Settings className="h-5 w-5" />
@@ -335,14 +335,14 @@ export default function CalendarPage() {
 
                     {/* Navigation */}
                     <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="icon" onClick={navigatePrev} className="hover:bg-slate-100 dark:hover:bg-slate-800">
+                      <Button variant="ghost" size="icon" onClick={navigatePrev} className="hover:bg-primary dark:hover:bg-slate-800">
                         <ChevronLeft className="h-4 w-4" />
                       </Button>
                       <Button 
                         variant="outline" 
                         size="sm" 
                         onClick={() => setSelectedDate(new Date())}
-                        className={`px-4 rounded-lg border-primary/20 hover:bg-primary/5 transition-all
+                        className={`px-4 rounded-lg border-primary/20 hover:bg-primary transition-all
                           ${format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') 
                             ? 'bg-primary/10 text-primary border-primary/40 font-semibold' 
                             : 'bg-white dark:bg-slate-800'
@@ -352,7 +352,7 @@ export default function CalendarPage() {
                         Today
                       </Button>
 
-                      <Button variant="ghost" size="icon" onClick={navigateNext} className="hover:bg-slate-100 dark:hover:bg-slate-800">
+                      <Button variant="ghost" size="icon" onClick={navigateNext} className="hover:bg-primary dark:hover:bg-slate-800">
                         <ChevronRight className="h-4 w-4" />
                       </Button>
                     </div>

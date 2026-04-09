@@ -4,3 +4,6 @@ node_modules/
 **/.vscode/
 .env
 **/.env
+backend/public/uploads/
+backend/uploads/
+

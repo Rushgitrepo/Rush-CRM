@@ -21,7 +21,7 @@ const create = async (req, res, next) => {
   try {
     const { org_id, ownership, drive_type, display_name, network_path, network_protocol, connected_by } = req.body;
     const { rows } = await db.query(
-      'INSERT INTO connected_drives (org_id, ownership, drive_type, display_name, network_path, network_protocol, connected_by, is_active) VALUES ($1,$2,$3,$4,$5,$6,$7,true) RETURNING *',
+      'INSERT INTO connected_drives (org_id, ownership, drive_type, display_name, network_path, network_protocol, connected_by, is_active) VALUES ($1,$2,$3,$4,$5,$6,$7,false) RETURNING *',
       [org_id || req.user.orgId, ownership, drive_type, display_name, network_path, network_protocol, connected_by || req.user.id]
     );
     res.status(201).json({ data: rows[0] });
@@ -57,7 +57,15 @@ const update = async (req, res, next) => {
 
 const remove = async (req, res, next) => {
   try {
-    await db.query('UPDATE connected_drives SET is_active = false WHERE id = $1', [req.params.id]);
+    await db.query(`
+      UPDATE connected_drives 
+      SET is_active = false, 
+          access_token = NULL, 
+          refresh_token = NULL, 
+          token_expires_at = NULL,
+          status = 'disconnected'
+      WHERE id = $1 AND org_id = $2
+    `, [req.params.id, req.user.orgId]);
     res.json({ success: true });
   } catch (error) {
     next(error);

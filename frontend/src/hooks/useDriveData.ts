@@ -1,48 +1,38 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { driveApi } from '@/lib/api';
+import { useQuery, useMutation, useQueryClient, RefetchOptions } from '@tanstack/react-query';
+import { driveApi } from '../lib/api';
 import { toast } from 'sonner';
-
-export interface DriveFolder {
-  id: string;
-  org_id: string;
-  created_by: string;
-  name: string;
-  parent_folder_id: string | null;
-  color: string;
-  path: string;
-  created_at: string;
-  updated_at: string;
-  created_by_name: string;
-  file_count: number;
-  total_size: number;
-}
 
 export interface DriveFile {
   id: string;
-  org_id: string;
-  created_by: string;
-  folder_id: string | null;
   name: string;
-  original_name: string;
   file_type: string;
   file_size: number;
-  mime_type: string;
-  file_path: string;
-  file_url: string | null;
-  is_deleted: boolean;
-  deleted_at: string | null;
+  file_url: string;
+  folder_id: string | null;
   created_at: string;
   updated_at: string;
-  created_by_name: string;
-  folder_name: string | null;
+  is_deleted: boolean;
+  deleted_at: string | null;
+  mime_type?: string;
+}
+
+export interface DriveFolder {
+  id: string;
+  name: string;
+  org_id: string;
+  parent_folder_id: string | null;
+  created_by: string;
+  color: string;
+  created_at: string;
+  updated_at: string;
+  is_deleted: boolean;
+  deleted_at: string | null;
+  file_count?: number;
+  total_size?: number;
 }
 
 export interface DriveActivity {
   id: string;
-  org_id: string;
-  user_id: string;
-  file_id: string | null;
-  folder_id: string | null;
   activity_type: string;
   activity_data: any;
   created_at: string;
@@ -52,12 +42,12 @@ export interface DriveActivity {
 }
 
 // Hook for folders
-export function useDriveFolders(parentId?: string) {
+export function useDriveFolders(parentId?: string, trash?: boolean) {
   const queryClient = useQueryClient();
 
   const foldersQuery = useQuery({
-    queryKey: ['drive-folders', parentId],
-    queryFn: () => driveApi.getFolders(parentId),
+    queryKey: ['drive-folders', parentId, trash],
+    queryFn: () => driveApi.getFolders(parentId, trash),
   });
 
   const createFolder = useMutation({
@@ -76,10 +66,34 @@ export function useDriveFolders(parentId?: string) {
     mutationFn: (id: string) => driveApi.deleteFolder(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['drive-folders'] });
-      toast.success('Folder deleted successfully');
+      queryClient.invalidateQueries({ queryKey: ['drive-files'] });
+      toast.success('Folder and contents moved to trash');
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.error || 'Failed to delete folder');
+    },
+  });
+
+  const permanentDeleteFolder = useMutation({
+    mutationFn: (id: string) => driveApi.permanentDeleteFolder(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['drive-folders'] });
+      toast.success('Folder permanently deleted');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to permanently delete folder');
+    },
+  });
+
+  const restoreFolder = useMutation({
+    mutationFn: (id: string) => driveApi.restoreFolder(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['drive-folders'] });
+      queryClient.invalidateQueries({ queryKey: ['drive-files'] });
+      toast.success('Folder and its contents restored');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to restore folder');
     },
   });
 
@@ -89,17 +103,19 @@ export function useDriveFolders(parentId?: string) {
     error: foldersQuery.error,
     createFolder,
     deleteFolder,
+    restoreFolder,
+    permanentDeleteFolder,
     refetch: foldersQuery.refetch,
   };
 }
 
 // Hook for files
-export function useDriveFiles(folderId?: string, recent?: boolean) {
+export function useDriveFiles(folderId?: string, recent?: boolean, trash?: boolean) {
   const queryClient = useQueryClient();
 
   const filesQuery = useQuery({
-    queryKey: ['drive-files', folderId, recent],
-    queryFn: () => driveApi.getFiles(folderId, recent),
+    queryKey: ['drive-files', folderId, recent, trash],
+    queryFn: () => driveApi.getFiles(folderId, recent, trash),
   });
 
   const uploadFile = useMutation({
@@ -110,7 +126,7 @@ export function useDriveFiles(folderId?: string, recent?: boolean) {
     onSuccess: (data) => {
       console.log('Upload successful:', data);
       queryClient.invalidateQueries({ queryKey: ['drive-files'] });
-      queryClient.invalidateQueries({ queryKey: ['drive-folders'] }); // Update folder file counts
+      queryClient.invalidateQueries({ queryKey: ['drive-folders'] });
       toast.success('File uploaded successfully');
     },
     onError: (error: any) => {
@@ -123,11 +139,71 @@ export function useDriveFiles(folderId?: string, recent?: boolean) {
     mutationFn: (id: string) => driveApi.deleteFile(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['drive-files'] });
-      queryClient.invalidateQueries({ queryKey: ['drive-folders'] }); // Update folder file counts
+      queryClient.invalidateQueries({ queryKey: ['drive-folders'] });
       toast.success('File moved to trash');
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.error || 'Failed to delete file');
+    },
+  });
+
+  const restoreFile = useMutation({
+    mutationFn: (id: string) => driveApi.restoreFile(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['drive-files'] });
+      queryClient.invalidateQueries({ queryKey: ['drive-folders'] });
+      toast.success('File restored successfully');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to restore file');
+    },
+  });
+
+  const permanentDeleteFile = useMutation({
+    mutationFn: (id: string) => driveApi.permanentDeleteFile(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['drive-files'] });
+      queryClient.invalidateQueries({ queryKey: ['drive-folders'] });
+      toast.success('File permanently deleted');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to permanently delete file');
+    },
+  });
+
+  const bulkRestoreItems = useMutation({
+    mutationFn: (ids: string[]) => driveApi.bulkRestore(ids),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['drive-files'] });
+      queryClient.invalidateQueries({ queryKey: ['drive-folders'] });
+      toast.success('Selected items restored');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to restore items');
+    },
+  });
+
+  const bulkMoveToTrashItems = useMutation({
+    mutationFn: (ids: string[]) => driveApi.bulkMoveToTrash(ids),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['drive-files'] });
+      queryClient.invalidateQueries({ queryKey: ['drive-folders'] });
+      toast.success('Selected items moved to trash');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to move items to trash');
+    },
+  });
+
+  const bulkPermanentDeleteItems = useMutation({
+    mutationFn: (ids: string[]) => driveApi.bulkPermanentDelete(ids),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['drive-files'] });
+      queryClient.invalidateQueries({ queryKey: ['drive-folders'] });
+      toast.success('Selected items permanently deleted');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to delete items');
     },
   });
 
@@ -137,6 +213,11 @@ export function useDriveFiles(folderId?: string, recent?: boolean) {
     error: filesQuery.error,
     uploadFile,
     deleteFile,
+    restoreFile,
+    permanentDeleteFile,
+    bulkRestoreItems,
+    bulkMoveToTrashItems,
+    bulkPermanentDeleteItems,
     refetch: filesQuery.refetch,
   };
 }
@@ -158,41 +239,37 @@ export function useDriveSearch(query: string) {
   });
 }
 
-// Utility functions
-export function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 Bytes';
-  
+// Helper functions
+export function formatFileSize(bytes: number | string | undefined): string {
+  if (bytes === undefined || bytes === null || bytes === 'NaN' || isNaN(Number(bytes))) return '0 B';
+  const numBytes = Number(bytes);
+  if (numBytes === 0) return '0 B';
   const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(numBytes) / Math.log(k));
+  return parseFloat((numBytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
 export function formatDate(dateString: string): string {
   const date = new Date(dateString);
-  const now = new Date();
-  const diffInMs = now.getTime() - date.getTime();
-  const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
-  
-  if (diffInDays === 0) {
-    return 'Today';
-  } else if (diffInDays === 1) {
-    return 'Yesterday';
-  } else if (diffInDays < 7) {
-    return `${diffInDays} days ago`;
-  } else {
-    return date.toLocaleDateString();
-  }
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
 }
 
 export function getFileTypeFromMime(mimeType: string): string {
+  if (!mimeType) return 'file';
   if (mimeType.startsWith('image/')) return 'image';
-  if (mimeType === 'application/pdf') return 'pdf';
-  if (mimeType.includes('document') || mimeType.includes('word')) return 'document';
-  if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) return 'presentation';
-  if (mimeType.includes('spreadsheet') || mimeType.includes('excel')) return 'spreadsheet';
   if (mimeType.startsWith('video/')) return 'video';
-  if (mimeType.startsWith('text/')) return 'text';
+  if (mimeType.startsWith('audio/')) return 'audio';
+  if (mimeType === 'application/pdf') return 'pdf';
+  if (mimeType.includes('msword') || mimeType.includes('officedocument.wordprocessingml')) return 'docx';
+  if (mimeType.includes('ms-excel') || mimeType.includes('officedocument.spreadsheetml')) return 'xlsx';
+  if (mimeType.includes('ms-powerpoint') || mimeType.includes('officedocument.presentationml')) return 'pptx';
+  if (mimeType.includes('zip') || mimeType.includes('rar')) return 'archive';
   return 'file';
 }

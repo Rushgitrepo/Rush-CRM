@@ -9,7 +9,7 @@ const sync = async (req, res, next) => {
     const { action, mailbox_id, full_sync } = req.body;
     if (action === 'health') return res.json({ status: 'ok' });
     if (action === 'refresh_token') return res.json({ success: true });
-    
+
     if (action === 'sync' || !action) {
       if (!mailbox_id) {
         return res.status(400).json({ error: 'mailbox_id is required' });
@@ -17,7 +17,7 @@ const sync = async (req, res, next) => {
 
       const { rows } = await db.query('SELECT provider FROM connected_mailboxes WHERE id = $1', [mailbox_id]);
       if (rows.length === 0) return res.status(404).json({ error: 'Mailbox not found' });
-      
+
       const provider = rows[0].provider;
       let syncedCount = 0;
 
@@ -29,7 +29,7 @@ const sync = async (req, res, next) => {
       } else {
         syncedCount = await imapSyncService.syncMailbox(mailbox_id, req.user.id, full_sync === true);
       }
-      
+
       return res.json({ success: true, messages_synced: syncedCount });
     }
 
@@ -103,9 +103,19 @@ const createMailbox = async (req, res, next) => {
 
 const deleteMailbox = async (req, res, next) => {
   try {
-    await db.query('UPDATE connected_mailboxes SET is_active = false WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+    await db.query(`
+      UPDATE connected_mailboxes 
+      SET is_active = false,
+          access_token = NULL,
+          refresh_token = NULL,
+          token_expires_at = NULL,
+          sync_status = 'disconnected',
+          updated_at = now()
+      WHERE id = $1 AND (user_id = $2 OR org_id = $3)
+    `, [req.params.id, req.user.id, req.user.orgId]);
+    
     imapIdleService.stopWatch(req.params.id);
-    res.json({ success: true });
+    res.json({ success: true, message: 'Mailbox disconnected and tokens cleared' });
   } catch (err) {
     next(err);
   }
@@ -157,7 +167,7 @@ const updateMessage = async (req, res, next) => {
 const bulkUpdateMessages = async (req, res, next) => {
   try {
     const { ids, update } = req.body;
-    
+
     // If update contains folder or delete action, sync with provider
     if (update.folder || update.deleted) {
       // Get mailbox details for these messages
@@ -176,7 +186,7 @@ const bulkUpdateMessages = async (req, res, next) => {
       for (const [mailboxId, group] of Object.entries(mailboxGroups)) {
         // Filter out local draft IDs (they start with 'draft-') as they don't exist on the provider
         const providerIds = group.ids.filter(id => !id.startsWith('draft-'));
-        
+
         if (providerIds.length > 0) {
           if (group.provider === 'gmail') {
             if (update.folder === 'trash') {
@@ -206,7 +216,7 @@ const bulkUpdateMessages = async (req, res, next) => {
       const values = Object.values(updateDb);
       await db.query(`UPDATE emails SET ${fields} WHERE id = ANY($${values.length + 1}) AND user_id = $${values.length + 2}`, [...values, ids, req.user.id]);
     }
-    
+
     res.json({ success: true });
   } catch (err) {
     next(err);
@@ -317,7 +327,7 @@ async function processGmailCallback(req) {
   console.log(`✅ Gmail mailbox connected successfully: ${userInfo.email}`);
 
   const mailbox = result.rows[0];
-  
+
   // Trigger initial sync in background
   try {
     const gmailSyncService = require('../../services/gmailSyncService');
@@ -378,7 +388,7 @@ async function processMicrosoftCallback(req) {
 const oauthCallback = async (req, res, next) => {
   try {
     const { code, state, provider = 'gmail' } = req.body;
-    
+
     if (provider === 'gmail') {
       const { mailbox, userInfo } = await processGmailCallback({ ...req, code, state });
       res.json({ success: true, mailbox, userInfo });
@@ -395,13 +405,13 @@ const oauthCallbackGet = async (req, res, next) => {
   try {
     const { code, state } = req.query;
     let provider = 'gmail';
-    
+
     // Determine provider from state if possible
     if (state) {
       try {
         const parsed = JSON.parse(state);
         provider = parsed.provider || 'gmail';
-      } catch (e) {}
+      } catch (e) { }
     }
 
     let result;
@@ -410,7 +420,7 @@ const oauthCallbackGet = async (req, res, next) => {
     } else {
       result = await processGmailCallback({ ...req, code, state });
     }
-    
+
     res.redirect(process.env.APP_URL + '/collaboration/mail?connected=' + provider + '&email=' + encodeURIComponent(result.userInfo.email));
   } catch (err) {
     res.redirect(process.env.APP_URL + '/collaboration/mail?error=' + encodeURIComponent(err.message));
@@ -469,7 +479,7 @@ const saveDraft = async (req, res, next) => {
          ) VALUES ($1,$2,$3,$4,$5,'',$6,$7,$8,$9,$10, now(),'drafts',true,false)
          RETURNING id`,
         [org_id, req.user.id, mailbox_id, messageId, messageId,
-         to || '', subject || '', body || '', body || '', (body || '').substring(0, 150)]
+          to || '', subject || '', body || '', body || '', (body || '').substring(0, 150)]
       );
       localId = rows[0].id;
     }
@@ -506,7 +516,7 @@ const sendEmail = async (req, res, next) => {
       html_body: req.body.html_body,
       attachments: req.body.attachments || []
     });
-    
+
     res.json(result);
   } catch (err) {
     console.error('Send email error:', err);
