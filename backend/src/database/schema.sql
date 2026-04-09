@@ -8977,6 +8977,12 @@ INSERT INTO recruitment_sources (source_name, source_type, source_url) VALUES
 ('University Campus', 'direct', NULL),
 ('Recruitment Agency', 'agency', NULL);
 
+
+ALTER TABLE unibox_emails 
+      ADD COLUMN IF NOT EXISTS message_id VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS in_reply_to VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS interaction_notes TEXT;
+
 -- =====================================================
 -- END OF ADVANCED RECRUITMENT FEATURES
 -- =====================================================
