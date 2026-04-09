@@ -225,7 +225,7 @@ export function TopBar() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="gap-2 pl-2">
-              <Avatar className="h-8 w-8">
+              <Avatar className="h-8 w-8 hover:cursor-pointer hover:bg-primary/80 hover:text-black">
                 <AvatarImage src={profile?.avatar_url || undefined} />
                 <AvatarFallback>{getInitials(profile?.full_name || 'User')}</AvatarFallback>
               </Avatar>
