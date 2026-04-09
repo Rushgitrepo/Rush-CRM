@@ -108,9 +108,22 @@ CREATE TABLE IF NOT EXISTS candidates (
     cv_url TEXT,
     cv_filename VARCHAR(255),
     
+    -- Public Form Access (for digital form filling)
+    form_token VARCHAR(255),
+    form_token_expires_at TIMESTAMP,
+    father_name VARCHAR(255),
+    father_occupation VARCHAR(255),
+    mobile_no VARCHAR(50),
+    blood_group VARCHAR(10),
+    number_of_children INTEGER DEFAULT 0,
+    residence_type VARCHAR(50),
+    academic_records JSONB,
+    work_experience JSONB,
+    joining_availability VARCHAR(255),
+    
     -- Status & Tracking
-    status VARCHAR(50) DEFAULT 'cv_received', -- cv_received, shortlisted, interview_scheduled, interviewed, final_round, selected, rejected
-    source VARCHAR(100), -- job_board, referral, direct, etc.
+    status VARCHAR(50) DEFAULT 'cv_received', -- cv_received, screened_passed, screened_failed, shortlisted, interview_scheduled, interviewed, form_completed, final_round, selected, rejected
+    source VARCHAR(100), -- job_board, referral, direct, cv_upload, etc.
     skills TEXT[], -- Array of skills
     
     -- Metadata
@@ -118,6 +131,9 @@ CREATE TABLE IF NOT EXISTS candidates (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     organization_id UUID REFERENCES organizations(id)
 );
+
+-- Create index on form_token for faster lookups
+CREATE INDEX IF NOT EXISTS idx_candidates_form_token ON candidates(form_token);
 
 -- 5. Application Forms Table
 CREATE TABLE IF NOT EXISTS candidate_application_forms (
