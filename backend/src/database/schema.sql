@@ -1,4 +1,4 @@
-﻿--
+--
 -- PostgreSQL database dump
 --
 
@@ -7775,7 +7775,7 @@ ALTER TABLE ONLY public.workgroups
 -- Migration: project_templates
 -- 
 
-CREATE TABLE IF NOT EXISTS IF NOT EXISTS project_templates (
+CREATE TABLE IF NOT EXISTS project_templates (
     id UUID PRIMARY KEY DEFAULT public.uuid_generate_v4(),
     organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
     org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -8317,7 +8317,7 @@ COMMENT ON TABLE car_activity_log IS 'Activity tracking for audit trail';
 -- Migration: 20260409_create_recruitment_tables.sql
 
 -- 1. Job Requisitions Table
-CREATE TABLE IF NOT EXISTS IF NOT EXISTS job_requisitions (
+CREATE TABLE IF NOT EXISTS job_requisitions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     requisition_id VARCHAR(50) UNIQUE NOT NULL,
     position VARCHAR(255) NOT NULL,
@@ -8338,7 +8338,7 @@ CREATE TABLE IF NOT EXISTS IF NOT EXISTS job_requisitions (
 );
 
 -- 2. Requisition Approval Workflow Table
-CREATE TABLE IF NOT EXISTS IF NOT EXISTS requisition_approvals (
+CREATE TABLE IF NOT EXISTS requisition_approvals (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     requisition_id UUID REFERENCES job_requisitions(id) ON DELETE CASCADE,
     step_number INTEGER NOT NULL,
@@ -8355,7 +8355,7 @@ CREATE TABLE IF NOT EXISTS IF NOT EXISTS requisition_approvals (
 );
 
 -- 3. Job Advertisements Table
-CREATE TABLE IF NOT EXISTS IF NOT EXISTS job_advertisements (
+CREATE TABLE IF NOT EXISTS job_advertisements (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     requisition_id UUID REFERENCES job_requisitions(id) ON DELETE CASCADE,
     title VARCHAR(255) NOT NULL,
@@ -8371,7 +8371,7 @@ CREATE TABLE IF NOT EXISTS IF NOT EXISTS job_advertisements (
 );
 
 -- 4. Candidates Table
-CREATE TABLE IF NOT EXISTS IF NOT EXISTS candidates (
+CREATE TABLE IF NOT EXISTS candidates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     requisition_id UUID REFERENCES job_requisitions(id),
     full_name VARCHAR(255) NOT NULL,
@@ -8451,7 +8451,7 @@ CREATE TABLE IF NOT EXISTS IF NOT EXISTS candidates (
 CREATE INDEX IF NOT EXISTS idx_candidates_form_token ON candidates(form_token);
 
 -- 5. Application Forms Table
-CREATE TABLE IF NOT EXISTS IF NOT EXISTS candidate_application_forms (
+CREATE TABLE IF NOT EXISTS candidate_application_forms (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     candidate_id UUID REFERENCES candidates(id) ON DELETE CASCADE,
     requisition_id UUID REFERENCES job_requisitions(id),
@@ -8464,7 +8464,7 @@ CREATE TABLE IF NOT EXISTS IF NOT EXISTS candidate_application_forms (
 );
 
 -- 6. Interviews Table
-CREATE TABLE IF NOT EXISTS IF NOT EXISTS candidate_interviews (
+CREATE TABLE IF NOT EXISTS candidate_interviews (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     candidate_id UUID REFERENCES candidates(id) ON DELETE CASCADE,
     requisition_id UUID REFERENCES job_requisitions(id),
@@ -8490,7 +8490,7 @@ CREATE TABLE IF NOT EXISTS IF NOT EXISTS candidate_interviews (
 );
 
 -- 7. Interview Feedback Table (for collaborative hiring)
-CREATE TABLE IF NOT EXISTS IF NOT EXISTS interview_feedback (
+CREATE TABLE IF NOT EXISTS interview_feedback (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     interview_id UUID REFERENCES candidate_interviews(id) ON DELETE CASCADE,
     candidate_id UUID REFERENCES candidates(id),
@@ -8504,7 +8504,7 @@ CREATE TABLE IF NOT EXISTS IF NOT EXISTS interview_feedback (
 );
 
 -- 8. Candidate Timeline/Activity Log
-CREATE TABLE IF NOT EXISTS IF NOT EXISTS candidate_timeline (
+CREATE TABLE IF NOT EXISTS candidate_timeline (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     candidate_id UUID REFERENCES candidates(id) ON DELETE CASCADE,
     activity_type VARCHAR(100) NOT NULL, -- application_received, shortlisted, interview_scheduled, interviewed, selected, rejected
