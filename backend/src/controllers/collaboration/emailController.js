@@ -220,7 +220,15 @@ const disconnectMailbox = async (req, res, next) => {
     const { id } = req.params;
 
     const result = await db.query(
-      'UPDATE connected_mailboxes SET is_active = false WHERE id = $1 AND user_id = $2 AND org_id = $3 RETURNING *',
+      `UPDATE connected_mailboxes 
+       SET is_active = false,
+           access_token = NULL,
+           refresh_token = NULL,
+           token_expires_at = NULL,
+           sync_status = 'disconnected',
+           updated_at = now()
+       WHERE id = $1 AND user_id = $2 AND org_id = $3 
+       RETURNING *`,
       [id, req.user.id, req.user.orgId]
     );
 
@@ -228,7 +236,7 @@ const disconnectMailbox = async (req, res, next) => {
       return res.status(404).json({ error: 'Mailbox not found' });
     }
 
-    res.json({ message: 'Mailbox disconnected' });
+    res.json({ success: true, message: 'Mailbox disconnected and tokens cleared' });
   } catch (err) {
     next(err);
   }

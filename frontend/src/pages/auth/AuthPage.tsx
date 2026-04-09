@@ -41,9 +41,9 @@ export default function AuthPage() {
     try {
       emailSchema.parse(email);
       passwordSchema.parse(password);
-      
+
       const { error: authError } = await signIn(email, password);
-      
+
       if (authError) {
         setError(authError.message);
       } else {
@@ -112,14 +112,14 @@ export default function AuthPage() {
       {/* Left Pane: Brand & Visual */}
       <div className="hidden lg:flex relative overflow-hidden bg-slate-900 border-r border-slate-800">
         <div className="absolute inset-0 z-0">
-          <img 
-            src="https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=2000" 
-            alt="Office background" 
+          <img
+            src="https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=2000"
+            alt="Office background"
             className="w-full h-full object-cover opacity-30 scale-105"
           />
           <div className="absolute inset-0 bg-gradient-to-tr from-slate-950 via-slate-900/40 to-transparent" />
         </div>
-        
+
         <div className="relative z-10 p-16 flex flex-col justify-between w-full h-full">
           <div>
             <div className="flex items-center gap-3 mb-12">
@@ -128,12 +128,12 @@ export default function AuthPage() {
               </div>
               <span className="text-2xl font-bold tracking-tighter text-white uppercase">Rush Management System</span>
             </div>
-            
+
             <h2 className="text-6xl font-extralight text-white leading-[1.1] mb-8 tracking-tighter">
               Next-Gen <br />
               <span className="text-slate-400">Resource Protocols.</span>
             </h2>
-            
+
             <div className="space-y-6">
               {[
                 { title: 'Unified Operations', desc: 'Centralized command for your entire enterprise.' },
@@ -152,7 +152,7 @@ export default function AuthPage() {
               ))}
             </div>
           </div>
-          
+
           <div className="text-slate-500 text-[10px] font-black uppercase tracking-[0.4em]">
             Rush Resource Management System v2.0
           </div>
@@ -163,7 +163,7 @@ export default function AuthPage() {
       <div className="flex flex-col justify-center items-center p-8 lg:p-24 bg-white dark:bg-slate-950">
         <div className="w-full max-w-[400px]">
           <div className="mb-10 lg:hidden text-center">
-             <div className="flex items-center justify-center gap-2 mb-4">
+            <div className="flex items-center justify-center gap-2 mb-4">
               <div className="w-8 h-8 bg-slate-900 dark:bg-white flex items-center justify-center rounded-lg">
                 <LayoutGrid className="w-4 h-4 text-white dark:text-slate-900" />
               </div>
@@ -176,7 +176,7 @@ export default function AuthPage() {
               {activeTab === 'signin' ? 'RMS Login' : 'Create Account'}
             </h3>
             <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-             Sign in to your account or create a new one
+              Sign in to your account or create a new one
             </p>
           </div>
 
@@ -196,14 +196,14 @@ export default function AuthPage() {
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="flex w-full bg-transparent border-b border-slate-100 dark:border-slate-800 rounded-none h-auto p-0 mb-8 overflow-hidden">
-              <TabsTrigger 
-                value="signin" 
+              <TabsTrigger
+                value="signin"
                 className="flex-1 font-bold uppercase tracking-[0.2em] text-[10px] py-4 data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-slate-900 dark:data-[state=active]:border-white data-[state=active]:text-slate-900 dark:data-[state=active]:text-white rounded-none transition-all opacity-40 data-[state=active]:opacity-100"
               >
                 Sign In
               </TabsTrigger>
-              <TabsTrigger 
-                value="signup" 
+              <TabsTrigger
+                value="signup"
                 className="flex-1 font-bold uppercase tracking-[0.2em] text-[10px] py-4 data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-slate-900 dark:data-[state=active]:border-white data-[state=active]:text-slate-900 dark:data-[state=active]:text-white rounded-none transition-all opacity-40 data-[state=active]:opacity-100"
               >
                 Sign Up

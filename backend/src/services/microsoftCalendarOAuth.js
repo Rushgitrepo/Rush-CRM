@@ -14,7 +14,7 @@ class MicrosoftCalendarOAuthService {
   initializeOAuth() {
     this.clientId = process.env.MICROSOFT_CLIENT_ID;
     this.clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
-    this.redirectUri = process.env.MICROSOFT_CALENDAR_REDIRECT_URI || 'http://localhost:4000/api/calendar/auth/microsoft/callback';
+    this.redirectUri = process.env.MICROSOFT_CALENDAR_REDIRECT_URI;
 
     if (!this.clientId || !this.clientSecret || this.clientId.includes('your-')) {
       console.warn('⚠️  Microsoft Calendar OAuth credentials not configured properly.');

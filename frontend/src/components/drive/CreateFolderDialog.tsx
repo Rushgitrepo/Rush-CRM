@@ -26,10 +26,12 @@ interface CreateFolderDialogProps {
 }
 
 const folderColors = [
-  { value: "folder-blue", label: "Blue", color: "hsl(210 100% 50%)" },
-  { value: "folder-sky", label: "Sky", color: "hsl(var(--primary))" },
+  { value: "folder-blue", label: "Blue", color: "hsl(var(--primary))" },
+  { value: "folder-orange", label: "Orange", color: "hsla(24, 100%, 50%, 1.00)" },
+  { value: "folder-rose", label: "Rose", color: "hsl(350 89% 60%)" },
   { value: "folder-violet", label: "Violet", color: "hsl(270 100% 60%)" },
   { value: "folder-amber", label: "Amber", color: "hsl(40 100% 50%)" },
+  { value: "folder-green", label: "Green", color: "hsl(120 100% 50%)" }
 ];
 
 export function CreateFolderDialog({ open, onOpenChange, onCreateFolder }: CreateFolderDialogProps) {
@@ -54,7 +56,7 @@ export function CreateFolderDialog({ open, onOpenChange, onCreateFolder }: Creat
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="max-w-md h-[90vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FolderOpen className="h-5 w-5 text-blue-600" />
@@ -105,7 +107,7 @@ export function CreateFolderDialog({ open, onOpenChange, onCreateFolder }: Creat
                   className="p-2 rounded-lg"
                   style={{ backgroundColor: folderColors.find(c => c.value === selectedColor)?.color }}
                 >
-                  <FolderOpen className="h-5 w-5 text-primary-foreground" />
+                  <FolderOpen className="h-5 w-5 text-primary" />
                 </div>
                 <div>
                   <p className="font-medium">{folderName || "New Folder"}</p>

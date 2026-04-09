@@ -9,11 +9,18 @@ const ensureUploadDir = (dir) => {
   }
 };
 
-// Generic storage configuration
-const createStorage = (uploadPath) => {
+// Storage configuration (Dynamically sorts into images or documents folders)
+const createStorage = () => {
   return multer.diskStorage({
     destination: (req, file, cb) => {
-      const uploadDir = path.join(__dirname, `../../uploads/${uploadPath}`);
+      let folderName = 'documents'; // default folder
+
+      // Automatically route to 'images' folder if it's an image
+      if (file.mimetype.startsWith('image/')) {
+        folderName = 'images';
+      }
+
+      const uploadDir = path.join(__dirname, `../../public/uploads/${folderName}`);
       ensureUploadDir(uploadDir);
       cb(null, uploadDir);
     },
@@ -24,24 +31,32 @@ const createStorage = (uploadPath) => {
   });
 };
 
-// File filter for documents (PDF, DOC, DOCX, images)
+
+// ==========================================
+// FILE FILTERS
+// ==========================================
+
+// File filter for documents (PDF, DOC, DOCX, images, Excel, Zip, etc)
 const documentFilter = (req, file, cb) => {
-  const allowedTypes = /jpeg|jpg|png|pdf|doc|docx/;
-  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-  const mimetype = allowedTypes.test(file.mimetype);
+  const allowedExtensions = /jpeg|jpg|png|pdf|doc|docx|xls|xlsx|csv|zip|rar|txt/;
+  const extname = allowedExtensions.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = allowedExtensions.test(file.mimetype) || 
+                   file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+                   file.mimetype === 'application/vnd.ms-excel' ||
+                   file.mimetype === 'text/csv' ||
+                   file.mimetype.includes('image/');
   
-  if (extname && mimetype) {
+  if (extname || mimetype) {
     cb(null, true);
   } else {
-    cb(new Error('Only documents and images are allowed (JPEG, PNG, PDF, DOC, DOCX)'));
+    cb(new Error('File type not supported. Allowed: JPEG, PNG, PDF, DOC, DOCX, Excel, CSV, Zip, TXT'));
   }
 };
 
-// File filter for spreadsheets (CSV, XLSX, XLS)
+// File filter for spreadsheets only
 const spreadsheetFilter = (req, file, cb) => {
   const allowedTypes = ['.csv', '.xlsx', '.xls'];
   const ext = path.extname(file.originalname).toLowerCase();
-  
   if (allowedTypes.includes(ext)) {
     cb(null, true);
   } else {
@@ -54,7 +69,6 @@ const imageFilter = (req, file, cb) => {
   const allowedTypes = /jpeg|jpg|png|gif|webp/;
   const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
   const mimetype = allowedTypes.test(file.mimetype);
-  
   if (extname && mimetype) {
     cb(null, true);
   } else {
@@ -67,63 +81,35 @@ const allFilesFilter = (req, file, cb) => {
   cb(null, true);
 };
 
-// Multer configurations for different use cases
+// ==========================================
+// MULTER CONFIGURATIONS
+// ==========================================
+
 const multerConfig = {
-  // Employee documents (10MB limit)
-  employees: multer({
-    storage: createStorage('employees'),
-    limits: { fileSize: 10 * 1024 * 1024 },
-    fileFilter: documentFilter,
-  }),
-  
-  // Lead imports (10MB limit)
-  imports: multer({
-    storage: createStorage('imports'),
-    limits: { fileSize: 10 * 1024 * 1024 },
-    fileFilter: spreadsheetFilter,
-  }),
-  
-  // Workgroup files (50MB limit)
-  workgroups: multer({
-    storage: createStorage('workgroups'),
-    limits: { fileSize: 50 * 1024 * 1024 },
-    fileFilter: allFilesFilter,
-  }),
-  
-  // Drive files (100MB limit)
-  drive: multer({
-    storage: createStorage('drive'),
-    limits: { fileSize: 100 * 1024 * 1024 },
-    fileFilter: allFilesFilter,
-  }),
-  
-  // Profile pictures (5MB limit)
-  profiles: multer({
-    storage: createStorage('profiles'),
-    limits: { fileSize: 5 * 1024 * 1024 },
-    fileFilter: imageFilter,
-  }),
-  
-  // Generic documents (20MB limit)
-  documents: multer({
-    storage: createStorage('documents'),
-    limits: { fileSize: 20 * 1024 * 1024 },
-    fileFilter: documentFilter,
-  }),
-  
-  // Car images (10MB limit)
-  carImages: multer({
-    storage: createStorage('cars'),
-    limits: { fileSize: 10 * 1024 * 1024 },
-    fileFilter: imageFilter,
-  }),
-  
-  // CV uploads (10MB limit) - Memory storage for parsing
-  cvs: multer({
-    storage: multer.memoryStorage(), // Store in memory for parsing
-    limits: { fileSize: 10 * 1024 * 1024 },
-    fileFilter: documentFilter,
-  }),
+  // Global dynamic uploader helper
+  upload: (folder = 'ignored', sizeLimit = 20, type = 'all') => {
+    let filter = allFilesFilter;
+    if (type === 'image') filter = imageFilter;
+    if (type === 'document') filter = documentFilter;
+    if (type === 'spreadsheet') filter = spreadsheetFilter;
+
+    return multer({
+      storage: createStorage(),
+      limits: { fileSize: sizeLimit * 1024 * 1024 },
+      fileFilter: filter,
+    });
+  },
+
+  // Specific predefined configs
+  employees: multer({ storage: createStorage(), limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: documentFilter }),
+  imports: multer({ storage: createStorage(), limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: spreadsheetFilter }),
+  workgroups: multer({ storage: createStorage(), limits: { fileSize: 50 * 1024 * 1024 }, fileFilter: allFilesFilter }),
+  drive: multer({ storage: createStorage(), limits: { fileSize: 100 * 1024 * 1024 }, fileFilter: allFilesFilter }),
+  profiles: multer({ storage: createStorage(), limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: imageFilter }),
+  documents: multer({ storage: createStorage(), limits: { fileSize: 20 * 1024 * 1024 }, fileFilter: documentFilter }),
+  carImages: multer({ storage: createStorage(), limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: imageFilter }),
+  cvs: multer({ storage: createStorage(), limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: documentFilter }),
 };
+
 
 module.exports = multerConfig;
