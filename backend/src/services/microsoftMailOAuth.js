@@ -3,7 +3,7 @@ class MicrosoftMailOAuthService {
   constructor() {
     this.clientId = process.env.MICROSOFT_CLIENT_ID;
     this.clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
-    this.redirectUri = process.env.MICROSOFT_MAIL_REDIRECT_URI || 'http://localhost:4000/api/email/oauth-callback';
+    this.redirectUri = process.env.MICROSOFT_MAIL_REDIRECT_URI;
   }
 
   getAuthUrl(state = null) {

@@ -7,8 +7,8 @@ const emailConfig = {
   
   // SMTP Configuration
   smtp: {
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '587'),
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT),
     secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
     auth: {
       user: process.env.SMTP_USER,
@@ -23,8 +23,8 @@ const emailConfig = {
   
   // Default sender
   defaults: {
-    from: process.env.DEFAULT_FROM_EMAIL || 'noreply@yourcompany.com',
-    fromName: process.env.DEFAULT_FROM_NAME || 'Your Company',
+    from: process.env.DEFAULT_FROM_EMAIL,
+    fromName: process.env.DEFAULT_FROM_NAME,
   },
   
   // Bulk email settings
