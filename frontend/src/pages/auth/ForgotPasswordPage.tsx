@@ -64,7 +64,7 @@ export default function ForgotPasswordPage() {
               <div className="w-12 h-12 bg-white flex items-center justify-center rounded-xl shadow-2xl">
                 <LayoutGrid className="w-6 h-6 text-slate-950" />
               </div>
-              <span className="text-2xl font-bold tracking-tighter text-white uppercase">Rush RMS</span>
+              <span className="text-2xl font-bold tracking-tighter text-white uppercase">Rush Management</span>
             </div>
             
             <h2 className="text-6xl font-extralight text-white leading-[1.1] mb-8 tracking-tighter">
