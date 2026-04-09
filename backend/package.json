@@ -19,16 +19,20 @@
     "express-rate-limit": "^7.1.5",
     "googleapis": "^171.4.0",
     "helmet": "^7.1.0",
-    "joi": "^17.11.0",
-    "jsonwebtoken": "^9.0.2",
-    "morgan": "^1.10.0",
-    "multer": "^1.4.5-lts.1",
-    "nodemailer": "^8.0.4",
-    "pg": "^8.11.3",
-    "socket.io": "^4.8.3",
     "imapflow": "^1.2.18",
     "mailparser": "^3.9.6",
+<<<<<<< HEAD
+    "mammoth": "^1.12.0",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
     "node-ical": "^0.26.0",
+    "nodemailer": "^8.0.4",
+    "pdf-parse": "^2.4.5",
+    "pg": "^8.11.3",
+    "socket.io": "^4.8.3",
+=======
+    "node-ical": "^0.26.0",
+>>>>>>> b5bfb8968002c750e7d8e9814888888abc4f7aee
     "tsdav": "^2.1.8",
     "uuid": "^9.0.1",
     "xlsx": "^0.18.5"

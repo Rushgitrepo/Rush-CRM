@@ -236,3 +236,35 @@
     transform: scale(1);
   }
 }
+
+/* Print Styles for Application Form */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: white;
+    font-size: 12pt;
+  }
+
+  .container {
+    max-width: 100%;
+    padding: 0;
+  }
+
+  .card {
+    box-shadow: none;
+    border: 1px solid #ddd;
+    page-break-inside: avoid;
+  }
+
+  button, .button {
+    display: none;
+  }
+
+  @page {
+    margin: 1cm;
+    size: A4;
+  }
+}

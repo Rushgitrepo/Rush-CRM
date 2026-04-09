@@ -23,6 +23,7 @@ import ForcePasswordChangePage from "./pages/auth/ForcePasswordChangePage";
 import HomePage from "./pages/public/HomePage";
 import PrivacyPolicyPage from "./pages/public/PrivacyPolicyPage";
 import TermsOfServicePage from "./pages/public/TermsOfServicePage";
+import PublicApplicationForm from "./pages/public/PublicApplicationForm";
 // Collaboration
 import CalendarPage from "./pages/collaboration/CalendarPage";
 import DrivePage from "./pages/collaboration/DrivePage";
@@ -99,6 +100,22 @@ import EnhancedListsPage from "./pages/marketing/EnhancedListsPage";
 import EnhancedFormsPage from "./pages/marketing/EnhancedFormsPage";
 import EnhancedSequencesPage from "./pages/marketing/EnhancedSequencesPage";
 import EnhancedAnalyticsPage from "./pages/marketing/EnhancedAnalyticsPage";
+// Recruitment
+import RecruitmentDashboard from "./pages/recruitment/RecruitmentDashboard";
+import RequisitionsListPage from "./pages/recruitment/RequisitionsListPage";
+import RequisitionRequestPage from "./pages/recruitment/RequisitionRequestPage";
+import RequisitionDetailPage from "./pages/recruitment/RequisitionDetailPage";
+import AdvertisementPage from "./pages/recruitment/AdvertisementPage";
+import ApprovalWorkflowPage from "./pages/recruitment/ApprovalWorkflowPage";
+import CandidatesPage from "./pages/recruitment/CandidatesPage";
+import CandidateDetailPage from "./pages/recruitment/CandidateDetailPage";
+import ApplicationFormPage from "./pages/recruitment/ApplicationFormPage";
+import InterviewPage from "./pages/recruitment/InterviewPage";
+import InterviewsPage from "./pages/recruitment/InterviewsPage";
+import OffersPage from "./pages/recruitment/OffersPage";
+import ScoringPage from "./pages/recruitment/ScoringPage";
+import TalentPoolPage from "./pages/recruitment/TalentPoolPage";
+import RecruitmentAnalyticsPage from "./pages/recruitment/AnalyticsPage";
 // Other
 import PlaceholderPage from "./pages/PlaceholderPage";
 import SettingsPage from "./pages/SettingsPage";
@@ -122,6 +139,7 @@ const App = () => (
                 <Route path="/privacy" element={<PrivacyPolicyPage />} />
                 <Route path="/terms" element={<TermsOfServicePage />} />
                 <Route path="/project-report/:token" element={<ProjectReportPage />} />
+                <Route path="/public/application-form/:token" element={<PublicApplicationForm />} />
                 
                 {/* Public Auth Routes */}
                 <Route path="/auth" element={<AuthPage />} />
@@ -214,6 +232,22 @@ const App = () => (
                   <Route path="/marketing/forms" element={<EnhancedFormsPage />} />
                   <Route path="/marketing/sequences" element={<EnhancedSequencesPage />} />
                   <Route path="/marketing/analytics" element={<EnhancedAnalyticsPage />} />
+                  {/* Recruitment */}
+                  <Route path="/recruitment" element={<RecruitmentDashboard />} />
+                  <Route path="/recruitment/requisitions" element={<RequisitionsListPage />} />
+                  <Route path="/recruitment/requisitions/new" element={<RequisitionRequestPage />} />
+                  <Route path="/recruitment/requisitions/:id" element={<RequisitionDetailPage />} />
+                  <Route path="/recruitment/requisitions/:id/advertise" element={<AdvertisementPage />} />
+                  <Route path="/recruitment/approvals" element={<ApprovalWorkflowPage />} />
+                  <Route path="/recruitment/candidates" element={<CandidatesPage />} />
+                  <Route path="/recruitment/candidates/:id" element={<CandidateDetailPage />} />
+                  <Route path="/recruitment/candidates/:id/application-form" element={<ApplicationFormPage />} />
+                  <Route path="/recruitment/interviews" element={<InterviewsPage />} />
+                  <Route path="/recruitment/candidates/:candidateId/interview" element={<InterviewPage />} />
+                  <Route path="/recruitment/offers" element={<OffersPage />} />
+                  <Route path="/recruitment/scoring" element={<ScoringPage />} />
+                  <Route path="/recruitment/talent-pool" element={<TalentPoolPage />} />
+                  <Route path="/recruitment/analytics" element={<RecruitmentAnalyticsPage />} />
                   {/* Other Routes */}
                   <Route path="/settings" element={<SettingsPage />} />
                 </Route>
