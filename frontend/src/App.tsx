@@ -139,6 +139,7 @@ const App = () => (
                   {/* Collaboration Routes */}
                   <Route path="/collaboration/calendar" element={<CalendarPage />} />
                   <Route path="/collaboration/drive" element={<DrivePage />} />
+                  <Route path="/collaboration/drive/personal/:driveId" element={<DrivePage />} />
                   <Route path="/collaboration/mail" element={<MailPage />} />
                   <Route path="/collaboration/unibox" element={<UniboxPage />} />
                   <Route path="/collaboration/workgroups" element={<WorkgroupsPage />} />

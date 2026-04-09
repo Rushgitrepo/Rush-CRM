@@ -115,6 +115,11 @@ class RealtimeService {
     this.io.to(`org:${orgId}`).emit('webhook:triggered', { webhookId, status });
   }
 
+  // Drive events
+  emitDriveUpdate(orgId, data) {
+    this.io.to(`org:${orgId}`).emit('drive:update', data);
+  }
+
   // Broadcast to organization
   broadcastToOrg(orgId, event, data) {
     this.io.to(`org:${orgId}`).emit(event, data);

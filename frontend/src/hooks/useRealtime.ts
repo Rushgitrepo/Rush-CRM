@@ -107,6 +107,18 @@ export function useCampaignRealtime(campaignId: string) {
   return stats;
 }
 
+// Hook for drive real-time updates
+export function useDriveRealtime(onUpdate: (data: any) => void) {
+  const { on, off } = useRealtime();
+
+  useEffect(() => {
+    on('drive:update', onUpdate);
+    return () => {
+      off('drive:update', onUpdate);
+    };
+  }, [onUpdate]);
+}
+
 // Hook for analytics real-time updates
 export function useAnalyticsRealtime() {
   const { subscribeToAnalytics, on, off } = useRealtime();
