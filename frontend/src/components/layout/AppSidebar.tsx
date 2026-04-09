@@ -81,7 +81,7 @@ const navigation: NavItem[] = [
     href: "/",
     icon: LayoutDashboard,
   },
- 
+
   {
     title: "Tasks & Projects",
     href: "/tasks",
@@ -105,9 +105,9 @@ const navigation: NavItem[] = [
       { title: "Leads", href: "/crm/leads", icon: UserPlus },
       { title: "Deals", href: "/crm/deals", icon: Handshake },
       { title: "Unqualified", href: "/crm/unqualified", icon: ListFilter },
-      { 
-        title: "Customers", 
-        href: "/crm/customers", 
+      {
+        title: "Customers",
+        href: "/crm/customers",
         icon: Building2,
         nestedChildren: [
           { title: "Contacts", href: "/crm/customers/contacts" },
@@ -287,14 +287,14 @@ export function AppSidebar() {
               )}
             />
           </NavLink>
-          
+
           {isExpanded && (
             <div className="ml-6 mt-1.5 space-y-1.5 border-l border-white/5 pl-4 animate-in slide-in-from-left-2 duration-300">
               {child.nestedChildren!.map((nested) => {
                 const deepNested = nested.hasNested ? getDeepNestedItems(nested.title) : [];
                 const hasDeepNested = deepNested.length > 0;
                 const isNestedExpanded = expandedNestedItems.includes(nested.title);
-                
+
                 if (hasDeepNested) {
                   return (
                     <div key={nested.href}>
@@ -315,7 +315,7 @@ export function AppSidebar() {
                           )}
                         />
                       </button>
-                      
+
                       {isNestedExpanded && (
                         <div className="ml-3 mt-1.5 space-y-1 border-l border-white/5 pl-3 animate-in fade-in duration-300">
                           {deepNested.map((deep) => (
@@ -337,7 +337,7 @@ export function AppSidebar() {
                     </div>
                   );
                 }
-                
+
                 return (
                   <NavLink
                     key={nested.href}
@@ -387,7 +387,7 @@ export function AppSidebar() {
             <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-1.5">Enterprise Suite</span>
           </div>
         </div>
-        
+
         <div className="h-px w-full bg-gradient-to-r from-white/[0.08] to-transparent" />
       </div>
 
