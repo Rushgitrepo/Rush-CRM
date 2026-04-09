@@ -41,6 +41,7 @@ import {
   UserCog,
   CheckCircle,
   MessageSquare,
+  Building,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -373,11 +374,8 @@ export function AppSidebar() {
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-sidebar border-r border-sidebar-border">
       {/* Logo */}
       <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-6">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg gradient-primary">
-          <Building2 className="h-5 w-5 text-primary-foreground" />
-        </div>
         <div>
-          <h1 className="text-lg font-bold text-sidebar-foreground">CRM Pro</h1>
+          <h1 className="text-lg font-bold text-sidebar-foreground">Rush Management</h1>
           <p className="text-xs text-sidebar-muted">Enterprise Suite</p>
         </div>
       </div>
