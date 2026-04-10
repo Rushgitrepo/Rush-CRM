@@ -60,7 +60,7 @@ export function EntityFilesSection({ entityType, entityId }: EntityFilesSectionP
 
   const handleDownload = async (file: { file_path: string; file_name: string }) => {
     try {
-      const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3001';
+      const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || import.meta.env.VITE_APP_URL || "http://localhost:4000";
       const downloadUrl = `${baseUrl}${file.file_path}`;
       
       // Create a temporary link and click it to trigger download

@@ -24,6 +24,7 @@ export function useTelephony() {
   const canViewTelephony = hasPermission('telephony', 'view');
 
   useEffect(() => {
+    console.log('[useTelephony] Initializing...', { orgId: profile?.org_id, canViewTelephony, canUseTelephony });
     if (!profile?.org_id || !canViewTelephony) {
       setLoading(false);
       return;
@@ -32,11 +33,12 @@ export function useTelephony() {
       fetchEnabledProviders(profile.org_id),
       checkRCConnectionStatus(),
     ]).then(([providers, rcStatus]) => {
+      console.log('[useTelephony] Data loaded:', { providers, rcStatus });
       setEnabledProviders(providers);
       setRcConnected(rcStatus.connected && !rcStatus.expired);
       setLoading(false);
     });
-  }, [profile?.org_id, canViewTelephony]);
+  }, [profile?.org_id, canViewTelephony, canUseTelephony]);
 
   const initiateCall = useCallback(async (
     phoneNumber: string,

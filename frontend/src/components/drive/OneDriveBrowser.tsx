@@ -304,7 +304,7 @@ export function OneDriveBrowser({ connectionId: propConnectionId, displayName, o
                     }}>
                       <Edit className="h-4 w-4 mr-2" /> Rename
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(file)}>
+                    <DropdownMenuItem className="text-destructive" onSelect={() => handleDelete(file)}>
                       <Trash2 className="h-4 w-4 mr-2" /> Delete
                     </DropdownMenuItem>
                   </DropdownMenuContent>

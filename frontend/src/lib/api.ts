@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
 
 class ApiClient {
   private token: string | null = null;
@@ -46,10 +46,11 @@ class ApiClient {
       throw new Error('Unauthorized');
     }
 
-    const data = await response.json();
-
+    const data = await response.json().catch(() => ({}));
+    
     if (!response.ok) {
-      throw new Error(data.error || data.message || 'Request failed');
+      const errorMsg = data.message || data.error || 'Request failed';
+      throw new Error(errorMsg);
     }
 
     return data;

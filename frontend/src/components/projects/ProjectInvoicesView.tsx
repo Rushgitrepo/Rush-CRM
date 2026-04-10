@@ -100,7 +100,7 @@ export function ProjectInvoicesView({ projectId, budget, currency }: { projectId
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Invoice #</Label><Input value={form.invoice_number} onChange={e => setForm(f => ({ ...f, invoice_number: e.target.value }))} placeholder="INV-001" /></div>
-              <div><Label>Amount</Label><Input type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} placeholder="0" /></div>
+              <div><Label>Amount</Label><Input type="text" value={form.amount ? form.amount.toString().replace(/,/g, '').split('.').map((p, i) => i === 0 && p !== '' && p !== '-' ? Number(p).toLocaleString() : p).join('.') : ''} onChange={e => setForm(f => ({ ...f, amount: e.target.value.replace(/,/g, '') }))} placeholder="0" /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Currency</Label><Input value={form.currency} onChange={e => setForm(f => ({ ...f, currency: e.target.value }))} /></div>

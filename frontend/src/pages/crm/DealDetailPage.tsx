@@ -42,6 +42,7 @@ import { useQuery } from "@tanstack/react-query";
 import { usersApi } from '@/lib/api';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { useSoftphone } from "@/contexts/SoftphoneContext";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
@@ -235,6 +236,7 @@ export default function DealDetailPage() {
   const { data: deal, isLoading } = useDeal(id!);
   const updateDeal = useUpdateDeal();
   const deleteDeal = useDeleteDeal();
+  const { dialNumber } = useSoftphone();
   const linkContact = useLinkDealContact();
   const unlinkContact = useUnlinkDealContact();
   const linkSigningParty = useLinkSigningParty();
@@ -541,17 +543,14 @@ export default function DealDetailPage() {
                 <>
                   {/* Quick Action Buttons */}
                   {linkedContact?.phone && (
-                    <Button
+                    <ClickToCall 
+                      phoneNumber={linkedContact.phone} 
+                      entityType="deal" 
+                      entityId={deal.id} 
+                      className="gap-2 text-emerald-600 border-emerald-200 hover:bg-emerald-50" 
                       variant="outline"
                       size="sm"
-                      className="gap-2 text-emerald-600 border-emerald-200 hover:bg-emerald-50"
-                      asChild
-                    >
-                      <a href={`tel:${linkedContact.phone}`}>
-                        <Phone className="h-4 w-4" />
-                        Call
-                      </a>
-                    </Button>
+                    />
                   )}
                   {linkedContact?.email && (
                     <Button
@@ -607,7 +606,7 @@ export default function DealDetailPage() {
                           <AlertDialogAction
                             onClick={handleConvertToCustomer}
                             disabled={convertDealToCustomer.isPending}
-                            className="bg-emerald-600 hover:bg-emerald-700"
+                            className="bg-primary hover:bg-primary/80"
                           >
                             {convertDealToCustomer.isPending ? "Converting..." : "Convert to Customer"}
                           </AlertDialogAction>
@@ -622,10 +621,10 @@ export default function DealDetailPage() {
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-72 p-2 rounded-xl shadow-xl border-slate-200 z-[100] pointer-events-auto bg-white">
+                    <DropdownMenuContent align="end" className="w-72 p-2 rounded-xl shadow-xl border-slate-200 z-[100] pointer-events-auto bg-white max-h-[450px] overflow-y-auto">
                       <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Communication</DropdownMenuLabel>
                       {linkedContact?.email && (
-                        <DropdownMenuItem onClick={() => copyToClipboard(linkedContact.email, 'Email')} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                        <DropdownMenuItem onSelect={() => copyToClipboard(linkedContact.email, 'Email')} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
                           <div className="p-2 bg-blue-50 rounded-md">
                             <Mail className="h-4 w-4 text-blue-600" />
                           </div>
@@ -636,27 +635,37 @@ export default function DealDetailPage() {
                         </DropdownMenuItem>
                       )}
                       {linkedContact?.phone && (
-                        <DropdownMenuItem onClick={() => copyToClipboard(linkedContact.phone, 'Phone')} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
-                          <div className="p-2 bg-emerald-50 rounded-md">
-                            <Phone className="h-4 w-4 text-emerald-600" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-semibold text-sm text-slate-900">Copy Contact Phone</p>
-                            <p className="text-xs text-slate-500">{linkedContact.phone}</p>
-                          </div>
-                        </DropdownMenuItem>
+                        <>
+                          <DropdownMenuItem onSelect={() => dialNumber(linkedContact.phone!, { entityType: 'deal', entityId: deal.id })} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-emerald-50 transition-colors">
+                            <div className="p-2 bg-emerald-50 rounded-md">
+                              <PhoneCall className="h-4 w-4 text-emerald-600" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-sm text-slate-900">Call Contact</p>
+                              <p className="text-xs text-slate-500">{linkedContact.phone}</p>
+                            </div>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => copyToClipboard(linkedContact.phone!, 'Phone')} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                            <div className="p-2 bg-slate-50 rounded-md">
+                              <Phone className="h-4 w-4 text-slate-600" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-sm text-slate-900">Copy Contact Phone</p>
+                            </div>
+                          </DropdownMenuItem>
+                        </>
                       )}
 
                       <DropdownMenuSeparator className="my-2 bg-slate-100" />
 
                       <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Quick Jump</DropdownMenuLabel>
-                      <DropdownMenuItem className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors" onClick={() => handleScrollToActivity("activity")}>
+                      <DropdownMenuItem onSelect={() => handleScrollToActivity("activity")} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
                         <div className="p-2 bg-purple-50 rounded-md">
                           <Activity className="h-4 w-4 text-purple-600" />
                         </div>
                         <p className="font-semibold text-sm text-slate-900">View Activity Timeline</p>
                       </DropdownMenuItem>
-                      <DropdownMenuItem className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors" onClick={() => handleScrollToActivity("activity", "booking")}>
+                      <DropdownMenuItem onSelect={() => handleScrollToActivity("activity", "booking")} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
                         <div className="p-2 bg-orange-50 rounded-md">
                           <Calendar className="h-4 w-4 text-orange-600" />
                         </div>
@@ -672,13 +681,13 @@ export default function DealDetailPage() {
                       <DropdownMenuSeparator className="my-2 bg-slate-100" />
 
                       <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Reports & Data</DropdownMenuLabel>
-                      <DropdownMenuItem className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors" onClick={handlePrint}>
+                      <DropdownMenuItem onSelect={handlePrint} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
                         <div className="p-2 bg-orange-50 rounded-md">
                           <Printer className="h-4 w-4 text-orange-600" />
                         </div>
                         <p className="font-semibold text-sm text-slate-900">Print Deal Details</p>
                       </DropdownMenuItem>
-                      <DropdownMenuItem className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors" onClick={handleExport}>
+                      <DropdownMenuItem onSelect={handleExport} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
                         <div className="p-2 bg-emerald-50 rounded-md">
                           <Download className="h-4 w-4 text-emerald-600" />
                         </div>
@@ -688,7 +697,7 @@ export default function DealDetailPage() {
                       <DropdownMenuSeparator className="my-2 bg-slate-100" />
 
                       {canDelete && (
-                        <DropdownMenuItem onClick={() => setForm(prev => ({ ...prev, showDeleteDialog: true }))} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-red-50 group transition-colors">
+                        <DropdownMenuItem onSelect={() => setForm(prev => ({ ...prev, showDeleteDialog: true }))} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-red-50 group transition-colors">
                           <div className="p-2 bg-red-50 rounded-md group-hover:bg-red-100 transition-colors">
                             <Trash2 className="h-4 w-4 text-red-600" />
                           </div>
@@ -699,7 +708,7 @@ export default function DealDetailPage() {
                       <DropdownMenuSeparator className="my-2 bg-slate-100" />
                       <DropdownMenuItem
                         className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-orange-50 group transition-colors"
-                        onClick={() => {
+                        onSelect={() => {
                           updateDeal.mutate({ id: deal.id, status: 'unqualified', stage: 'unqualified' }, {
                             onSuccess: () => {
                               toast.success("Deal marked as unqualified");
@@ -1315,6 +1324,7 @@ export default function DealDetailPage() {
                       entityId={deal.id}
                       activeTab={interactionTab}
                       onTabChange={setInteractionTab}
+                      defaultPhone={deal.phone || deal.linkedContact?.phone}
                     />
                   </div>
                 </TabsContent>

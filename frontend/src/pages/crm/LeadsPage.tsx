@@ -19,6 +19,7 @@ import { EmptyState } from "@/components/crm/ui/EmptyState";
 import { AdvancedSearch } from "@/components/crm/ui/AdvancedSearch";
 import { useCustomDialog } from "@/contexts/DialogContext";
 import { toast } from "sonner";
+import { ClickToCall } from "@/components/telephony/ClickToCall";
 
 const statusTone = (status?: string) => {
   const s = (status || "").toLowerCase();
@@ -253,9 +254,12 @@ export default function LeadsPage() {
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Phone className="h-4 w-4" />
           {lead.phone ? (
-            <a href={`tel:${lead.phone}`} className="hover:text-primary hover:underline transition-colors" onClick={(e) => e.stopPropagation()}>
-              {lead.phone}
-            </a>
+            <ClickToCall 
+              phoneNumber={lead.phone} 
+              entityType="lead" 
+              entityId={lead.id} 
+              className="font-medium" 
+            />
           ) : (
             "—"
           )}
@@ -276,7 +280,17 @@ export default function LeadsPage() {
       key: "actions",
       header: "",
       render: (lead) => (
-        <div onClick={(e) => e.stopPropagation()}>
+        <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1">
+          {lead.phone && (
+            <ClickToCall 
+              phoneNumber={lead.phone} 
+              entityType="lead" 
+              entityId={lead.id} 
+              className="h-8 w-8 p-0" 
+              variant="ghost"
+              showText={false}
+            />
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm">
@@ -353,7 +367,7 @@ export default function LeadsPage() {
               <Upload className="h-4 w-4 mr-2" />
               Import
             </Button>
-            <Button className="gradient-primary" onClick={handleCreate}>
+            <Button className="bg-primary" onClick={handleCreate}>
               <Plus className="mr-2 h-4 w-4" />
               New Lead
             </Button>
@@ -475,3 +489,4 @@ export default function LeadsPage() {
     </div>
   );
 }
+

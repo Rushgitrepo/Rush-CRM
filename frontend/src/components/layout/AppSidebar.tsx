@@ -94,7 +94,6 @@ const navigation: NavItem[] = [
       { title: "Calendar", href: "/collaboration/calendar", icon: Calendar },
       { title: "Drive", href: "/collaboration/drive", icon: FolderOpen },
       { title: "Mail", href: "/collaboration/mail", icon: Mail },
-      { title: "Unibox", href: "/collaboration/unibox", icon: Mailbox },
       { title: "Workgroups", href: "/collaboration/workgroups", icon: Users },
     ],
   },
@@ -102,6 +101,7 @@ const navigation: NavItem[] = [
     title: "CRM",
     icon: TrendingUp,
     children: [
+      { title: "Unibox", href: "/crm/unibox", icon: Mailbox },
       { title: "Leads", href: "/crm/leads", icon: UserPlus },
       { title: "Deals", href: "/crm/deals", icon: Handshake },
       { title: "Unqualified", href: "/crm/unqualified", icon: ListFilter },
@@ -118,6 +118,7 @@ const navigation: NavItem[] = [
       },
       { title: "Sales", href: "/crm/sales", icon: DollarSign },
       { title: "Analytics", href: "/crm/analytics", icon: BarChart3 },
+      { title: "Communications", href: "/crm/communications", icon: Phone },
     ],
   },
   {
@@ -207,7 +208,6 @@ export function AppSidebar() {
 
   const isAdmin = userRole?.role === 'super_admin' || userRole?.role === 'admin';
 
-  // Filter out Admin Portal for non-admin users
   const filteredNavigation = useMemo(() => {
     return navigation.filter(item => {
       if (item.title === "Admin Portal" && !isAdmin) return false;

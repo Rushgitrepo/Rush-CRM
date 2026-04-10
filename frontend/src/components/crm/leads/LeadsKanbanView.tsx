@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useUpdateLead, useDeleteLead, useConvertLeadToDeal } from "@/hooks/useCrmMutations";
+import { ClickToCall } from "@/components/telephony/ClickToCall";
 import { cn } from "@/lib/utils";
 
 interface Lead {
@@ -207,12 +208,12 @@ export function LeadsKanbanView({ leads, onCreateLead }: LeadsKanbanViewProps) {
                     {lead.phone && (
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Phone className="h-3 w-3" />
-                        <a 
-                          href={`tel:${lead.phone}`} 
-                          className="hover:text-primary hover:underline transition-colors truncate block"
-                        >
-                          {lead.phone}
-                        </a>
+                        <ClickToCall 
+                          phoneNumber={lead.phone} 
+                          entityType="lead" 
+                          entityId={lead.id} 
+                          className="hover:text-primary hover:underline transition-colors truncate block" 
+                        />
                       </div>
                     )}
                     <div className="flex items-center justify-between">
@@ -239,3 +240,4 @@ export function LeadsKanbanView({ leads, onCreateLead }: LeadsKanbanViewProps) {
     </div>
   );
 }
+

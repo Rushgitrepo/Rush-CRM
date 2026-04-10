@@ -218,25 +218,27 @@ const clockIn = async (req, res, next) => {
     const today = new Date().toISOString().split('T')[0];
     const now = new Date();
 
-    // Get current user's employee record or create one if it doesn't exist
+    // Get current user details first
+    const userResult = await db.query(
+      'SELECT email, full_name FROM public.users WHERE id = $1',
+      [req.user.id]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = userResult.rows[0];
+
+    // Check if an employee record already exists by user_id or email
     let employeeResult = await db.query(
-      'SELECT id FROM public.employees WHERE user_id = $1 AND org_id = $2',
-      [req.user.id, req.user.orgId]
+      'SELECT id, user_id FROM public.employees WHERE (user_id = $1 OR email = $2) AND org_id = $3',
+      [req.user.id, user.email, req.user.orgId]
     );
 
     let employeeId;
     if (employeeResult.rows.length === 0) {
       // Create a basic employee record for the user
-      const userResult = await db.query(
-        'SELECT email, full_name FROM public.users WHERE id = $1',
-        [req.user.id]
-      );
-      
-      if (userResult.rows.length === 0) {
-        return res.status(404).json({ error: 'User not found' });
-      }
-      
-      const user = userResult.rows[0];
       const nameParts = (user.full_name || 'Employee').split(' ');
       const firstName = nameParts[0] || 'Employee';
       const lastName = nameParts.slice(1).join(' ') || '';
@@ -260,7 +262,16 @@ const clockIn = async (req, res, next) => {
       
       employeeId = createEmployeeResult.rows[0].id;
     } else {
-      employeeId = employeeResult.rows[0].id;
+      const employee = employeeResult.rows[0];
+      employeeId = employee.id;
+      
+      // If found by email but user_id is not set, link it now
+      if (!employee.user_id) {
+        await db.query(
+          'UPDATE public.employees SET user_id = $1 WHERE id = $2',
+          [req.user.id, employeeId]
+        );
+      }
     }
 
     // Check if already clocked in today

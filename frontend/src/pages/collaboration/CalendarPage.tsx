@@ -251,7 +251,7 @@ export default function CalendarPage() {
             <div className="flex items-center gap-3">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button className="gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg shadow-blue-500/25 rounded-lg">
+                  <Button className="gap-2 bg-primary text-white shadow-lg shadow-blue-500/25 rounded-lg">
                     <Plus className="h-4 w-4" />
                     Create Event
                     <ChevronDown className="h-4 w-4" />
@@ -428,7 +428,7 @@ export default function CalendarPage() {
                     </div>
                   ) : (
                     <Button 
-                      className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg shadow-blue-500/25" 
+                      className="w-full bg-primary text-white shadow-lg shadow-blue-500/25" 
                       onClick={() => setConnectDialogOpen(true)}
                     >
                       <Plus className="h-4 w-4 mr-2" />

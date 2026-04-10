@@ -214,3 +214,4 @@ export function LeadsListView({ leads }: LeadsListViewProps) {
     </div>
   );
 }
+

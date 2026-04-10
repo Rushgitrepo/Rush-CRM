@@ -12,6 +12,8 @@ import { EntityTable, EntityColumn } from "@/components/crm/ui/EntityTable";
 import { EmptyState } from "@/components/crm/ui/EmptyState";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
+import { useSoftphone } from "@/contexts/SoftphoneContext";
+import { ClickToCall } from "@/components/telephony/ClickToCall";
 
 export default function ContactsPage() {
   const navigate = useNavigate();
@@ -19,6 +21,7 @@ export default function ContactsPage() {
   const [source, setSource] = useState("all");
   const [sortBy, setSortBy] = useState("recent");
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
+  const { dialNumber } = useSoftphone();
 
   const { data, isLoading, isError } = useContacts() as { data?: any; isLoading: boolean; isError: boolean };
   const deleteContact = useDeleteContact();
@@ -84,7 +87,16 @@ export default function ContactsPage() {
       render: (c) => (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Phone className="h-4 w-4" />
-          {c.phone || "—"}
+          {c.phone ? (
+            <ClickToCall 
+              phoneNumber={c.phone} 
+              entityType="contact" 
+              entityId={c.id} 
+              className="font-medium" 
+            />
+          ) : (
+            "—"
+          )}
         </div>
       ),
     },
@@ -131,7 +143,7 @@ export default function ContactsPage() {
               <Upload className="h-4 w-4 mr-2" />
               Import
             </Button>
-            <Button className="gradient-primary" onClick={() => navigate("/crm/customers/contacts/create")}> 
+            <Button className="bg-primary" onClick={() => navigate("/crm/customers/contacts/create")}> 
               <Plus className="mr-2 h-4 w-4" />
               New Contact
             </Button>
@@ -200,3 +212,4 @@ export default function ContactsPage() {
     </div>
   );
 }
+

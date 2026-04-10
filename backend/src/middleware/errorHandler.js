@@ -1,6 +1,13 @@
 const errorHandler = (err, req, res, next) => {
   console.error('Error:', err);
 
+  if (err.name === 'MulterError' || (err.message && err.message.includes('File type not supported'))) {
+    return res.status(400).json({
+      error: err.message,
+      message: err.message,
+    });
+  }
+
   if (err.isJoi) {
     return res.status(400).json({
       error: 'Validation error',

@@ -17,23 +17,27 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
+import { useSoftphone } from "@/contexts/SoftphoneContext";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 
 interface InteractionPanelProps {
   entityType: string;
   entityId: string;
   activeTab?: string;
   onTabChange?: (tab: string) => void;
+  defaultPhone?: string | null;
 }
 
 const tabs = [
   { id: "activity", label: "Activity", icon: Activity },
   { id: "comment", label: "Comment", icon: MessageSquare },
-  { id: "message", label: "Message", icon: Send },
+  { id: "sms", label: "SMS", icon: Send },
   { id: "booking", label: "Booking", icon: CalendarDays },
   { id: "task", label: "Task", icon: CheckSquare },
 ];
 
-export function InteractionPanel({ entityType, entityId, activeTab: externalTab, onTabChange }: InteractionPanelProps) {
+export function InteractionPanel({ entityType, entityId, activeTab: externalTab, onTabChange, defaultPhone }: InteractionPanelProps) {
   const [internalTab, setInternalTab] = useState("activity");
   const activeTab = externalTab || internalTab;
   const setActiveTab = onTabChange || setInternalTab;
@@ -48,6 +52,9 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
   const createActivity = useCreateActivity();
   const deleteComment = useDeleteComment();
   const updateComment = useUpdateComment();
+  const { sendSMS, activeProvider } = useSoftphone();
+  const [recipientPhone, setRecipientPhone] = useState(defaultPhone || "");
+  const [isSending, setIsSending] = useState(false);
 
   const handleSubmitComment = () => {
     if (!commentText.trim()) return;
@@ -64,6 +71,34 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
       id, content: editText, entityType: entityType, entityId: entityId,
     });
     setEditingId(null);
+  };
+
+  const handleSendSms = async () => {
+    if (!commentText.trim() || !recipientPhone.trim()) {
+      toast.error("Please enter a phone number and message");
+      return;
+    }
+    
+    setIsSending(true);
+    try {
+      await sendSMS(recipientPhone, commentText);
+      toast.success("SMS sent successfully via RingCentral");
+      
+      // Log as activity in CRM
+      createActivity.mutate({
+        entity_type: entityType,
+        entity_id: entityId,
+        activity_type: 'sms',
+        title: `Sent SMS to ${recipientPhone}`,
+        description: commentText,
+      });
+      
+      setCommentText("");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to send SMS");
+    } finally {
+      setIsSending(false);
+    }
   };
 
   // Merge activities and comments into a single timeline
@@ -119,8 +154,8 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
         ))}
       </div>
 
-      {/* Input area for comment/message */}
-      {(activeTab === "comment" || activeTab === "message" || activeTab === "activity") && (
+      {/* Input area for comment/sms/activity */}
+      {(activeTab === "comment" || activeTab === "sms" || activeTab === "activity") && (
         <div className="p-3 border-b">
           <div className="flex gap-2">
             <Avatar className="h-7 w-7 shrink-0">
@@ -128,27 +163,43 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
                 {profile?.full_name?.charAt(0) || "U"}
               </AvatarFallback>
             </Avatar>
-            <div className="flex-1">
+            <div className="flex-1 space-y-2">
+              {activeTab === "sms" && (
+                <div className="flex items-center gap-2 mb-2">
+                   <Input 
+                     placeholder="Recipient phone number..." 
+                     value={recipientPhone}
+                     onChange={(e) => setRecipientPhone(e.target.value)}
+                     className="h-8 text-xs max-w-[200px]"
+                   />
+                   <span className="text-[10px] text-muted-foreground uppercase font-semibold">RC Official API</span>
+                </div>
+              )}
               <Textarea
-                placeholder={activeTab === "message" ? "Write a message..." : "Add a comment..."}
+                placeholder={activeTab === "sms" ? "Write SMS message..." : "Add a comment..."}
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
                 className="min-h-[60px] text-sm"
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleSubmitComment();
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                    activeTab === "sms" ? handleSendSms() : handleSubmitComment();
+                  }
                 }}
               />
               <div className="flex justify-end mt-2">
                 <Button
                   size="sm"
-                  onClick={handleSubmitComment}
-                  disabled={!commentText.trim() || createComment.isPending}
+                  onClick={activeTab === "sms" ? handleSendSms : handleSubmitComment}
+                  disabled={!commentText.trim() || createComment.isPending || isSending || (activeTab === "sms" && !activeProvider)}
                   className="gap-1"
                 >
                   <Send className="h-3 w-3" />
-                  Send
+                  {activeTab === "sms" ? (isSending ? "Sending..." : "Send SMS") : "Post"}
                 </Button>
               </div>
+              {activeTab === "sms" && !activeProvider && (
+                <p className="text-[10px] text-amber-600 mt-1">Connect RingCentral in Settings to send SMS</p>
+              )}
             </div>
           </div>
         </div>

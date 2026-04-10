@@ -212,7 +212,7 @@ export default function CustomersPage() {
             </Button>
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
-                <Button className="gradient-primary">
+                <Button className="bg-primary">
                   <Plus className="mr-2 h-4 w-4" />
                   New Customer
                 </Button>

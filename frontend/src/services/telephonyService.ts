@@ -60,8 +60,21 @@ export function getProvider(name: TelephonyProviderName): TelephonyProvider {
   return providerRegistry[name];
 }
 
+import { api } from '@/lib/api';
+
 export async function fetchEnabledProviders(orgId: string): Promise<{ name: TelephonyProviderName; displayName: string }[]> {
-  return [];
+  try {
+    const providers = await api.get<any[]>('/telephony/providers');
+    return providers
+      .filter(p => p.is_enabled)
+      .map(p => ({
+        name: p.name as TelephonyProviderName,
+        displayName: p.display_name,
+      }));
+  } catch (err) {
+    console.error('Failed to fetch telephony providers:', err);
+    return [];
+  }
 }
 
 export async function logCall(params: {
@@ -74,11 +87,32 @@ export async function logCall(params: {
   status: CallStatus;
   rcSessionId?: string;
 }) {
-  return { id: `temp-${Date.now()}` };
+  try {
+    return await api.post<any>('/telephony/call-logs', {
+      entity_type: params.entityType,
+      entity_id: params.entityId,
+      phone_number: params.phoneNumber,
+      status: params.status,
+      direction: 'outbound',
+      call_type: 'phone',
+      notes: params.rcSessionId ? `Session ID: ${params.rcSessionId}` : '',
+    });
+  } catch (err) {
+    console.error('Failed to log call:', err);
+    return { id: `temp-${Date.now()}` };
+  }
 }
 
 export async function updateCallStatus(callId: string, status: CallStatus, durationSeconds?: number) {
-  console.log('Call status updated:', callId, status, durationSeconds);
+  if (callId.startsWith('temp-')) return;
+  try {
+    await api.patch(`/telephony/call-logs/${callId}`, {
+      status,
+      duration: durationSeconds,
+    });
+  } catch (err) {
+    console.error('Failed to update call status:', err);
+  }
 }
 
 export async function checkRCConnectionStatus(): Promise<{
@@ -86,24 +120,46 @@ export async function checkRCConnectionStatus(): Promise<{
   expired: boolean;
   accountId: string | null;
 }> {
-  return { connected: false, expired: false, accountId: null };
+  try {
+    const status = await api.get<any>('/ringcentral/status');
+    return {
+      connected: !!status.connected,
+      expired: !!status.expired,
+      accountId: status.accountId || null,
+    };
+  } catch (err) {
+    return { connected: false, expired: false, accountId: null };
+  }
 }
 
 export async function getRCAuthUrl(redirectUri: string): Promise<string> {
-  return '';
+  try {
+    const response = await api.get<any>(`/ringcentral/authorize?redirectUri=${encodeURIComponent(redirectUri)}`);
+    return response.url;
+  } catch (err) {
+    return '';
+  }
 }
 
 export async function exchangeRCCode(code: string, redirectUri: string): Promise<void> {
-  console.log('Exchange code:', code);
+  await api.get(`/ringcentral/callback?code=${code}&redirectUri=${encodeURIComponent(redirectUri)}`);
 }
 
 export async function disconnectRC(): Promise<void> {
-  console.log('Disconnected');
+  await api.post('/ringcentral/disconnect');
 }
 
 export async function fetchCallTranscript(callLogId: string): Promise<{
   transcript: string | null;
   recordingUrl: string | null;
 }> {
-  return { transcript: null, recordingUrl: null };
+  try {
+    const log = await api.get<any>(`/telephony/call-logs/${callLogId}`);
+    return {
+      transcript: log.ai_transcript || null,
+      recordingUrl: log.recording_url || null,
+    };
+  } catch (err) {
+    return { transcript: null, recordingUrl: null };
+  }
 }

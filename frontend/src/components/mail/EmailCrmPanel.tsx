@@ -297,7 +297,7 @@ export function EmailCrmPanel({ email }: EmailCrmPanelProps) {
             <Button
               onClick={() => convertDialog && handleConvert(convertDialog)}
               disabled={converting}
-              className="gradient-primary text-primary-foreground"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg"
             >
               {converting ? "Creating..." : `Create ${convertDialog}`}
             </Button>

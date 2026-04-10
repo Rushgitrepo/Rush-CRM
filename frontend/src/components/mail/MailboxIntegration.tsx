@@ -135,7 +135,7 @@ export function MailboxIntegration({
         {hasConnectedMailboxes && (
           <div className="flex gap-2">
             <Button
-              className="gradient-primary text-primary-foreground"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg"
               onClick={onComposeClick || onMailboxConnected}
             >
               <Plus className="mr-2 h-4 w-4" />

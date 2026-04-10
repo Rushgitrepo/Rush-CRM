@@ -815,7 +815,7 @@ export default function CreateSigningPartyContactPage() {
       {/* Footer */}
       <div className="fixed bottom-0 left-0 right-0 z-20 flex items-center justify-center gap-4 p-4 bg-background/80 backdrop-blur-md border-t shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.1)]">
         <Button 
-          className="bg-green-600 hover:bg-green-500 text-white font-black px-12 h-11 tracking-tighter shadow-lg shadow-green-600/20" 
+          className="bg-primary hover:bg-primary/90 text-white font-black px-12 h-11 tracking-tighter shadow-lg shadow-primary/20" 
           onClick={handleSave}
           disabled={createSigningParty.isPending}
         >

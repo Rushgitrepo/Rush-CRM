@@ -16,7 +16,7 @@ interface EmbedCodeDialogProps {
 
 export default function EmbedCodeDialog({ open, onOpenChange, formId, formName }: EmbedCodeDialogProps) {
   const [copiedTab, setCopiedTab] = useState<string | null>(null);
-  const endpoint = `${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}/marketing/forms/${formId}/submit`;
+  const endpoint = `${import.meta.env.VITE_API_URL || 'http://localhost:4000/api'}/marketing/forms/${formId}/submit`;
 
   const handleCopy = (code: string, tab: string) => {
     navigator.clipboard.writeText(code);

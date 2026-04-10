@@ -203,7 +203,7 @@ export default function CreateEmployeePage() {
           </Button>
           
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-lg">
+            <div className="p-3 bg-primary rounded-2xl shadow-lg">
               <User className="h-8 w-8 text-white" />
             </div>
             <div>
@@ -219,7 +219,7 @@ export default function CreateEmployeePage() {
                 <div className="flex items-center">
                   <div className={`flex items-center justify-center w-10 h-10 rounded-full ${
                     currentStep >= step.id
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-primary text-white'
                       : 'bg-gray-200 text-gray-600'
                   }`}>
                     {currentStep > step.id ? '✓' : step.id}
@@ -928,7 +928,7 @@ export default function CreateEmployeePage() {
               {currentStep < 4 ? (
                 <Button
                   onClick={() => setCurrentStep(currentStep + 1)}
-                  className="gap-2 bg-blue-600 hover:bg-blue-700"
+                  className="gap-2 bg-primary hover:bg-primary/90"
                 >
                   Next
                   <ChevronRight className="h-4 w-4" />
@@ -937,7 +937,7 @@ export default function CreateEmployeePage() {
                 <Button
                   onClick={handleSubmit}
                   disabled={loading}
-                  className="gap-2 bg-green-600 hover:bg-green-700"
+                  className="gap-2 bg-primary hover:bg-primary/90"
                 >
                   <Save className="h-4 w-4" />
                   {loading ? 'Creating...' : 'Create Employee'}

@@ -239,7 +239,7 @@ export default function UsersPage() {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setAddUserOpen(false)}>Cancel</Button>
-                <Button className="gradient-primary" onClick={handleAddUserSubmit} disabled={adminCreateUser.isPending}>
+                <Button className="bg-primary hover:bg-primary/90 text-white shadow-lg" onClick={handleAddUserSubmit} disabled={adminCreateUser.isPending}>
                   {adminCreateUser.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Create User
                 </Button>
@@ -249,7 +249,7 @@ export default function UsersPage() {
 
           <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
             <DialogTrigger asChild>
-              <Button className="gradient-primary">
+              <Button className="bg-primary hover:bg-primary/90 text-white shadow-lg">
                 <Plus className="mr-2 h-4 w-4" />
                 Invite User
               </Button>
@@ -293,7 +293,7 @@ export default function UsersPage() {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setInviteOpen(false)}>Cancel</Button>
-                <Button className="gradient-primary" onClick={handleInviteSubmit} disabled={sendInvite.isPending}>
+                <Button className="bg-primary hover:bg-primary/90 text-white shadow-lg" onClick={handleInviteSubmit} disabled={sendInvite.isPending}>
                   {sendInvite.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Send Invitation
                 </Button>
@@ -564,7 +564,7 @@ export default function UsersPage() {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditUser(null)}>Cancel</Button>
-            <Button className="gradient-primary" onClick={handleEditSave} disabled={updateUser.isPending}>
+            <Button className="bg-primary hover:bg-primary/90 text-white shadow-lg" onClick={handleEditSave} disabled={updateUser.isPending}>
               {updateUser.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Save Changes
             </Button>
@@ -599,7 +599,7 @@ export default function UsersPage() {
             </div>
           )}
           <DialogFooter>
-            <Button className="gradient-primary" onClick={() => setCreatedUserResult(null)}>Done</Button>
+            <Button className="bg-primary hover:bg-primary/90 text-white shadow-lg" onClick={() => setCreatedUserResult(null)}>Done</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -631,7 +631,7 @@ export default function UsersPage() {
             </div>
           )}
           <DialogFooter>
-            <Button className="gradient-primary" onClick={() => { setResetResult(null); setCopied(false); }}>Done</Button>
+            <Button className="bg-primary hover:bg-primary/90 text-white shadow-lg" onClick={() => { setResetResult(null); setCopied(false); }}>Done</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

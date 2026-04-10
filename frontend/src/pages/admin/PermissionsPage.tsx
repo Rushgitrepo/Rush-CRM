@@ -192,7 +192,7 @@ export default function PermissionsPage() {
             Audit Log
           </Button>
           <Button
-            className="gradient-primary"
+            className="bg-primary hover:bg-primary/90 text-white shadow-lg"
             onClick={handleSave}
             disabled={pendingChanges.size === 0 || saving}
           >

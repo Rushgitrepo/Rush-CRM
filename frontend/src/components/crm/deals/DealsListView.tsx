@@ -172,3 +172,4 @@ export function DealsListView({ deals: propDeals }: DealsListViewProps) {
     </div>
   );
 }
+

@@ -8,10 +8,10 @@ const getByEntity = async (req, res, next) => {
 
     const result = await db.query(
       `SELECT c.*, 
-              COALESCE(p.full_name, 'Unknown User') as user_name, 
-              COALESCE(p.avatar_url, 'https://api.dicebear.com/7.x/initials/svg?seed=User') as user_avatar
+              COALESCE(u.full_name, 'Unknown User') as user_name, 
+              COALESCE(u.avatar_url, 'https://api.dicebear.com/7.x/initials/svg?seed=User') as user_avatar
        FROM public.crm_comments c
-       LEFT JOIN public.profiles p ON p.id = c.user_id
+       LEFT JOIN public.users u ON u.id = c.user_id
        WHERE c.entity_type = $1 AND c.entity_id = $2 AND c.org_id = $3
        ORDER BY c.created_at DESC
        LIMIT $4 OFFSET $5`,
@@ -44,9 +44,9 @@ const create = async (req, res, next) => {
 
     // Fetch the joined data for the newly created comment
     const joinedResult = await db.query(
-      `SELECT c.*, p.full_name as user_name, p.avatar_url as user_avatar
+      `SELECT c.*, u.full_name as user_name, u.avatar_url as user_avatar
        FROM public.crm_comments c
-       LEFT JOIN public.profiles p ON p.id = c.user_id
+       LEFT JOIN public.users u ON u.id = c.user_id
        WHERE c.id = $1`,
       [newComment.id]
     );

@@ -178,8 +178,7 @@ export default function DrivePage() {
   const getFileUrl = (url: string | null) => {
     if (!url) return undefined;
     const baseUrl =
-      import.meta.env.VITE_API_URL?.replace("/api", "") ||
-      "http://localhost:3001";
+      import.meta.env.VITE_API_URL?.replace("/api", "") || import.meta.env.VITE_APP_URL || "http://localhost:4000";
     return `${baseUrl}${url}`;
   };
 
@@ -1820,8 +1819,7 @@ export default function DrivePage() {
                     handleDownload(
                       previewFile.name,
                       previewFile.url.replace(
-                        import.meta.env.VITE_API_URL?.replace("/api", "") ||
-                          "http://localhost:3001",
+                          import.meta.env.VITE_API_URL?.replace("/api", "") || import.meta.env.VITE_APP_URL || "http://localhost:4000",
                         "",
                       ),
                     )
@@ -1915,8 +1913,7 @@ export default function DrivePage() {
                         handleDownload(
                           previewFile.name,
                           previewFile.url.replace(
-                            import.meta.env.VITE_API_URL?.replace("/api", "") ||
-                              "http://localhost:3001",
+                              import.meta.env.VITE_API_URL?.replace("/api", "") || import.meta.env.VITE_APP_URL || "http://localhost:4000",
                             "",
                           ),
                         )

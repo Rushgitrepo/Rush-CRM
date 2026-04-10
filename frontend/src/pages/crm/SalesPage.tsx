@@ -11,6 +11,22 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useCreateDeal } from "@/hooks/useCrmData";
+import { useToast } from "@/components/ui/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
 const formatCurrency = (value?: number | string) => {
   if (value === undefined || value === null) return "—";
   const num = typeof value === "string" ? Number(value) : value;
@@ -18,11 +34,47 @@ const formatCurrency = (value?: number | string) => {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(num);
 };
 
+const orderSchema = z.object({
+  title: z.string().min(2, "Order reference/title required"),
+  value: z.string().optional(),
+  contactName: z.string().optional(),
+  companyName: z.string().optional(),
+});
+type OrderForm = z.infer<typeof orderSchema>;
+
 export default function SalesPage() {
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const [createOpen, setCreateOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
   const [sortBy, setSortBy] = useState("recent");
+  
+  const createDeal = useCreateDeal();
+  const form = useForm<OrderForm>({
+    resolver: zodResolver(orderSchema),
+    defaultValues: { title: "", value: "", contactName: "", companyName: "" },
+  });
+
+  const onOrderSubmit = (data: OrderForm) => {
+    createDeal.mutate({
+      title: data.title,
+      value: data.value ? Number(data.value) : undefined,
+      stage: "won",
+      status: "won",
+      contact_name: data.contactName,
+      company_name: data.companyName,
+    } as any, {
+      onSuccess: () => {
+        toast({ title: "Order created successfully" });
+        setCreateOpen(false);
+        form.reset();
+      },
+      onError: (err: any) => {
+        toast({ title: "Failed to create order", description: err?.message, variant: "destructive" });
+      }
+    });
+  };
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["sales", "deals"],
@@ -128,12 +180,52 @@ export default function SalesPage() {
           { label: "Orders", value: filtered.length, tone: "info" },
         ]}
         actions={
-          <Button className="gradient-primary" onClick={() => navigate("/crm/deals/create")}>
+          <Button className="bg-primary" onClick={() => setCreateOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
             New Order
           </Button>
         }
       />
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Create New Order</DialogTitle>
+            <DialogDescription>
+              Instantly log a new sale or order. It will be recorded as a closed deal.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label>Order Title / Reference *</Label>
+              <Input placeholder="Invoice #1024" {...form.register("title")} />
+              {form.formState.errors.title && <p className="text-sm text-destructive">{form.formState.errors.title.message}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label>Order Value</Label>
+              <div className="flex items-center gap-2">
+                <Input type="number" placeholder="2500" {...form.register("value")} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Customer Name</Label>
+              <Input placeholder="John Doe" {...form.register("contactName")} />
+            </div>
+            <div className="space-y-2">
+              <Label>Company Name</Label>
+              <Input placeholder="Acme Corp" {...form.register("companyName")} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={createDeal.isPending}>
+              Cancel
+            </Button>
+            <Button onClick={form.handleSubmit(onOrderSubmit)} disabled={createDeal.isPending}>
+              {createDeal.isPending ? "Creating..." : "Create Order"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <DataToolbar
         search={search}

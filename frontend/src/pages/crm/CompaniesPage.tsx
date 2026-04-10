@@ -107,7 +107,7 @@ export default function CompaniesPage() {
           { label: "Filtered", value: filtered.length, tone: "success" },
         ]}
         actions={
-          <Button className="gradient-primary" onClick={() => navigate("/crm/customers/companies/create")}>
+          <Button className="bg-primary" onClick={() => navigate("/crm/customers/companies/create")}>
             <Plus className="mr-2 h-4 w-4" />
             New Company
           </Button>

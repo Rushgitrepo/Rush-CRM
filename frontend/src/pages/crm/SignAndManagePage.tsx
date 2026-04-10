@@ -163,7 +163,7 @@ export default function SignAndManagePage() {
           { label: "Signed", value: documents.filter((d: any) => d.status === "signed").length, tone: "success" },
         ]}
         actions={
-          <Button className="gradient-primary" onClick={() => setCreateDialogOpen(true)}>
+          <Button className="bg-primary" onClick={() => setCreateDialogOpen(true)}>
             <Plus className="mr-2 h-4 w-4" /> New Document
           </Button>
         }
@@ -263,7 +263,7 @@ export default function SignAndManagePage() {
                             <Download className="h-4 w-4 mr-2" />
                             Download
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(doc.id)}>
+                          <DropdownMenuItem className="text-destructive" onSelect={() => handleDelete(doc.id)}>
                             <Trash2 className="h-4 w-4 mr-2" />
                             Delete
                           </DropdownMenuItem>
