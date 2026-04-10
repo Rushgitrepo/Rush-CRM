@@ -57,6 +57,13 @@ const signingPartyRoutes = require('./routes/crm/signingParties');
 const hrmsRoutes = require('./routes/hrms/hrms');
 const hrmsNotificationsRoutes = require('./routes/hrms/hrmsNotifications');
 const telephonyRoutes = require('./routes/crm/telephony');
+const requisitionRoutes = require('./routes/recruitment/requisitionRoutes');
+const candidateRoutes = require('./routes/recruitment/candidateRoutes');
+const interviewRoutes = require('./routes/recruitment/interviewRoutes');
+const offerRoutes = require('./routes/recruitment/offerRoutes');
+const scoringRoutes = require('./routes/recruitment/scoringRoutes');
+const talentPoolRoutes = require('./routes/recruitment/talentPoolRoutes');
+const analyticsRoutes = require('./routes/recruitment/analyticsRoutes');
 const errorHandler = require('./middleware/errorHandler');
 
 const router = express.Router();
@@ -118,6 +125,13 @@ router.use('/api/signing-parties', signingPartyRoutes);
 router.use('/api/hrms', hrmsRoutes);
 router.use('/api/hrms/notifications', hrmsNotificationsRoutes);
 router.use('/api/telephony', telephonyRoutes);
+router.use('/api/recruitment/requisitions', requisitionRoutes);
+router.use('/api/recruitment/candidates', candidateRoutes);
+router.use('/api/recruitment/interviews', interviewRoutes);
+router.use('/api/recruitment/offers', offerRoutes);
+router.use('/api/recruitment/scoring', scoringRoutes);
+router.use('/api/recruitment/talent-pools', talentPoolRoutes);
+router.use('/api/recruitment/analytics', analyticsRoutes);
 
 
 router.get('/api/health', (req, res) => {

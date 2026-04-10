@@ -191,7 +191,7 @@ export function TopBar() {
       <div className="flex items-center gap-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button className="gradient-primary gap-2">
+            <Button className="bg-primary hover:bg-primary/80 gap-2">
               <Plus className="h-4 w-4" />
               Quick Add
               <ChevronDown className="h-4 w-4" />
@@ -225,7 +225,7 @@ export function TopBar() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="gap-2 pl-2">
-              <Avatar className="h-8 w-8">
+              <Avatar className="h-8 w-8 hover:cursor-pointer hover:bg-primary/80 hover:text-black">
                 <AvatarImage src={profile?.avatar_url || undefined} />
                 <AvatarFallback>{getInitials(profile?.full_name || 'User')}</AvatarFallback>
               </Avatar>
