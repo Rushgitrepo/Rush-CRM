@@ -240,6 +240,9 @@ export function TopBar() {
             <DropdownMenuLabel>My Account</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => navigate('/settings')}>Profile Settings</DropdownMenuItem>
+            {(userRole?.role === 'admin' || userRole?.role === 'super_admin') && (
+              <DropdownMenuItem onClick={() => navigate('/admin-dashboard')}>Admin Dashboard</DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={() => navigate('/admin/users')}>Organization Settings</DropdownMenuItem>
             <DropdownMenuItem>Billing</DropdownMenuItem>
             <DropdownMenuSeparator />
