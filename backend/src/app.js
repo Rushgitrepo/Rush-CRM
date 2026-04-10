@@ -65,7 +65,9 @@ const offerRoutes = require('./routes/recruitment/offerRoutes');
 const scoringRoutes = require('./routes/recruitment/scoringRoutes');
 const talentPoolRoutes = require('./routes/recruitment/talentPoolRoutes');
 const analyticsRoutes = require('./routes/recruitment/analyticsRoutes');
+const salesOrderRoutes = require('./routes/crm/salesOrders');
 const errorHandler = require('./middleware/errorHandler');
+
 
 const router = express.Router();
 
@@ -136,7 +138,10 @@ router.use('/api/recruitment/talent-pools', talentPoolRoutes);
 router.use('/api/recruitment/analytics', analyticsRoutes);
 
 
+router.use('/api/sales-orders', salesOrderRoutes);
+
 router.get('/api/health', (req, res) => {
+
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 

@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, Link } from "react-router-dom";
 import { DollarSign, TrendingUp, ShoppingCart, Target, Plus, Sparkles, Building2 } from "lucide-react";
-import { dealsApi } from "@/lib/api";
+import { salesOrdersApi } from "@/lib/api";
 import { PageHeader } from "@/components/crm/ui/PageHeader";
 import { DataToolbar } from "@/components/crm/ui/DataToolbar";
 import { EntityTable, EntityColumn } from "@/components/crm/ui/EntityTable";
@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useCreateDeal } from "@/hooks/useCrmData";
+import { useCreateSalesOrder, useSalesOrders } from "@/hooks/useCrmData";
 import { useToast } from "@/components/ui/use-toast";
 import {
   Dialog,
@@ -50,21 +50,20 @@ export default function SalesPage() {
   const [status, setStatus] = useState("all");
   const [sortBy, setSortBy] = useState("recent");
   
-  const createDeal = useCreateDeal();
+  const createOrder = useCreateSalesOrder();
   const form = useForm<OrderForm>({
     resolver: zodResolver(orderSchema),
     defaultValues: { title: "", value: "", contactName: "", companyName: "" },
   });
 
   const onOrderSubmit = (data: OrderForm) => {
-    createDeal.mutate({
+    createOrder.mutate({
       title: data.title,
       value: data.value ? Number(data.value) : undefined,
-      stage: "won",
       status: "won",
-      contact_name: data.contactName,
-      company_name: data.companyName,
-    } as any, {
+      contactName: data.contactName, // These will be handled by the controller's simplified logic or if we want to relate them more properly we could do more work later.
+      companyName: data.companyName,
+    }, {
       onSuccess: () => {
         toast({ title: "Order created successfully" });
         setCreateOpen(false);
@@ -76,35 +75,31 @@ export default function SalesPage() {
     });
   };
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["sales", "deals"],
-    queryFn: () => dealsApi.getAll(),
-  });
+  const { data, isLoading, isError } = useSalesOrders();
 
-  const deals = useMemo(() => {
+  const orders = useMemo(() => {
     if (!data) return [] as any[];
-    if (Array.isArray(data)) return data;
-    return (data as any).data ?? [];
+    return Array.isArray(data) ? data : [];
   }, [data]);
 
   const filtered = useMemo(() => {
     const term = search.toLowerCase();
-    return deals
+    return orders
       .filter((d: any) => {
-        const customer = `${d.contacts?.first_name || ""} ${d.contacts?.last_name || ""}`.trim() || d.companies?.name || "";
+        const customer = d.customer_name || d.contact_name || "";
         const matchesSearch = term
           ? customer.toLowerCase().includes(term) ||
-            (d.title || "").toLowerCase().includes(term) ||
-            (d.stage || "").toLowerCase().includes(term)
+            (d.title || d.invoice_number || "").toLowerCase().includes(term) ||
+            (d.status || "").toLowerCase().includes(term)
           : true;
-        const matchesStatus = status === "all" || (d.status || d.stage || "").toLowerCase() === status;
+        const matchesStatus = status === "all" || (d.status || "").toLowerCase() === status;
         return matchesSearch && matchesStatus;
       })
       .sort((a: any, b: any) => {
-        if (sortBy === "value") return Number(b.value || 0) - Number(a.value || 0);
+        if (sortBy === "value") return Number(b.total_amount || 0) - Number(a.total_amount || 0);
         return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
       });
-  }, [deals, search, status, sortBy]);
+  }, [orders, search, status, sortBy]);
 
   const stats = useMemo(() => {
     const count = filtered.length;
@@ -133,8 +128,8 @@ export default function SalesPage() {
       header: "Order",
       render: (d) => (
         <div className="space-y-1">
-          <p className="font-semibold">{d.title || d.id}</p>
-          <p className="text-xs text-muted-foreground">{d.created_at ? new Date(d.created_at).toLocaleDateString() : "—"}</p>
+          <p className="font-semibold">{d.invoice_number || d.title || d.id}</p>
+          <p className="text-xs text-muted-foreground">{d.invoice_date || d.created_at ? new Date(d.invoice_date || d.created_at).toLocaleDateString() : "—"}</p>
         </div>
       ),
     },
@@ -142,9 +137,7 @@ export default function SalesPage() {
       key: "customer",
       header: "Customer",
       render: (d) => {
-        const contact = d.contacts || d.contact;
-        const company = d.companies || d.company;
-        const customer = contact ? `${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim() || company?.name || "—" : company?.name || "—";
+        const customer = d.customer_name || d.contact_name || "—";
         return <span className="text-sm text-foreground">{customer}</span>;
       },
     },
@@ -153,7 +146,7 @@ export default function SalesPage() {
       header: "Amount",
       align: "right",
       sortable: true,
-      render: (d) => <span className="font-semibold">{formatCurrency(d.value ?? d.amount)}</span>,
+      render: (d) => <span className="font-semibold">{formatCurrency(d.total_amount || d.subtotal || d.value || d.amount)}</span>,
     },
     {
       key: "items",
@@ -164,8 +157,8 @@ export default function SalesPage() {
       key: "status",
       header: "Status",
       render: (d) => (
-        <Badge variant="outline" className={getStatusColor(d.status || d.stage)}>
-          {d.status || d.stage || "Open"}
+        <Badge variant="outline" className={getStatusColor(d.status)}>
+          {d.status || "Open"}
         </Badge>
       ),
     },
@@ -192,7 +185,7 @@ export default function SalesPage() {
           <DialogHeader>
             <DialogTitle>Create New Order</DialogTitle>
             <DialogDescription>
-              Instantly log a new sale or order. It will be recorded as a closed deal.
+              Instantly log a new sale or order. This will create a dedicated sales record.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -217,11 +210,11 @@ export default function SalesPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={createDeal.isPending}>
+            <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={createOrder.isPending}>
               Cancel
             </Button>
-            <Button onClick={form.handleSubmit(onOrderSubmit)} disabled={createDeal.isPending}>
-              {createDeal.isPending ? "Creating..." : "Create Order"}
+            <Button onClick={form.handleSubmit(onOrderSubmit)} disabled={createOrder.isPending}>
+              {createOrder.isPending ? "Creating..." : "Create Order"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -282,7 +275,7 @@ export default function SalesPage() {
             emptyState={
               <EmptyState
                 title="No sales orders"
-                description="Close your first deal to see sales here."
+                description="Create your first order to see sales here."
                 icon={<Sparkles className="h-6 w-6" />}
               />
             }

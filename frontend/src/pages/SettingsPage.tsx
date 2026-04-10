@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { User, Building2, Bell, Palette, Shield, Globe, Mail, Phone, Camera, Save, KeyRound } from "lucide-react";
+import { User, Building2, Bell, Palette, Shield, Globe, Mail, Phone, Camera, Save, KeyRound, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { api } from "@/lib/api";
@@ -68,32 +68,35 @@ function ProfileSettings() {
   const { currentRole } = useOrganization();
   const [saving, setSaving] = useState(false);
   const [fullName, setFullName] = useState(profile?.full_name || "");
-  const [phone, setPhone] = useState("");
-  const [jobTitle, setJobTitle] = useState("");
-  const [department, setDepartment] = useState("");
+  const [phone, setPhone] = useState((profile as any)?.phone || "");
+  const [jobTitle, setJobTitle] = useState((profile as any)?.position || (profile as any)?.job_title || "");
+  const [department, setDepartment] = useState((profile as any)?.department || "");
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  useState(() => {
-    if (!profile) return;
-    api.get<any>(`/users/${profile.id}/profile`).then(({ phone: p, job_title: j, department: d }) => {
-      if (p) setPhone(p);
-      if (j) setJobTitle(j);
-      if (d) setDepartment(d);
-    });
-  });
+  useEffect(() => {
+    if (profile) {
+      setFullName(profile.full_name || "");
+      setPhone((profile as any).phone || "");
+      setJobTitle((profile as any).position || (profile as any).job_title || "");
+      setDepartment((profile as any).department || "");
+    }
+  }, [profile]);
 
   const saveProfile = async () => {
     if (!profile) return;
     setSaving(true);
     try {
-      await api.put(`/users/${profile.id}`, {
-        full_name: fullName,
+      await api.put(`/auth/profile`, {
+        fullName: fullName,
         phone,
-        job_title: jobTitle,
+        position: jobTitle,
         department,
       });
       toast.success("Profile updated");
@@ -115,7 +118,10 @@ function ProfileSettings() {
     }
     setChangingPassword(true);
     try {
-      await api.post(`/auth/change-password`, { password: newPassword });
+      await api.post(`/auth/change-password`, { 
+        currentPassword,
+        newPassword 
+      });
       toast.success("Password updated successfully");
       setCurrentPassword("");
       setNewPassword("");
@@ -205,16 +211,35 @@ function ProfileSettings() {
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="currentPassword">Current Password</Label>
+              <div className="relative">
+                <Input id="currentPassword" type={showCurrentPassword ? "text" : "password"} value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className="pr-12" />
+                <a type="button" className="absolute right-0 top-0 h-10 w-10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 flex items-center justify-center cursor-pointer" onClick={() => setShowCurrentPassword(!showCurrentPassword)}>
+                  {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </a>
+              </div>
+            </div>
+            <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="newPassword">New Password</Label>
-              <Input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Minimum 8 characters" />
+              <div className="relative">
+                <Input id="newPassword" type={showNewPassword ? "text" : "password"} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Minimum 8 characters" className="pr-12" />
+                <a type="button" className="absolute right-0 top-0 h-10 w-10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 flex items-center justify-center cursor-pointer" onClick={() => setShowNewPassword(!showNewPassword)}>
+                  {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </a>
+              </div>
             </div>
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="confirmPassword">Confirm New Password</Label>
-              <Input id="confirmPassword" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+              <div className="relative">
+                <Input id="confirmPassword" type={showConfirmPassword ? "text" : "password"} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="pr-12" />
+                <a type="button" className="absolute right-0 top-0 h-10 w-10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 flex items-center justify-center cursor-pointer" onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
+                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </a>
+              </div>
             </div>
           </div>
           <div className="flex justify-end">
-            <Button onClick={changePassword} disabled={changingPassword || !newPassword}>
+            <Button onClick={changePassword} disabled={changingPassword || !newPassword || !currentPassword}>
               {changingPassword ? "Updating..." : "Update Password"}
             </Button>
           </div>

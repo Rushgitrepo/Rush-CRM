@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, AlertCircle, CheckCircle2, ChevronRight, LayoutGrid } from 'lucide-react';
+import { Loader2, AlertCircle, CheckCircle2, ChevronRight, LayoutGrid, Eye, EyeOff } from 'lucide-react';
 import { z } from 'zod';
 
 const emailSchema = z.string().email('Please enter a valid email address');
@@ -21,7 +21,9 @@ export default function AuthPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('signin');
-
+  const [showSignInPassword, setShowSignInPassword] = useState(false);
+  const [showSignUpPassword, setShowSignUpPassword] = useState(false);
+  const [showSignUpConfirm, setShowSignUpConfirm] = useState(false);
   // Redirect if already logged in
   if (user) {
     const from = (location.state as { from?: Location })?.from?.pathname || '/';
@@ -229,14 +231,23 @@ export default function AuthPage() {
                       Forgot Password?
                     </Link>
                   </div>
-                  <Input
-                    id="signin-password"
-                    name="password"
-                    type="password"
-                    required
-                    disabled={isLoading}
-                    className="h-12 border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-sm rounded-xl focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-white/5 transition-all"
-                  />
+                  <div className="relative">
+                    <Input
+                      id="signin-password"
+                      name="password"
+                      type={showSignInPassword ? "text" : "password"}
+                      required
+                      disabled={isLoading}
+                      className="h-12 border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-sm rounded-xl focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-white/5 transition-all pr-12"
+                    />
+                    <a
+                      type="button"
+                      className="absolute right-0 top-0 h-12 w-12 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 flex items-center justify-center cursor-pointer"
+                      onClick={() => setShowSignInPassword(!showSignInPassword)}
+                    >
+                      {showSignInPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </a>
+                  </div>
                 </div>
 
                 <Button
@@ -287,28 +298,46 @@ export default function AuthPage() {
                   <Label htmlFor="signup-password" className="font-bold text-slate-400 dark:text-slate-500 text-[10px] uppercase tracking-widest pl-1">
                     Secure Password
                   </Label>
-                  <Input
-                    id="signup-password"
-                    name="password"
-                    type="password"
-                    required
-                    disabled={isLoading}
-                    className="h-12 border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-sm rounded-xl focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-white/5 transition-all"
-                  />
+                  <div className="relative">
+                    <Input
+                      id="signup-password"
+                      name="password"
+                      type={showSignUpPassword ? "text" : "password"}
+                      required
+                      disabled={isLoading}
+                      className="h-12 border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-sm rounded-xl focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-white/5 transition-all pr-12"
+                    />
+                    <a
+                      type="button"
+                      className="absolute right-0 top-0 h-12 w-12 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 flex items-center justify-center cursor-pointer"
+                      onClick={() => setShowSignUpPassword(!showSignUpPassword)}
+                    >
+                      {showSignUpPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </a>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="signup-confirm" className="font-bold text-slate-400 dark:text-slate-500 text-[10px] uppercase tracking-widest pl-1">
                     Verify Password
                   </Label>
-                  <Input
-                    id="signup-confirm"
-                    name="confirmPassword"
-                    type="password"
-                    required
-                    disabled={isLoading}
-                    className="h-12 border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-sm rounded-xl focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-white/5 transition-all"
-                  />
+                  <div className="relative">
+                    <Input
+                      id="signup-confirm"
+                      name="confirmPassword"
+                      type={showSignUpConfirm ? "text" : "password"}
+                      required
+                      disabled={isLoading}
+                      className="h-12 border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-sm rounded-xl focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-white/5 transition-all pr-12"
+                    />
+                    <a
+                      type="button"
+                      className="absolute right-0 top-0 h-12 w-12 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 flex items-center justify-center cursor-pointer"
+                      onClick={() => setShowSignUpConfirm(!showSignUpConfirm)}
+                    >
+                      {showSignUpConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </a>
+                  </div>
                 </div>
 
                 <Button
