@@ -6,7 +6,7 @@ import {
   ArrowUpRight, ArrowDownLeft, RefreshCw, FileText, Mic,
   TrendingUp, PhoneCall, MessageCircle, Calendar, ChevronLeft,
   ChevronRight, ExternalLink, Edit3, Check, X, Download, Send, Loader2,
-  AlertCircle, ShieldCheck, Link2
+  AlertCircle, ShieldCheck, Link2, PhoneOff
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -372,14 +372,20 @@ export default function CommunicationsPage() {
     }
   };
 
+  const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+
   const handleDisconnectRC = async () => {
-    if (!confirm('Are you sure you want to disconnect your RingCentral account?')) return;
+    setDisconnecting(true);
     try {
       await api.post('/ringcentral/disconnect', {});
       setRcStatus({ connected: false });
+      setShowDisconnectDialog(false);
       toast.success('Disconnected from RingCentral');
     } catch (err: any) {
       toast.error('Failed to disconnect');
+    } finally {
+      setDisconnecting(false);
     }
   };
 
@@ -515,13 +521,14 @@ export default function CommunicationsPage() {
                   Connect Account
                 </Button>
               ) : (
-                <Button 
-                  onClick={handleDisconnectRC}
+                <Button
+                  onClick={() => setShowDisconnectDialog(true)}
                   variant="outline"
                   size="sm"
-                  className="w-full md:w-auto text-muted-foreground hover:text-red-500 hover:border-red-200"
+                  className="w-full md:w-auto gap-2 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-600 hover:border-red-400 font-semibold"
                 >
-                  Disconnect
+                  <PhoneOff className="h-4 w-4" />
+                  Disconnect RC
                 </Button>
               )}
             </div>
@@ -919,6 +926,35 @@ export default function CommunicationsPage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Disconnect RC Dialog */}
+      <Dialog open={showDisconnectDialog} onOpenChange={setShowDisconnectDialog}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <PhoneOff className="h-5 w-5" />
+              Disconnect RingCentral
+            </DialogTitle>
+            <DialogDescription>
+              This will revoke your RingCentral tokens and disable call syncing, SMS, and telephony features until you reconnect.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowDisconnectDialog(false)} disabled={disconnecting}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDisconnectRC}
+              disabled={disconnecting}
+              className="gap-2"
+            >
+              {disconnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <PhoneOff className="h-4 w-4" />}
+              {disconnecting ? 'Disconnecting...' : 'Yes, Disconnect'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Send SMS Dialog */}
       <Dialog open={showSendSms} onOpenChange={setShowSendSms}>
