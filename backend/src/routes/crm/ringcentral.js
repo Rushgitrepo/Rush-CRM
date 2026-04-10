@@ -7,6 +7,7 @@ const rcService = require('../../services/ringcentralService');
 // OAuth Flow
 // ---------------------------------------------------------------------------
 
+
 /**
  * GET /api/ringcentral/authorize
  * Redirect the user to RingCentral's OAuth consent screen.

@@ -148,9 +148,10 @@ export function EmbeddedSoftphone() {
   if (activeProvider === 'ringcentral') {
     if (rcCurrentTab === 'widget') {
       const clientId = import.meta.env.VITE_RINGCENTRAL_CLIENT_ID || '';
+      const redirectUri = import.meta.env.VITE_RINGCENTRAL_REDIRECT_URI || 'http://localhost:8080/redirect.html';
       const rcAppUrl = clientId
-        ? `https://apps.ringcentral.com/integration/ringcentral-embeddable/latest/app.html?clientId=${clientId}&appServer=https://platform.ringcentral.com&defaultAutoLogCallEnabled=1&defaultAutoLogSmsEnabled=1`
-        : `https://apps.ringcentral.com/integration/ringcentral-embeddable/latest/app.html?defaultAutoLogCallEnabled=1&defaultAutoLogSmsEnabled=1`;
+        ? `https://apps.ringcentral.com/integration/ringcentral-embeddable/latest/app.html?clientId=${clientId}&appServer=https://platform.ringcentral.com&redirectUri=${encodeURIComponent(redirectUri)}&defaultAutoLogCallEnabled=1&defaultAutoLogSmsEnabled=1`
+        : `https://apps.ringcentral.com/integration/ringcentral-embeddable/latest/app.html?redirectUri=${encodeURIComponent(redirectUri)}&defaultAutoLogCallEnabled=1&defaultAutoLogSmsEnabled=1`;
 
       return (
         <div className="relative h-full w-full flex flex-col">
@@ -194,7 +195,7 @@ export function EmbeddedSoftphone() {
           </button>
           <button
             onClick={() => setRcCurrentTab('widget')}
-            className={cn("py-3 text-xs font-semibold flex flex-col items-center gap-1 transition-colors", rcCurrentTab === 'widget' ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:bg-muted/50")}
+            className={cn("py-3 text-xs font-semibold flex flex-col items-center gap-1 transition-colors", (rcCurrentTab as string) === 'widget' ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:bg-muted/50")}
           >
             <History className="h-4 w-4" />
             History/Widget
