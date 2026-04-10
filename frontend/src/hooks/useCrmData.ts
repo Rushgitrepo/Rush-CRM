@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { leadsApi, dealsApi, contactsApi, companiesApi, customersApi, vendorsApi, signingPartiesApi, productsApi, stockApi, warehousesApi, purchaseOrdersApi, usersApi, authApi } from '@/lib/api';
+import { leadsApi, dealsApi, contactsApi, companiesApi, customersApi, vendorsApi, signingPartiesApi, productsApi, stockApi, warehousesApi, purchaseOrdersApi, salesOrdersApi, usersApi, authApi } from '@/lib/api';
 import { toast } from 'sonner';
 
 // Cache configuration for better performance
@@ -138,6 +138,36 @@ export function useDeals(params?: { stage?: string; status?: string; search?: st
     refetchOnWindowFocus: true, // Enable refetch on window focus
     refetchOnMount: true, // Enable refetch on mount
     placeholderData: (previousData) => previousData, // Updated from keepPreviousData
+  });
+}
+
+export function useSalesOrders(params?: { status?: string; customerId?: string; search?: string }) {
+  return useQuery({
+    queryKey: ['sales-orders', params],
+    queryFn: () => salesOrdersApi.getAll(params),
+    staleTime: STALE_TIME,
+    gcTime: GC_TIME,
+  });
+}
+
+export function useSalesOrder(id: string) {
+  return useQuery({
+    queryKey: ['sales-orders', id],
+    queryFn: () => salesOrdersApi.getById(id),
+    enabled: !!id,
+  });
+}
+
+export function useCreateSalesOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: any) => salesOrdersApi.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sales-orders'] });
+      toast.success('Order created successfully');
+    },
+    onError: (error: Error) => toast.error(error.message),
   });
 }
 

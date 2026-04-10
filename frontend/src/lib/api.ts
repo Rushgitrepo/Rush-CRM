@@ -156,6 +156,14 @@ export const dealsApi = {
   getStats: () => api.get<any>('/deals/stats'),
 };
 
+export const salesOrdersApi = {
+  getAll: (params = {}) => api.get<any[]>('/sales-orders', params),
+  getById: (id: string) => api.get<any>(`/sales-orders/${id}`),
+  create: (data: any) => api.post<any>('/sales-orders', data),
+  update: (id: string, data: any) => api.put<any>(`/sales-orders/${id}`, data),
+  delete: (id: string) => api.delete(`/sales-orders/${id}`),
+};
+
 export const contactsApi = {
   getAll: (params?: { page?: number; limit?: number; search?: string; companyId?: string }) => 
     api.get<{ data: any[]; pagination: any }>('/contacts', params),
