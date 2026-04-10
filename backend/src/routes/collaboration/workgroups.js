@@ -13,6 +13,7 @@ const {
   createWorkgroupPost,
   deleteWorkgroupPost,
   togglePinWorkgroupPost,
+  addWorkgroupPostReaction,
   getWorkgroupActivities
 } = require('../../controllers/collaboration/workgroupController');
 const { auth } = require('../../middleware/auth');
@@ -37,6 +38,7 @@ router.get('/:id/posts', getWorkgroupPosts);
 router.post('/:id/posts', createWorkgroupPost);
 router.delete('/:id/posts/:postId', deleteWorkgroupPost);
 router.put('/:id/posts/:postId/pin', togglePinWorkgroupPost);
+router.post('/:id/posts/:postId/reactions', addWorkgroupPostReaction);
 
 // Activity routes
 router.get('/:id/activities', getWorkgroupActivities);

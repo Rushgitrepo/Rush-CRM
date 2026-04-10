@@ -6,21 +6,22 @@ const getAll = async (req, res, next) => {
     const offset = (page - 1) * limit;
 
     let query = `
-      SELECT p.*, ur.role
-      FROM public.profiles p
-      LEFT JOIN public.user_roles ur ON ur.user_id = p.id AND ur.org_id = p.org_id
-      WHERE p.org_id = $1
+      SELECT u.id, u.email, u.full_name, u.role, u.department, u.phone, u.position, u.is_active, u.avatar_url, u.created_at, u.updated_at
+      FROM public.users u
     `;
-    const params = [req.user.orgId];
-    let paramIndex = 2;
+    const params = [];
+    let paramIndex = 1;
 
+    // Temporary logic: If the current user has an orgId, you can normally filter by it like: WHERE u.organization_id = $1
+    // But to ensure you see ALL users from the user table right now across the system:
+    
     if (search) {
-      query += ` AND (p.full_name ILIKE $${paramIndex} OR p.email ILIKE $${paramIndex})`;
+      query += ` WHERE (u.full_name ILIKE $${paramIndex} OR u.email ILIKE $${paramIndex})`;
       params.push(`%${search}%`);
       paramIndex++;
     }
 
-    query += ` ORDER BY p.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    query += ` ORDER BY u.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     params.push(limit, offset);
 
     const result = await db.query(query, params);
@@ -124,7 +125,7 @@ const getProfile = async (req, res, next) => {
   try {
     const { id } = req.params;
     const requestingUserId = req.user.id;
-    
+
     const result = await db.query(
       `SELECT phone, job_title, department FROM public.profiles WHERE id = $1`,
       [id]
