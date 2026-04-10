@@ -19,7 +19,7 @@ router.get('/authorize', auth, requireOrg, (req, res) => {
       userId: req.user.id,
     })).toString('base64');
 
-    const redirectUri = `${req.protocol}://${req.get('host')}/api/ringcentral/callback`;
+    const redirectUri = process.env.RC_REDIRECT_URI || `${req.protocol}://${req.get('host')}/api/ringcentral/callback`;
     const url = rcService.getAuthorizationUrl(state, redirectUri);
     res.json({ url });
   } catch (err) {
@@ -50,9 +50,9 @@ router.get('/callback', async (req, res) => {
       return res.status(400).json({ error: 'Invalid state parameter' });
     }
 
-    const redirectUri = `${req.protocol}://${req.get('host')}/api/ringcentral/callback`;
+    const redirectUri = process.env.RC_REDIRECT_URI || `${req.protocol}://${req.get('host')}/api/ringcentral/callback`;
     await rcService.exchangeCodeForTokens(code, orgId, userId, redirectUri);
-    
+
     /* 
     try {
       await rcService.setupWebhook(orgId, userId);

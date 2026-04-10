@@ -36,6 +36,7 @@ CREATE INDEX IF NOT EXISTS idx_project_invoices_org_id ON public.project_invoice
 CREATE INDEX IF NOT EXISTS idx_project_notifications_user_project ON public.project_notifications(user_id, project_id);
 
 -- Trigger for invoices
+DROP TRIGGER IF EXISTS update_project_invoices_updated_at ON public.project_invoices;
 CREATE TRIGGER update_project_invoices_updated_at
     BEFORE UPDATE ON public.project_invoices
     FOR EACH ROW
