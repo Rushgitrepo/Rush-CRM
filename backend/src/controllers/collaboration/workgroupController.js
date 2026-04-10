@@ -1,5 +1,6 @@
 const db = require('../../config/database');
 const { v4: uuidv4 } = require('uuid');
+const realtimeService = require('../../services/realtimeService');
 
 // Get all workgroups for organization
 const getWorkgroups = async (req, res, next) => {
@@ -349,15 +350,15 @@ const addWorkgroupMember = async (req, res, next) => {
       return res.status(403).json({ error: 'You do not have permission to add members' });
     }
     
-    // Check if user exists and is in same organization
+    // Check if user exists
     const userQuery = `
       SELECT id, full_name FROM users 
-      WHERE id = $1 AND org_id = $2
+      WHERE id = $1
     `;
-    const userResult = await db.query(userQuery, [user_id, req.user.orgId]);
+    const userResult = await db.query(userQuery, [user_id]);
     
     if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found in your organization' });
+      return res.status(404).json({ error: 'User not found' });
     }
     
     // Check if user is already a member
@@ -580,11 +581,26 @@ const createWorkgroupPost = async (req, res, next) => {
       return res.status(403).json({ error: 'You must be a member to post messages' });
     }
     
+    // Check if channel exists and is broadcast
+    if (channel_id) {
+      const channelQuery = `SELECT is_broadcast FROM workgroup_channels WHERE id = $1`;
+      const channelResult = await db.query(channelQuery, [channel_id]);
+      if (channelResult.rows.length > 0 && channelResult.rows[0].is_broadcast) {
+        if (!['owner', 'admin'].includes(memberResult.rows[0].role)) {
+          return res.status(403).json({ error: 'Only admins can post in broadcast channels' });
+        }
+      }
+    }
+    
+    const { files, mentions } = req.body;
+    const attachments = Array.isArray(files) ? files : [];
+    const messageMentions = Array.isArray(mentions) ? mentions : [];
+
     const postId = uuidv4();
     const insertQuery = `
       INSERT INTO workgroup_posts (
-        id, workgroup_id, channel_id, user_id, parent_id, content, content_type
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        id, workgroup_id, channel_id, user_id, parent_id, content, content_type, attachments
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
       RETURNING *
     `;
     
@@ -595,7 +611,8 @@ const createWorkgroupPost = async (req, res, next) => {
       req.user.id,
       parent_id || null,
       content.trim(),
-      content_type || 'text'
+      content_type || 'text',
+      JSON.stringify(attachments)
     ]);
     
     // Get post with author info
@@ -613,7 +630,21 @@ const createWorkgroupPost = async (req, res, next) => {
       is_reply: !!parent_id
     });
     
-    res.status(201).json(postResult.rows[0]);
+    const insertedPost = postResult.rows[0];
+
+    // Real-time
+    realtimeService.emitWorkgroupPost(id, insertedPost);
+
+    // Send Mention Events
+    for (const mentionedUser of messageMentions) {
+        realtimeService.emitMention(mentionedUser, {
+            type: 'workgroup_post',
+            workgroupId: id,
+            message: insertedPost
+        });
+    }
+    
+    res.status(201).json(insertedPost);
   } catch (err) {
     next(err);
   }
@@ -716,6 +747,43 @@ const togglePinWorkgroupPost = async (req, res, next) => {
   }
 };
 
+// Add reaction to a post
+const addWorkgroupPostReaction = async (req, res, next) => {
+  try {
+    const { id, postId } = req.params;
+    const { reaction } = req.body;
+    
+    // Check if user is member
+    const memberQuery = `SELECT id FROM workgroup_members WHERE workgroup_id = $1 AND user_id = $2`;
+    const memberResult = await db.query(memberQuery, [id, req.user.id]);
+    if (memberResult.rows.length === 0) {
+      return res.status(403).json({ error: 'You must be a member to react' });
+    }
+
+    const fetchQ = `SELECT reactions FROM workgroup_posts WHERE id = $1 AND workgroup_id = $2 AND is_deleted = false`;
+    const fetchResult = await db.query(fetchQ, [postId, id]);
+    if (fetchResult.rows.length === 0) return res.status(404).json({ error: 'Post not found' });
+    
+    const currentReactions = fetchResult.rows[0].reactions || {};
+    if (!currentReactions[reaction]) currentReactions[reaction] = [];
+    if (!currentReactions[reaction].includes(req.user.id)) {
+        currentReactions[reaction].push(req.user.id);
+    } else {
+        currentReactions[reaction] = currentReactions[reaction].filter(uId => uId !== req.user.id);
+        if (currentReactions[reaction].length === 0) delete currentReactions[reaction];
+    }
+
+    const updateQ = `UPDATE workgroup_posts SET reactions = $1 WHERE id = $2 RETURNING *`;
+    const updatedRows = await db.query(updateQ, [JSON.stringify(currentReactions), postId]);
+
+    realtimeService.emitReactionAdded(`workgroup:${id}`, { messageId: postId, reactions: currentReactions });
+    
+    res.json(updatedRows.rows[0]);
+  } catch (err) {
+    next(err);
+  }
+};
+
 // Helper function to log activities
 const logActivity = async (workgroupId, userId, activityType, activityData = {}) => {
   try {
@@ -767,5 +835,6 @@ module.exports = {
   createWorkgroupPost,
   deleteWorkgroupPost,
   togglePinWorkgroupPost,
+  addWorkgroupPostReaction,
   getWorkgroupActivities
 };
