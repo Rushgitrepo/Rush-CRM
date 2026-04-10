@@ -60,6 +60,18 @@ class RealtimeService {
         socket.leave(`campaign:${campaignId}`);
       });
 
+      // Join direct messaging room
+      socket.join(`user:${socket.userId}`);
+
+      // Subscribe to workgroup channels
+      socket.on('subscribe:workgroup', (workgroupId) => {
+        socket.join(`workgroup:${workgroupId}`);
+      });
+      
+      socket.on('unsubscribe:workgroup', (workgroupId) => {
+        socket.leave(`workgroup:${workgroupId}`);
+      });
+
       // Disconnect handling
       socket.on('disconnect', () => {
         console.log(`User disconnected: ${socket.userId}`);
@@ -129,6 +141,28 @@ class RealtimeService {
   getConnectedUsersCount(orgId) {
     const users = Array.from(this.connectedUsers.values()).filter(u => u.orgId === orgId);
     return users.length;
+  }
+
+  // --- Collaboration Addons ---
+
+  emitDirectMessage(receiverId, message) {
+    this.io.to(`user:${receiverId}`).emit('direct_message:new', message);
+  }
+
+  emitWorkgroupPost(workgroupId, post) {
+    this.io.to(`workgroup:${workgroupId}`).emit('workgroup_post:new', post);
+  }
+  
+  emitReactionAdded(roomName, data) {
+    this.io.to(roomName).emit('reaction:added', data);
+  }
+
+  emitMention(userId, message) {
+    this.io.to(`user:${userId}`).emit('mention:new', message);
+  }
+
+  emitBroadcast(orgId, broadcastData) {
+    this.io.to(`org:${orgId}`).emit('broadcast:new', broadcastData);
   }
 
   // Check if user is connected

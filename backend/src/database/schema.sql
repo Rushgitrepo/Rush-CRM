@@ -2784,14 +2784,21 @@ ALTER TABLE public.user_roles OWNER TO postgres;
 --
 -- Name: users; Type: TABLE; Schema: public; Owner: postgres
 --
+CREATE TYPE public.user_role AS ENUM (
+    'super_admin',
+    'admin',
+    'manager',
+    'team_lead',
+    'employee'
+);
 
 CREATE TABLE IF NOT EXISTS public.users (
     id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
-    organization_id uuid,
+    organization_id uuid REFERENCES public.organizations(id),
     email character varying(255) NOT NULL,
     password_hash character varying(255) NOT NULL,
     full_name character varying(255) NOT NULL,
-    role character varying(50) DEFAULT 'user'::character varying,
+    role public.user_role DEFAULT 'employee'::public.user_role,
     is_active boolean DEFAULT true,
     last_login timestamp without time zone,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
@@ -2799,7 +2806,7 @@ CREATE TABLE IF NOT EXISTS public.users (
     avatar_url character varying(500),
     phone character varying(50),
     "position" character varying(100),
-    org_id uuid,
+    org_id uuid REFERENCES public.organizations(id),
     department character varying(100),
     bio text,
     timezone character varying(100),
