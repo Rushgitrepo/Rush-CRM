@@ -4,7 +4,7 @@ const Joi = require('joi');
 // Validation Schema
 const createInterviewSchema = Joi.object({
   candidateId: Joi.string().uuid().required(),
-  requisitionId: Joi.string().uuid().required(),
+  requisitionId: Joi.string().required(), // Allow human-readable ID or UUID
   interviewType: Joi.string().valid('technical', 'hr', 'final').required(),
   interviewDate: Joi.date().required(),
   interviewTime: Joi.string().required(),
@@ -39,6 +39,24 @@ exports.scheduleInterview = async (req, res) => {
 
     const userId = req.user.id;
     const userName = req.user.full_name;
+    let requisitionId = value.requisitionId;
+
+    // If requisitionId is not a UUID, try to find the actual ID from the human-readable requisition_id
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(requisitionId)) {
+      console.log(`RequisitionId ${requisitionId} is not a UUID, searching for record...`);
+      const reqResult = await db.query(
+        'SELECT id FROM job_requisitions WHERE requisition_id = $1 OR id::text = $1',
+        [requisitionId]
+      );
+      
+      if (reqResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Requisition not found with the provided ID' });
+      }
+      
+      requisitionId = reqResult.rows[0].id;
+      console.log(`Found actual UUID for requisition: ${requisitionId}`);
+    }
 
     const result = await db.query(
       `INSERT INTO candidate_interviews (
@@ -48,7 +66,7 @@ exports.scheduleInterview = async (req, res) => {
       RETURNING *`,
       [
         value.candidateId,
-        value.requisitionId,
+        requisitionId,
         value.interviewType,
         value.interviewDate,
         value.interviewTime,

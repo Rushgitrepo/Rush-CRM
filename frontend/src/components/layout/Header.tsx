@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, Search, Plus, ChevronDown, Loader2 } from "lucide-react";
+import { Bell, Search, Plus, ChevronDown, Loader2, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { SoftphoneToggleButton } from "@/components/telephony/SoftphoneToggleButton";
 import { Button } from "@/components/ui/button";
@@ -96,6 +96,15 @@ export function TopBar() {
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-card px-6">
       {/* Organization Name + Search */}
       <div className="flex items-center gap-4 flex-1 max-w-xl">
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={() => navigate(-1)}
+          className="text-muted-foreground hover:text-foreground md:flex"
+          title="Go Back"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
         {organization && (
           <span className="text-sm font-medium text-muted-foreground hidden md:block">
             {organization.name}

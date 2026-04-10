@@ -90,12 +90,21 @@ const create = async (req, res, next) => {
     const validStatuses = ['pending', 'approved', 'ordered', 'received', 'cancelled'];
     const orderStatus = validStatuses.includes(status) ? status : 'pending';
 
-    // Generate PO number
-    const poCountResult = await db.query(
-      'SELECT COUNT(*) as count FROM public.purchase_orders WHERE org_id = $1',
+    // Generate PO number - use the latest PO number instead of count to avoid duplicates if POs are deleted
+    const lastPoResult = await db.query(
+      'SELECT po_number FROM public.purchase_orders WHERE org_id = $1 ORDER BY po_number DESC LIMIT 1',
       [req.user.orgId]
     );
-    const poNumber = `PO-${String(parseInt(poCountResult.rows[0].count) + 1).padStart(6, '0')}`;
+    let nextNum = 1;
+    if (lastPoResult.rows.length > 0) {
+      const lastPo = lastPoResult.rows[0].po_number;
+      // Extract number from PO-XXXXXX
+      const numericPart = lastPo.split('-')[1];
+      if (numericPart) {
+        nextNum = parseInt(numericPart) + 1;
+      }
+    }
+    const poNumber = `PO-${String(nextNum).padStart(6, '0')}`;
 
     const orderResult = await db.query(
       `INSERT INTO public.purchase_orders (

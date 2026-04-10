@@ -428,7 +428,7 @@ export function CreateLeadDialog({ open, onOpenChange }: CreateLeadDialogProps) 
                   <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                     Cancel
                   </Button>
-                  <Button type="submit" className="gradient-primary">
+                  <Button type="submit" className="bg-primary shadow-lg hover:bg-primary/90 transition-all">
                     <Plus className="h-4 w-4 mr-2" />
                     Create Lead
                   </Button>

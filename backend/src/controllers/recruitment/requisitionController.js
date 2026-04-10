@@ -16,12 +16,26 @@ const createRequisitionSchema = Joi.object({
 // Generate unique requisition ID
 const generateRequisitionId = async () => {
   const year = new Date().getFullYear();
+  const searchPattern = `REQ-${year}-%`;
+  
   const result = await db.query(
-    `SELECT COUNT(*) as count FROM job_requisitions WHERE requisition_id LIKE $1`,
-    [`REQ-${year}-%`]
+    `SELECT requisition_id FROM job_requisitions 
+     WHERE requisition_id LIKE $1 
+     ORDER BY requisition_id DESC LIMIT 1`,
+    [searchPattern]
   );
-  const count = parseInt(result.rows[0].count) + 1;
-  return `REQ-${year}-${String(count).padStart(3, '0')}`;
+  
+  let nextNum = 1;
+  if (result.rows.length > 0) {
+    const lastId = result.rows[0].requisition_id;
+    const parts = lastId.split('-');
+    const lastNum = parseInt(parts[2]);
+    if (!isNaN(lastNum)) {
+      nextNum = lastNum + 1;
+    }
+  }
+  
+  return `REQ-${year}-${String(nextNum).padStart(3, '0')}`;
 };
 
 // Create Requisition

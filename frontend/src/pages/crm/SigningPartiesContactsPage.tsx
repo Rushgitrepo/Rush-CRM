@@ -171,7 +171,7 @@ export default function SigningPartiesContactsPage() {
               <Download className="mr-2 h-4 w-4 text-primary" /> Export
             </Button> */}
             <Button 
-              className="gradient-primary shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all active:scale-95" 
+              className="bg-primary shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all active:scale-95" 
               onClick={() => navigate("/crm/customers/signing-parties/contacts/create")}
             >
               <Plus className="mr-2 h-4 w-4" /> New signing contact

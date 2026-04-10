@@ -289,7 +289,7 @@ export function WebmailView({ mailboxes, onBackToIntegration, initialOpenCompose
             <TooltipContent>Sync emails</TooltipContent>
           </Tooltip>
           <Button
-            className="gradient-primary text-primary-foreground"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg"
             onClick={() => {
               setReplyTo(null);
               setForwardEmail(null);

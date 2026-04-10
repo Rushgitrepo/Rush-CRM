@@ -109,7 +109,7 @@ export default function ExternalSourcesPage() {
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          className="flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/80"
         >
           <Plus className="mr-2 h-5 w-5" />
           Add Source
@@ -127,7 +127,7 @@ export default function ExternalSourcesPage() {
           </p>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            className="inline-flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700"
           >
             <Plus className="mr-2 h-5 w-5" />
             Add Your First Source
@@ -438,7 +438,7 @@ function CreateSourceModal({ onClose, onSuccess }: { onClose: () => void; onSucc
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/80 disabled:opacity-50"
             >
               {loading ? 'Creating...' : 'Create Source'}
             </button>

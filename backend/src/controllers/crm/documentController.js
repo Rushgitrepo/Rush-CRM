@@ -77,7 +77,7 @@ const remove = async (req, res, next) => {
 
     // Optional: Delete the physical file
     const filePath = result.rows[0].file_path;
-    const absolutePath = path.join(__dirname, '../../../', filePath);
+    const absolutePath = path.join(__dirname, '../../../public', filePath);
     if (fs.existsSync(absolutePath)) {
       fs.unlinkSync(absolutePath);
     }

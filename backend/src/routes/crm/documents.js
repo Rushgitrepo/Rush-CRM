@@ -1,30 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
 const { auth, requireOrg } = require('../../middleware/auth');
 const documentController = require('../../controllers/crm/documentController');
+const { getUploader } = require('../../utils/fileUpload');
 
-// Multer configuration for CRM file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '../../../uploads/crm');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-const upload = multer({
-  storage: storage,
-  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB limit
-});
+// Use the dynamic uploader to save to public/uploads/crm
+const upload = getUploader('crm', 20, 'document');
 
 router.use(auth, requireOrg);
 

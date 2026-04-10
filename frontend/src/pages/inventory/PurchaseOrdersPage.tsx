@@ -309,7 +309,7 @@ export default function PurchaseOrdersPage() {
         actions={
           <Dialog open={poModalOpen} onOpenChange={setPoModalOpen}>
             <DialogTrigger asChild>
-              <Button className="gradient-primary">
+              <Button className="bg-primary hover:bg-primary/90 text-white shadow-lg">
                 <Plus className="mr-2 h-4 w-4" /> Create PO
               </Button>
             </DialogTrigger>

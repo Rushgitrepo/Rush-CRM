@@ -37,7 +37,7 @@ export function CreateUserDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="gradient-primary">
+        <Button className="bg-primary shadow-lg hover:bg-primary/90 transition-all">
           <Plus className="mr-2 h-4 w-4" />
           Add User
         </Button>
@@ -131,7 +131,7 @@ export function CreateUserDialog() {
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" className="gradient-primary">
+            <Button type="submit" className="bg-primary shadow-lg hover:bg-primary/90 transition-all">
               Create User
             </Button>
           </DialogFooter>

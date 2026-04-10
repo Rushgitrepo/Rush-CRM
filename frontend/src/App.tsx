@@ -29,7 +29,7 @@ import FormSubmittedSuccess from "./pages/public/FormSubmittedSuccess";
 import CalendarPage from "./pages/collaboration/CalendarPage";
 import DrivePage from "./pages/collaboration/DrivePage";
 import MailPage from "./pages/collaboration/MailPage";
-import UniboxPage from "./pages/collaboration/UniboxPage";
+import UniboxPage from "./pages/crm/UniboxPage";
 import WorkgroupsPage from "./pages/collaboration/WorkgroupsPage";
 // CRM
 import LeadsPage from "./pages/crm/LeadsPage";
@@ -51,6 +51,7 @@ import CreateContactPage from "./pages/crm/CreateContactPage";
 import CreateCompanyPage from "./pages/crm/CreateCompanyPage";
 import SalesPage from "./pages/crm/SalesPage";
 import AnalyticsPage from "./pages/crm/AnalyticsPage";
+import CommunicationsPage from "./pages/crm/CommunicationsPage";
 // HRMS
 import HRMSDashboard from "./pages/hrms/HRMSDashboard";
 import AttendancePage from "./pages/hrms/AttendancePage";
@@ -161,7 +162,7 @@ const App = () => (
                   <Route path="/collaboration/drive" element={<DrivePage />} />
                   <Route path="/collaboration/drive/personal/:driveId" element={<DrivePage />} />
                   <Route path="/collaboration/mail" element={<MailPage />} />
-                  <Route path="/collaboration/unibox" element={<UniboxPage />} />
+                  <Route path="/crm/unibox" element={<UniboxPage />} />
                   <Route path="/collaboration/workgroups" element={<WorkgroupsPage />} />
                   {/* CRM Routes */}
                   <Route path="/crm/leads" element={<LeadsPage />} />
@@ -189,6 +190,7 @@ const App = () => (
                   <Route path="/crm/customers/signing-parties/contacts/create" element={<CreateSigningPartyContactPage />} />
                   <Route path="/crm/sales" element={<SalesPage />} />
                   <Route path="/crm/analytics" element={<AnalyticsPage />} />
+                  <Route path="/crm/communications" element={<CommunicationsPage />} />
                   {/* HRMS Routes */}
                   <Route path="/hrms" element={<HRMSDashboard />} />
                   <Route path="/hrms/dashboard" element={<HRMSDashboard />} />

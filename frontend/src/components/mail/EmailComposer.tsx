@@ -306,7 +306,7 @@ export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardE
             <Button
               onClick={handleSend}
               disabled={sending}
-              className="gradient-primary text-primary-foreground rounded-full px-8 shadow-lg hover:shadow-primary/20 transition-all"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-full px-8 shadow-lg hover:shadow-xl transition-all"
             >
               <Send className="mr-2 h-4 w-4" />
               {sending ? "Sending..." : "Send"}

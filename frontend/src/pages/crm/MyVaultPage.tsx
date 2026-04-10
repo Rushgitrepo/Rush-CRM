@@ -154,7 +154,7 @@ export default function MyVaultPage() {
           { label: "Expiring Soon", value: vaultDocuments.filter((d: any) => isExpiringSoon(d.expiry_date)).length, tone: "warning" },
         ]}
         actions={
-          <Button className="gradient-primary" onClick={() => setUploadDialogOpen(true)}>
+          <Button className="bg-primary" onClick={() => setUploadDialogOpen(true)}>
             <Upload className="mr-2 h-4 w-4" /> Upload Document
           </Button>
         }
@@ -278,7 +278,7 @@ export default function MyVaultPage() {
                             <Shield className="h-4 w-4 mr-2" />
                             Security Info
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(doc.id)}>
+                          <DropdownMenuItem className="text-destructive" onSelect={() => handleDelete(doc.id)}>
                             <Trash2 className="h-4 w-4 mr-2" />
                             Delete
                           </DropdownMenuItem>

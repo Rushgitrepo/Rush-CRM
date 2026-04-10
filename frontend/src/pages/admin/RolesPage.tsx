@@ -96,7 +96,7 @@ export default function RolesPage() {
         </div>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
-            <Button className="gradient-primary">
+            <Button className="bg-primary hover:bg-primary/90 text-white shadow-lg">
               <Plus className="mr-2 h-4 w-4" />
               Create Role
             </Button>
@@ -151,7 +151,7 @@ export default function RolesPage() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
-              <Button className="gradient-primary" onClick={handleCreate} disabled={createRole.isPending}>
+              <Button className="bg-primary hover:bg-primary/90 text-white shadow-lg" onClick={handleCreate} disabled={createRole.isPending}>
                 {createRole.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Create Role
               </Button>
@@ -279,7 +279,7 @@ export default function RolesPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditRole(null)}>Cancel</Button>
-            <Button className="gradient-primary" onClick={handleEditSave} disabled={updateRole.isPending}>Save</Button>
+            <Button className="bg-primary hover:bg-primary/90 text-white shadow-lg" onClick={handleEditSave} disabled={updateRole.isPending}>Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -297,7 +297,7 @@ export default function RolesPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCloneOpen(null)}>Cancel</Button>
-            <Button className="gradient-primary" onClick={handleClone} disabled={cloneRole.isPending}>
+            <Button className="bg-primary hover:bg-primary/90 text-white shadow-lg" onClick={handleClone} disabled={cloneRole.isPending}>
               {cloneRole.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Clone
             </Button>

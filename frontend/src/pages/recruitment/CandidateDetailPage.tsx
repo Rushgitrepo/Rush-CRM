@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ArrowLeft, FileText, Calendar, CheckCircle, XCircle, Download, Mail, Phone } from 'lucide-react';
 import { toast } from 'sonner';
 import { recruitmentApi } from '@/lib/api';
+import { ClickToCall } from '@/components/telephony/ClickToCall';
 
 export default function CandidateDetailPage() {
   const { id } = useParams();
@@ -258,9 +259,12 @@ export default function CandidateDetailPage() {
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <Phone className="h-4 w-4 text-muted-foreground" />
-                  <a href={`tel:${candidate.phone}`} className="text-primary hover:underline">
-                    {candidate.phone}
-                  </a>
+                  <ClickToCall 
+                    phoneNumber={candidate.phone} 
+                    entityType="contact" 
+                    entityId={candidate.id} 
+                    className="text-primary hover:underline" 
+                  />
                 </div>
               </div>
 
@@ -500,3 +504,4 @@ export default function CandidateDetailPage() {
     </div>
   );
 }
+

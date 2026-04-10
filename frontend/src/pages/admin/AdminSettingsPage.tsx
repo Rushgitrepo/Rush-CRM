@@ -7,12 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Phone, Settings, Shield, Plug, Mail } from "lucide-react";
+import { Phone, Settings, Shield, Plug, Mail, Link2, Unlink, CheckCircle2, XCircle, RefreshCw, Loader2 } from "lucide-react";
 import InstantlyIntegrationPanel from "@/components/admin/InstantlyIntegrationPanel";
 import { api } from '@/lib/api';
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useAdminRoles } from "@/hooks/useAdminRoles";
+import { useSearchParams } from "react-router-dom";
 
 interface Provider {
   id: string;
@@ -46,6 +47,69 @@ export default function AdminSettingsPage() {
   // Track local toggle state: roleId → { view: bool, create: bool }
   const [callingPermissions, setCallingPermissions] = useState<Record<string, { view: boolean; create: boolean }>>({});
   const [uniboxPermissions, setUniboxPermissions] = useState<Record<string, boolean>>({});
+  const [searchParams] = useSearchParams();
+
+  // RingCentral connection state
+  const [rcStatus, setRcStatus] = useState<{
+    connected: boolean;
+    extensionName?: string;
+    extensionNumber?: string;
+    lastSynced?: string;
+    error?: string;
+  }>({ connected: false });
+  const [rcLoading, setRcLoading] = useState(true);
+  const [rcConnecting, setRcConnecting] = useState(false);
+
+  // Check for OAuth redirect result
+  useEffect(() => {
+    const rcResult = searchParams.get('rc');
+    if (rcResult === 'connected') {
+      toast.success('RingCentral account connected successfully!');
+      fetchRcStatus();
+    } else if (rcResult === 'error') {
+      toast.error(`RingCentral connection failed: ${searchParams.get('message') || 'Unknown error'}`);
+    }
+  }, [searchParams]);
+
+  // Fetch RC connection status
+  const fetchRcStatus = async () => {
+    setRcLoading(true);
+    try {
+      const data = await api.get<any>('/ringcentral/status');
+      if (data) setRcStatus(data);
+    } catch {
+      setRcStatus({ connected: false });
+    } finally {
+      setRcLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (profile?.org_id) fetchRcStatus();
+  }, [profile?.org_id]);
+
+  const connectRingCentral = async () => {
+    setRcConnecting(true);
+    try {
+      const data = await api.get<{ url: string }>('/ringcentral/authorize');
+      if (data?.url) {
+        window.location.href = data.url;
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to initiate connection');
+      setRcConnecting(false);
+    }
+  };
+
+  const disconnectRingCentral = async () => {
+    try {
+      await api.post('/ringcentral/disconnect', {});
+      setRcStatus({ connected: false });
+      toast.success('RingCentral account disconnected');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to disconnect');
+    }
+  };
 
   // Initialize local state from role_permissions
   useEffect(() => {
@@ -217,6 +281,74 @@ export default function AdminSettingsPage() {
             </CardContent>
           </Card>
 
+          {/* RingCentral Account Connection */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Link2 className="h-5 w-5 text-primary" />
+                RingCentral Account
+              </CardTitle>
+              <CardDescription>
+                Connect your RingCentral account to enable server-side call sync, SMS sending, call recordings, and automatic history import via the official REST API.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {rcLoading ? (
+                <div className="flex items-center gap-2 text-muted-foreground py-4">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Checking connection...
+                </div>
+              ) : rcStatus.connected ? (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 rounded-lg border border-green-500/30 bg-green-500/5 p-4">
+                    <CheckCircle2 className="h-5 w-5 text-green-500" />
+                    <div className="flex-1">
+                      <p className="font-medium text-foreground">Connected</p>
+                      <p className="text-sm text-muted-foreground">
+                        {rcStatus.extensionName && <span>Extension: {rcStatus.extensionName}</span>}
+                        {rcStatus.extensionNumber && <span> (#{rcStatus.extensionNumber})</span>}
+                      </p>
+                      {rcStatus.lastSynced && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Last synced: {new Date(rcStatus.lastSynced).toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                    <Button variant="outline" size="sm" onClick={disconnectRingCentral} className="text-destructive border-destructive/30 hover:bg-destructive/10">
+                      <Unlink className="h-4 w-4 mr-1" />
+                      Disconnect
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Your RingCentral call history and SMS messages will be automatically synced. You can also trigger a manual sync from the Communications page.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 rounded-lg border border-border p-4">
+                    <XCircle className="h-5 w-5 text-muted-foreground" />
+                    <div className="flex-1">
+                      <p className="font-medium text-foreground">Not Connected</p>
+                      <p className="text-sm text-muted-foreground">
+                        Connect your RingCentral account to unlock server-side features like call log import, SMS sending, and call recordings.
+                      </p>
+                    </div>
+                    <Button onClick={connectRingCentral} disabled={rcConnecting}>
+                      {rcConnecting ? (
+                        <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Connecting...</>
+                      ) : (
+                        <><Link2 className="h-4 w-4 mr-1" /> Connect Account</>
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    You'll be redirected to RingCentral to authorize this application. Required scopes: Call Log, Message Store, RingOut.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Role-Level Calling Permissions */}
           <Card>
             <CardHeader>
@@ -267,7 +399,7 @@ export default function AdminSettingsPage() {
                 <Mail className="h-5 w-5 text-primary" />
                 Unibox Mailbox Permissions
               </CardTitle>
-              <CardDescription>Control which roles can access the Unibox Mailbox at /collaboration/unibox</CardDescription>
+              <CardDescription>Control which roles can access the Unibox Mailbox at /crm/unibox</CardDescription>
             </CardHeader>
             <CardContent>
               <Table>

@@ -9,15 +9,19 @@ const ensureUploadDir = (dir) => {
   }
 };
 
-// Storage configuration (Dynamically sorts into images or documents folders)
-const createStorage = () => {
+// Storage configuration (Dynamically sorts into directories under public/uploads)
+const createStorage = (customFolder = null) => {
   return multer.diskStorage({
     destination: (req, file, cb) => {
-      let folderName = 'documents'; // default folder
+      let folderName = customFolder;
 
-      // Automatically route to 'images' folder if it's an image
-      if (file.mimetype.startsWith('image/')) {
-        folderName = 'images';
+      if (!folderName || folderName === 'ignored') {
+        folderName = 'documents'; // default folder
+
+        // Automatically route to 'images' folder if it's an image
+        if (file.mimetype.startsWith('image/')) {
+          folderName = 'images';
+        }
       }
 
       const uploadDir = path.join(__dirname, `../../public/uploads/${folderName}`);
@@ -94,21 +98,21 @@ const multerConfig = {
     if (type === 'spreadsheet') filter = spreadsheetFilter;
 
     return multer({
-      storage: createStorage(),
+      storage: createStorage(folder),
       limits: { fileSize: sizeLimit * 1024 * 1024 },
       fileFilter: filter,
     });
   },
 
   // Specific predefined configs
-  employees: multer({ storage: createStorage(), limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: documentFilter }),
-  imports: multer({ storage: createStorage(), limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: spreadsheetFilter }),
-  workgroups: multer({ storage: createStorage(), limits: { fileSize: 50 * 1024 * 1024 }, fileFilter: allFilesFilter }),
-  drive: multer({ storage: createStorage(), limits: { fileSize: 100 * 1024 * 1024 }, fileFilter: allFilesFilter }),
-  profiles: multer({ storage: createStorage(), limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: imageFilter }),
-  documents: multer({ storage: createStorage(), limits: { fileSize: 20 * 1024 * 1024 }, fileFilter: documentFilter }),
-  carImages: multer({ storage: createStorage(), limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: imageFilter }),
-  cvs: multer({ storage: createStorage(), limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: documentFilter }),
+  employees: multer({ storage: createStorage('documents'), limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: documentFilter }),
+  imports: multer({ storage: createStorage('documents'), limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: spreadsheetFilter }),
+  workgroups: multer({ storage: createStorage('workgroups'), limits: { fileSize: 50 * 1024 * 1024 }, fileFilter: allFilesFilter }),
+  drive: multer({ storage: createStorage('drive'), limits: { fileSize: 100 * 1024 * 1024 }, fileFilter: allFilesFilter }),
+  profiles: multer({ storage: createStorage('profiles'), limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: imageFilter }),
+  documents: multer({ storage: createStorage('documents'), limits: { fileSize: 20 * 1024 * 1024 }, fileFilter: documentFilter }),
+  carImages: multer({ storage: createStorage('carImages'), limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: imageFilter }),
+  cvs: multer({ storage: createStorage('cvs'), limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: documentFilter }),
 };
 
 

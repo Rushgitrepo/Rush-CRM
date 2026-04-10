@@ -18,6 +18,7 @@ import { DealsKanbanView } from "@/components/crm/deals/DealsKanbanView";
 import { DealsActivitiesView } from "@/components/crm/deals/DealsActivitiesView";
 import { DealsCalendarView } from "@/components/crm/deals/DealsCalendarView";
 import { toast } from "sonner";
+import { ClickToCall } from "@/components/telephony/ClickToCall";
 
 const WorkflowsPage = lazy(() => import("@/pages/automation/WorkflowsPage"));
 
@@ -205,10 +206,13 @@ export default function DealsPage() {
       render: (deal) => (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Phone className="h-4 w-4" />
-          {deal.contact || deal.phone ? (
-            <a href={`tel:${deal.phone || deal.contact}`} className="hover:text-primary hover:underline transition-colors" onClick={(e) => e.stopPropagation()}>
-              {deal.contact || deal.phone}
-            </a>
+          {deal.phone || deal.contact ? (
+            <ClickToCall 
+              phoneNumber={deal.phone || deal.contact} 
+              entityType="deal" 
+              entityId={deal.id} 
+              className="font-medium" 
+            />
           ) : (
             "—"
           )}
@@ -245,7 +249,17 @@ export default function DealsPage() {
       key: "actions",
       header: "",
       render: (deal) => (
-        <div onClick={(e) => e.stopPropagation()}>
+        <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1">
+          {deal.phone && (
+            <ClickToCall 
+              phoneNumber={deal.phone} 
+              entityType="deal" 
+              entityId={deal.id} 
+              className="h-8 w-8 p-0" 
+              variant="ghost"
+              showText={false}
+            />
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm">
@@ -253,17 +267,16 @@ export default function DealsPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => navigate(`/crm/deals/${deal.id}`)}>
+              <DropdownMenuItem onSelect={() => navigate(`/crm/deals/${deal.id}`)}>
                 <Eye className="h-4 w-4 mr-2" />
                 View Details
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate(`/crm/deals/${deal.id}/edit`)}>
+              <DropdownMenuItem onSelect={() => navigate(`/crm/deals/${deal.id}/edit`)}>
                 <Edit className="h-4 w-4 mr-2" />
                 Edit Deal
               </DropdownMenuItem>
               <DropdownMenuItem 
-                onClick={(e) => {
-                  e.stopPropagation();
+                onSelect={() => {
                   updateDeal.mutate({ id: deal.id, status: 'unqualified', stage: 'unqualified' });
                 }}
               >
@@ -272,8 +285,7 @@ export default function DealsPage() {
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem 
-                onClick={async (e) => {
-                  e.stopPropagation();
+                onSelect={async () => {
                   if (await confirm('Are you sure you want to delete this deal?', { variant: 'destructive', title: 'Delete Deal' })) {
                     deleteDeal.mutate(deal.id);
                   }
@@ -324,7 +336,7 @@ export default function DealsPage() {
               <Layers className="h-4 w-4" />
               Automation
             </Button>
-            <Button className="gradient-primary" onClick={handleCreate}>
+            <Button className="bg-primary" onClick={handleCreate}>
               <Plus className="mr-2 h-4 w-4" />
               New Deal
             </Button>
@@ -434,3 +446,4 @@ export default function DealsPage() {
     </div>
   );
 }
+

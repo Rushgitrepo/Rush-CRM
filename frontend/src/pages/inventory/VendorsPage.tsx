@@ -200,7 +200,7 @@ export default function VendorsPage() {
         actions={
           <Dialog open={vendorModalOpen} onOpenChange={setVendorModalOpen}>
             <DialogTrigger asChild>
-              <Button className="gradient-primary" onClick={openNew}>
+              <Button className="bg-primary" onClick={openNew}>
                 <Plus className="mr-2 h-4 w-4" /> Add Vendor
               </Button>
             </DialogTrigger>

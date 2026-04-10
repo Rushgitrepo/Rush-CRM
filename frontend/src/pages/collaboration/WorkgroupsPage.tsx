@@ -365,13 +365,13 @@ export default function WorkgroupsPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                        <DropdownMenuItem onClick={() => setSelectedId(wg.id)}>
+                        <DropdownMenuItem onSelect={() => setSelectedId(wg.id)}>
                           <MessageSquare className="h-4 w-4 mr-2" /> Open Team
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => openEdit(wg)}>
+                        <DropdownMenuItem onSelect={() => openEdit(wg)}>
                           <Edit className="h-4 w-4 mr-2" /> Edit
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="text-red-600" onClick={() => setDeleteTarget(wg)}>
+                        <DropdownMenuItem className="text-red-600" onSelect={() => setDeleteTarget(wg)}>
                           <Trash2 className="h-4 w-4 mr-2" /> Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>

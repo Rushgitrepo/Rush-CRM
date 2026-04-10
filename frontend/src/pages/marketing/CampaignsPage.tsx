@@ -219,23 +219,23 @@ export default function CampaignsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem 
-                          onClick={() => handleSendCampaign(c)}
+                          onSelect={() => handleSendCampaign(c)}
                           disabled={sending || c.status === 'sent'}
                         >
                           <Send className="h-4 w-4 mr-2" /> Send Campaign
                         </DropdownMenuItem>
                         <DropdownMenuItem 
-                          onClick={() => {
+                          onSelect={() => {
                             setSelectedCampaign(c);
                             setShowTestEmail(true);
                           }}
                         >
                           <TestTube className="h-4 w-4 mr-2" /> Send Test Email
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => updateCampaign.mutate({ id: c.id, status: c.status === "active" ? "paused" : "active" })}>
+                        <DropdownMenuItem onSelect={() => updateCampaign.mutate({ id: c.id, status: c.status === "active" ? "paused" : "active" })}>
                           {c.status === "active" ? "Pause" : "Activate"}
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive" onClick={() => deleteCampaign.mutate(c.id)}>
+                        <DropdownMenuItem className="text-destructive" onSelect={() => deleteCampaign.mutate(c.id)}>
                           <Trash2 className="h-4 w-4 mr-2" /> Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>

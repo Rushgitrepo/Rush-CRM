@@ -106,7 +106,7 @@ export default function CRMAnalyticsPage() {
       />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Conversion Rate" value={conversionRate} change={{ value: 0, type: "increase" }} icon={Target} iconClassName="gradient-primary" />
+        <StatCard title="Conversion Rate" value={conversionRate} change={{ value: 0, type: "increase" }} icon={Target} iconClassName="bg-primary" />
         <StatCard title="Avg Deal Size" value={avgDealSize} change={{ value: 0, type: "increase" }} icon={Award} iconClassName="bg-success" />
         <StatCard title="Win Rate" value={winRate} change={{ value: 0, type: "decrease" }} icon={TrendingDown} iconClassName="bg-warning" />
         <StatCard title="Sales Velocity" value={velocity} change={{ value: 0, type: "increase" }} icon={TrendingUp} iconClassName="bg-info" />
@@ -199,7 +199,7 @@ export default function CRMAnalyticsPage() {
                       </div>
                     </div>
                     <div className="h-8 bg-muted rounded-lg overflow-hidden">
-                      <div className="h-full gradient-primary rounded-lg transition-all duration-500" style={{ width: `${width}%` }} />
+                      <div className="h-full bg-primary rounded-lg transition-all duration-500" style={{ width: `${width}%` }} />
                     </div>
                   </div>
                 );

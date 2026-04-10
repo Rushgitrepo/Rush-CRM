@@ -15,7 +15,7 @@ const transporter = nodemailer.createTransport({
 
 // Validation Schema
 const createCandidateSchema = Joi.object({
-  requisitionId: Joi.string().uuid().required(),
+  requisitionId: Joi.string().required(), // Allow human-readable or UUID
   fullName: Joi.string().required(),
   email: Joi.string().email().required(),
   phone: Joi.string().required(),
@@ -63,6 +63,20 @@ exports.createCandidate = async (req, res) => {
     }
 
     const organizationId = req.user.orgId;
+    let requisitionId = value.requisitionId;
+
+    // If requisitionId is not a UUID, try to find the actual ID
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(requisitionId)) {
+      const fieldResult = await db.query(
+        'SELECT id FROM job_requisitions WHERE requisition_id = $1 OR id::text = $1',
+        [requisitionId]
+      );
+      if (fieldResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Requisition not found with the provided ID' });
+      }
+      requisitionId = fieldResult.rows[0].id;
+    }
 
     const result = await db.query(
       `INSERT INTO candidates (
@@ -81,7 +95,7 @@ exports.createCandidate = async (req, res) => {
         $30, $31, $32, $33, $34, $35, $36, $37, $38
       ) RETURNING *`,
       [
-        value.requisitionId, value.fullName, value.email, value.phone,
+        requisitionId, value.fullName, value.email, value.phone,
         value.alternatePhone, value.cnic, value.dateOfBirth, value.gender,
         value.maritalStatus, value.nationality, value.religion, value.currentAddress,
         value.permanentAddress, value.highestQualification, value.university,
@@ -144,8 +158,27 @@ exports.uploadCV = async (req, res) => {
       return res.status(400).json({ error: 'Requisition ID is required' });
     }
 
+    let actualRequisitionId = requisitionId;
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(actualRequisitionId)) {
+      console.log(`uploadCV: RequisitionId ${actualRequisitionId} is not a UUID, searching...`);
+      const reqLookup = await db.query(
+        'SELECT id FROM job_requisitions WHERE requisition_id = $1 OR id::text = $1',
+        [actualRequisitionId]
+      );
+      if (reqLookup.rows.length === 0) {
+        return res.status(404).json({ error: 'Requisition not found' });
+      }
+      actualRequisitionId = reqLookup.rows[0].id;
+    }
+
     const cvFile = req.file;
     console.log('Processing CV file:', cvFile.originalname, 'Type:', cvFile.mimetype, 'Size:', cvFile.size);
+
+    const fs = require('fs');
+    
+    // Use the file path as multer stored it on disk
+    const cvBuffer = fs.readFileSync(cvFile.path);
 
     // Extract text from CV based on file type
     let cvText = '';
@@ -157,12 +190,19 @@ exports.uploadCV = async (req, res) => {
       if (cvFile.mimetype === 'application/pdf') {
         console.log('Parsing PDF...');
         try {
-          // Try using pdf-parse v1 style first (more common)
+          // Try using pdf-parse
           const pdfParse = require('pdf-parse');
-          console.log('pdf-parse loaded');
+          console.log('pdf-parse loaded, type:', typeof pdfParse);
           
-          // pdf-parse v1 expects just the buffer
-          const pdfData = await pdfParse(cvFile.buffer);
+          let pdfData;
+          if (typeof pdfParse === 'function') {
+            pdfData = await pdfParse(cvBuffer);
+          } else if (pdfParse && typeof pdfParse.default === 'function') {
+            pdfData = await pdfParse.default(cvBuffer);
+          } else {
+            throw new Error('pdf-parse is not a function');
+          }
+          
           cvText = pdfData.text;
           parseSuccess = true;
           console.log('Extracted text from PDF, length:', cvText.length);
@@ -176,7 +216,7 @@ exports.uploadCV = async (req, res) => {
         console.log('Parsing DOCX...');
         try {
           const mammoth = require('mammoth');
-          const result = await mammoth.extractRawText({ buffer: cvFile.buffer });
+          const result = await mammoth.extractRawText({ buffer: cvBuffer });
           cvText = result.value;
           parseSuccess = true;
           console.log('Extracted text from DOCX, length:', cvText.length);
@@ -189,7 +229,7 @@ exports.uploadCV = async (req, res) => {
         console.log('Parsing DOC...');
         try {
           const mammoth = require('mammoth');
-          const result = await mammoth.extractRawText({ buffer: cvFile.buffer });
+          const result = await mammoth.extractRawText({ buffer: cvBuffer });
           cvText = result.value;
           parseSuccess = true;
           console.log('Extracted text from DOC, length:', cvText.length);
@@ -200,7 +240,7 @@ exports.uploadCV = async (req, res) => {
         }
       } else if (cvFile.mimetype === 'text/plain') {
         console.log('Reading plain text...');
-        cvText = cvFile.buffer.toString('utf-8');
+        cvText = cvBuffer.toString('utf-8');
         parseSuccess = true;
         console.log('Extracted text from TXT, length:', cvText.length);
       } else {
@@ -244,23 +284,8 @@ exports.uploadCV = async (req, res) => {
       console.log('Email was null, using placeholder:', parsedData.email);
     }
 
-    console.log('Saving CV file to disk...');
-    
-    // Save CV file to disk
-    const fs = require('fs');
-    const path = require('path');
-    const uploadsDir = path.join(__dirname, '../../uploads/cvs');
-    
-    // Ensure directory exists
-    if (!fs.existsSync(uploadsDir)) {
-      console.log('Creating uploads directory:', uploadsDir);
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-    
-    const fileName = `cv-${Date.now()}-${cvFile.originalname}`;
-    const filePath = path.join(uploadsDir, fileName);
-    fs.writeFileSync(filePath, cvFile.buffer);
-    console.log('CV file saved:', fileName);
+    console.log('Using multer saved file:', cvFile.filename);
+    const fileName = cvFile.filename;
 
     console.log('Creating candidate record in database...');
     
@@ -273,7 +298,7 @@ exports.uploadCV = async (req, res) => {
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *`,
       [
-        requisitionId,
+        actualRequisitionId,
         parsedData.fullName || 'Unknown Candidate',
         parsedData.email, // Now guaranteed to have a value
         parsedData.phone || null,
@@ -297,7 +322,7 @@ exports.uploadCV = async (req, res) => {
     // Update applied_position from requisition
     const reqResult = await db.query(
       'SELECT position FROM job_requisitions WHERE id = $1',
-      [requisitionId]
+      [actualRequisitionId]
     );
     if (reqResult.rows.length > 0) {
       await db.query(
@@ -733,7 +758,7 @@ exports.generateApplicationForm = async (req, res) => {
     console.log('Token saved to database');
 
     // Generate public form URL
-    const formUrl = `${process.env.FRONTEND_URL || 'http://localhost:8080'}/public/application-form/${formToken}`;
+    const formUrl = `${process.env.APP_URL || 'http://localhost:8080'}/public/application-form/${formToken}`;
 
     console.log('Form URL:', formUrl);
 

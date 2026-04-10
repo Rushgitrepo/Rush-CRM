@@ -7,7 +7,6 @@ import {
   CheckCircle, XCircle, AlertCircle, Zap, ChevronRight,
   TrendingUp, Users, Target, Award, Briefcase, Calendar as CalendarIcon, Edit3, Send, PhoneCall, Eye, Filter, Search, Settings, Share2, Printer, Download
 } from "lucide-react";
-import { ClickToCall } from "@/components/telephony/ClickToCall";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,10 +23,21 @@ import { WorkspaceShareModal } from "@/components/crm/leads/WorkspaceShareModal"
 import { useLead } from "@/hooks/useCrmInteractions";
 import { useUpdateLead, useDeleteLead, useConvertLeadToDeal } from "@/hooks/useCrmMutations";
 import { useCreateActivity } from "@/hooks/useCrmInteractions";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { cn } from "@/lib/utils";
+import { useSoftphone } from "@/contexts/SoftphoneContext";
+import { ClickToCall } from "@/components/telephony/ClickToCall";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const defaultServiceOptions = [
   { value: "Web Development", label: "Web Development" },
@@ -95,7 +105,12 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
       ) : (
         <div className="min-h-[2.5rem] px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 flex items-center overflow-hidden">
           {type === "tel" ? (
-            <a href={`tel:${value}`} className="text-primary hover:underline font-medium break-all w-full">{value}</a>
+            <ClickToCall 
+              phoneNumber={value || ""} 
+              entityType="lead" 
+              entityId={id} 
+              className="font-medium break-all w-full text-left" 
+            />
           ) : type === "email" ? (
             <a href={`mailto:${value}`} className="text-primary hover:underline font-medium break-all w-full">{value}</a>
           ) : (
@@ -201,6 +216,7 @@ export default function LeadDetailPage() {
   const deleteLead = useDeleteLead();
   const convertLeadToDeal = useConvertLeadToDeal();
   const createActivity = useCreateActivity();
+  const { dialNumber } = useSoftphone();
 
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Record<string, unknown>>({});
@@ -277,35 +293,6 @@ export default function LeadDetailPage() {
     }
   }, [lead]);
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary/5 flex items-center justify-center">
-        <div className="text-center bg-white p-8 rounded-2xl shadow-xl border border-slate-200">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <h3 className="text-lg font-semibold text-slate-900 mb-2">Loading Lead Details</h3>
-          <p className="text-slate-600">Please wait while we fetch the information...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!lead && !isLoading && !deleteLead.isPending && !deleteLead.isSuccess) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary/5 flex items-center justify-center">
-        <div className="text-center bg-white p-8 rounded-2xl shadow-xl border border-slate-200 max-w-md">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <AlertCircle className="h-8 w-8 text-red-600" />
-          </div>
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">Lead Not Found</h2>
-          <p className="text-slate-600 mb-6">The lead you're looking for doesn't exist or may have been removed.</p>
-          <Button onClick={() => navigate('/crm/leads')} className="bg-primary hover:bg-primary/90 text-white px-6 py-2">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Leads
-          </Button>
-        </div>
-      </div>
-    );
-  }
   const handleSave = () => {
     const changes: Record<string, unknown> = {};
     Object.entries(form).forEach(([key, val]) => {
@@ -365,6 +352,36 @@ export default function LeadDetailPage() {
     navigator.clipboard.writeText(text);
     toast.success(`${label} copied to clipboard`);
   };
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary/5 flex items-center justify-center">
+        <div className="text-center bg-white p-8 rounded-2xl shadow-xl border border-slate-200">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <h3 className="text-lg font-semibold text-slate-900 mb-2">Loading Lead Details</h3>
+          <p className="text-slate-600">Please wait while we fetch the information...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!lead && !deleteLead.isPending && !deleteLead.isSuccess) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary/5 flex items-center justify-center">
+        <div className="text-center bg-white p-8 rounded-2xl shadow-xl border border-slate-200 max-w-md">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="h-8 w-8 text-red-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-slate-900 mb-2">Lead Not Found</h2>
+          <p className="text-slate-600 mb-6">The lead you're looking for doesn't exist or may have been removed.</p>
+          <Button onClick={() => navigate('/crm/leads')} className="bg-primary hover:bg-primary/90 text-white px-6 py-2">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Leads
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-primary/5 to-indigo-50">
       {/* Enterprise Header with Breadcrumb Navigation */}
@@ -452,19 +469,13 @@ export default function LeadDetailPage() {
                 </>
               ) : (
                 <>
-                  {/* Quick Action Buttons */}
                   {lead.phone && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2 text-emerald-600 border-emerald-200"
-                      asChild
-                    >
-                      <a href={`tel:${lead.phone}`}>
-                        <Phone className="h-4 w-4" />
-                        Call
-                      </a>
-                    </Button>
+                    <ClickToCall 
+                      phoneNumber={lead.phone} 
+                      entityType="lead" 
+                      entityId={id} 
+                      className="px-3 py-1 text-sm border-emerald-200 text-emerald-600 bg-white hover:bg-emerald-50 rounded-md border" 
+                    />
                   )}
                   {lead.email && (
                     <Button
@@ -509,21 +520,21 @@ export default function LeadDetailPage() {
 
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="icon" className="border-slate-300">
-                        <MoreHorizontal className="h-4 w-4" />
+                      <Button variant="outline" size="icon" className="h-10 w-10 border-slate-200 bg-slate-50 hover:bg-white hover:border-primary transition-all shadow-sm group">
+                        <MoreHorizontal className="h-5 w-5 text-slate-500 group-hover:text-slate-900 transition-colors" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-72 p-2 shadow-2xl border-slate-200 z-[100] bg-white pointer-events-auto rounded-xl">
-                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Communication</DropdownMenuLabel>
+                    <DropdownMenuContent align="end" className="w-80 max-h-[450px] overflow-y-auto p-1.5 shadow-[0_20px_50px_rgba(0,0,0,0.2)] border-slate-200 z-[100] bg-white rounded-xl animate-in fade-in-0 transform-gpu zoom-in-95">
+                      <DropdownMenuLabel className="px-2.5 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">Communication</DropdownMenuLabel>
                       {lead.email && (
                         <DropdownMenuItem
-                          className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors"
-                          onClick={() => copyToClipboard(lead.email, 'Email')}
+                          className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-slate-50 transition-all group"
+                          onSelect={() => copyToClipboard(lead.email, 'Email')}
                         >
-                          <div className="p-2 bg-blue-50 rounded-md">
+                          <div className="p-2 bg-blue-50 rounded-md group-hover:bg-blue-100 transition-colors">
                             <Mail className="h-4 w-4 text-blue-600" />
                           </div>
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                             <p className="font-semibold text-sm text-slate-900">Copy Email Address</p>
                             <p className="text-xs text-slate-500 truncate">{lead.email}</p>
                           </div>
@@ -531,87 +542,87 @@ export default function LeadDetailPage() {
                       )}
                       {lead.phone && (
                         <DropdownMenuItem
-                          className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors"
-                          onClick={() => copyToClipboard(lead.phone, 'Phone')}
+                          className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-slate-50 transition-all group"
+                          onSelect={() => copyToClipboard(lead.phone, 'Phone')}
                         >
-                          <div className="p-2 bg-emerald-50 rounded-md">
+                          <div className="p-2 bg-emerald-50 rounded-md group-hover:bg-emerald-100 transition-colors">
                             <Phone className="h-4 w-4 text-emerald-600" />
                           </div>
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                             <p className="font-semibold text-sm text-slate-900">Copy Phone Number</p>
                             <p className="text-xs text-slate-500">{lead.phone}</p>
                           </div>
                         </DropdownMenuItem>
                       )}
 
-                      <DropdownMenuSeparator className="my-2 bg-slate-100" />
+                      <DropdownMenuSeparator className="my-1.5 bg-slate-100" />
 
-                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Quick Jump</DropdownMenuLabel>
+                      <DropdownMenuLabel className="px-2.5 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">Quick Jump</DropdownMenuLabel>
                       <DropdownMenuItem
-                        className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors"
-                        onClick={() => handleScrollToActivity("activity")}
+                        className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-slate-50 transition-all group"
+                        onSelect={() => handleScrollToActivity("activity")}
                       >
-                        <div className="p-2 bg-purple-50 rounded-md">
+                        <div className="p-2 bg-purple-50 rounded-md group-hover:bg-purple-100 transition-colors">
                           <Eye className="h-4 w-4 text-purple-600" />
                         </div>
-                        <p className="font-semibold text-sm text-slate-900">View Activity Timeline</p>
+                        <p className="font-semibold text-sm text-slate-900 flex-1">View Activity Timeline</p>
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors"
-                        onClick={() => handleScrollToActivity("activity", "booking")}
+                        className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-orange-50/50 transition-all group"
+                        onSelect={() => handleScrollToActivity("activity", "booking")}
                       >
-                        <div className="p-2 bg-orange-50 rounded-md">
+                        <div className="p-2 bg-orange-50 rounded-md group-hover:bg-orange-100 transition-colors">
                           <Calendar className="h-4 w-4 text-orange-600" />
                         </div>
-                        <p className="font-semibold text-sm text-slate-900">Schedule Meeting</p>
+                        <p className="font-semibold text-sm text-slate-900 flex-1">Schedule Meeting</p>
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors"
-                        onClick={() => handleScrollToActivity("activity", "message")}
+                        className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-indigo-50/50 transition-all group"
+                        onSelect={() => handleScrollToActivity("activity", "message")}
                       >
-                        <div className="p-2 bg-indigo-50 rounded-md">
+                        <div className="p-2 bg-indigo-50 rounded-md group-hover:bg-indigo-100 transition-colors">
                           <MessageSquare className="h-4 w-4 text-indigo-600" />
                         </div>
-                        <p className="font-semibold text-sm text-slate-900">Send Message</p>
+                        <p className="font-semibold text-sm text-slate-900 flex-1">Send Message</p>
                       </DropdownMenuItem>
 
-                      <DropdownMenuSeparator className="my-2 bg-slate-100" />
+                      <DropdownMenuSeparator className="my-1.5 bg-slate-100" />
 
-                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Reports & Data</DropdownMenuLabel>
+                      <DropdownMenuLabel className="px-2.5 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">Reports & Data</DropdownMenuLabel>
                       <DropdownMenuItem
-                        className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors"
-                        onClick={handlePrint}
+                        className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-slate-50 transition-all group"
+                        onSelect={handlePrint}
                       >
-                        <div className="p-2 bg-orange-50 rounded-md">
+                        <div className="p-2 bg-orange-50 rounded-md group-hover:bg-orange-100 transition-colors">
                           <Printer className="h-4 w-4 text-orange-600" />
                         </div>
-                        <p className="font-semibold text-sm text-slate-900">Print Lead Details</p>
+                        <p className="font-semibold text-sm text-slate-900 flex-1">Print Lead Details</p>
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors"
-                        onClick={handleExport}
+                        className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-slate-50 transition-all group"
+                        onSelect={handleExport}
                       >
-                        <div className="p-2 bg-emerald-50 rounded-md">
+                        <div className="p-2 bg-emerald-50 rounded-md group-hover:bg-emerald-100 transition-colors">
                           <Download className="h-4 w-4 text-emerald-600" />
                         </div>
-                        <p className="font-semibold text-sm text-slate-900">Export as JSON</p>
+                        <p className="font-semibold text-sm text-slate-900 flex-1">Export as JSON</p>
                       </DropdownMenuItem>
 
-                      <DropdownMenuSeparator className="my-2 bg-slate-100" />
+                      <DropdownMenuSeparator className="my-1.5 bg-slate-100" />
 
-                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Access & Admin</DropdownMenuLabel>
+                      <DropdownMenuLabel className="px-2.5 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">Access & Admin</DropdownMenuLabel>
                       <DropdownMenuItem
-                        className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors"
-                        onClick={() => setShowWorkspaceModal(true)}
+                        className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-slate-50 transition-all group"
+                        onSelect={() => setShowWorkspaceModal(true)}
                       >
-                        <div className="p-2 bg-slate-100 rounded-md">
+                        <div className="p-2 bg-slate-100 rounded-md group-hover:bg-slate-200 transition-colors">
                           <Share2 className="h-4 w-4 text-slate-600" />
                         </div>
-                        <p className="font-semibold text-sm text-slate-900">Manage Workspace Access</p>
+                        <p className="font-semibold text-sm text-slate-900 flex-1">Manage Workspace Access</p>
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-orange-50 group transition-colors"
-                        onClick={() => {
+                        className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-orange-50 group transition-all"
+                        onSelect={() => {
                           updateLead.mutate({ id: lead.id, status: 'unqualified', stage: 'unqualified' }, {
                             onSuccess: () => {
                               toast.success("Lead marked as unqualified");
@@ -629,16 +640,16 @@ export default function LeadDetailPage() {
                         <div className="p-2 bg-orange-50 rounded-md group-hover:bg-orange-100 transition-colors">
                           <XCircle className="h-4 w-4 text-orange-600" />
                         </div>
-                        <p className="font-semibold text-sm text-orange-600">Mark as Unqualified</p>
+                        <p className="font-semibold text-sm text-orange-600 flex-1">Mark as Unqualified</p>
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-red-50 group transition-colors"
-                        onClick={() => setShowDeleteDialog(true)}
+                        className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-red-50 text-red-600 transition-all group"
+                        onSelect={() => setShowDeleteDialog(true)}
                       >
                         <div className="p-2 bg-red-50 rounded-md group-hover:bg-red-100 transition-colors">
                           <Trash2 className="h-4 w-4 text-red-600" />
                         </div>
-                        <p className="font-semibold text-sm text-red-600">Delete Lead</p>
+                        <p className="font-semibold text-sm flex-1">Delete Lead</p>
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -820,7 +831,12 @@ export default function LeadDetailPage() {
                       ) : (
                         <div className="h-10 px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 flex items-center">
                           {(form.phone as string) ? (
-                            <ClickToCall phoneNumber={form.phone as string} entityType="lead" entityId={id} className="text-sm font-medium text-gray-900" />
+                            <ClickToCall 
+                              phoneNumber={form.phone as string} 
+                              entityType="lead" 
+                              entityId={id} 
+                              className="text-sm font-medium text-gray-900" 
+                            />
                           ) : (
                             <span className="text-gray-400 italic">Not specified</span>
                           )}
@@ -1060,17 +1076,25 @@ export default function LeadDetailPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {lead.phone && (
-                  <Button variant="outline" className="w-full justify-start p-0 h-14 text-left border-2 hover:border-emerald-300 hover:bg-emerald-50 transition-all" asChild>
-                    <a href={`tel:${lead.phone}`} className="flex items-center gap-4 w-full h-full px-4">
-                      <div className="p-3 bg-emerald-100 rounded-xl">
-                        <Phone className="h-5 w-5 text-emerald-600" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-slate-900">Call Lead</p>
-                        <p className="text-sm text-slate-500">{lead.phone}</p>
-                      </div>
-                    </a>
-                  </Button>
+                  <div className="w-full">
+                    <ClickToCall 
+                      phoneNumber={lead.phone} 
+                      entityType="lead" 
+                      entityId={lead.id} 
+                      className="w-full justify-start p-0 h-14 text-left border-2 hover:border-emerald-300 hover:bg-emerald-50 transition-all rounded-md overflow-hidden bg-white"
+                      customTrigger={
+                        <div className="flex items-center gap-4 w-full h-full px-4">
+                          <div className="p-3 bg-emerald-100 rounded-xl">
+                            <Phone className="h-5 w-5 text-emerald-600" />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-slate-900">Call Lead</p>
+                            <p className="text-sm text-slate-500">{lead.phone}</p>
+                          </div>
+                        </div>
+                      }
+                    />
+                  </div>
                 )}
 
                 {lead.email && (
@@ -1173,6 +1197,7 @@ export default function LeadDetailPage() {
                       entityId={lead.id}
                       activeTab={interactionTab}
                       onTabChange={setInteractionTab}
+                      defaultPhone={lead.phone}
                     />
                   </div>
                 </TabsContent>
@@ -1205,7 +1230,7 @@ export default function LeadDetailPage() {
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2 text-xl font-bold">
-              <Target className="h-6 w-6 text-emerald-600" />
+              <Target className="h-6 w-6 text-primary" />
               Convert Lead to Deal
             </AlertDialogTitle>
             <AlertDialogDescription className="text-slate-600 py-2">
@@ -1217,7 +1242,7 @@ export default function LeadDetailPage() {
             <AlertDialogAction
               onClick={handleConvertToDeal}
               disabled={convertLeadToDeal.isPending}
-              className="bg-emerald-600 hover:bg-emerald-700 h-10 px-6 font-semibold"
+              className="bg-primary hover:bg-primary/80 h-10 px-6 font-semibold"
             >
               {convertLeadToDeal.isPending ? "Converting..." : "Yes, Convert to Deal"}
             </AlertDialogAction>

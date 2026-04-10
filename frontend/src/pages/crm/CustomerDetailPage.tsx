@@ -25,6 +25,8 @@ import { InteractionPanel } from "@/components/crm/InteractionPanel";
 import { EntityFilesSection } from "@/components/crm/EntityFilesSection";
 import { useCustomer, useUpdateCustomer, useDeleteCustomer } from "@/hooks/useCrmData";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSoftphone } from "@/contexts/SoftphoneContext";
+import { ClickToCall } from "@/components/telephony/ClickToCall";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -96,7 +98,12 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
       ) : (
         <div className="min-h-[2.5rem] px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 flex items-center overflow-hidden">
           {type === "tel" ? (
-            <a href={`tel:${value}`} className="text-primary hover:underline font-medium break-words w-full text-sm">{value}</a>
+            <ClickToCall 
+              phoneNumber={value?.toString() || ""} 
+              entityType="customer" 
+              entityId={useParams().id} 
+              className="font-medium break-words w-full text-sm" 
+            />
           ) : type === "email" ? (
             <a href={`mailto:${value}`} className="text-primary hover:underline font-medium break-words w-full text-sm">{value}</a>
           ) : (
@@ -316,17 +323,13 @@ export default function CustomerDetailPage() {
                 <>
                   {/* Quick Action Buttons */}
                   {customer.phone && (
-                    <Button
+                    <ClickToCall 
+                      phoneNumber={customer.phone} 
+                      entityType="customer" 
+                      entityId={customer.id} 
                       variant="outline"
-                      size="sm"
                       className="gap-2 text-emerald-600 border-emerald-200"
-                      asChild
-                    >
-                      <a href={`tel:${customer.phone}`}>
-                        <Phone className="h-4 w-4" />
-                        Call
-                      </a>
-                    </Button>
+                    />
                   )}
                   {customer.email && (
                     <Button
@@ -362,10 +365,10 @@ export default function CustomerDetailPage() {
                         <span className="sr-only">More options</span>
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-72 p-2 rounded-xl shadow-xl border-slate-200 z-[100] bg-white pointer-events-auto">
+                    <DropdownMenuContent align="end" className="w-72 p-2 rounded-xl shadow-xl border-slate-200 z-[100] bg-white pointer-events-auto max-h-[450px] overflow-y-auto">
                       <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Communication</DropdownMenuLabel>
                       {customer.email && (
-                        <DropdownMenuItem onClick={() => copyToClipboard(customer.email, 'Email')} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                        <DropdownMenuItem onSelect={() => copyToClipboard(customer.email, 'Email')} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
                           <div className="p-2 bg-blue-50 rounded-md">
                             <Mail className="h-4 w-4 text-blue-600" />
                           </div>
@@ -376,7 +379,7 @@ export default function CustomerDetailPage() {
                         </DropdownMenuItem>
                       )}
                       {customer.phone && (
-                        <DropdownMenuItem onClick={() => copyToClipboard(customer.phone, 'Phone')} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                        <DropdownMenuItem onSelect={() => copyToClipboard(customer.phone, 'Phone')} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
                           <div className="p-2 bg-emerald-50 rounded-md">
                             <Phone className="h-4 w-4 text-emerald-600" />
                           </div>
@@ -390,13 +393,13 @@ export default function CustomerDetailPage() {
                       <DropdownMenuSeparator className="my-2 bg-slate-100" />
 
                       <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Quick Jump</DropdownMenuLabel>
-                      <DropdownMenuItem onClick={() => handleScrollToActivity("activity")} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                      <DropdownMenuItem onSelect={() => handleScrollToActivity("activity")} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
                         <div className="p-2 bg-purple-50 rounded-md">
                           <Activity className="h-4 w-4 text-purple-600" />
                         </div>
                         <p className="font-semibold text-sm text-slate-900">View Activity Timeline</p>
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleScrollToActivity("activity", "booking")} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                      <DropdownMenuItem onSelect={() => handleScrollToActivity("activity", "booking")} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
                         <div className="p-2 bg-orange-50 rounded-md">
                           <Calendar className="h-4 w-4 text-orange-600" />
                         </div>
@@ -412,13 +415,13 @@ export default function CustomerDetailPage() {
                       <DropdownMenuSeparator className="my-2 bg-slate-100" />
 
                       <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Reports & Data</DropdownMenuLabel>
-                      <DropdownMenuItem onClick={handlePrint} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                      <DropdownMenuItem onSelect={handlePrint} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
                         <div className="p-2 bg-orange-50 rounded-md">
                           <Printer className="h-4 w-4 text-orange-600" />
                         </div>
                         <p className="font-semibold text-sm text-slate-900">Print Client Details</p>
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={handleExport} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                      <DropdownMenuItem onSelect={handleExport} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
                         <div className="p-2 bg-emerald-50 rounded-md">
                           <Download className="h-4 w-4 text-emerald-600" />
                         </div>
@@ -427,7 +430,7 @@ export default function CustomerDetailPage() {
 
                       <DropdownMenuSeparator className="my-2 bg-slate-100" />
 
-                      <DropdownMenuItem onClick={() => setShowDeleteDialog(true)} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-red-50 group transition-colors">
+                      <DropdownMenuItem onSelect={() => setShowDeleteDialog(true)} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-red-50 group transition-colors">
                         <div className="p-2 bg-red-50 rounded-md group-hover:bg-red-100 transition-colors">
                           <Trash2 className="h-4 w-4 text-red-600" />
                         </div>
@@ -436,7 +439,7 @@ export default function CustomerDetailPage() {
                       <DropdownMenuSeparator className="my-2 bg-slate-100" />
                       <DropdownMenuItem
                         className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-orange-50 group transition-colors"
-                        onClick={() => {
+                        onSelect={() => {
                           updateCustomer.mutate({ id: customer.id, status: 'unqualified' }, {
                             onSuccess: () => {
                               toast.success("Customer marked as unqualified");
@@ -729,3 +732,4 @@ export default function CustomerDetailPage() {
 const XCircle = (props: any) => <X {...props} />;
 const CalendarIcon = (props: any) => <Calendar {...props} />;
 const Copy = (props: any) => <ExternalLink {...props} />;
+

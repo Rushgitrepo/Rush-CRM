@@ -224,7 +224,7 @@ export function ConnectMailboxDialog({ open, onOpenChange, provider, onSuccess }
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={loading} className="gradient-primary text-primary-foreground">
+          <Button onClick={handleSubmit} disabled={loading} className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg">
             {loading ? "Connecting..." : "Connect"}
           </Button>
         </DialogFooter>
