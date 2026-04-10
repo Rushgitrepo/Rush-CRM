@@ -3,6 +3,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   LayoutDashboard,
+  LayoutGrid,
   Users,
   UserPlus,
   Handshake,
@@ -38,6 +39,13 @@ import {
   Megaphone,
   Target,
   ListFilter,
+  UserCog,
+  CheckCircle,
+  MessageSquare,
+  Building,
+  ArrowRight,
+  LogOut,
+  HelpCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -73,7 +81,7 @@ const navigation: NavItem[] = [
     href: "/",
     icon: LayoutDashboard,
   },
- 
+
   {
     title: "Tasks & Projects",
     href: "/tasks",
@@ -97,9 +105,9 @@ const navigation: NavItem[] = [
       { title: "Leads", href: "/crm/leads", icon: UserPlus },
       { title: "Deals", href: "/crm/deals", icon: Handshake },
       { title: "Unqualified", href: "/crm/unqualified", icon: ListFilter },
-      { 
-        title: "Customers", 
-        href: "/crm/customers", 
+      {
+        title: "Customers",
+        href: "/crm/customers",
         icon: Building2,
         nestedChildren: [
           { title: "Contacts", href: "/crm/customers/contacts" },
@@ -122,6 +130,22 @@ const navigation: NavItem[] = [
       { title: "Leave Management", href: "/hrms/leave", icon: Calendar },
       { title: "Payroll", href: "/hrms/payroll", icon: DollarSign },
       { title: "Notifications", href: "/hrms/notifications", icon: Bell },
+    ],
+  },
+  {
+    title: "Recruitment",
+    icon: UserCog,
+    children: [
+      { title: "Dashboard", href: "/recruitment", icon: LayoutDashboard },
+      { title: "Approvals", href: "/recruitment/approvals", icon: CheckCircle },
+      { title: "Requisitions", href: "/recruitment/requisitions", icon: FileText },
+      { title: "New Requisition", href: "/recruitment/requisitions/new", icon: UserPlus },
+      { title: "Candidates", href: "/recruitment/candidates", icon: Users },
+      { title: "Interviews", href: "/recruitment/interviews", icon: MessageSquare },
+      { title: "Offers", href: "/recruitment/offers", icon: DollarSign },
+      { title: "Scoring", href: "/recruitment/scoring", icon: Target },
+      { title: "Talent Pool", href: "/recruitment/talent-pool", icon: UsersRound },
+      { title: "Analytics", href: "/recruitment/analytics", icon: BarChart3 },
     ],
   },
   {
@@ -179,6 +203,7 @@ export function AppSidebar() {
   const { userRole } = useAuth();
   const [openSections, setOpenSections] = useState<string[]>(["Collaboration", "CRM"]);
   const [expandedSubItems, setExpandedSubItems] = useState<string[]>([]);
+  const [expandedNestedItems, setExpandedNestedItems] = useState<string[]>([]);
 
   const isAdmin = userRole?.role === 'super_admin' || userRole?.role === 'admin';
 
@@ -223,8 +248,6 @@ export function AppSidebar() {
     }
   };
 
-  const [expandedNestedItems, setExpandedNestedItems] = useState<string[]>([]);
-  
   const toggleNestedItem = (title: string) => {
     setExpandedNestedItems((prev) =>
       prev.includes(title) ? prev.filter((t) => t !== title) : [...prev, title]
@@ -237,70 +260,73 @@ export function AppSidebar() {
 
     if (hasNestedChildren) {
       return (
-        <div key={child.href}>
+        <div key={child.href} className="group/submenu">
           <NavLink
             to={child.href}
-            onClick={() => toggleSubItem(child.title)}
+            onClick={(e) => {
+              if (hasNestedChildren) {
+                e.preventDefault();
+                toggleSubItem(child.title);
+              }
+            }}
             className={cn(
-              "flex w-full items-center justify-between gap-3 rounded-lg py-2 pl-11 pr-3 text-sm transition-colors",
+              "flex w-full items-center justify-between gap-3 rounded-xl py-2 pl-9 pr-3 text-[13px] transition-all duration-200",
               isActive(child.href) || location.pathname.startsWith(child.href)
-                ? "bg-sidebar-accent text-sidebar-foreground font-medium"
-                : "text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                ? "bg-primary/10 text-white font-medium"
+                : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
             )}
           >
             <div className="flex items-center gap-3">
-              {child.icon && <child.icon className="h-4 w-4" />}
+              {child.icon && <child.icon className={cn("h-4 w-4", (isActive(child.href) || location.pathname.startsWith(child.href)) ? "text-primary" : "text-slate-500")} />}
               <span>{child.title}</span>
             </div>
-            <ChevronDown
+            <ChevronRight
               className={cn(
-                "h-4 w-4 transition-transform duration-200",
-                isExpanded && "rotate-180"
+                "h-3 w-3 transition-transform duration-300 text-slate-600",
+                isExpanded && "rotate-90 text-white"
               )}
             />
           </NavLink>
-          
-          {/* Inline expanded submenu */}
+
           {isExpanded && (
-            <div className="ml-4 mt-1 space-y-1 border-l border-sidebar-border pl-4">
+            <div className="ml-6 mt-1.5 space-y-1.5 border-l border-white/5 pl-4 animate-in slide-in-from-left-2 duration-300">
               {child.nestedChildren!.map((nested) => {
                 const deepNested = nested.hasNested ? getDeepNestedItems(nested.title) : [];
                 const hasDeepNested = deepNested.length > 0;
                 const isNestedExpanded = expandedNestedItems.includes(nested.title);
-                
+
                 if (hasDeepNested) {
                   return (
                     <div key={nested.href}>
                       <button
                         onClick={() => toggleNestedItem(nested.title)}
                         className={cn(
-                          "flex w-full items-center justify-between rounded-lg py-1.5 pl-3 pr-2 text-sm transition-colors",
+                          "flex w-full items-center justify-between rounded-lg py-1.5 pl-3 pr-2 text-[12px] font-medium transition-all",
                           isActive(nested.href)
-                            ? "bg-sidebar-primary text-sidebar-primary-foreground font-medium"
-                            : "text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                            ? "text-primary bg-primary/10"
+                            : "text-slate-500 hover:text-slate-300 hover:bg-white/5"
                         )}
                       >
                         <span>{nested.title}</span>
-                        <ChevronDown
+                        <ChevronRight
                           className={cn(
-                            "h-3.5 w-3.5 transition-transform duration-200",
-                            isNestedExpanded && "rotate-180"
+                            "h-3 w-3 transition-transform duration-300",
+                            isNestedExpanded && "rotate-90"
                           )}
                         />
                       </button>
-                      
-                      {/* Third level nested items */}
+
                       {isNestedExpanded && (
-                        <div className="ml-3 mt-1 space-y-1 border-l border-sidebar-border pl-3">
+                        <div className="ml-3 mt-1.5 space-y-1 border-l border-white/5 pl-3 animate-in fade-in duration-300">
                           {deepNested.map((deep) => (
                             <NavLink
                               key={deep.href}
                               to={deep.href}
                               className={cn(
-                                "flex items-center rounded-lg py-1.5 pl-3 pr-2 text-sm transition-colors",
+                                "flex items-center rounded-lg py-1.5 pl-3 pr-2 text-[11px] transition-all",
                                 isActive(deep.href)
-                                  ? "bg-sidebar-primary text-sidebar-primary-foreground font-medium"
-                                  : "text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                                  ? "text-white font-bold"
+                                  : "text-slate-500 hover:text-slate-300"
                               )}
                             >
                               {deep.title}
@@ -311,16 +337,16 @@ export function AppSidebar() {
                     </div>
                   );
                 }
-                
+
                 return (
                   <NavLink
                     key={nested.href}
                     to={nested.href}
                     className={cn(
-                      "flex items-center rounded-lg py-1.5 pl-3 pr-2 text-sm transition-colors",
+                      "flex items-center rounded-lg py-1.5 pl-3 pr-2 text-[12px] transition-all",
                       isActive(nested.href)
-                        ? "bg-sidebar-primary text-sidebar-primary-foreground font-medium"
-                        : "text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                        ? "text-primary font-bold"
+                        : "text-slate-500 hover:text-slate-300"
                     )}
                   >
                     {nested.title}
@@ -338,94 +364,97 @@ export function AppSidebar() {
         key={child.href}
         to={child.href}
         className={cn(
-          "flex items-center gap-3 rounded-lg py-2 pl-11 pr-3 text-sm transition-colors",
+          "flex items-center gap-3 rounded-xl py-2 pl-9 pr-3 text-[13px] transition-all duration-200",
           isActive(child.href)
-            ? "bg-sidebar-primary text-sidebar-primary-foreground font-medium"
-            : "text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground"
+            ? "bg-primary/10 text-white font-medium"
+            : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
         )}
       >
-        {child.icon && <child.icon className="h-4 w-4" />}
+        {child.icon && <child.icon className={cn("h-4 w-4", isActive(child.href) ? "text-primary" : "text-slate-500 group-hover:text-slate-300")} />}
         <span>{child.title}</span>
       </NavLink>
     );
   };
 
   return (
-    <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-sidebar border-r border-sidebar-border">
-      {/* Logo */}
-      <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-6">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg gradient-primary">
-          <Building2 className="h-5 w-5 text-primary-foreground" />
+    <aside className="fixed left-0 top-0 z-50 h-screen w-64 bg-[#0c111d] border-r border-white/5 flex flex-col">
+      {/* Brand Header */}
+      <div className="p-6">
+        <div className="flex items-center gap-3 mb-6 focus-outline-none">
+
+          <div className="flex flex-col">
+            <span className="text-base font-bold tracking-tight text-white leading-none">Rush Management System</span>
+            <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-1.5">Enterprise Suite</span>
+          </div>
         </div>
-        <div>
-          <h1 className="text-lg font-bold text-sidebar-foreground">CRM Pro</h1>
-          <p className="text-xs text-sidebar-muted">Enterprise Suite</p>
-        </div>
+
+        <div className="h-px w-full bg-gradient-to-r from-white/[0.08] to-transparent" />
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 space-y-1 px-3 py-4 overflow-y-auto h-[calc(100vh-4rem)] custom-scrollbar">
-        {filteredNavigation.map((item) => {
-          if (item.children) {
-            const isOpen = openSections.includes(item.title);
-            const sectionActive = isSectionActive(item.children);
+      {/* Navigation Content */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar px-4 pb-8 space-y-6">
+        <div className="space-y-1">
+          {filteredNavigation.map((item) => {
+            if (item.children) {
+              const isOpen = openSections.includes(item.title);
+              const sectionActive = isSectionActive(item.children);
+
+              return (
+                <div key={item.title} className="mb-2">
+                  <button
+                    onClick={() => toggleSection(item.title)}
+                    className={cn(
+                      "flex w-full items-center justify-between rounded-xl px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider transition-all duration-200",
+                      sectionActive
+                        ? "text-white"
+                        : "text-slate-500 hover:text-slate-300 hover:bg-white/[0.03]"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <item.icon className={cn("h-4 w-4", sectionActive ? "text-primary" : "text-slate-500")} />
+                      <span>{item.title}</span>
+                    </div>
+                    <ChevronDown
+                      className={cn(
+                        "h-3.5 w-3.5 transition-transform duration-500",
+                        isOpen && "rotate-180"
+                      )}
+                    />
+                  </button>
+                  {isOpen && (
+                    <div className="mt-1 space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-300">
+                      {item.children.map((child) => renderSubItem(child))}
+                    </div>
+                  )}
+                </div>
+              );
+            }
 
             return (
-              <Collapsible
-                key={item.title}
-                open={isOpen}
-                onOpenChange={() => toggleSection(item.title)}
+              <NavLink
+                key={item.href}
+                to={item.href!}
+                className={cn(
+                  "flex items-center justify-between rounded-xl px-4 py-2.5 text-[13px] font-medium transition-all duration-200",
+                  isActive(item.href!)
+                    ? "bg-primary/10 text-white"
+                    : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
+                )}
               >
-                <CollapsibleTrigger
-                  className={cn(
-                    "flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                    sectionActive
-                      ? "bg-sidebar-accent text-sidebar-foreground"
-                      : "text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <item.icon className="h-5 w-5" />
-                    <span>{item.title}</span>
-                  </div>
-                  <ChevronDown
-                    className={cn(
-                      "h-4 w-4 transition-transform duration-200",
-                      isOpen && "rotate-180"
-                    )}
-                  />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="space-y-1 pt-1">
-                  {item.children.map((child) => renderSubItem(child))}
-                </CollapsibleContent>
-              </Collapsible>
+                <div className="flex items-center gap-3">
+                  <item.icon className={cn("h-4 w-4", isActive(item.href!) ? "text-primary" : "text-slate-500")} />
+                  <span>{item.title}</span>
+                </div>
+                {item.badge && (
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[9px] font-black text-white shadow-lg shadow-primary/20">
+                    {item.badge}
+                  </span>
+                )}
+              </NavLink>
             );
-          }
-
-          return (
-            <NavLink
-              key={item.href}
-              to={item.href!}
-              className={cn(
-                "flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                isActive(item.href!)
-                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                  : "text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground"
-              )}
-            >
-              <div className="flex items-center gap-3">
-                <item.icon className="h-5 w-5" />
-                <span>{item.title}</span>
-              </div>
-              {item.badge && (
-                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">
-                  {item.badge}
-                </span>
-              )}
-            </NavLink>
-          );
-        })}
-      </nav>
+          })}
+        </div>
+      </div>
     </aside>
   );
 }

@@ -1,6 +1,6 @@
 import { Outlet } from "react-router-dom";
 import { AppSidebar } from "./AppSidebar";
-import { TopBar } from "./TopBar";
+import { TopBar } from "./Header";
 import { TelephonyOverlay } from "@/components/telephony/TelephonyProvider";
 import { SoftphoneProvider } from "@/contexts/SoftphoneContext";
 

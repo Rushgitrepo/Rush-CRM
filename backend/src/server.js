@@ -9,16 +9,20 @@ const rateLimit = require('express-rate-limit');
 const appRoutes = require('./app');
 
 const app = express();
+app.set('trust proxy', 1);
+
+const PORT = process.env.PORT || 4000;
 
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 app.use(cors({
-  origin: true, // Allow all origins in development
+  origin: ['http://localhost:8080', `http://localhost:${process.env.APP_URL.slice(17)}`, "https://rms.rushcorporation.com"], // Allow frontend port 8080
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+
 app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -41,7 +45,6 @@ const realtimeService = require('./services/realtimeService');
 const scheduledWorkflows = require('./services/scheduledWorkflows');
 const imapIdleService = require('./services/imapIdleService');
 
-const PORT = process.env.PORT || 3001;
 
 async function bootstrap() {
   try {

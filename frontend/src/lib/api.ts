@@ -571,3 +571,205 @@ export const marketingApi = {
   // Campaign events stub
   getCampaignEvents: (campaignId: string) => api.get<any[]>(`/marketing/campaigns/${campaignId}/events`),
 };
+
+export const recruitmentApi = {
+  // Requisitions
+  getRequisitions: (params?: { status?: string; department?: string; search?: string }) =>
+    api.get<any[]>('/recruitment/requisitions', params),
+  getRequisitionById: (id: string) => api.get<any>(`/recruitment/requisitions/${id}`),
+  createRequisition: (data: {
+    position: string;
+    department: string;
+    numberOfPositions: number;
+    jobDescription: string;
+    requirements?: string;
+    requestType?: string;
+    urgency?: string;
+    grade?: string;
+  }) => api.post<any>('/recruitment/requisitions', data),
+  updateRequisitionStatus: (id: string, action: 'approve' | 'reject', comments?: string) =>
+    api.put<any>(`/recruitment/requisitions/${id}/status`, { action, comments }),
+  getPendingApprovals: () => api.get<any[]>('/recruitment/requisitions/pending-approvals'),
+  deleteRequisition: (id: string) => api.delete(`/recruitment/requisitions/${id}`),
+
+  // Candidates
+  getCandidates: (params?: { status?: string; requisitionId?: string; search?: string }) =>
+    api.get<any[]>('/recruitment/candidates', params),
+  getCandidateById: (id: string) => api.get<any>(`/recruitment/candidates/${id}`),
+  createCandidate: (data: any) => api.post<any>('/recruitment/candidates', data),
+  uploadCV: (formData: FormData) =>
+    api.post<any>('/recruitment/candidates/upload-cv', formData),
+  updateCandidateStatus: (id: string, status: string) =>
+    api.put<any>(`/recruitment/candidates/${id}/status`, { status }),
+  shortlistCandidate: (id: string) => api.post<any>(`/recruitment/candidates/${id}/shortlist`),
+  
+  // New Screening & Workflow Methods
+  screenCandidate: (id: string, data: { screeningResult: 'passed' | 'failed'; screeningNotes?: string }) =>
+    api.post<any>(`/recruitment/candidates/${id}/screen`, data),
+  sendInterviewEmail: (id: string, data: {
+    interviewDate: string;
+    interviewTime: string;
+    interviewLocation: string;
+    interviewType: string;
+    additionalNotes?: string;
+  }) => api.post<any>(`/recruitment/candidates/${id}/send-interview-email`, data),
+  generateApplicationForm: (id: string) => api.post<any>(`/recruitment/candidates/${id}/generate-form`),
+  
+  deleteCandidate: (id: string) => api.delete(`/recruitment/candidates/${id}`),
+
+  // Interviews
+  getAllInterviews: (params?: { status?: string; interviewType?: string; date?: string }) =>
+    api.get<any[]>('/recruitment/interviews', params),
+  scheduleInterview: (data: {
+    candidateId: string;
+    requisitionId: string;
+    interviewType: 'technical' | 'hr' | 'final';
+    interviewDate: string;
+    interviewTime: string;
+    interviewerId?: string;
+    interviewerName?: string;
+  }) => api.post<any>('/recruitment/interviews', data),
+  getScheduledInterviews: () => api.get<any[]>('/recruitment/interviews/scheduled'),
+  getInterviewStats: () => api.get<any>('/recruitment/interviews/stats'),
+  getCandidateInterviews: (candidateId: string) =>
+    api.get<any[]>(`/recruitment/interviews/candidate/${candidateId}`),
+  conductInterview: (id: string) => api.put<any>(`/recruitment/interviews/${id}/conduct`),
+  submitFeedback: (id: string, data: {
+    technicalSkills: string;
+    communication: string;
+    problemSolving: string;
+    cultureFit: string;
+    overallRemarks: string;
+    recommendation: string;
+  }) => api.put<any>(`/recruitment/interviews/${id}/feedback`, data),
+  recommendFinalInterview: (candidateId: string, remarks?: string) =>
+    api.post<any>(`/recruitment/interviews/${candidateId}/recommend-final`, { remarks }),
+  cancelInterview: (id: string) => api.put<any>(`/recruitment/interviews/${id}/cancel`),
+
+  // =====================================================
+  // ADVANCED FEATURES - OFFERS MANAGEMENT
+  // =====================================================
+  
+  // Job Offers
+  getAllOffers: (params?: { status?: string; department?: string; candidateId?: string }) =>
+    api.get<any[]>('/recruitment/offers', params),
+  getOfferById: (id: string) => api.get<any>(`/recruitment/offers/${id}`),
+  createOffer: (data: {
+    candidateId: string;
+    requisitionId: string;
+    position: string;
+    department: string;
+    grade?: string;
+    reportingManager?: string;
+    workLocation: string;
+    employmentType?: string;
+    baseSalary: number;
+    currency?: string;
+    salaryFrequency?: string;
+    bonusPercentage?: number;
+    allowances?: any;
+    benefits?: string;
+    startDate: string;
+    probationPeriod?: number;
+    noticePeriod?: number;
+    workingHours?: string;
+    responseDeadline?: string;
+    specialConditions?: string;
+  }) => api.post<any>('/recruitment/offers', data),
+  updateOfferStatus: (id: string, data: {
+    status: string;
+    comments?: string;
+    rejectionReason?: string;
+  }) => api.put<any>(`/recruitment/offers/${id}/status`, data),
+  sendOfferLetter: (id: string, data?: {
+    emailTemplate?: string;
+    customMessage?: string;
+  }) => api.post<any>(`/recruitment/offers/${id}/send`, data),
+  getOfferStats: () => api.get<any>('/recruitment/offers/stats'),
+  deleteOffer: (id: string) => api.delete(`/recruitment/offers/${id}`),
+
+  // =====================================================
+  // CANDIDATE SCORING & RANKING
+  // =====================================================
+  
+  // Scoring Criteria
+  getAllCriteria: (params?: { category?: string; isActive?: boolean }) =>
+    api.get<any[]>('/recruitment/scoring/criteria', params),
+  createCriteria: (data: {
+    criteriaName: string;
+    category: string;
+    description?: string;
+    maxScore?: number;
+    weightPercentage?: number;
+  }) => api.post<any>('/recruitment/scoring/criteria', data),
+  
+  // Candidate Scoring
+  submitScore: (data: {
+    candidateId: string;
+    criteriaId: string;
+    interviewId?: string;
+    rawScore: number;
+    comments?: string;
+  }) => api.post<any>('/recruitment/scoring/scores', data),
+  submitBulkScores: (data: {
+    candidateId: string;
+    interviewId?: string;
+    scores: Array<{
+      criteriaId: string;
+      rawScore: number;
+      comments?: string;
+    }>;
+  }) => api.post<any>('/recruitment/scoring/bulk-score', data),
+  getCandidateScores: (candidateId: string) =>
+    api.get<any[]>(`/recruitment/scoring/candidate/${candidateId}`),
+  
+  // Rankings
+  getRequisitionRankings: (requisitionId: string) =>
+    api.get<any[]>(`/recruitment/scoring/rankings/${requisitionId}`),
+  getScoringAnalytics: (params?: { requisitionId?: string; department?: string }) =>
+    api.get<any>('/recruitment/scoring/analytics', params),
+
+  // =====================================================
+  // TALENT POOL MANAGEMENT
+  // =====================================================
+  
+  // Talent Pools
+  getAllTalentPools: (params?: { poolType?: string; isActive?: boolean }) =>
+    api.get<any[]>('/recruitment/talent-pools', params),
+  getTalentPoolById: (id: string) => api.get<any>(`/recruitment/talent-pools/${id}`),
+  createTalentPool: (data: {
+    poolName: string;
+    description?: string;
+    poolType?: string;
+    targetSkills?: string[];
+    targetDepartments?: string[];
+    targetExperienceMin?: number;
+    targetExperienceMax?: number;
+    targetEducationLevel?: string;
+  }) => api.post<any>('/recruitment/talent-pools', data),
+  addCandidatesToPool: (poolId: string, data: {
+    candidateIds: string[];
+    notes?: string;
+    contactFrequency?: string;
+  }) => api.post<any>(`/recruitment/talent-pools/${poolId}/members`, data),
+  updateMemberStatus: (poolId: string, memberId: string, data: {
+    status: string;
+    notes?: string;
+    availabilityStatus?: string;
+  }) => api.put<any>(`/recruitment/talent-pools/${poolId}/members/${memberId}`, data),
+  removeCandidateFromPool: (poolId: string, memberId: string) =>
+    api.delete(`/recruitment/talent-pools/${poolId}/members/${memberId}`),
+  searchTalentPool: (params?: {
+    skills?: string;
+    experience?: number;
+    department?: string;
+    education?: string;
+    availability?: string;
+    minScore?: number;
+  }) => api.get<any[]>('/recruitment/talent-pools/search', params),
+  getTalentPoolAnalytics: () => api.get<any>('/recruitment/talent-pools/analytics'),
+  
+  // Analytics
+  getRecruitmentAnalytics: (params?: { dateRange?: string; department?: string }) =>
+    api.get<any>('/recruitment/analytics', params),
+};

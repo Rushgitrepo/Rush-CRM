@@ -108,6 +108,7 @@ const multerConfig = {
   profiles: multer({ storage: createStorage(), limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: imageFilter }),
   documents: multer({ storage: createStorage(), limits: { fileSize: 20 * 1024 * 1024 }, fileFilter: documentFilter }),
   carImages: multer({ storage: createStorage(), limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: imageFilter }),
+  cvs: multer({ storage: createStorage(), limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: documentFilter }),
 };
 
 
