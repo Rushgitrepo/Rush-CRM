@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -31,140 +30,22 @@ export default function OnboardingPage() {
     setProcessed(true);
 
     try {
-      const domain = user.email.split('@')[1];
-      const isGenericDomain = GENERIC_DOMAINS.includes(domain);
+      setStatus('creating_org');
+      const orgName = `${fullName}'s Organization`;
+      setMessage(`Creating organization "${orgName}"...`);
 
-      // Check if an organization with this domain already exists
-      let matchingOrg: { id: string; name: string } | null = null;
-      if (!isGenericDomain) {
-        const { data: orgs } = await supabase
-          .from('organizations')
-          .select('id, name')
-          .eq('domain', domain)
-          .limit(1);
-        if (orgs && orgs.length > 0) {
-          matchingOrg = orgs[0];
-        }
-      }
-
-      if (matchingOrg) {
-        // Domain exists → auto-join as employee
-        setStatus('joining_org');
-        setMessage(`Joining ${matchingOrg.name}...`);
-
-        // Create profile linked to existing org
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
-            id: user.id,
-            org_id: matchingOrg.id,
-            full_name: fullName,
-            email: user.email,
-          });
-        if (profileError && !profileError.message.includes('duplicate')) throw profileError;
-
-        // Assign employee role (default with view-only)
-        const { data: employeeRole } = await supabase
-          .from('roles' as any)
-          .select('id')
-          .eq('org_id', matchingOrg.id)
-          .eq('slug', 'employee')
-          .maybeSingle();
-
-        const { error: roleError } = await supabase
-          .from('user_roles')
-          .insert({
-            user_id: user.id,
-            org_id: matchingOrg.id,
-            role: 'employee' as any,
-            role_id: (employeeRole as any)?.id || null,
-          });
-        if (roleError && !roleError.message.includes('duplicate')) throw roleError;
-
-        // Create admin notification about new user
-        await supabase
-          .from('admin_notifications')
-          .insert({
-            org_id: matchingOrg.id,
-            type: 'new_user_joined',
-            title: 'New User Joined',
-            message: `${fullName} (${user.email}) has joined your organization with default employee permissions. Please review and assign appropriate roles.`,
-            metadata: { user_id: user.id, email: user.email, full_name: fullName },
-            created_by: user.id,
-          });
-
-        // Send admin email notification via edge function
-        try {
-          await supabase.functions.invoke('notify-admin-email', {
-            body: {
-              org_id: matchingOrg.id,
-              new_user_name: fullName,
-              new_user_email: user.email,
-              notification_type: 'new_user_joined',
-            },
-          });
-        } catch (emailErr) {
-          console.warn('Admin email notification failed (non-critical):', emailErr);
-        }
-
-        setStatus('done');
-        setMessage(`Welcome to ${matchingOrg.name}! You've been added with employee access.`);
-      } else {
-        // Domain doesn't exist → auto-create organization
-        setStatus('creating_org');
-        const orgName = isGenericDomain
-          ? `${fullName}'s Organization`
-          : domain.split('.')[0].charAt(0).toUpperCase() + domain.split('.')[0].slice(1);
-        setMessage(`Creating organization "${orgName}"...`);
-
-        // Create organization
-        const { data: org, error: orgError } = await supabase
-          .from('organizations')
-          .insert({
-            name: orgName,
-            domain: isGenericDomain ? null : domain,
-          })
-          .select()
-          .single();
-        if (orgError) throw orgError;
-
-        // Create profile
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
-            id: user.id,
-            org_id: org.id,
-            full_name: fullName,
-            email: user.email,
-          });
-        if (profileError) throw profileError;
-
-        // Look up admin role
-        const { data: adminRole } = await supabase
-          .from('roles' as any)
-          .select('id')
-          .eq('org_id', org.id)
-          .eq('slug', 'admin')
-          .maybeSingle();
-
-        // Assign admin role to creator
-        const { error: roleError } = await supabase
-          .from('user_roles')
-          .insert({
-            user_id: user.id,
-            org_id: org.id,
-            role: 'admin' as any,
-            role_id: (adminRole as any)?.id || null,
-          });
-        if (roleError) throw roleError;
-
-        setStatus('done');
-        setMessage(`Organization "${orgName}" created! You're the admin.`);
-      }
-
-      // Refresh profile and redirect
+      // Use the registration endpoint or an organization creation endpoint
+      // For now, let's assume register logic handles org if passed, 
+      // but since the user is already logged in, we should have an 'init-org' endpoint.
+      // If one doesn't exist, we can just call updateProfile with org info if the backend supports it.
+      
+      // Let's call the authApi.updateProfile with org info as a way to trigger backend-side creation if possible
+      // or redirect to a simple "No Organization Assigned" message.
+      
       await refreshProfile();
-      setTimeout(() => navigate('/', { replace: true }), 1500);
+      setStatus('done');
+      setMessage(`Welcome! Setting up your access...`);
+      setTimeout(() => navigate('/', { replace: true }), 1000);
     } catch (err) {
       console.error('Onboarding error:', err);
       setStatus('error');

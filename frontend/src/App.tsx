@@ -79,6 +79,7 @@ import RolesPage from "./pages/admin/RolesPage";
 import PermissionsPage from "./pages/admin/PermissionsPage";
 import AdminSettingsPage from "./pages/admin/AdminSettingsPage";
 import JoinRequestsPage from "./pages/admin/JoinRequestsPage";
+import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
 // CRM Detail Pages
 import LeadDetailPage from "./pages/crm/LeadDetailPage";
 import DealDetailPage from "./pages/crm/DealDetailPage";
@@ -220,6 +221,7 @@ const App = () => (
                   <Route path="/admin/permissions" element={<AdminRoute><PermissionsPage /></AdminRoute>} />
                   <Route path="/admin/settings" element={<AdminRoute><AdminSettingsPage /></AdminRoute>} />
                   <Route path="/admin/join-requests" element={<AdminRoute><JoinRequestsPage /></AdminRoute>} />
+                  <Route path="/admin-dashboard" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />
                   {/* Tasks & Automation */}
                   <Route path="/tasks" element={<TasksPage />} />
                   <Route path="/automation/workflows" element={<WorkflowsPage />} />

@@ -48,7 +48,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(normalized);
       setUser({ id: normalized.id, email: normalized.email });
       setSession({ user: { id: normalized.id } });
-      if (profileData.user_roles?.[0]) {
+      if (profileData.role) {
+        setUserRole({
+          role: profileData.role,
+          org_id: normalized.org_id,
+          role_id: null,
+        });
+      } else if (profileData.user_roles?.[0]) {
         setUserRole({
           role: profileData.user_roles[0].role,
           org_id: normalized.org_id,
