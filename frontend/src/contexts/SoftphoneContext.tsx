@@ -30,7 +30,7 @@ interface SoftphoneContextType extends SoftphoneState {
   expandPanel: () => void;
   setActiveProvider: (provider: TelephonyProviderName | null) => Promise<void>;
   dialNumber: (phoneNumber: string, entity?: CallEntityContext) => void;
-  sendSMS: (to: string, text: string) => Promise<void>;
+  sendSMS: (to: string, text: string, from?: string) => Promise<void>;
   ringOut: (from: string, to: string) => Promise<void>;
   setFromNumber: (number: string) => void;
   setRcCurrentTab: (tab: 'dialer' | 'sms' | 'widget') => void;
@@ -130,7 +130,19 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
 
     const handleMessage = async (event: MessageEvent) => {
       if (!event.data || typeof event.data !== 'object') return;
-      const { type, telephonyStatus, call, direction, path, requestId, body } = event.data;
+      const { type, telephonyStatus, call, direction, path, requestId, body, responseId, response } = event.data;
+
+      // Handle responses from our dialpad number setting requests
+      if (type === 'rc-post-message-response' && responseId) {
+        console.log('[RC Response] Received response:', { responseId, response });
+        if (responseId.startsWith('dial-') || responseId.startsWith('focus-')) {
+          if (response?.data === 'ok' || response?.success) {
+            console.log('[RC] Successfully set dialpad number');
+          } else {
+            console.log('[RC] Failed to set dialpad number:', response);
+          }
+        }
+      }
 
       // ========================================
       // Handle RC Embeddable call logger events
@@ -317,11 +329,11 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Send SMS via official RC REST API (server-side)
-  const sendSMS = useCallback(async (to: string, text: string) => {
+  const sendSMS = useCallback(async (to: string, text: string, from?: string) => {
     const resp = await fetch(`${API_URL}/ringcentral/send-sms`, {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ to, text }),
+      body: JSON.stringify({ to, text, from }),
     });
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
@@ -393,7 +405,7 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
 
     // USE EMBEDDABLE WIDGET FOR REAL-TIME VOICE/RINGING/UI
     // This is what provides the actual softphone experience
-    toast.info('Opening softphone...');
+    toast.info('Opening RingCentral dialpad...');
     setState(prev => ({ 
       ...prev, 
       isOpen: true, 
@@ -401,11 +413,55 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
       rcCurrentTab: 'widget' // Force to widget tab for real-time UI
     }));
     
+    // Send number to RingCentral widget with multiple methods for better compatibility
     if (iframeRef.current?.contentWindow) {
+      // Method 1: Standard new call adapter
       iframeRef.current.contentWindow.postMessage({
         type: 'rc-adapter-new-call',
         phoneNumber: clean,
       }, '*');
+      
+      // Method 2: Set dialpad number directly
+      setTimeout(() => {
+        if (iframeRef.current?.contentWindow) {
+          iframeRef.current.contentWindow.postMessage({
+            type: 'rc-adapter-control-call',
+            action: 'setDialpadNumber',
+            number: clean,
+          }, '*');
+        }
+      }, 300);
+      
+      // Method 3: Direct dialpad manipulation via postMessage request
+      setTimeout(() => {
+        if (iframeRef.current?.contentWindow) {
+          iframeRef.current.contentWindow.postMessage({
+            type: 'rc-post-message-request',
+            requestId: `dial-${Date.now()}`,
+            path: '/dialpad',
+            body: {
+              phoneNumber: clean,
+              action: 'setNumber'
+            }
+          }, '*');
+        }
+      }, 600);
+      
+      // Method 4: Try to trigger dialpad focus and input
+      setTimeout(() => {
+        if (iframeRef.current?.contentWindow) {
+          iframeRef.current.contentWindow.postMessage({
+            type: 'rc-adapter-message-request',
+            requestId: `focus-${Date.now()}`,
+            path: '/dialpad/focus',
+            body: {
+              phoneNumber: clean
+            }
+          }, '*');
+        }
+      }, 900);
+      
+      console.log('[Softphone] Number sent to RingCentral widget:', clean);
     }
   }, [state.activeProvider, iframeRef]);
 
@@ -447,6 +503,7 @@ const defaultSoftphoneContext: SoftphoneContextType = {
   sendSMS: async () => {},
   ringOut: async () => {},
   setFromNumber: () => {},
+  setRcCurrentTab: () => {},
   iframeRef: { current: null },
 };
 

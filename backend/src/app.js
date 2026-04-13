@@ -66,6 +66,7 @@ const scoringRoutes = require('./routes/recruitment/scoringRoutes');
 const talentPoolRoutes = require('./routes/recruitment/talentPoolRoutes');
 const analyticsRoutes = require('./routes/recruitment/analyticsRoutes');
 const salesOrderRoutes = require('./routes/crm/salesOrders');
+const instantlyWebhookRoutes = require('./routes/webhooks/instantly');
 const errorHandler = require('./middleware/errorHandler');
 
 
@@ -139,6 +140,7 @@ router.use('/api/recruitment/analytics', analyticsRoutes);
 
 
 router.use('/api/sales-orders', salesOrderRoutes);
+router.use('/api/webhooks/instantly', instantlyWebhookRoutes);
 
 router.get('/api/health', (req, res) => {
 

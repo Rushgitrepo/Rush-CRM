@@ -26,6 +26,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { InteractionPanel } from "@/components/crm/InteractionPanel";
 import { CreatableSelect } from "@/components/crm/CreatableSelect";
 import { EntityFilesSection } from "@/components/crm/EntityFilesSection";
+import { CustomFieldsSection } from "@/components/crm/CustomFieldsSection";
+
 import { EntitySearchSelect } from "@/components/crm/EntitySearchSelect";
 import { InlineContactDialog } from "@/components/crm/InlineContactDialog";
 import { InlineCompanyDialog } from "@/components/crm/InlineCompanyDialog";
@@ -157,8 +159,45 @@ const defaultProjectTypes = [
   { value: "project_management", label: "Project Management" },
   { value: "design", label: "Design" },
 ];
+
+const clientTypeOptions = [
+  { value: "lead", label: "Lead" },
+  { value: "prospect", label: "Prospect" },
+  { value: "client", label: "Client" },
+  { value: "partner", label: "Partner" },
+];
+
+const paymentMethodOptions = [
+  { value: "bank_transfer", label: "Bank Transfer" },
+  { value: "cash", label: "Cash" },
+  { value: "credit_card", label: "Credit Card" },
+  { value: "paypal", label: "PayPal" },
+  { value: "stripe", label: "Stripe" },
+  { value: "other", label: "Other" },
+];
+
+const qaStatusOptions = [
+  { value: "not_selected", label: "Not selected" },
+  { value: "pending", label: "Pending" },
+  { value: "in_review", label: "In Review" },
+  { value: "passed", label: "Passed" },
+  { value: "failed", label: "Failed" },
+];
+
+const currencyOptions = [
+  { value: "USD", label: "US Dollar" },
+  { value: "EUR", label: "Euro" },
+  { value: "GBP", label: "British Pound" },
+  { value: "AED", label: "UAE Dirham" },
+];
+
+const yesNoOptions = [
+  { value: "yes", label: "Yes" },
+  { value: "no", label: "No" },
+];
 // Professional Field component for enterprise-level forms
 interface FieldProps {
+  entityId?: string;
   label: string;
   value: string | undefined | null;
   onChange: (value: string) => void;
@@ -170,7 +209,7 @@ interface FieldProps {
   required?: boolean;
 }
 
-function Field({ label, value, onChange, editing, icon, multiline, type = "text", placeholder, required }: FieldProps) {
+function Field({ label, value, onChange, editing, icon, multiline, type = "text", placeholder, required, entityId }: FieldProps) {
   if (!editing && !value) {
     return (
       <div className="space-y-2">
@@ -212,11 +251,37 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
         )
       ) : (
         <div className="min-h-[2.5rem] px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 flex items-center">
-          <span className="text-gray-900 font-medium break-words w-full">{value}</span>
+          {type === "tel" ? (
+             <ClickToCall 
+               phoneNumber={value || ""} 
+               entityType="deal" 
+               entityId={entityId || ""} 
+               className="font-medium break-words w-full text-left" 
+             />
+          ) : (
+            <span className="text-gray-900 font-medium break-words w-full">{value}</span>
+          )}
         </div>
       )}
     </div>
   );
+}
+
+function displayJsonValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "";
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (typeof parsed === "string") return parsed;
+      return JSON.stringify(parsed, null, 2);
+    } catch {
+      return value;
+    }
+  }
+  if (typeof value === "object") {
+    return JSON.stringify(value, null, 2);
+  }
+  return String(value);
 }
 
 const getStatusColor = (status: string) => {
@@ -251,6 +316,8 @@ export default function DealDetailPage() {
 
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Record<string, unknown>>({});
+  const [customFields, setCustomFields] = useState<{ key: string; value: string }[]>([]);
+
   const [contactDialogOpen, setContactDialogOpen] = useState(false);
   const [companyDialogOpen, setCompanyDialogOpen] = useState(false);
   const [contactSearchTerm, setContactSearchTerm] = useState("");
@@ -299,24 +366,35 @@ export default function DealDetailPage() {
     enabled: !!form.assigned_to,
   });
 
-  // Use dynamic stages from DB, fall back to hardcoded
-  const pipelineStages = (dbStages && dbStages.length > 0)
-    ? dbStages.map(s => ({
+  // Keep the original built-in deal pipeline stages, then append custom stages.
+  const customPipelineStages = (dbStages || [])
+    .filter(s => !fallbackStages.some(f => f.id === s.stage_key))
+    .map(s => ({
       id: s.stage_key,
       label: s.stage_label,
-      description: fallbackStages.find(f => f.id === s.stage_key)?.description || "Stage description",
-      color: fallbackStages.find(f => f.id === s.stage_key)?.color || "bg-slate-500",
-      bgColor: fallbackStages.find(f => f.id === s.stage_key)?.bgColor || "bg-slate-50",
-      textColor: fallbackStages.find(f => f.id === s.stage_key)?.textColor || "text-slate-700",
-      borderColor: fallbackStages.find(f => f.id === s.stage_key)?.borderColor || "border-slate-200",
-      icon: fallbackStages.find(f => f.id === s.stage_key)?.icon || Clock
-    }))
-    : fallbackStages;
+      description: "Stage description",
+      color: "bg-slate-500",
+      bgColor: "bg-slate-50",
+      textColor: "text-slate-700",
+      borderColor: "border-slate-200",
+      icon: Clock
+    }));
+
+  const pipelineStages = [...fallbackStages, ...customPipelineStages];
 
   const stageOptions = pipelineStages.map(s => ({ value: s.id, label: s.label }));
 
   useEffect(() => {
-    if (deal) setForm({ ...deal });
+    if (deal) {
+      setForm({ ...deal });
+      if (deal.custom_fields && typeof deal.custom_fields === 'object') {
+        const fields = Object.entries(deal.custom_fields).map(([k, v]) => ({ key: k, value: String(v) }));
+        setCustomFields(fields);
+      } else {
+        setCustomFields([]);
+      }
+    }
+
   }, [deal]);
 
   if (isLoading) {
@@ -358,7 +436,17 @@ export default function DealDetailPage() {
       return;
     }
 
-    updateDeal.mutate({ id: deal.id, ...changes }, {
+    const customFieldsObj = customFields.reduce((acc, field) => {
+      if (field.key.trim()) acc[field.key.trim()] = field.value;
+      return acc;
+    }, {} as Record<string, string>);
+
+    updateDeal.mutate({ 
+      id: deal.id, 
+      ...changes,
+      customFields: customFieldsObj
+    }, {
+
       onSuccess: () => {
         setEditing(false);
         createActivity.mutate({
@@ -1132,6 +1220,277 @@ export default function DealDetailPage() {
                   icon={<Users className="h-4 w-4" />}
                   placeholder="e.g., 50-100 employees"
                 />
+              </CardContent>
+            </Card>
+
+            <Card className="border border-slate-200 bg-white shadow-sm rounded-xl">
+              <CardHeader className="border-b border-slate-200 bg-slate-50/80">
+                <CardTitle className="text-base text-slate-900">About Deal</CardTitle>
+                <CardDescription className="text-slate-500">Client and project basics</CardDescription>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 p-6">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">Client Type</Label>
+                  {editing ? (
+                    <Select value={(form.client_type as string) || ""} onValueChange={(val) => set("client_type", val)}>
+                      <SelectTrigger className="border-slate-200 bg-white">
+                        <SelectValue placeholder="not selected" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {clientTypeOptions.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="h-10 px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 flex items-center">
+                      <span className="text-slate-900 font-medium">{(form.client_type as string) || 'Not selected'}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">Project Type</Label>
+                  {editing ? (
+                    <Select value={(form.project_type as string) || ""} onValueChange={(val) => set("project_type", val)}>
+                      <SelectTrigger className="border-slate-200 bg-white">
+                        <SelectValue placeholder="not selected" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {defaultProjectTypes.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="h-10 px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 flex items-center">
+                      <span className="text-slate-900 font-medium">{(form.project_type as string) || 'Not selected'}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">Available to everyone</Label>
+                  {editing ? (
+                    <Select value={form.available_to_everyone === true ? "yes" : form.available_to_everyone === false ? "no" : "yes"} onValueChange={(val) => set("available_to_everyone", val === "yes")}>
+                      <SelectTrigger className="border-slate-200 bg-white">
+                        <SelectValue placeholder="not selected" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {yesNoOptions.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="h-10 px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 flex items-center">
+                      <span className="text-slate-900 font-medium">
+                        {form.available_to_everyone === true ? "Yes" : form.available_to_everyone === false ? "No" : "Not selected"}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border border-slate-200 bg-white shadow-sm rounded-xl">
+              <CardHeader className="border-b border-slate-200 bg-slate-50/80">
+                <CardTitle className="text-base text-slate-900">More</CardTitle>
+                <CardDescription className="text-slate-500">Source, deadline, and feedback</CardDescription>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 p-6">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">Source</Label>
+                  {editing ? (
+                    <Select value={(form.source as string) || ""} onValueChange={(val) => set("source", val)}>
+                      <SelectTrigger className="border-slate-200 bg-white">
+                        <SelectValue placeholder="Not selected" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="website">Website</SelectItem>
+                        <SelectItem value="referral">Referral</SelectItem>
+                        <SelectItem value="linkedin">LinkedIn</SelectItem>
+                        <SelectItem value="cold_call">Cold Call</SelectItem>
+                        <SelectItem value="trade_show">Trade Show</SelectItem>
+                        <SelectItem value="advertisement">Advertisement</SelectItem>
+                        <SelectItem value="partner">Partner</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="h-10 px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 flex items-center">
+                      <span className="text-slate-900 font-medium">{(form.source as string) || 'Not selected'}</span>
+                    </div>
+                  )}
+                </div>
+                <Field
+                  label="Source Information"
+                  value={displayJsonValue(form.source_info)}
+                  onChange={(val) => set("source_info", val)}
+                  editing={editing}
+                  multiline
+                  placeholder="Source Information"
+                />
+                <Field
+                  label="Quotation Received"
+                  value={form.quotation_received as string}
+                  onChange={(val) => set("quotation_received", val)}
+                  editing={editing}
+                  placeholder="Quotation Received"
+                />
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">QA Status</Label>
+                  {editing ? (
+                    <Select value={(form.qa_status as string) || ""} onValueChange={(val) => set("qa_status", val)}>
+                      <SelectTrigger className="border-slate-200 bg-white">
+                        <SelectValue placeholder="not selected" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {qaStatusOptions.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="h-10 px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 flex items-center">
+                      <span className="text-slate-900 font-medium">{(form.qa_status as string) || 'Not selected'}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="md:col-span-2">
+                  <Field
+                    label="Feedback"
+                    value={form.feedback as string}
+                    onChange={(val) => set("feedback", val)}
+                    editing={editing}
+                    multiline
+                    placeholder="Feedback"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <Field
+                    label="Project Feedback Details"
+                    value={form.feedback_details as string}
+                    onChange={(val) => set("feedback_details", val)}
+                    editing={editing}
+                    multiline
+                    placeholder="Project feedback details"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            <CustomFieldsSection 
+              fields={customFields} 
+              onChange={setCustomFields} 
+              className={!editing ? "opacity-90 pointer-events-none" : "animate-in fade-in slide-in-from-bottom-2 duration-300"}
+            />
+
+
+            <Card className="border border-slate-200 bg-white shadow-sm rounded-xl">
+              <CardHeader className="border-b border-slate-200 bg-slate-50/80">
+                <CardTitle className="text-base text-slate-900">Budget & Payment</CardTitle>
+                <CardDescription className="text-slate-500">Proposal, invoice, and hourly pricing</CardDescription>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 p-6">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">Payment Method</Label>
+                  {editing ? (
+                    <Select value={(form.payment_method as string) || ""} onValueChange={(val) => set("payment_method", val)}>
+                      <SelectTrigger className="border-slate-200 bg-white">
+                        <SelectValue placeholder="not selected" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {paymentMethodOptions.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="h-10 px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 flex items-center">
+                      <span className="text-slate-900 font-medium">{(form.payment_method as string) || 'Not selected'}</span>
+                    </div>
+                  )}
+                </div>
+                <Field
+                  label="Invoice Link"
+                  value={form.invoice_link as string}
+                  onChange={(val) => set("invoice_link", val)}
+                  editing={editing}
+                  placeholder="Invoice link"
+                />
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">Hourly Rate</Label>
+                  <div className="flex items-stretch gap-2">
+                    <Input
+                      type="number"
+                      value={form.hourly_rate !== undefined && form.hourly_rate !== null ? String(form.hourly_rate) : ""}
+                      onChange={(e) => set("hourly_rate", e.target.value ? Number(e.target.value) : null)}
+                      disabled={!editing}
+                      className="border-slate-200 bg-white"
+                    />
+                    <Select value={(form.hourly_rate_currency as string) || "USD"} onValueChange={(val) => set("hourly_rate_currency", val)} disabled={!editing}>
+                      <SelectTrigger className="w-[120px] border-slate-200 bg-white"><SelectValue /></SelectTrigger>
+                      <SelectContent>{currencyOptions.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <Field
+                  label="Hours Of Work"
+                  value={form.hours_of_work as string}
+                  onChange={(val) => set("hours_of_work", val)}
+                  editing={editing}
+                  placeholder="Hours of work"
+                />
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">Proposal Amount</Label>
+                  <div className="flex items-stretch gap-2">
+                    <Input
+                      type="number"
+                      value={form.proposal_amount !== undefined && form.proposal_amount !== null ? String(form.proposal_amount) : ""}
+                      onChange={(e) => set("proposal_amount", e.target.value ? Number(e.target.value) : null)}
+                      disabled={!editing}
+                      className="border-slate-200 bg-white"
+                    />
+                    <Select value={(form.proposal_currency as string) || "USD"} onValueChange={(val) => set("proposal_currency", val)} disabled={!editing}>
+                      <SelectTrigger className="w-[120px] border-slate-200 bg-white"><SelectValue /></SelectTrigger>
+                      <SelectContent>{currencyOptions.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">Invoice Amount</Label>
+                  <div className="flex items-stretch gap-2">
+                    <Input
+                      type="number"
+                      value={form.invoice_amount !== undefined && form.invoice_amount !== null ? String(form.invoice_amount) : ""}
+                      onChange={(e) => set("invoice_amount", e.target.value ? Number(e.target.value) : null)}
+                      disabled={!editing}
+                      className="border-slate-200 bg-white"
+                    />
+                    <Select value={(form.invoice_currency as string) || "USD"} onValueChange={(val) => set("invoice_currency", val)} disabled={!editing}>
+                      <SelectTrigger className="w-[120px] border-slate-200 bg-white"><SelectValue /></SelectTrigger>
+                      <SelectContent>{currencyOptions.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border border-slate-200 bg-white shadow-sm rounded-xl">
+              <CardHeader className="border-b border-slate-200 bg-slate-50/80">
+                <CardTitle className="text-base text-slate-900">Project Details</CardTitle>
+                <CardDescription className="text-slate-500">Scope and blueprint files</CardDescription>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 p-6">
+                <div className="md:col-span-2">
+                  <Field
+                    label="Scope"
+                    value={form.scope as string}
+                    onChange={(val) => set("scope", val)}
+                    editing={editing}
+                    multiline
+                    placeholder="Scope"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <Field
+                    label="Project Blueprints"
+                    value={displayJsonValue(form.project_blueprints)}
+                    onChange={(val) => set("project_blueprints", val)}
+                    editing={editing}
+                    multiline
+                    placeholder="Drop your files here"
+                  />
+                </div>
               </CardContent>
             </Card>
 

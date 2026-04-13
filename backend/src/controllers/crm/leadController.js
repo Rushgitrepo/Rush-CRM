@@ -34,6 +34,16 @@ const mapStatusToDatabase = (status) => {
   return statusMap[status] || status;
 };
 
+const serializeJsonField = (value) => {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value === 'string') return JSON.stringify(value);
+  try {
+    return JSON.stringify(value);
+  } catch (_) {
+    return null;
+  }
+};
+
 const createLeadSchema = Joi.object({
   title: Joi.string().required(),
   name: Joi.string().optional().allow(''),
@@ -48,11 +58,16 @@ const createLeadSchema = Joi.object({
   expectedCloseDate: Joi.alternatives().try(Joi.date(), Joi.string().isoDate()).optional().allow(null, ''),
   contactId: Joi.string().uuid().optional().allow(null),
   companyId: Joi.string().uuid().optional().allow(null),
+  assignedTo: Joi.string().uuid().optional().allow(null),
   // Marketing fields
+  customerType: Joi.string().optional().allow(null, ''),
   designation: Joi.string().optional().allow(null, ''),
   phone: Joi.string().optional().allow(null, ''),
+  phoneType: Joi.string().optional().allow(null, ''),
   email: Joi.string().email().optional().allow(null, ''),
+  emailType: Joi.string().optional().allow(null, ''),
   website: Joi.string().uri().optional().allow(null, ''),
+  websiteType: Joi.string().optional().allow(null, ''),
   address: Joi.string().optional().allow(null, ''),
   companyName: Joi.string().optional().allow(null, ''),
   companyPhone: Joi.string().optional().allow(null, ''),
@@ -64,8 +79,13 @@ const createLeadSchema = Joi.object({
   interactionNotes: Joi.string().optional().allow(null, ''),
   firstMessage: Joi.string().optional().allow(null, ''),
   lastTouch: Joi.date().optional().allow(null),
+  lastContactedDate: Joi.alternatives().try(Joi.date(), Joi.string().isoDate()).optional().allow(null, ''),
+  nextFollowUpDate: Joi.alternatives().try(Joi.date(), Joi.string().isoDate()).optional().allow(null, ''),
+  sourceInfo: Joi.string().optional().allow(null, ''),
+  responsiblePerson: Joi.string().optional().allow(null, ''),
   pipeline: Joi.string().optional().allow(null, ''),
   externalSourceId: Joi.string().optional().allow(null, ''),
+  customFields: Joi.object().optional().allow(null),
 });
 
 const normalizeLeadInput = (body = {}) => {
@@ -104,11 +124,16 @@ const normalizeLeadInput = (body = {}) => {
     expectedCloseDate,
     contactId: getVal('contactId', 'contact_id'),
     companyId: getVal('companyId', 'company_id'),
+    assignedTo: getVal('assignedTo', 'assigned_to'),
     // Marketing fields
+    customerType: getVal('customerType', 'customer_type'),
     designation: getVal('designation', 'designation'),
     phone: getVal('phone', 'phone'),
+    phoneType: getVal('phoneType', 'phone_type'),
     email: getVal('email', 'email'),
+    emailType: getVal('emailType', 'email_type'),
     website: getVal('website', 'website'),
+    websiteType: getVal('websiteType', 'website_type'),
     address: getVal('address', 'address'),
     companyName: getVal('companyName', 'company_name'),
     companyPhone: getVal('companyPhone', 'company_phone'),
@@ -120,8 +145,13 @@ const normalizeLeadInput = (body = {}) => {
     interactionNotes: getVal('interactionNotes', 'interaction_notes'),
     firstMessage: getVal('firstMessage', 'first_message'),
     lastTouch,
+    lastContactedDate: getVal('lastContactedDate', 'last_contacted_date'),
+    nextFollowUpDate: getVal('nextFollowUpDate', 'next_follow_up_date'),
+    sourceInfo: getVal('sourceInfo', 'source_info'),
+    responsiblePerson: getVal('responsiblePerson', 'responsible_person'),
     pipeline: getVal('pipeline', 'pipeline'),
     externalSourceId: getVal('externalSourceId', 'external_source_id'),
+    customFields: getVal('customFields', 'custom_fields'),
   };
 };
 
@@ -141,10 +171,14 @@ const updateLeadSchema = Joi.object({
   companyId: Joi.string().uuid().optional().allow(null),
   assignedTo: Joi.string().uuid().optional().allow(null),
   // Marketing fields
+  customerType: Joi.string().optional().allow(null, ''),
   designation: Joi.string().optional().allow(null, ''),
   phone: Joi.string().optional().allow(null, ''),
+  phoneType: Joi.string().optional().allow(null, ''),
   email: Joi.string().email().optional().allow(null, ''),
+  emailType: Joi.string().optional().allow(null, ''),
   website: Joi.string().uri().optional().allow(null, ''),
+  websiteType: Joi.string().optional().allow(null, ''),
   address: Joi.string().optional().allow(null, ''),
   companyName: Joi.string().optional().allow(null, ''),
   companyPhone: Joi.string().optional().allow(null, ''),
@@ -156,8 +190,13 @@ const updateLeadSchema = Joi.object({
   interactionNotes: Joi.string().optional().allow(null, ''),
   firstMessage: Joi.string().optional().allow(null, ''),
   lastTouch: Joi.date().optional().allow(null),
+  lastContactedDate: Joi.alternatives().try(Joi.date(), Joi.string().isoDate()).optional().allow(null, ''),
+  nextFollowUpDate: Joi.alternatives().try(Joi.date(), Joi.string().isoDate()).optional().allow(null, ''),
+  sourceInfo: Joi.string().optional().allow(null, ''),
+  responsiblePerson: Joi.string().optional().allow(null, ''),
   pipeline: Joi.string().optional().allow(null, ''),
   externalSourceId: Joi.string().optional().allow(null, ''),
+  customFields: Joi.object().optional().allow(null),
 }).min(1);
 
 const getAll = async (req, res, next) => {
@@ -236,7 +275,6 @@ const getAll = async (req, res, next) => {
       result = await db.query(query, params);
     } catch (err) {
       if (err.code === '42703') {
-        // Fallback for legacy schemas without contact_id/company_id; rebuild params for clarity
         const legacyParams = [req.user.orgId];
         let legacyIdx = 2;
         let legacyQuery = `SELECT l.* FROM public.leads l WHERE l.org_id = $1`;
@@ -276,7 +314,6 @@ const getAll = async (req, res, next) => {
     res.json({
       data: result.rows.map(lead => ({
         ...lead,
-        // Ensure consistent field names for frontend - prioritize linked entities but fallback to lead's own fields
         company: lead.linked_company_name || lead.company_name || lead.company,
         companyName: lead.linked_company_name || lead.company_name || lead.company,
         companyPhone: lead.linked_company_phone || lead.company_phone,
@@ -284,12 +321,9 @@ const getAll = async (req, res, next) => {
         contactName: lead.contact_first_name ? `${lead.contact_first_name} ${lead.contact_last_name || ''}`.trim() : lead.name,
         contactEmail: lead.contact_email || lead.email,
         contactPhone: lead.contact_phone || lead.phone,
-        // Map database status/stage to frontend expected values
         status: mapStatusToFrontend(lead.status),
         stage: mapStatusToFrontend(lead.stage),
-        // Ensure value is a number
         value: lead.value ? Number(lead.value) : 0,
-        // Format dates
         createdAt: lead.created_at,
         updatedAt: lead.updated_at,
         converted_to_deal_id: lead.converted_to_deal_id,
@@ -327,7 +361,6 @@ const getById = async (req, res, next) => {
       );
     } catch (err) {
       if (err.code === '42703') {
-        // Legacy schema without contact_id/company_id
         result = await db.query(
           `SELECT l.* FROM public.leads l WHERE l.id = $1 AND l.org_id = $2`,
           [id, req.user.orgId]
@@ -344,7 +377,6 @@ const getById = async (req, res, next) => {
     const lead = result.rows[0];
     res.json({
       ...lead,
-      // Ensure consistent field names for frontend
       company: lead.linked_company_name || lead.company_name || lead.company,
       companyName: lead.linked_company_name || lead.company_name || lead.company,
       companyPhone: lead.linked_company_phone || lead.company_phone,
@@ -352,12 +384,9 @@ const getById = async (req, res, next) => {
       contactName: lead.contact_first_name ? `${lead.contact_first_name} ${lead.contact_last_name || ''}`.trim() : lead.name,
       contactEmail: lead.contact_email || lead.email,
       contactPhone: lead.contact_phone || lead.phone,
-      // Map database status/stage to frontend expected values
       status: mapStatusToFrontend(lead.status),
       stage: mapStatusToFrontend(lead.stage),
-      // Ensure value is a number
       value: lead.value ? Number(lead.value) : 0,
-      // Format dates
       createdAt: lead.created_at,
       updatedAt: lead.updated_at,
       converted_to_deal_id: lead.converted_to_deal_id,
@@ -379,16 +408,15 @@ const create = async (req, res, next) => {
     const {
       title, name, stage, status, source, value: leadValue, currency, priority,
       notes, tags, expectedCloseDate, contactId, companyId,
-      // Marketing fields
-      designation, phone, email, website, address, companyName, companyPhone, 
+      assignedTo, customerType, designation, phone, phoneType, email, emailType,
+      website, websiteType, address, companyName, companyPhone, 
       companyEmail, companySize, agentName, decisionMaker, serviceInterested, 
-      interactionNotes, firstMessage, lastTouch
+      interactionNotes, firstMessage, lastTouch, lastContactedDate, nextFollowUpDate,
+      sourceInfo, responsiblePerson, customFields
     } = value;
 
-    // Get workspace from request
     const workspaceId = req.body.workspaceId || null;
 
-    // Verify user has access to workspace if specified
     if (workspaceId) {
       const memberCheck = await db.query(
         'SELECT 1 FROM workgroup_members WHERE workgroup_id = $1 AND user_id = $2',
@@ -403,23 +431,23 @@ const create = async (req, res, next) => {
     try {
       result = await db.query(
         `INSERT INTO public.leads 
-         (org_id, user_id, workspace_id, title, name, stage, status, source, value, currency, priority, 
-          notes, tags, expected_close_date, contact_id, company_id,
-          designation, phone, email, website, address, company_name, company_phone,
+         (org_id, user_id, workspace_id, assigned_to, title, name, stage, status, source, source_info, customer_type,
+          value, currency, priority, notes, tags, expected_close_date, contact_id, company_id,
+          designation, phone, phone_type, email, email_type, website, website_type, address, company_name, company_phone,
           company_email, company_size, agent_name, decision_maker, service_interested,
-          interaction_notes, first_message, last_touch, pipeline, external_source_id)
+          interaction_notes, first_message, last_touch, last_contacted_date, next_follow_up_date, responsible_person, pipeline, external_source_id, custom_fields)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
-                 $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33)
+                 $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43)
          RETURNING *`,
-        [req.user.orgId, req.user.id, workspaceId, title, name, stage, status, source, leadValue, 
-         currency, priority, notes, tags, expectedCloseDate, contactId, companyId,
-         designation, phone, email, website, address, companyName, companyPhone,
+        [req.user.orgId, req.user.id, workspaceId, assignedTo || null, title, name, stage, status, source, serializeJsonField(sourceInfo), customerType || null,
+         leadValue, currency, priority, notes, tags, expectedCloseDate, contactId, companyId,
+         designation, phone, phoneType || null, email, emailType || null, website, websiteType || null, address, companyName, companyPhone,
          companyEmail, companySize, agentName, decisionMaker, serviceInterested,
-         interactionNotes, firstMessage, lastTouch, value.pipeline, value.externalSourceId]
+         interactionNotes, firstMessage, lastTouch, lastContactedDate || null, nextFollowUpDate || null, responsiblePerson || null, value.pipeline, value.externalSourceId,
+         customFields ? JSON.stringify(customFields) : '{}']
       );
     } catch (err) {
       if (err.code === '42703') {
-        // Fallback for legacy schema without many optional columns
         result = await db.query(
           `INSERT INTO public.leads 
            (org_id, user_id, title, name, stage, status, source, value, currency)
@@ -432,7 +460,6 @@ const create = async (req, res, next) => {
       }
     }
 
-    // Log activity
     try {
       await db.query(
         `INSERT INTO public.crm_activities 
@@ -441,18 +468,14 @@ const create = async (req, res, next) => {
         [req.user.orgId, req.user.id, result.rows[0].id, 'Lead Created', title]
       );
     } catch (activityErr) {
-      // Don't fail the request if activity logging fails
       console.error('Failed to log activity:', activityErr);
     }
 
     const lead = result.rows[0];
-
-    // Fire workflow triggers (non-blocking)
     fireWorkflows(req.user.orgId, 'lead_created', lead, req.user.id);
 
     res.status(201).json({
       ...lead,
-      // Ensure consistent field names for frontend
       company: lead.linked_company_name || lead.company_name || lead.company,
       companyName: lead.linked_company_name || lead.company_name || lead.company,
       companyPhone: lead.linked_company_phone || lead.company_phone,
@@ -460,12 +483,9 @@ const create = async (req, res, next) => {
       contactName: lead.contact_first_name ? `${lead.contact_first_name} ${lead.contact_last_name || ''}`.trim() : lead.name,
       contactEmail: lead.contact_email || lead.email,
       contactPhone: lead.contact_phone || lead.phone,
-      // Map database status/stage to frontend expected values
       status: mapStatusToFrontend(lead.status),
       stage: mapStatusToFrontend(lead.stage),
-      // Ensure value is a number
       value: lead.value ? Number(lead.value) : 0,
-      // Format dates
       createdAt: lead.created_at,
       updatedAt: lead.updated_at,
     });
@@ -510,12 +530,16 @@ const update = async (req, res, next) => {
       contactId: 'contact_id',
       companyId: 'company_id',
       assignedTo: 'assigned_to',
+      customerType: 'customer_type',
       expectedCloseDate: 'expected_close_date',
       workspaceId: 'workspace_id',
       designation: 'designation',
       phone: 'phone',
+      phoneType: 'phone_type',
       email: 'email',
+      emailType: 'email_type',
       website: 'website',
+      websiteType: 'website_type',
       address: 'address',
       companyName: 'company_name',
       companyPhone: 'company_phone',
@@ -527,8 +551,13 @@ const update = async (req, res, next) => {
       interactionNotes: 'interaction_notes',
       firstMessage: 'first_message',
       lastTouch: 'last_touch',
+      lastContactedDate: 'last_contacted_date',
+      nextFollowUpDate: 'next_follow_up_date',
+      sourceInfo: 'source_info',
+      responsiblePerson: 'responsible_person',
       pipeline: 'pipeline',
-      externalSourceId: 'external_source_id'
+      externalSourceId: 'external_source_id',
+      customFields: 'custom_fields'
     };
 
     const hasStage = value.stage !== undefined;
@@ -538,15 +567,17 @@ const update = async (req, res, next) => {
       const dbField = fieldMapping[key];
       if (dbField && val !== undefined) {
         let dbValue = val;
-        // Map frontend status/stage values to database values
         if (key === 'status' || key === 'stage') {
           dbValue = mapStatusToDatabase(val);
+        } else if (key === 'sourceInfo') {
+          dbValue = serializeJsonField(val);
+        } else if (key === 'customFields') {
+          dbValue = val ? JSON.stringify(val) : '{}';
         }
         fields.push(`${dbField} = $${paramIndex}`);
         values.push(dbValue);
         paramIndex++;
         
-        // Synchronize stage and status if only one is provided
         if (key === 'stage' && !hasStatus) {
           fields.push(`status = $${paramIndex}`);
           values.push(dbValue);
@@ -573,7 +604,6 @@ const update = async (req, res, next) => {
       values
     );
 
-    // Log activity
     try {
       await db.query(
         `INSERT INTO public.crm_activities 
@@ -588,7 +618,6 @@ const update = async (req, res, next) => {
     const lead = result.rows[0];
     res.json({
       ...lead,
-      // Ensure consistent field names for frontend - prioritize linked entities but fallback to lead's own fields
       company: lead.linked_company_name || lead.company_name || lead.company,
       companyName: lead.linked_company_name || lead.company_name || lead.company,
       companyPhone: lead.linked_company_phone || lead.company_phone,
@@ -596,12 +625,9 @@ const update = async (req, res, next) => {
       contactName: lead.contact_first_name ? `${lead.contact_first_name} ${lead.contact_last_name || ''}`.trim() : lead.name,
       contactEmail: lead.contact_email || lead.email,
       contactPhone: lead.contact_phone || lead.phone,
-      // Map database status/stage to frontend expected values
       status: mapStatusToFrontend(lead.status),
       stage: mapStatusToFrontend(lead.stage),
-      // Ensure value is a number
       value: lead.value ? Number(lead.value) : 0,
-      // Format dates
       createdAt: lead.created_at,
       updatedAt: lead.updated_at,
     });
@@ -681,19 +707,19 @@ const convertToDeal = async (req, res, next) => {
        (
          org_id, user_id, title, contact_id, company_id, stage, status, 
          value, currency, probability, notes, tags, expected_close_date, 
-         converted_from_lead_id, contact_name, company_name, phone, email, 
+         lead_id, contact_name, company_name, phone, email, 
          priority, source, description, designation, website, address, 
          company_phone, company_email, company_size, agent_name, 
          decision_maker, service_interested, interaction_notes, 
          first_message, last_touch, workspace_id, source_info, 
          phone_type, email_type, website_type, customer_type, 
-         last_contacted_date, next_follow_up_date, responsible_person
+         last_contacted_date, next_follow_up_date, assigned_to, custom_fields
        )
        VALUES (
          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
          $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26,
          $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38,
-         $39, $40, $41, $42
+         $39, $40, $41, $42, $43
        )
        RETURNING *`,
       [
@@ -738,7 +764,8 @@ const convertToDeal = async (req, res, next) => {
         lead.customer_type,
         lead.last_contacted_date,
         lead.next_follow_up_date,
-        lead.responsible_person || lead.assigned_to
+        lead.responsible_person || lead.assigned_to,
+        JSON.stringify(lead.custom_fields || {})
       ]
     );
 
@@ -755,15 +782,11 @@ const convertToDeal = async (req, res, next) => {
       [req.user.orgId, req.user.id, id, `Deal ${deal.title}`]
     );
 
-    // Return the deal with consistent formatting
     res.status(201).json({
       ...deal,
-      // Ensure consistent field names for frontend
       company: deal.linked_company_name || deal.company_name || deal.company,
       companyName: deal.linked_company_name || deal.company_name || deal.company,
-      // Ensure value is a number
       value: deal.value ? Number(deal.value) : 0,
-      // Format dates
       createdAt: deal.created_at,
       updatedAt: deal.updated_at,
     });
@@ -781,7 +804,6 @@ const updateStage = async (req, res, next) => {
       return res.status(400).json({ error: 'Stage is required' });
     }
 
-    // Map frontend stage to database stage
     const dbStage = mapStatusToDatabase(stage);
 
     const result = await db.query(
@@ -795,7 +817,6 @@ const updateStage = async (req, res, next) => {
       return res.status(404).json({ error: 'Lead not found' });
     }
 
-    // Log activity
     try {
       await db.query(
         `INSERT INTO public.crm_activities 
@@ -808,22 +829,16 @@ const updateStage = async (req, res, next) => {
     }
 
     const lead = result.rows[0];
-
-    // Fire workflow trigger for stage change (non-blocking)
     fireWorkflows(req.user.orgId, 'lead_stage_changed', lead, req.user.id);
 
     res.json({
       ...lead,
-      // Ensure consistent field names for frontend
       name: lead.title || lead.name,
       title: lead.title || lead.name,
       company: lead.company_name || lead.company,
-      // Map database status/stage to frontend expected values
       status: mapStatusToFrontend(lead.status),
       stage: mapStatusToFrontend(lead.stage),
-      // Ensure value is a number
       value: lead.value ? Number(lead.value) : 0,
-      // Format dates
       createdAt: lead.created_at,
       updatedAt: lead.updated_at,
     });
@@ -835,10 +850,19 @@ const updateStage = async (req, res, next) => {
 const getStages = async (req, res, next) => {
   try {
     const { rows } = await db.query(
-      'SELECT * FROM pipeline_stages WHERE org_id = $1 ORDER BY sort_order ASC',
+      'SELECT id, stage_label, sort_order, color, is_active FROM pipeline_stages WHERE org_id = $1 AND is_active = true ORDER BY sort_order ASC',
       [req.user.orgId]
     );
-    res.json(rows);
+    
+    const stages = rows.map(row => ({
+      id: row.id,
+      stage_key: row.stage_label.toLowerCase().replace(/\s+/g, '_'),
+      stage_label: row.stage_label,
+      sort_order: row.sort_order,
+      color: row.color || 'bg-gray-500'
+    }));
+    
+    res.json(stages);
   } catch (err) {
     next(err);
   }
@@ -862,21 +886,43 @@ const createStage = async (req, res, next) => {
     const sortOrder = (existing[0]?.max_order || 0) + 1;
     
     const { rows } = await db.query(
-      `INSERT INTO pipeline_stages (org_id, stage_key, stage_label, sort_order) 
-       VALUES ($1, $2, $3, $4) 
-       ON CONFLICT (org_id, pipeline, stage_key) 
-       DO UPDATE SET stage_label = $3 
+      `INSERT INTO pipeline_stages (org_id, stage_key, stage_label, sort_order, color, is_active) 
+       VALUES ($1, $2, $3, $4, $5, $6) 
        RETURNING *`,
-      [req.user.orgId, stageKey, stageName, sortOrder]
+      [req.user.orgId, stageKey, stageName, sortOrder, '#6b7280', true]
     );
     
-    res.status(201).json(rows[0]);
+    res.status(201).json({
+      id: rows[0].id,
+      stage_key: rows[0].stage_key,
+      stage_label: rows[0].stage_label,
+      sort_order: rows[0].sort_order,
+      color: rows[0].color
+    });
   } catch (err) {
     next(err);
   }
 };
 
-// ── Bulk Import ──────────────────────────────────────────────────────────────
+const deleteStage = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await db.query(
+      'DELETE FROM pipeline_stages WHERE id = $1 AND org_id = $2 RETURNING id',
+      [id, req.user.orgId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Stage not found' });
+    }
+    
+    res.json({ message: 'Stage deleted successfully' });
+  } catch (err) {
+    next(err);
+  }
+};
+
 const importLeads = async (req, res) => {
   try {
     const { leads: rows } = req.body;
@@ -952,6 +998,7 @@ module.exports = {
   getStats,
   getStages,
   createStage,
+  deleteStage,
   convertToDeal,
   importLeads,
 };

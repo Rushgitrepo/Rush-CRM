@@ -69,7 +69,7 @@ async function getAuthenticatedPlatform(orgId, userId) {
   );
 
   if (rows.length === 0) {
-    throw new Error('RingCentral account not connected. Please authorize in Admin Settings.');
+    throw new Error('RingCentral account not connected. Please connect');
   }
 
   const stored = rows[0];
@@ -151,6 +151,171 @@ async function upsertTokens(orgId, userId, tokenData) {
   );
 }
 
+function safeText(value) {
+  if (typeof value === 'string') return value.trim();
+  if (value == null) return '';
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return '';
+}
+
+function extractInsightText(value) {
+  if (!value) return '';
+
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map(item => extractInsightText(item))
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  if (typeof value === 'object') {
+    const directText =
+      safeText(value.text) ||
+      safeText(value.summary) ||
+      safeText(value.message) ||
+      safeText(value.content);
+
+    if (directText) return directText;
+
+    const speakerName =
+      safeText(value.speaker?.name) ||
+      safeText(value.speakerName) ||
+      safeText(value.participant?.name) ||
+      safeText(value.participantName);
+
+    const utterance =
+      safeText(value.utterance) ||
+      safeText(value.transcript) ||
+      safeText(value.speech) ||
+      safeText(value.textValue);
+
+    if (speakerName || utterance) {
+      return `${speakerName ? `${speakerName}: ` : ''}${utterance}`.trim();
+    }
+
+    return Object.values(value)
+      .map(item => extractInsightText(item))
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  return '';
+}
+
+function extractRingSenseFields(insights) {
+  if (!insights) {
+    return {
+      transcript: '',
+      summary: '',
+      recap: '',
+      notes: '',
+    };
+  }
+
+  const payload = insights.response || insights.data || insights;
+  const transcriptionSource =
+    payload.transcriptions ||
+    payload.transcription ||
+    payload.transcript ||
+    payload.speechToText ||
+    payload.speech_to_text ||
+    payload.conversation ||
+    payload.sessions ||
+    [];
+
+  const summarySource =
+    payload.summaries ||
+    payload.summary ||
+    payload.callSummary ||
+    payload.call_summaries ||
+    [];
+
+  const recapSource =
+    payload.highlights ||
+    payload.nextSteps ||
+    payload.next_steps ||
+    payload.actionItems ||
+    payload.action_items ||
+    payload.insights ||
+    [];
+
+  const transcript = extractInsightText(transcriptionSource);
+  const summary = extractInsightText(summarySource);
+  const recap = extractInsightText(recapSource);
+  const notes = extractInsightText(payload.notes || payload.note || payload.callNotes || payload.call_notes);
+
+  return { transcript, summary, recap, notes };
+}
+
+async function fetchCallInsights(platform, callId) {
+  const resp = await platform.get(
+    `/ai/ringsense/v1/public/accounts/~/domains/pbx/records/${encodeURIComponent(callId)}/insights`
+  );
+  return resp.json();
+}
+
+async function enrichCallLogWithInsights(orgId, userId, callLogId, callId, existingNotes = null, platform = null) {
+  if (!callId) return false;
+
+  const client = platform || await getAuthenticatedPlatform(orgId, userId);
+
+  const candidateIds = Array.from(new Set([
+    callId,
+    callId.replace(/^s-/, ''),
+    callId.replace(/^rc-/, ''),
+  ].filter(Boolean)));
+
+  let insights = null;
+  let lastError = null;
+  for (const candidateId of candidateIds) {
+    try {
+      const result = await fetchCallInsights(client, candidateId);
+      if (result) {
+        insights = result;
+        break;
+      }
+    } catch (err) {
+      lastError = err;
+      const status = err?.response?.status;
+      if (status !== 404 && status !== 400) {
+        console.warn('[RC] Failed to fetch RingSense insights:', err.message || err);
+      }
+    }
+  }
+
+  if (!insights) {
+    const status = lastError?.response?.status;
+    if (status && status !== 404 && status !== 400) {
+      console.warn('[RC] Unable to fetch RingSense insights for call:', callId, lastError.message || lastError);
+    }
+    return false;
+  }
+
+  const { transcript, summary, recap, notes } = extractRingSenseFields(insights);
+  const resolvedNotes = existingNotes || notes || summary || recap || null;
+
+  if (!resolvedNotes && !transcript && !summary && !recap) {
+    return false;
+  }
+
+  await db.query(
+    `UPDATE call_logs
+        SET notes = COALESCE(notes, $2),
+            transcript = COALESCE(transcript, $3),
+            ai_summary = COALESCE(ai_summary, $4),
+            ai_recap = COALESCE(ai_recap, $5),
+            updated_at = NOW()
+      WHERE id = $1 AND org_id = $6`,
+    [callLogId, resolvedNotes, transcript || null, summary || null, recap || null, orgId]
+  );
+
+  return true;
+}
+
 // ---------------------------------------------------------------------------
 // Call Log Sync  (RC → CRM)
 // ---------------------------------------------------------------------------
@@ -170,34 +335,67 @@ async function syncCallLogs(orgId, userId, options = {}) {
   let synced = 0;
   for (const rec of records) {
     const sessionId = String(rec.sessionId || rec.id);
+    const callId = String(rec.id || rec.sessionId || '');
+    const telephonySessionId = String(rec.telephonySessionId || rec.sessionId || rec.id || '');
 
     const existing = await db.query(
-      'SELECT id FROM call_logs WHERE org_id = $1 AND rc_session_id = $2',
-      [orgId, sessionId]
+      'SELECT id, notes, transcript, ai_summary, ai_recap FROM call_logs WHERE org_id = $1 AND (rc_session_id = $2 OR rc_call_id = $3)',
+      [orgId, sessionId, callId || null]
     );
-    if (existing.rows.length > 0) continue;
-
     const direction = (rec.direction || '').toLowerCase() === 'inbound' ? 'inbound' : 'outbound';
     const phoneNumber = direction === 'inbound'
       ? (rec.from?.phoneNumber || '')
       : (rec.to?.phoneNumber || '');
+    const recordingUrl = rec.recording?.contentUri || rec.recording?.uri || null;
+    const callResult = rec.result || rec.action || 'completed';
+    const fromName = rec.from?.name || rec.from?.phoneNumber || null;
+    const toName = rec.to?.name || rec.to?.phoneNumber || null;
+    const fromNumber = rec.from?.phoneNumber || null;
+    const toNumber = rec.to?.phoneNumber || null;
+    const insightIds = [telephonySessionId, sessionId, callId].filter(Boolean);
 
-    await db.query(
+    if (existing.rows.length > 0) {
+      const row = existing.rows[0];
+      const shouldEnrich =
+        !row.transcript ||
+        !row.ai_summary ||
+        !row.ai_recap ||
+        !row.notes;
+
+      if (shouldEnrich) {
+        for (const insightId of insightIds) {
+          const enriched = await enrichCallLogWithInsights(orgId, userId, row.id, insightId, row.notes, platform);
+          if (enriched) break;
+        }
+      }
+      continue;
+    }
+
+    const insertResult = await db.query(
       `INSERT INTO call_logs (
         org_id, user_id, call_type, direction, phone_number, duration, status,
         recording_url, provider, rc_session_id, rc_call_id,
         from_name, to_name, from_number, to_number, created_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+      RETURNING id`,
       [
         orgId, userId, 'phone', direction, phoneNumber, rec.duration || 0,
-        rec.result || 'completed',
-        rec.recording?.contentUri || null,
-        'ringcentral', sessionId, rec.id || null,
-        rec.from?.name || null, rec.to?.name || null,
-        rec.from?.phoneNumber || null, rec.to?.phoneNumber || null,
+        callResult,
+        recordingUrl,
+        'ringcentral', sessionId, callId || null,
+        fromName, toName,
+        fromNumber, toNumber,
         rec.startTime ? new Date(rec.startTime) : new Date(),
       ]
     );
+
+    const callLogId = insertResult.rows[0]?.id;
+    if (callLogId && insightIds.length > 0) {
+      for (const insightId of insightIds) {
+        const enriched = await enrichCallLogWithInsights(orgId, userId, callLogId, insightId, null, platform);
+        if (enriched) break;
+      }
+    }
     synced++;
   }
 
@@ -263,11 +461,37 @@ async function syncSmsLogs(orgId, userId, options = {}) {
 async function sendSMS(orgId, userId, { to, text, from }) {
   const platform = await getAuthenticatedPlatform(orgId, userId);
 
+  // If no 'from' number is provided, get the user's primary number
+  let fromNumber = from;
+  if (!fromNumber) {
+    try {
+      const phoneResp = await platform.get('/restapi/v1.0/account/~/extension/~/phone-number');
+      const phoneData = await phoneResp.json();
+      
+      // Find a suitable SMS-capable number
+      const smsCapableNumber = phoneData.records?.find(r => 
+        r.features?.includes('SMS-Capable') || 
+        r.usageType === 'DirectNumber' || 
+        r.usageType === 'MainCompanyNumber'
+      );
+      
+      if (smsCapableNumber) {
+        fromNumber = smsCapableNumber.phoneNumber;
+      } else {
+        throw new Error('No SMS-capable phone number found for this account');
+      }
+    } catch (err) {
+      throw new Error('Failed to get SMS-capable phone number: ' + err.message);
+    }
+  }
+
   const body = {
     to: [{ phoneNumber: to }],
+    from: { phoneNumber: fromNumber },
     text,
   };
-  if (from) body.from = { phoneNumber: from };
+
+  console.log('[RC Service] Sending SMS with body:', JSON.stringify(body, null, 2));
 
   const resp = await platform.post('/restapi/v1.0/account/~/extension/~/sms', body);
   const result = await resp.json();
@@ -279,7 +503,7 @@ async function sendSMS(orgId, userId, { to, text, from }) {
       message_text, provider, rc_message_id, status
     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
     [
-      orgId, userId, 'outbound', to, from || null, to,
+      orgId, userId, 'outbound', to, fromNumber, to,
       text, 'ringcentral', String(result.id || ''), 'sent',
     ]
   );
