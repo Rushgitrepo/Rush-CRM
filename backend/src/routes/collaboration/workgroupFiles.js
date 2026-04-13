@@ -4,7 +4,8 @@ const {
   getWorkgroupFiles,
   uploadWorkgroupFile,
   deleteWorkgroupFile,
-  downloadWorkgroupFile
+  downloadWorkgroupFile,
+  viewWorkgroupFile,
 } = require('../../controllers/collaboration/workgroupFilesController');
 const { auth } = require('../../middleware/auth');
 
@@ -14,6 +15,7 @@ router.use(auth);
 // File routes
 router.get('/:workgroupId/files', getWorkgroupFiles);
 router.post('/:workgroupId/files', uploadWorkgroupFile);
+router.get('/:workgroupId/files/:fileId/view', viewWorkgroupFile);
 router.get('/:workgroupId/files/:fileId/download', downloadWorkgroupFile);
 router.delete('/:workgroupId/files/:fileId', deleteWorkgroupFile);
 

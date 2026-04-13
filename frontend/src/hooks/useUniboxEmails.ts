@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useCallback } from "react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { useUniboxRealtime } from "./useRealtime";
 
 export interface UniboxEmail {
   id: string;
@@ -64,6 +66,25 @@ export function useUniboxEmails(filters: {
   priority?: string;
 } = {}) {
   const queryClient = useQueryClient();
+
+  // Handle real-time updates
+  const handleNewEmail = useCallback((email: any) => {
+    console.log('📬 New email received in real-time:', email);
+    queryClient.invalidateQueries({ queryKey: ["unibox-emails"] });
+    queryClient.invalidateQueries({ queryKey: ["unibox-stats"] });
+    
+    // Optionally show a toast for new emails if user is not on unibox page? 
+    // Or just a general notification.
+    toast(`New email from ${email.sender_name || email.sender_email}`, {
+      description: email.subject,
+      action: {
+        label: "View",
+        onClick: () => window.location.href = "/crm/unibox"
+      }
+    });
+  }, [queryClient]);
+
+  useUniboxRealtime(handleNewEmail);
 
   const emailsQuery = useQuery({
     queryKey: ["unibox-emails", filters],

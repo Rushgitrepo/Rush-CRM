@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -39,6 +39,7 @@ import {
   Pin,
   Trash2,
   MoreHorizontal,
+  MoreVertical,
   Reply,
   Crown,
   UserMinus,
@@ -73,7 +74,7 @@ import {
   useTogglePinPost,
   type WorkgroupPost,
 } from "@/hooks/useWorkgroups";
-import { workgroupsApi } from "@/lib/api";
+import { API_BASE_URL, api, workgroupsApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdminUsers } from "@/hooks/useAdminUsers";
 import { formatDistanceToNow } from "date-fns";
@@ -105,6 +106,16 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   const createPost = useCreatePost();
   const deletePost = useDeletePost();
   const togglePin = useTogglePinPost();
+  const deleteWorkgroup = useMutation({
+    mutationFn: () => workgroupsApi.delete(workgroupId),
+    onSuccess: () => {
+      toast.success("Team removed successfully");
+      onBack();
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.error || "Failed to remove team");
+    },
+  });
 
   // Listen to Socket.io real-time chat updates
   useWorkgroupRealtime(
@@ -135,7 +146,11 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   const [newWikiPageContent, setNewWikiPageContent] = useState("");
   const [showMembersList, setShowMembersList] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showInputEmojiPicker, setShowInputEmojiPicker] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const membersScrollRef = useRef<HTMLDivElement>(null);
+  const composerEmojiRef = useRef<HTMLDivElement>(null);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
 
   // Auto-scroll to bottom on new posts
@@ -227,6 +242,72 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
         { workgroupId, content: newPost },
         { onSuccess: () => setNewPost("") },
       );
+    }
+  };
+
+  const getAuthedFileUrl = (fileId: string, mode: "view" | "download" = "download") => {
+    const token = api.getToken();
+    const baseUrl = `${API_BASE_URL}/workgroups/${workgroupId}/files/${fileId}/${mode}`;
+    return token
+      ? `${baseUrl}?token=${encodeURIComponent(token)}`
+      : baseUrl;
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        composerEmojiRef.current &&
+        !composerEmojiRef.current.contains(event.target as Node)
+      ) {
+        setShowInputEmojiPicker(false);
+      }
+    };
+
+    if (showInputEmojiPicker) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showInputEmojiPicker]);
+
+  const handleComposerEmojiSelect = (emojiData: EmojiClickData) => {
+    setNewPost((prev) => `${prev}${emojiData.emoji}`);
+    setShowInputEmojiPicker(false);
+  };
+
+  const handleAttachFromComposer = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const uploadedFile = await workgroupsApi.uploadFile(workgroupId, file);
+      await createPost.mutateAsync({
+        workgroupId,
+        content: newPost.trim() || `📎 ${uploadedFile.original_name}`,
+        parentId: replyTo || undefined,
+        files: [
+          {
+            id: uploadedFile.id,
+            original_name: uploadedFile.original_name,
+            file_type: uploadedFile.file_type,
+            file_size: uploadedFile.file_size,
+            download_url: `/api/workgroups/${workgroupId}/files/${uploadedFile.id}/download`,
+          },
+        ],
+      });
+      setNewPost("");
+      setReplyTo(null);
+      toast.success("File sent successfully");
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || "Failed to send file");
+    } finally {
+      if (attachmentInputRef.current) {
+        attachmentInputRef.current.value = "";
+      }
     }
   };
 
@@ -354,6 +435,18 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
     );
   };
 
+  const handleRemoveTeam = async () => {
+    const shouldRemove = await confirm(
+      "Are you sure you want to remove this team? This action cannot be undone.",
+      {
+        title: "Remove Team",
+        variant: "destructive",
+      },
+    );
+    if (!shouldRemove) return;
+    deleteWorkgroup.mutate();
+  };
+
   if (!workgroup) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
@@ -420,6 +513,14 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                 <DropdownMenuItem>
                   <Settings className="h-4 w-4 mr-2" /> Team Settings
                 </DropdownMenuItem>
+                {isGroupAdmin && (
+                  <DropdownMenuItem
+                    onClick={handleRemoveTeam}
+                    className="text-red-600 dark:text-red-400"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" /> Remove Team
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -504,7 +605,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
         </div>
 
         {/* Members Preview */}
-        <div className="p-4 flex-1">
+        <div className="p-4 flex-1 min-h-0 flex flex-col">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
               Members ({members.length})
@@ -537,8 +638,11 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
             </div>
           )}
 
-          <div className="space-y-2 max-h-64 overflow-y-auto">
-            {members.slice(0, 8).map((member) => (
+          <div
+            ref={membersScrollRef}
+            className="space-y-2 flex-1 overflow-y-auto pr-1"
+          >
+            {members.map((member) => (
               <div
                 key={member.id}
                 className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -562,18 +666,33 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                   </div>
                 </div>
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                {isGroupAdmin &&
+                  member.user_id !== user?.id &&
+                  member.role !== "owner" && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-7 w-7">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          className="text-red-600 dark:text-red-400"
+                          onClick={() =>
+                            removeMember.mutate({
+                              memberId: member.id,
+                              workgroupId,
+                            })
+                          }
+                        >
+                          <UserMinus className="h-4 w-4 mr-2" />
+                          Remove Team Member
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
               </div>
             ))}
-            {members.length > 8 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full text-blue-600 hover:text-blue-700"
-                onClick={() => setShowMembersList(true)}
-              >
-                +{members.length - 8} more members
-              </Button>
-            )}
           </div>
         </div>
       </div>
@@ -779,7 +898,13 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                     )}
 
                     <div className="flex items-center gap-2">
-                      <div className="flex-1 relative">
+                      <input
+                        ref={attachmentInputRef}
+                        type="file"
+                        className="hidden"
+                        onChange={handleAttachFromComposer}
+                      />
+                      <div ref={composerEmojiRef} className="flex-1 relative">
                         <Input
                           value={newPost}
                           onChange={(e) => setNewPost(e.target.value)}
@@ -799,6 +924,9 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 text-gray-400 hover:text-blue-500 hover:bg-transparent"
+                            onClick={() =>
+                              setShowInputEmojiPicker((prev) => !prev)
+                            }
                           >
                             <Smile className="h-5 w-5" />
                           </Button>
@@ -806,6 +934,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 text-gray-400 hover:text-blue-500 hover:bg-transparent"
+                            onClick={() => attachmentInputRef.current?.click()}
                           >
                             <Paperclip className="h-5 w-5" />
                           </Button>
@@ -821,6 +950,16 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                             <Send className="h-4 w-4" />
                           </button>
                         </div>
+                        {showInputEmojiPicker && (
+                          <div className="absolute bottom-12 right-2 z-20 shadow-xl rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
+                            <EmojiPicker
+                              onEmojiClick={handleComposerEmojiSelect}
+                              width={280}
+                              height={360}
+                              theme={Theme.AUTO}
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -895,7 +1034,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                               onClick={() => {
                                 // Download file
                                 const link = document.createElement("a");
-                                link.href = `/api/workgroups/${workgroupId}/files/${file.id}/download`;
+                                link.href = getAuthedFileUrl(file.id);
                                 link.download = file.original_name;
                                 link.click();
                               }}
@@ -1132,7 +1271,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Choose a team member to add..." />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="max-h-64 overflow-y-auto">
                       {availableUsers.map((u) => (
                         <SelectItem key={u.id} value={u.id}>
                           <div className="flex items-center gap-3 py-1">
@@ -1512,6 +1651,16 @@ function PostCard({
   onReaction,
   onScrollToMessage,
 }: PostCardProps) {
+  if ((post.content || "").startsWith("[SYSTEM] ")) {
+    return (
+      <div className="flex justify-center my-3">
+        <span className="px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-[11px] font-medium text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
+          {post.content.replace("[SYSTEM] ", "")}
+        </span>
+      </div>
+    );
+  }
+
   const isAuthor = post.user_id === currentUserId;
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
@@ -1545,6 +1694,20 @@ function PostCard({
         minute: "2-digit",
       })
     : "";
+
+  const attachments = Array.isArray(post.attachments) ? post.attachments : [];
+  const isImageAttachment = (fileType = "") => fileType.startsWith("image/");
+  const formatFileSize = (size = 0) => `${(size / 1024 / 1024).toFixed(2)} MB`;
+  const getAuthedFileUrlForPost = (
+    fileId: string,
+    mode: "view" | "download" = "download",
+  ) => {
+    const token = api.getToken();
+    const baseUrl = `${API_BASE_URL}/workgroups/${workgroupId}/files/${fileId}/${mode}`;
+    return token
+      ? `${baseUrl}?token=${encodeURIComponent(token)}`
+      : baseUrl;
+  };
 
   return (
     <div
@@ -1730,6 +1893,81 @@ function PostCard({
             <p className="text-[13px] leading-relaxed whitespace-pre-wrap break-words pr-6 text-gray-800 dark:text-gray-200">
               {post.content}
             </p>
+
+            {attachments.length > 0 && (
+              <div className="mt-2 space-y-2">
+                {attachments.map((attachment: any, idx: number) => {
+                  const downloadUrl = attachment.id
+                    ? getAuthedFileUrlForPost(attachment.id, "download")
+                    : attachment.download_url || "#";
+                  const previewUrl = attachment.id
+                    ? getAuthedFileUrlForPost(attachment.id, "view")
+                    : attachment.download_url || "#";
+                  return (
+                    <div
+                      key={attachment.id || `${post.id}-attachment-${idx}`}
+                      className="rounded-lg border border-black/10 bg-black/5 p-2"
+                    >
+                      {isImageAttachment(attachment.file_type) ? (
+                        <img
+                          src={previewUrl}
+                          alt={attachment.original_name || "attachment"}
+                          className="w-full max-h-56 object-cover rounded-md cursor-pointer"
+                          onClick={() => window.open(previewUrl, "_blank")}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => window.open(previewUrl, "_blank")}
+                          className="w-full text-left text-sm font-medium hover:underline"
+                        >
+                          {attachment.original_name || "Attachment"}
+                        </button>
+                      )}
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium truncate">
+                            {attachment.original_name || "Attachment"}
+                          </p>
+                          <p className="text-[11px] text-gray-500">
+                            {formatFileSize(attachment.file_size || 0)}
+                          </p>
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => window.open(previewUrl, "_blank")}
+                            >
+                              Open
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                const link = document.createElement("a");
+                                link.href = downloadUrl;
+                                link.download =
+                                  attachment.original_name || "attachment";
+                                link.click();
+                              }}
+                            >
+                              Download
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Time + read status */}
             <div className="flex items-center gap-1 justify-end mt-1 -mr-1">

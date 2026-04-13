@@ -143,6 +143,11 @@ class RealtimeService {
     return users.length;
   }
 
+  // Unibox events
+  emitUniboxEmailCreated(orgId, email) {
+    this.io.to(`org:${orgId}`).emit('unibox:email_created', email);
+  }
+
   // --- Collaboration Addons ---
 
   emitDirectMessage(receiverId, message) {

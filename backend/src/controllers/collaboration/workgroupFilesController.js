@@ -232,6 +232,54 @@ const downloadWorkgroupFile = async (req, res, next) => {
   }
 };
 
+// View workgroup file inline (for preview in browser)
+const viewWorkgroupFile = async (req, res, next) => {
+  try {
+    const { workgroupId, fileId } = req.params;
+
+    const accessQuery = `
+      SELECT w.is_private, wm.user_id
+      FROM workgroups w
+      LEFT JOIN workgroup_members wm ON w.id = wm.workgroup_id AND wm.user_id = $1
+      WHERE w.id = $2
+    `;
+    const accessResult = await db.query(accessQuery, [req.user.id, workgroupId]);
+
+    if (accessResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Workgroup not found' });
+    }
+
+    if (accessResult.rows[0].is_private && !accessResult.rows[0].user_id) {
+      return res.status(403).json({ error: 'Access denied to private workgroup' });
+    }
+
+    const fileQuery = `
+      SELECT * FROM workgroup_files
+      WHERE id = $1 AND workgroup_id = $2 AND is_deleted = FALSE
+    `;
+    const fileResult = await db.query(fileQuery, [fileId, workgroupId]);
+
+    if (fileResult.rows.length === 0) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    const file = fileResult.rows[0];
+
+    if (!fs.existsSync(file.file_path)) {
+      return res.status(404).json({ error: 'File not found on disk' });
+    }
+
+    res.setHeader('Content-Disposition', `inline; filename="${file.original_name}"`);
+    res.setHeader('Content-Type', file.file_type || 'application/octet-stream');
+    res.setHeader('Content-Length', file.file_size);
+
+    const fileStream = fs.createReadStream(file.file_path);
+    fileStream.pipe(res);
+  } catch (err) {
+    next(err);
+  }
+};
+
 // Helper function to create notifications
 const createNotification = async (workgroupId, userId, type, message, data = {}) => {
   try {
@@ -271,5 +319,6 @@ module.exports = {
   getWorkgroupFiles,
   uploadWorkgroupFile: [upload.single('file'), uploadWorkgroupFile],
   deleteWorkgroupFile,
-  downloadWorkgroupFile
+  downloadWorkgroupFile,
+  viewWorkgroupFile,
 };
