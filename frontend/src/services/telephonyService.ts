@@ -156,7 +156,7 @@ export async function fetchCallTranscript(callLogId: string): Promise<{
   try {
     const log = await api.get<any>(`/telephony/call-logs/${callLogId}`);
     return {
-      transcript: log.ai_transcript || null,
+      transcript: log.transcript || log.ai_summary || null,
       recordingUrl: log.recording_url || null,
     };
   } catch (err) {

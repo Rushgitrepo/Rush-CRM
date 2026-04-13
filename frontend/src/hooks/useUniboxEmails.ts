@@ -207,6 +207,18 @@ export function useUniboxEmails(filters: {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const syncInstantly = useMutation({
+    mutationFn: async () => {
+      return api.post('/integrations/instantly', { action: 'sync' });
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["unibox-emails"] });
+      queryClient.invalidateQueries({ queryKey: ["unibox-stats"] });
+      toast.success(data.message || 'Instantly sync complete');
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   return {
     ...emailsQuery.data,
     emails: emailsQuery.data?.emails || [],
@@ -216,8 +228,9 @@ export function useUniboxEmails(filters: {
     markAsRead,
     toggleArchive,
     convertToLead,
+    syncInstantly,
   };
-}
+};
 
 export function useUniboxStats() {
   return useQuery({

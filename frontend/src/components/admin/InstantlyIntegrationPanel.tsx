@@ -33,6 +33,7 @@ interface Integration {
   webhook_url: string | null;
   webhook_secret: string | null;
   last_sync_at: string | null;
+  is_global?: boolean;
 }
 
 interface WebhookHealth {
@@ -163,7 +164,14 @@ export default function InstantlyIntegrationPanel() {
     switch (status) {
       case "connected":
       case "healthy":
-        return <Badge className="bg-green-500/10 text-green-600 border-green-500/20">Connected</Badge>;
+        return (
+          <div className="flex gap-2">
+            <Badge className="bg-green-500/10 text-green-600 border-green-500/20">Connected</Badge>
+            {integration?.is_global && (
+              <Badge variant="secondary" className="bg-blue-500/10 text-blue-600 border-blue-500/20">System Managed</Badge>
+            )}
+          </div>
+        );
       case "disconnected":
         return <Badge variant="destructive">Disconnected</Badge>;
       case "degraded":
@@ -206,7 +214,9 @@ export default function InstantlyIntegrationPanel() {
                 <span className="font-medium text-foreground">Connection Status</span>
                 <p className="text-sm text-muted-foreground">
                   {isConnected
-                    ? "Your Instantly.ai account is connected and receiving webhook events"
+                    ? integration?.is_global 
+                      ? "The connection is managed by the system administrator"
+                      : "Your Instantly.ai account is connected and receiving webhook events"
                     : "Connect your Instantly.ai account to get started"}
                 </p>
               </div>
@@ -289,9 +299,11 @@ export default function InstantlyIntegrationPanel() {
                   <RefreshCw className={`h-4 w-4 mr-2 ${syncing ? "animate-spin" : ""}`} />
                   {syncing ? "Syncing..." : "Sync Now"}
                 </Button>
-                <Button variant="destructive" onClick={handleDisconnect}>
-                  Disconnect
-                </Button>
+                {!integration?.is_global && (
+                  <Button variant="destructive" onClick={handleDisconnect}>
+                    Disconnect
+                  </Button>
+                )}
               </>
             )}
           </div>

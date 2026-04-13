@@ -1,16 +1,26 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { MoreHorizontal, Plus, Building2, GripVertical, Phone, Mail } from "lucide-react";
+import { MoreHorizontal, Plus, Building2, GripVertical, Phone, Mail, X, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { useUpdateLead, useDeleteLead, useConvertLeadToDeal } from "@/hooks/useCrmMutations";
+import { usePipelineStages, useCreatePipelineStage, useDeletePipelineStage } from "@/hooks/usePipelineStages";
 import { ClickToCall } from "@/components/telephony/ClickToCall";
 import { cn } from "@/lib/utils";
 
@@ -20,7 +30,7 @@ interface Lead {
   email: string;
   phone: string;
   company: string;
-  status: "new" | "contacted" | "qualified" | "proposal" | "negotiation" | "unqualified";
+  status: string;
   source: string;
   value: number;
   assignee?: {
@@ -31,12 +41,19 @@ interface Lead {
   createdAt: string;
 }
 
+interface Column {
+  id: string;
+  title: string;
+  color: string;
+  isCustom?: boolean;
+}
+
 interface LeadsKanbanViewProps {
   leads: Lead[];
   onCreateLead?: () => void;
 }
 
-const columns = [
+const defaultColumns: Column[] = [
   { id: "new", title: "New", color: "bg-chart-1" },
   { id: "contacted", title: "Contacted", color: "bg-warning" },
   { id: "qualified", title: "Qualified", color: "bg-success" },
@@ -45,12 +62,40 @@ const columns = [
   { id: "unqualified", title: "Unqualified", color: "bg-muted-foreground" },
 ];
 
+const colorOptions = [
+  "bg-chart-1", "bg-warning", "bg-success", "bg-purple-500", 
+  "bg-orange-500", "bg-blue-500", "bg-pink-500", "bg-indigo-500",
+  "bg-teal-500", "bg-red-500", "bg-yellow-500", "bg-green-500"
+];
+
 export function LeadsKanbanView({ leads, onCreateLead }: LeadsKanbanViewProps) {
   const navigate = useNavigate();
   const updateLead = useUpdateLead();
   const deleteLead = useDeleteLead();
   const convertLead = useConvertLeadToDeal();
+  const { data: pipelineStages = [], isLoading, error } = usePipelineStages();
+  const createStage = useCreatePipelineStage();
+  const deleteStage = useDeletePipelineStage();
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
+  const [isAddStageOpen, setIsAddStageOpen] = useState(false);
+  const [newStageTitle, setNewStageTitle] = useState("");
+  const [selectedColor, setSelectedColor] = useState(colorOptions[0]);
+
+  // Always show default columns, add custom stages if available
+  const columns = [
+    ...defaultColumns,
+    ...(pipelineStages || []).map(stage => ({
+      id: stage.stage_key || stage.id,
+      title: stage.stage_label || stage.name,
+      color: stage.color || "bg-gray-500",
+      isCustom: true
+    }))
+  ];
+
+  // Debug logging
+  console.log('Pipeline stages:', pipelineStages);
+  console.log('Columns:', columns);
+  console.log('Loading:', isLoading, 'Error:', error);
 
   const getInitials = (lead: Lead) => {
     const source =
@@ -98,8 +143,78 @@ export function LeadsKanbanView({ leads, onCreateLead }: LeadsKanbanViewProps) {
     }
   };
 
+  const handleAddStage = () => {
+    if (!newStageTitle.trim()) return;
+    createStage.mutate({ stageName: newStageTitle });
+    setNewStageTitle("");
+    setSelectedColor(colorOptions[0]);
+    setIsAddStageOpen(false);
+  };
+
+  const handleDeleteStage = (columnId: string) => {
+    // Find the stage to delete
+    const stageToDelete = pipelineStages.find(stage => 
+      (stage.stage_key || stage.id) === columnId
+    );
+    if (stageToDelete) {
+      deleteStage.mutate(stageToDelete.id);
+    }
+  };
+
   return (
-    <div className="flex gap-4 overflow-x-auto pb-4">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Lead Pipeline</h2>
+        <Dialog open={isAddStageOpen} onOpenChange={setIsAddStageOpen}>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="sm">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Stage
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add Custom Stage</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="stage-title">Stage Title</Label>
+                <Input
+                  id="stage-title"
+                  value={newStageTitle}
+                  onChange={(e) => setNewStageTitle(e.target.value)}
+                  placeholder="Enter stage name"
+                />
+              </div>
+              <div>
+                <Label>Color</Label>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {colorOptions.map((color) => (
+                    <button
+                      key={color}
+                      onClick={() => setSelectedColor(color)}
+                      className={cn(
+                        "w-6 h-6 rounded-full border-2",
+                        color,
+                        selectedColor === color ? "border-foreground" : "border-transparent"
+                      )}
+                    />
+                  ))}
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setIsAddStageOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleAddStage}>
+                  Add Stage
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+      <div className="flex gap-4 overflow-x-auto pb-4">
       {columns.map((column) => {
         const columnLeads = getLeadsByStatus(column.id);
         const totalValue = columnLeads.reduce((sum, lead) => sum + lead.value, 0);
@@ -108,35 +223,47 @@ export function LeadsKanbanView({ leads, onCreateLead }: LeadsKanbanViewProps) {
           <div
             key={column.id}
             className={cn(
-              "flex-shrink-0 w-80 bg-muted/30 rounded-xl border transition-colors",
+              "flex-shrink-0 w-80 bg-white rounded-xl border border-slate-200 transition-colors shadow-sm",
               dragOverColumn === column.id
-                ? "border-primary bg-primary/5"
-                : "border-border"
+                ? "border-primary bg-slate-50"
+                : "border-slate-200"
             )}
             onDragOver={(e) => handleDragOver(e, column.id)}
             onDragLeave={handleDragLeave}
             onDrop={(e) => handleDrop(e, column.id)}
           >
             {/* Column Header */}
-            <div className="p-4 border-b border-border">
+            <div className="p-4 border-b border-slate-200 bg-slate-50/70">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className={`w-3 h-3 rounded-full ${column.color}`} />
-                  <h3 className="font-semibold">{column.title}</h3>
+                  <h3 className="font-semibold text-slate-800">{column.title}</h3>
                   <Badge variant="secondary" className="rounded-full">
                     {columnLeads.length}
                   </Badge>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={onCreateLead}
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={onCreateLead}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                  {column.isCustom && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-destructive hover:text-destructive"
+                      onClick={() => handleDeleteStage(column.id)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
               </div>
-              <p className="text-sm text-muted-foreground mt-1">
+              <p className="text-sm text-slate-500 mt-1">
                 ${totalValue.toLocaleString()} total value
               </p>
             </div>
@@ -148,7 +275,7 @@ export function LeadsKanbanView({ leads, onCreateLead }: LeadsKanbanViewProps) {
                   key={lead.id}
                   draggable
                   onDragStart={(e) => handleDragStart(e, lead.id)}
-                  className="bg-card border border-border rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing group"
+                  className="bg-white border border-slate-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing group"
                 >
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-2">
@@ -160,7 +287,7 @@ export function LeadsKanbanView({ leads, onCreateLead }: LeadsKanbanViewProps) {
                       </Avatar>
                       <div>
                         <p
-                          className="font-medium text-sm hover:text-primary cursor-pointer"
+                          className="font-medium text-sm text-slate-800 hover:text-slate-950 cursor-pointer"
                           onClick={() => navigate(`/crm/leads/${lead.id}`)}
                         >
                           {lead.name}
@@ -168,7 +295,7 @@ export function LeadsKanbanView({ leads, onCreateLead }: LeadsKanbanViewProps) {
                         {lead.email && (
                           <a 
                             href={`mailto:${lead.email}`} 
-                            className="text-xs text-muted-foreground hover:text-primary hover:underline transition-colors truncate block"
+                            className="text-xs text-slate-500 hover:text-slate-700 hover:underline transition-colors truncate block"
                           >
                             {lead.email}
                           </a>
@@ -181,7 +308,7 @@ export function LeadsKanbanView({ leads, onCreateLead }: LeadsKanbanViewProps) {
                           <MoreHorizontal className="h-3 w-3" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
+                      <DropdownMenuContent align="end" className="border-slate-200 bg-white shadow-lg">
                         <DropdownMenuItem onClick={() => navigate(`/crm/leads/${lead.id}`)}>
                           View Details
                         </DropdownMenuItem>
@@ -200,19 +327,19 @@ export function LeadsKanbanView({ leads, onCreateLead }: LeadsKanbanViewProps) {
 
                   <div className="space-y-2">
                     {lead.company && (
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1 text-xs text-slate-500">
                         <Building2 className="h-3 w-3" />
                         {lead.company}
                       </div>
                     )}
                     {lead.phone && (
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1 text-xs text-slate-500">
                         <Phone className="h-3 w-3" />
                         <ClickToCall 
                           phoneNumber={lead.phone} 
                           entityType="lead" 
                           entityId={lead.id} 
-                          className="hover:text-primary hover:underline transition-colors truncate block" 
+                          className="text-slate-500 hover:text-slate-700 hover:underline transition-colors truncate block" 
                         />
                       </div>
                     )}
@@ -220,7 +347,7 @@ export function LeadsKanbanView({ leads, onCreateLead }: LeadsKanbanViewProps) {
                       <Badge variant="outline" className="text-xs">
                         {lead.source || "—"}
                       </Badge>
-                      <span className="text-sm font-semibold text-primary">
+                      <span className="text-sm font-semibold text-slate-800">
                         ${lead.value.toLocaleString()}
                       </span>
                     </div>
@@ -229,7 +356,7 @@ export function LeadsKanbanView({ leads, onCreateLead }: LeadsKanbanViewProps) {
               ))}
 
               {columnLeads.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground text-sm">
+                <div className="text-center py-8 text-slate-500 text-sm">
                   No leads in this stage
                 </div>
               )}
@@ -237,6 +364,7 @@ export function LeadsKanbanView({ leads, onCreateLead }: LeadsKanbanViewProps) {
           </div>
         );
       })}
+      </div>
     </div>
   );
 }

@@ -36,3 +36,17 @@ export function useCreatePipelineStage() {
     onError: (error: Error) => toast.error('Failed to create stage: ' + error.message),
   });
 }
+
+export function useDeletePipelineStage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (stageId: string) => {
+      await api.delete(`/leads/stages/${stageId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pipeline_stages'] });
+      toast.success('Stage deleted successfully');
+    },
+    onError: (error: Error) => toast.error('Failed to delete stage: ' + error.message),
+  });
+}
