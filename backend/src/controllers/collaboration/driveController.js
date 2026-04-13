@@ -520,20 +520,21 @@ const bulkPermanentDelete = async (req, res, next) => {
       return res.status(400).json({ error: 'Item IDs are required' });
     }
 
-    // Get all files that are either in the ID list OR in any folder in the ID list
     const filesResult = await db.query(
-      `SELECT file_url FROM drive_files 
+      `SELECT file_path FROM drive_files 
        WHERE (id = ANY($1) OR folder_id = ANY($1)) AND org_id = $2`,
       [ids, req.user.orgId]
     );
 
     for (const file of filesResult.rows) {
-      if (file.file_url) {
-        const filePath = path.join(__dirname, '../../public', file.file_url);
+      if (file.file_path) {
         try {
-          await fs.unlink(filePath);
+          await fs.unlink(file.file_path);
         } catch (e) {
-          console.error(`Failed to delete file from disk: ${filePath}`, e);
+          // Ignore ENOENT (file already gone)
+          if (e.code !== 'ENOENT') {
+            console.error(`Failed to delete file from disk: ${file.file_path}`, e);
+          }
         }
       }
     }
@@ -612,19 +613,20 @@ const permanentDeleteFolder = async (req, res, next) => {
       return res.status(404).json({ error: 'Folder not found' });
     }
 
-    // Get all files in this folder to delete from disk
     const filesResult = await db.query(
-      'SELECT file_url FROM drive_files WHERE folder_id = $1 AND org_id = $2',
+      'SELECT file_path FROM drive_files WHERE folder_id = $1 AND org_id = $2',
       [id, req.user.orgId]
     );
 
     for (const file of filesResult.rows) {
-      if (file.file_url) {
-        const filePath = path.join(__dirname, '../../public', file.file_url);
+      if (file.file_path) {
         try {
-          await fs.unlink(filePath);
+          await fs.unlink(file.file_path);
         } catch (e) {
-          console.error(`Failed to delete file from disk: ${filePath}`, e);
+          // Ignore ENOENT (file already gone)
+          if (e.code !== 'ENOENT') {
+            console.error(`Failed to delete file from disk: ${file.file_path}`, e);
+          }
         }
       }
     }

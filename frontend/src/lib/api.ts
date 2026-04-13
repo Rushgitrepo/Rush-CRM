@@ -1,4 +1,5 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+export const API_BASE_URL =
+  import.meta.env.VITE_API_URL || "http://localhost:3001/api";
 
 class ApiClient {
   private token: string | null = null;
@@ -112,6 +113,8 @@ export const authApi = {
   logout: () => api.post('/auth/logout'),
   forgotPassword: (email: string) => api.post('/auth/forgot-password', { email }),
   changePassword: (data: { currentPassword: string; newPassword: string }) => api.post('/auth/change-password', data),
+  acceptInvite: (data: { token: string; password: string }) => api.post('/auth/accept-invite', data),
+  verifyInvite: (token: string) => api.get<any>(`/auth/verify-invite/${token}`),
 };
 
 export const emailApi = {
@@ -358,12 +361,12 @@ export const tasksApi = {
 };
 
 export const usersApi = {
-  getAll: (params?: { search?: string }) => api.get<any[]>('/users', params),
-  getById: (id: string) => api.get<any>(`/users/${id}`),
-  create: (data: any) => api.post<any>('/users', data),
-  update: (id: string, data: any) => api.put<any>(`/users/${id}`, data),
-  delete: (id: string) => api.delete(`/users/${id}`),
-  resetPassword: (id: string) => api.post(`/users/${id}/reset-password`),
+  getAll: (params?: { search?: string }) => api.get<any[]>('/members', params),
+  getById: (id: string) => api.get<any>(`/members/${id}`),
+  create: (data: any) => api.post<any>('/members', data),
+  update: (id: string, data: any) => api.put<any>(`/members/${id}`, data),
+  delete: (id: string) => api.delete(`/members/${id}`),
+  resetPassword: (id: string) => api.post(`/members/${id}/reset-password`),
 };
 
 export const rolesApi = {
@@ -502,7 +505,15 @@ export const workgroupsApi = {
   
   // Posts/Messages
   getPosts: (id: string, params = {}) => api.get<any[]>(`/workgroups/${id}/posts`, params),
-  createPost: (id: string, data: { content: string; channel_id?: string; parent_id?: string }) =>
+  createPost: (
+    id: string,
+    data: {
+      content: string;
+      channel_id?: string;
+      parent_id?: string;
+      files?: any[];
+    },
+  ) =>
     api.post<any>(`/workgroups/${id}/posts`, data),
   deletePost: (id: string, postId: string) => api.delete(`/workgroups/${id}/posts/${postId}`),
   togglePinPost: (id: string, postId: string, isPinned: boolean) => 
