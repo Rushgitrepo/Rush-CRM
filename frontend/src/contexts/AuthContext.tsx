@@ -7,6 +7,8 @@ interface Profile {
   full_name: string;
   email: string;
   avatar_url: string | null;
+  password_change_required?: boolean;
+  module_permissions?: Record<string, string[]>;
 }
 
 interface UserRole {
@@ -25,6 +27,8 @@ interface AuthContextType {
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  updateProfilePermissions: (permissions: Record<string, string[]>) => void;
+  hasPermission: (module: string, action?: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -83,6 +87,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     initializeAuth();
   }, []);
 
+  useEffect(() => {
+    const token = api.getToken();
+    if (!token) return;
+
+    const syncProfile = () => {
+      fetchUserData();
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        syncProfile();
+      }
+    };
+
+    window.addEventListener('focus', syncProfile);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    // Keep permissions/profile fresh when changed from another session.
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        syncProfile();
+      }
+    }, 15000);
+
+    return () => {
+      window.removeEventListener('focus', syncProfile);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
   const signIn = async (email: string, password: string) => {
     try {
       const { token, user: userData } = await authApi.login(email, password);
@@ -122,6 +157,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await fetchUserData();
   };
 
+  const updateProfilePermissions = (permissions: Record<string, string[]>) => {
+    setProfile((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        module_permissions: permissions,
+      };
+    });
+  };
+
+  const hasPermission = (module: string, action?: string) => {
+    if (!profile) return false;
+    if (userRole?.role === 'super_admin') return true;
+    
+    const permissions = profile.module_permissions || {};
+    const modulePerms = permissions[module] || [];
+    
+    if (!action) return modulePerms.length > 0;
+    return modulePerms.includes(action);
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -134,6 +190,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signUp,
         signOut,
         refreshProfile,
+        updateProfilePermissions,
+        hasPermission,
       }}
     >
       {children}

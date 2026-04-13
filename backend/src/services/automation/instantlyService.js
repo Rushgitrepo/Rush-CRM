@@ -1,4 +1,5 @@
 const db = require('../../config/database');
+const realtimeService = require('../realtimeService');
 
 class InstantlyService {
   constructor() {
@@ -149,18 +150,23 @@ class InstantlyService {
         );
 
         if (existing.rows.length === 0) {
-          await db.query(
+          const bodyHtml = email.body?.html || email.body_html || '';
+          const bodyText = email.body_text || email.body || '';
+
+          const result = await db.query(
             `INSERT INTO unibox_emails (
-              org_id, message_id, sender_email, sender_name, subject, body_text, 
+              org_id, message_id, sender_email, sender_name, subject, body_text, body_html,
               status, priority, received_at, is_read, metadata
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            RETURNING *`,
             [
               orgId,
               externalId,
               email.from_address_email || email.sender || email.eaccount,
               email.sender_name || email.from_name || email.eaccount?.split('@')[0],
               email.subject,
-              email.body?.html || email.body_text || email.body || '',
+              bodyText,
+              bodyHtml,
               'New',
               'normal',
               new Date(email.timestamp_email || email.received_at || Date.now()),
@@ -168,6 +174,10 @@ class InstantlyService {
               JSON.stringify(email)
             ]
           );
+          
+          if (result.rows[0]) {
+            realtimeService.emitUniboxEmailCreated(orgId, result.rows[0]);
+          }
           syncCount++;
         }
       }
@@ -207,26 +217,36 @@ class InstantlyService {
     if (payload.event_type === 'reply_received' || !payload.event_type) {
       const externalId = (payload.id || payload.message_id || `inst-${Date.now()}`).toString();
       
+      // Extract body - Instantly uses reply_html/reply_body for webhooks
+      const bodyHtml = payload.reply_html || payload.body_html || payload.body?.html || '';
+      const bodyText = payload.reply_body || payload.body_text || payload.body || '';
+
       // Create record in unibox_emails
-      await db.query(
+      const result = await db.query(
         `INSERT INTO unibox_emails (
-          org_id, message_id, sender_email, sender_name, subject, body_text, 
+          org_id, message_id, sender_email, sender_name, subject, body_text, body_html,
           status, priority, received_at, is_read, metadata
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        RETURNING *`,
         [
           orgId,
           externalId,
-          payload.from_address_email || payload.sender || payload.eaccount,
-          payload.sender_name || payload.from_name || payload.eaccount?.split('@')[0],
+          payload.from_email || payload.sender || payload.from_address_email || payload.eaccount,
+          payload.from_name || payload.sender_name || payload.from_name || payload.eaccount?.split('@')[0],
           payload.subject,
-          payload.body?.html || payload.body_text || payload.body || '',
+          bodyText,
+          bodyHtml,
           'New',
           'normal',
-          new Date(payload.timestamp_email || Date.now()),
+          new Date(payload.timestamp_email || payload.received_at || Date.now()),
           false,
           JSON.stringify(payload)
         ]
       );
+
+      if (result.rows[0]) {
+        realtimeService.emitUniboxEmailCreated(orgId, result.rows[0]);
+      }
     }
 
     

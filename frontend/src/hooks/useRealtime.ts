@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { toast } from 'sonner';
 
 const SOCKET_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || "http://localhost:4000";
 
 // Global Socket Instance
 let socketInstance: Socket | null = null;
 let connectionCount = 0;
+let workgroupToastListenerAttached = false;
 
 export const getSocket = (): Socket | null => {
   if (socketInstance) return socketInstance;
@@ -29,6 +31,24 @@ export const getSocket = (): Socket | null => {
   socketInstance.on('connect_error', (error) => {
     console.error('WebSocket connection error:', error);
   });
+
+  if (!workgroupToastListenerAttached) {
+    socketInstance.on('workgroup_post:new', (message: any) => {
+      const path = window.location.pathname;
+      const isOnWorkgroupsScreen = path.startsWith('/collaboration/workgroups');
+      if (isOnWorkgroupsScreen) return;
+
+      const author = message?.author_name || 'Team member';
+      const content = String(message?.content || '').replace('[SYSTEM] ', '');
+      if (!content.trim()) return;
+
+      toast(`${author}: ${content}`, {
+        duration: 3500,
+        position: 'bottom-right',
+      });
+    });
+    workgroupToastListenerAttached = true;
+  }
 
   return socketInstance;
 };
@@ -211,6 +231,18 @@ export function useWorkgroupRealtime(workgroupId: string, onMessage: (message: a
       if(onReaction) off('reaction:added', onReaction);
     };
   }, [workgroupId, onMessage, onReaction]);
+}
+
+// Hook for unibox real-time updates
+export function useUniboxRealtime(onNewEmail: (email: any) => void) {
+  const { on, off } = useRealtime();
+
+  useEffect(() => {
+    on('unibox:email_created', onNewEmail);
+    return () => {
+      off('unibox:email_created', onNewEmail);
+    };
+  }, [onNewEmail]);
 }
 
 // Hook for mentions and broadcasts

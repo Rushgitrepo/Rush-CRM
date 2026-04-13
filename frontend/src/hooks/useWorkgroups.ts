@@ -45,7 +45,7 @@ export interface WorkgroupPost {
   user_id: string;
   parent_id?: string;
   content: string;
-  content_type: 'text' | 'file' | 'image' | 'link' | 'code';
+  content_type: 'text' | 'file' | 'image' | 'link' | 'code' | 'system';
   is_pinned: boolean;
   is_edited: boolean;
   is_deleted: boolean;
@@ -55,6 +55,7 @@ export interface WorkgroupPost {
   updated_at: string;
   author_name: string;
   author_avatar?: string;
+  attachments?: Array<Record<string, any>>;
   replies?: WorkgroupPost[];
 }
 
@@ -200,20 +201,21 @@ export function useCreatePost() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: ({ workgroupId, content, channelId, parentId }: {
+    mutationFn: ({ workgroupId, content, channelId, parentId, files }: {
       workgroupId: string;
       content: string;
       channelId?: string;
       parentId?: string;
+      files?: any[];
     }) => workgroupsApi.createPost(workgroupId, {
       content,
       channel_id: channelId,
-      parent_id: parentId
+      parent_id: parentId,
+      files,
     }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['workgroup-posts', variables.workgroupId] });
       queryClient.invalidateQueries({ queryKey: ['workgroups'] });
-      toast.success('Message posted successfully!');
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.error || 'Failed to post message');
