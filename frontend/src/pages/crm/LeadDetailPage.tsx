@@ -174,12 +174,12 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
               phoneNumber={value || ""} 
               entityType="lead" 
               entityId={entityId || ""} 
-              className="font-medium break-all w-full text-left" 
+              className="font-medium break-words w-full text-left" 
             />
           ) : type === "email" ? (
-            <a href={`mailto:${value}`} className="text-primary hover:underline font-medium break-all w-full">{value}</a>
+            <a href={`mailto:${value}`} className="text-primary hover:underline font-medium break-words w-full">{value}</a>
           ) : (
-            <span className="text-gray-900 font-medium break-all w-full">{value}</span>
+            <span className="text-gray-900 font-medium break-words w-full">{value}</span>
           )}
         </div>
       )}
@@ -530,8 +530,8 @@ export default function LeadDetailPage() {
                   </div>
                   <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
                     <div className="flex items-center gap-2 text-slate-600">
-                      <Building2 className="h-4 w-4" />
-                      <span className="font-medium">{lead.company_name || 'No Company'}</span>
+                      <Building2 className="h-4 w-4 shrink-0" />
+                      <span className="font-medium break-words">{lead.company_name || 'No Company'}</span>
                     </div>
                     {lead.value && (
                       <div className="flex items-center gap-1 text-emerald-600 font-semibold">
@@ -1010,9 +1010,9 @@ export default function LeadDetailPage() {
                             className="h-10 border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1"
                           />
                         ) : (
-                          <div className="h-10 px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 flex items-center flex-1">
+                          <div className="h-10 px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 flex items-center flex-1 overflow-hidden">
                             {(form.email as string) ? (
-                              <a href={`mailto:${form.email}`} className="text-primary hover:underline font-medium break-all w-full">{form.email as string}</a>
+                              <a href={`mailto:${form.email}`} className="text-primary hover:underline font-medium break-words w-full">{form.email as string}</a>
                             ) : (
                               <span className="text-gray-400 italic">Not specified</span>
                             )}
@@ -1042,9 +1042,9 @@ export default function LeadDetailPage() {
                             className="h-10 border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1"
                           />
                         ) : (
-                          <div className="h-10 px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 flex items-center flex-1">
+                          <div className="h-10 px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 flex items-center flex-1 overflow-hidden">
                             {(form.website as string) ? (
-                              <a href={String(form.website)} target="_blank" rel="noreferrer" className="text-primary hover:underline font-medium break-all w-full">{form.website as string}</a>
+                              <a href={String(form.website)} target="_blank" rel="noreferrer" className="text-primary hover:underline font-medium break-words w-full">{form.website as string}</a>
                             ) : (
                               <span className="text-gray-400 italic">Not specified</span>
                             )}
@@ -1079,8 +1079,8 @@ export default function LeadDetailPage() {
                           placeholder="Address"
                         />
                       ) : (
-                        <div className="min-h-[84px] px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 flex items-start">
-                          <span className="whitespace-pre-wrap text-gray-900 font-medium">
+                        <div className="min-h-[84px] px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 flex items-start overflow-hidden">
+                          <span className="whitespace-pre-wrap break-words text-gray-900 font-medium w-full">
                             {(form.address as string) || <span className="text-gray-400 italic">Not specified</span>}
                           </span>
                         </div>
@@ -1318,9 +1318,9 @@ export default function LeadDetailPage() {
                       {lead.title?.split(' ').map(n => n[0]).join('').toUpperCase() || 'L'}
                     </AvatarFallback>
                   </Avatar>
-                  <h3 className="font-bold text-xl text-slate-900 mb-1">{lead.title}</h3>
-                  <p className="text-slate-600 font-medium">{lead.company_name}</p>
-                  <p className="text-sm text-slate-500">{lead.designation}</p>
+                  <h3 className="font-bold text-xl text-slate-900 mb-1 break-words">{lead.title}</h3>
+                  <p className="text-slate-600 font-medium break-words">{lead.company_name}</p>
+                  <p className="text-sm text-slate-500 break-words">{lead.designation}</p>
                 </div>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
