@@ -979,9 +979,7 @@ export default function DealDetailPage() {
             <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
               <CardHeader className="pb-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-100 rounded-lg">
-                    <Briefcase className="h-5 w-5 text-blue-600" />
-                  </div>
+                  
                   <div>
                     <CardTitle className="text-lg text-slate-900">Deal Information</CardTitle>
                     <CardDescription className="text-slate-600">Core details about this deal</CardDescription>
@@ -1050,9 +1048,7 @@ export default function DealDetailPage() {
             <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
               <CardHeader className="pb-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-indigo-100 rounded-lg">
-                    <User className="h-5 w-5 text-indigo-600" />
-                  </div>
+                  
                   <div>
                     <CardTitle className="text-lg text-slate-900">Contact Information</CardTitle>
                     <CardDescription className="text-slate-600">Details of the primary contact</CardDescription>
@@ -1141,9 +1137,7 @@ export default function DealDetailPage() {
             <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
               <CardHeader className="pb-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-emerald-100 rounded-lg">
-                    <Building2 className="h-5 w-5 text-emerald-600" />
-                  </div>
+                  
                   <div>
                     <CardTitle className="text-lg text-slate-900">Company Information</CardTitle>
                     <CardDescription className="text-slate-600">Organizational details</CardDescription>
