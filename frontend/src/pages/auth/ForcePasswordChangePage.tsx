@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { authApi } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -10,6 +11,7 @@ import { Loader2, AlertCircle, LayoutGrid, ChevronRight, ShieldCheck } from 'luc
 
 export default function ForcePasswordChangePage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { refreshProfile } = useAuth();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -28,6 +30,8 @@ export default function ForcePasswordChangePage() {
     try {
       await authApi.changePassword({ currentPassword, newPassword });
       await refreshProfile();
+      // Ensure post-password-change screens use fresh data immediately.
+      await queryClient.invalidateQueries();
       navigate('/', { replace: true });
     } catch (err: any) {
       setError(err.message || 'Failed to change password');
