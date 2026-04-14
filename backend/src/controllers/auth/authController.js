@@ -90,14 +90,14 @@ const login = async (req, res, next) => {
     );
 
     if (userResult.rows.length === 0) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(400).json({ error: 'Invalid email or password' });
     }
 
     const user = userResult.rows[0];
     const isMatch = await bcrypt.compare(password, user.password_hash);
 
     if (!isMatch) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({ error: 'Invalid email or password' });
     }
 
     const token = generateToken(user);
@@ -121,7 +121,7 @@ const login = async (req, res, next) => {
 const getProfile = async (req, res, next) => {
   try {
     const userResult = await db.query(
-      `SELECT u.id, u.email, u.full_name, u.organization_id, u.org_id, u.avatar_url, u.role, u.phone, u.position, u.department, u.bio, u.timezone, u.language
+      `SELECT u.id, u.email, u.full_name, u.organization_id, u.org_id, u.avatar_url, u.role, u.phone, u.position, u.department, u.bio, u.timezone, u.language, u.module_permissions
        FROM users u 
        WHERE u.id = $1`,
       [req.user.id]
@@ -140,7 +140,7 @@ const getProfile = async (req, res, next) => {
 const updateProfile = async (req, res, next) => {
   try {
     const { fullName, phone, position, department, bio, timezone, language } = req.body;
-    
+
     const result = await db.query(
       `UPDATE users 
        SET full_name = COALESCE($1, full_name),
@@ -189,11 +189,85 @@ const changePassword = async (req, res, next) => {
 };
 
 const forgotPassword = async (req, res, next) => {
-    res.status(501).json({ message: 'Not implemented' });
+  res.status(501).json({ message: 'Not implemented' });
 };
 
 const resetPassword = async (req, res, next) => {
   res.status(501).json({ message: 'Not implemented' });
+};
+
+const verifyInvite = async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const userResult = await db.query(
+      'SELECT email, full_name, expires_at FROM invites WHERE invite_token = $1 AND expires_at > CURRENT_TIMESTAMP',
+      [token]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Invalid or expired invitation token' });
+    }
+
+    res.json(userResult.rows[0]);
+  } catch (err) {
+    next(err);
+  }
+};
+
+const acceptInvite = async (req, res, next) => {
+  const client = await db.pool.connect();
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({ error: 'Token and password are required' });
+    }
+
+    await client.query('BEGIN');
+
+    // 1. Find invitation
+    const inviteResult = await client.query(
+      `SELECT * FROM invites 
+       WHERE invite_token = $1 AND expires_at > CURRENT_TIMESTAMP`,
+      [token]
+    );
+
+    if (inviteResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Invalid or expired invitation token' });
+    }
+
+    const invite = inviteResult.rows[0];
+    const userId = uuidv4();
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // 2. Create actual user
+    await client.query(
+      `INSERT INTO public.users 
+       (id, organization_id, org_id, email, password_hash, full_name, role, phone, position, department, module_permissions, password_change_required) 
+       VALUES ($1, $2, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      [userId, invite.org_id, invite.email, hashedPassword, invite.full_name, invite.role, invite.phone, invite.position, invite.department, JSON.stringify(invite.module_permissions || {}), false]
+    );
+
+    // 3. Create profile
+    await client.query(
+      `INSERT INTO public.profiles (id, org_id, full_name, email, phone, job_title, department)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [userId, invite.org_id, invite.full_name, invite.email, invite.phone, invite.position, invite.department]
+    );
+
+    // 4. Delete the invitation
+    await client.query('DELETE FROM invites WHERE id = $1', [invite.id]);
+
+    await client.query('COMMIT');
+
+    res.json({ message: 'Invitation accepted successfully. Account created. You can now log in.' });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(err);
+  } finally {
+    client.release();
+  }
 };
 
 const logout = async (req, res, next) => {
@@ -209,4 +283,6 @@ module.exports = {
   forgotPassword,
   logout,
   changePassword,
+  acceptInvite,
+  verifyInvite,
 };

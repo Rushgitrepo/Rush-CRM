@@ -5,7 +5,7 @@ import {
   BarChart3, Search, Filter, Play, Clock, User, Building2,
   ArrowUpRight, ArrowDownLeft, RefreshCw, FileText, Mic,
   TrendingUp, PhoneCall, MessageCircle, Calendar, ChevronLeft,
-  ChevronRight, ExternalLink, Edit3, Check, X, Download, Send, Loader2,
+  ChevronRight, ChevronDown, ExternalLink, Edit3, Check, X, Download, Send, Loader2,
   AlertCircle, ShieldCheck, Link2, PhoneOff
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -115,6 +115,7 @@ function CallLogRow({ log, onNavigate, onDial, onEditNote }: {
   onEditNote: (id: string, notes: string) => void;
 }) {
   const [editingNote, setEditingNote] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const [noteText, setNoteText] = useState(log.notes || '');
 
   const contactName = log.contact_first_name
@@ -122,6 +123,17 @@ function CallLogRow({ log, onNavigate, onDial, onEditNote }: {
     : log.from_name || log.to_name || null;
 
   const entityPath = getEntityPath(log.entity_type, log.entity_id);
+  const summaryText = log.notes || log.ai_summary || '';
+  const recapText = log.ai_recap || '';
+  const hasDetails = Boolean(
+    summaryText ||
+    recapText ||
+    log.transcript ||
+    log.from_name ||
+    log.to_name ||
+    log.from_number ||
+    log.to_number
+  );
 
   const handleSaveNote = () => {
     onEditNote(log.id, noteText);
@@ -129,113 +141,198 @@ function CallLogRow({ log, onNavigate, onDial, onEditNote }: {
   };
 
   return (
-    <div className="group flex items-center gap-4 px-4 py-3.5 hover:bg-muted/30 transition-colors border-b border-border/30 last:border-b-0">
-      {/* Direction icon */}
-      <div className={cn(
-        'flex items-center justify-center w-9 h-9 rounded-full shrink-0',
-        log.direction === 'inbound'
-          ? 'bg-blue-500/10 text-blue-500'
-          : 'bg-emerald-500/10 text-emerald-500'
-      )}>
-        {log.direction === 'inbound'
-          ? <ArrowDownLeft className="h-4 w-4" />
-          : <ArrowUpRight className="h-4 w-4" />
-        }
+    <div className="group relative border-b border-border/30 last:border-b-0">
+      <div className="flex items-center gap-4 px-4 py-3.5 hover:bg-muted/30 transition-colors">
+        {/* Direction icon */}
+        <div className={cn(
+          'flex items-center justify-center w-9 h-9 rounded-full shrink-0',
+          log.direction === 'inbound'
+            ? 'bg-blue-500/10 text-blue-500'
+            : 'bg-emerald-500/10 text-emerald-500'
+        )}>
+          {log.direction === 'inbound'
+            ? <ArrowDownLeft className="h-4 w-4" />
+            : <ArrowUpRight className="h-4 w-4" />
+          }
+        </div>
+
+        {/* Contact / Phone */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            {contactName ? (
+              <span className="text-sm font-medium text-foreground truncate">{contactName}</span>
+            ) : (
+              <span className="text-sm font-medium text-foreground">{log.phone_number}</span>
+            )}
+            {log.entity_type && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 capitalize shrink-0">
+                {log.entity_type}
+              </Badge>
+            )}
+            {hasDetails && (
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
+                Transcript ready
+              </Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-3 mt-0.5">
+            {contactName && (
+              <ClickToCall
+                phoneNumber={log.phone_number}
+                entityType={log.entity_type as any || 'contact'}
+                entityId={log.entity_id || ''}
+                className="text-xs text-muted-foreground hover:text-primary transition-colors p-0 h-auto bg-transparent border-none"
+                showIcon={false}
+              />
+            )}
+            {log.status && (
+              <span className={cn('text-[10px] font-medium', {
+                'text-emerald-500': log.status === 'completed',
+                'text-amber-500': log.status === 'missed' || log.status === 'no_answer',
+                'text-red-500': log.status === 'failed',
+                'text-muted-foreground': !['completed', 'missed', 'no_answer', 'failed'].includes(log.status),
+              })}>
+                {log.status.replace(/_/g, ' ')}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* User */}
+        <div className="hidden md:flex items-center gap-2 shrink-0 w-32">
+          <Avatar className="h-6 w-6">
+            <AvatarFallback className="text-[10px] bg-muted">
+              {log.user_name ? log.user_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'U'}
+            </AvatarFallback>
+          </Avatar>
+          <span className="text-xs text-muted-foreground truncate">{log.user_name || 'Unknown'}</span>
+        </div>
+
+        {/* Duration */}
+        <div className="hidden sm:flex items-center gap-1.5 shrink-0 w-16 text-right">
+          <Clock className="h-3 w-3 text-muted-foreground" />
+          <span className="text-xs font-mono text-muted-foreground">{formatDuration(log.duration)}</span>
+        </div>
+
+        {/* Date/Time */}
+        <div className="shrink-0 w-20 text-right">
+          <span className="text-xs text-muted-foreground" title={formatFullDate(log.created_at)}>
+            {formatDate(log.created_at)}
+          </span>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+          {hasDetails && (
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7"
+              title={showDetails ? 'Hide Details' : 'Show Details'}
+              onClick={() => setShowDetails(v => !v)}
+            >
+              <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', showDetails && 'rotate-180')} />
+            </Button>
+          )}
+          {log.recording_url && (
+            <Button size="icon" variant="ghost" className="h-7 w-7" title="Play Recording"
+              onClick={() => window.open(log.recording_url!, '_blank')}>
+              <Play className="h-3.5 w-3.5" />
+            </Button>
+          )}
+          {entityPath && (
+            <Button size="icon" variant="ghost" className="h-7 w-7" title="View Entity"
+              onClick={() => onNavigate(entityPath)}>
+              <ExternalLink className="h-3.5 w-3.5" />
+            </Button>
+          )}
+          <Button size="icon" variant="ghost" className="h-7 w-7" title="Edit Notes"
+            onClick={() => setEditingNote(!editingNote)}>
+            <Edit3 className="h-3.5 w-3.5" />
+          </Button>
+          <ClickToCall
+            phoneNumber={log.phone_number}
+            entityType={log.entity_type as any || 'contact'}
+            entityId={log.entity_id || ''}
+            className="h-7 w-7"
+            variant="ghost"
+            size="icon"
+            title="Call Back"
+          />
+        </div>
       </div>
 
+      {showDetails && hasDetails && (
+        <div className="mx-4 mb-3 rounded-xl border border-border/40 bg-muted/20 p-4">
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="rounded-lg border border-border/40 bg-card p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Caller Details</p>
+              <div className="mt-2 space-y-2 text-sm">
+                <div>
+                  <span className="block text-xs text-muted-foreground">From</span>
+                  <span className="font-medium text-foreground">{log.from_name || log.from_number || 'Unknown'}</span>
+                  {log.from_number && log.from_name && (
+                    <span className="ml-2 text-xs text-muted-foreground">{log.from_number}</span>
+                  )}
+                </div>
+                <div>
+                  <span className="block text-xs text-muted-foreground">To</span>
+                  <span className="font-medium text-foreground">{log.to_name || log.to_number || 'Unknown'}</span>
+                  {log.to_number && log.to_name && (
+                    <span className="ml-2 text-xs text-muted-foreground">{log.to_number}</span>
+                  )}
+                </div>
+                <div>
+                  <span className="block text-xs text-muted-foreground">Provider</span>
+                  <span className="font-medium text-foreground">{log.provider || 'ringcentral'}</span>
+                </div>
+              </div>
+            </div>
 
-      {/* Contact / Phone */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          {contactName ? (
-            <span className="text-sm font-medium text-foreground truncate">{contactName}</span>
-          ) : (
-            <span className="text-sm font-medium text-foreground">{log.phone_number}</span>
+            <div className="rounded-lg border border-border/40 bg-card p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Notes</p>
+              <div className="mt-2 space-y-3">
+                {summaryText && (
+                  <div>
+                    <p className="text-xs font-semibold text-foreground mb-1">Summary</p>
+                    <p className="text-sm whitespace-pre-wrap text-muted-foreground">{summaryText}</p>
+                  </div>
+                )}
+                {recapText && recapText !== summaryText && (
+                  <div>
+                    <p className="text-xs font-semibold text-foreground mb-1">Action Items</p>
+                    <p className="text-sm whitespace-pre-wrap text-muted-foreground">{recapText}</p>
+                  </div>
+                )}
+                {!summaryText && !recapText && (
+                  <p className="text-sm text-muted-foreground">No notes were extracted for this call yet.</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {log.transcript && (
+            <div className="mt-3 rounded-lg border border-border/40 bg-card p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Transcript</p>
+              <div className="mt-2 max-h-56 overflow-auto rounded-md bg-muted/30 p-3 text-sm whitespace-pre-wrap text-foreground">
+                {log.transcript}
+              </div>
+            </div>
           )}
-          {log.entity_type && (
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 capitalize shrink-0">
-              {log.entity_type}
-            </Badge>
+          {!log.transcript && (
+            <div className="mt-3 rounded-lg border border-dashed border-border/50 bg-card p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Transcript</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                No transcript has been saved for this call yet. If RingSense is still processing, run a fresh sync after a few minutes.
+              </p>
+            </div>
           )}
         </div>
-        <div className="flex items-center gap-3 mt-0.5">
-          {contactName && (
-            <ClickToCall
-              phoneNumber={log.phone_number}
-              entityType={log.entity_type as any || 'contact'}
-              entityId={log.entity_id || ''}
-              className="text-xs text-muted-foreground hover:text-primary transition-colors p-0 h-auto bg-transparent border-none"
-              showIcon={false}
-            />
-          )}
-          {log.status && (
-            <span className={cn('text-[10px] font-medium', {
-              'text-emerald-500': log.status === 'completed',
-              'text-amber-500': log.status === 'missed' || log.status === 'no_answer',
-              'text-red-500': log.status === 'failed',
-              'text-muted-foreground': !['completed', 'missed', 'no_answer', 'failed'].includes(log.status),
-            })}>
-              {log.status.replace(/_/g, ' ')}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* User */}
-      <div className="hidden md:flex items-center gap-2 shrink-0 w-32">
-        <Avatar className="h-6 w-6">
-          <AvatarFallback className="text-[10px] bg-muted">
-            {log.user_name ? log.user_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'U'}
-          </AvatarFallback>
-        </Avatar>
-        <span className="text-xs text-muted-foreground truncate">{log.user_name || 'Unknown'}</span>
-      </div>
-
-      {/* Duration */}
-      <div className="hidden sm:flex items-center gap-1.5 shrink-0 w-16 text-right">
-        <Clock className="h-3 w-3 text-muted-foreground" />
-        <span className="text-xs font-mono text-muted-foreground">{formatDuration(log.duration)}</span>
-      </div>
-
-      {/* Date/Time */}
-      <div className="shrink-0 w-20 text-right">
-        <span className="text-xs text-muted-foreground" title={formatFullDate(log.created_at)}>
-          {formatDate(log.created_at)}
-        </span>
-      </div>
-
-      {/* Actions */}
-      <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-        {log.recording_url && (
-          <Button size="icon" variant="ghost" className="h-7 w-7" title="Play Recording"
-            onClick={() => window.open(log.recording_url!, '_blank')}>
-            <Play className="h-3.5 w-3.5" />
-          </Button>
-        )}
-        {entityPath && (
-          <Button size="icon" variant="ghost" className="h-7 w-7" title="View Entity"
-            onClick={() => onNavigate(entityPath)}>
-            <ExternalLink className="h-3.5 w-3.5" />
-          </Button>
-        )}
-        <Button size="icon" variant="ghost" className="h-7 w-7" title="Edit Notes"
-          onClick={() => setEditingNote(!editingNote)}>
-          <Edit3 className="h-3.5 w-3.5" />
-        </Button>
-        <ClickToCall
-          phoneNumber={log.phone_number}
-          entityType={log.entity_type as any || 'contact'}
-          entityId={log.entity_id || ''}
-          className="h-7 w-7"
-          variant="ghost"
-          size="icon"
-          title="Call Back"
-        />
-      </div>
+      )}
 
       {/* Inline note editor */}
       {editingNote && (
-        <div className="absolute left-0 right-0 -bottom-16 bg-card border border-border rounded-lg p-2 mx-4 shadow-lg z-10 flex gap-2">
+        <div className="absolute left-4 right-4 top-full mt-2 bg-card border border-border rounded-lg p-2 shadow-lg z-10 flex gap-2">
           <Textarea
             value={noteText}
             onChange={e => setNoteText(e.target.value)}

@@ -28,14 +28,32 @@ const createDealSchema = Joi.object({
   companyPhone: Joi.string().optional().allow(null, ''),
   companyEmail: Joi.string().optional().allow(null, ''),
   companySize: Joi.string().optional().allow(null, ''),
+  availableToEveryone: Joi.boolean().optional().allow(null),
+  clientType: Joi.string().optional().allow(null, ''),
+  projectType: Joi.string().optional().allow(null, ''),
+  scope: Joi.string().optional().allow(null, ''),
   agentName: Joi.string().optional().allow(null, ''),
   decisionMaker: Joi.string().optional().allow(null, ''),
   serviceInterested: Joi.string().optional().allow(null, ''),
   interactionNotes: Joi.string().optional().allow(null, ''),
+  feedback: Joi.string().optional().allow(null, ''),
+  feedbackDetails: Joi.string().optional().allow(null, ''),
+  paymentMethod: Joi.string().optional().allow(null, ''),
+  invoiceLink: Joi.string().optional().allow(null, ''),
+  qaStatus: Joi.string().optional().allow(null, ''),
+  quotationReceived: Joi.string().optional().allow(null, ''),
+  hoursOfWork: Joi.string().optional().allow(null, ''),
+  hourlyRate: Joi.number().optional().allow(null),
+  hourlyRateCurrency: Joi.string().optional().allow(null, ''),
+  proposalAmount: Joi.number().optional().allow(null),
+  proposalCurrency: Joi.string().optional().allow(null, ''),
+  invoiceAmount: Joi.number().optional().allow(null),
+  invoiceCurrency: Joi.string().optional().allow(null, ''),
   firstMessage: Joi.string().optional().allow(null, ''),
   lastTouch: Joi.date().optional().allow(null),
   workspaceId: Joi.string().uuid().optional().allow(null),
   sourceInfo: Joi.string().optional().allow(null, ''),
+  projectBlueprints: Joi.alternatives().try(Joi.array().items(Joi.any()), Joi.object(), Joi.string()).optional().allow(null, ''),
   phoneType: Joi.string().optional().allow(null, ''),
   emailType: Joi.string().optional().allow(null, ''),
   websiteType: Joi.string().optional().allow(null, ''),
@@ -43,6 +61,7 @@ const createDealSchema = Joi.object({
   lastContactedDate: Joi.date().optional().allow(null),
   nextFollowUpDate: Joi.date().optional().allow(null),
   responsiblePerson: Joi.string().uuid().optional().allow(null),
+  customFields: Joi.object().optional().allow(null),
 });
 
 const normalizeDealInput = (body = {}) => {
@@ -84,14 +103,32 @@ const normalizeDealInput = (body = {}) => {
     companyPhone: getVal('companyPhone', 'company_phone'),
     companyEmail: getVal('companyEmail', 'company_email'),
     companySize: getVal('companySize', 'company_size'),
+    availableToEveryone: getVal('availableToEveryone', 'available_to_everyone'),
+    clientType: getVal('clientType', 'client_type'),
+    projectType: getVal('projectType', 'project_type'),
+    scope: getVal('scope', 'scope'),
     agentName: getVal('agentName', 'agent_name'),
     decisionMaker: getVal('decisionMaker', 'decision_maker'),
     serviceInterested: getVal('serviceInterested', 'service_interested'),
     interactionNotes: getVal('interactionNotes', 'interaction_notes'),
+    feedback: getVal('feedback', 'feedback'),
+    feedbackDetails: getVal('feedbackDetails', 'feedback_details'),
+    paymentMethod: getVal('paymentMethod', 'payment_method'),
+    invoiceLink: getVal('invoiceLink', 'invoice_link'),
+    qaStatus: getVal('qaStatus', 'qa_status'),
+    quotationReceived: getVal('quotationReceived', 'quotation_received'),
+    hoursOfWork: getVal('hoursOfWork', 'hours_of_work'),
+    hourlyRate: getVal('hourlyRate', 'hourly_rate'),
+    hourlyRateCurrency: getVal('hourlyRateCurrency', 'hourly_rate_currency'),
+    proposalAmount: getVal('proposalAmount', 'proposal_amount'),
+    proposalCurrency: getVal('proposalCurrency', 'proposal_currency'),
+    invoiceAmount: getVal('invoiceAmount', 'invoice_amount'),
+    invoiceCurrency: getVal('invoiceCurrency', 'invoice_currency'),
     firstMessage: getVal('firstMessage', 'first_message'),
     lastTouch: getVal('lastTouch', 'last_touch'),
     workspaceId: getVal('workspaceId', 'workspace_id'),
     sourceInfo: getVal('sourceInfo', 'source_info'),
+    projectBlueprints: getVal('projectBlueprints', 'project_blueprints'),
     phoneType: getVal('phoneType', 'phone_type'),
     emailType: getVal('emailType', 'email_type'),
     websiteType: getVal('websiteType', 'website_type'),
@@ -99,7 +136,30 @@ const normalizeDealInput = (body = {}) => {
     lastContactedDate: getVal('lastContactedDate', 'last_contacted_date'),
     nextFollowUpDate: getVal('nextFollowUpDate', 'next_follow_up_date'),
     responsiblePerson: getVal('responsiblePerson', 'responsible_person'),
+    customFields: getVal('customFields', 'custom_fields'),
   };
+};
+
+const serializeBlueprintsField = (value) => {
+  if (!value) return null;
+  let result;
+  if (typeof value === 'object') {
+    result = value;
+  } else if (typeof value === 'string') {
+    try {
+      const trimmed = value.trim();
+      if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+        result = JSON.parse(trimmed);
+      } else {
+        result = value.split('\n').map(l => l.trim()).filter(Boolean);
+      }
+    } catch (e) {
+      result = value.split('\n').map(l => l.trim()).filter(Boolean);
+    }
+  } else {
+    result = [String(value)];
+  }
+  return JSON.stringify(result);
 };
 
 const updateDealSchema = Joi.object({
@@ -130,14 +190,32 @@ const updateDealSchema = Joi.object({
   companyPhone: Joi.string().optional().allow(null, ''),
   companyEmail: Joi.string().optional().allow(null, ''),
   companySize: Joi.string().optional().allow(null, ''),
+  availableToEveryone: Joi.boolean().optional().allow(null),
+  clientType: Joi.string().optional().allow(null, ''),
+  projectType: Joi.string().optional().allow(null, ''),
+  scope: Joi.string().optional().allow(null, ''),
   agentName: Joi.string().optional().allow(null, ''),
   decisionMaker: Joi.string().optional().allow(null, ''),
   serviceInterested: Joi.string().optional().allow(null, ''),
   interactionNotes: Joi.string().optional().allow(null, ''),
+  feedback: Joi.string().optional().allow(null, ''),
+  feedbackDetails: Joi.string().optional().allow(null, ''),
+  paymentMethod: Joi.string().optional().allow(null, ''),
+  invoiceLink: Joi.string().optional().allow(null, ''),
+  qaStatus: Joi.string().optional().allow(null, ''),
+  quotationReceived: Joi.string().optional().allow(null, ''),
+  hoursOfWork: Joi.string().optional().allow(null, ''),
+  hourlyRate: Joi.number().optional().allow(null),
+  hourlyRateCurrency: Joi.string().optional().allow(null, ''),
+  proposalAmount: Joi.number().optional().allow(null),
+  proposalCurrency: Joi.string().optional().allow(null, ''),
+  invoiceAmount: Joi.number().optional().allow(null),
+  invoiceCurrency: Joi.string().optional().allow(null, ''),
   firstMessage: Joi.string().optional().allow(null, ''),
   lastTouch: Joi.date().optional().allow(null),
   workspaceId: Joi.string().uuid().optional().allow(null),
   sourceInfo: Joi.string().optional().allow(null, ''),
+  projectBlueprints: Joi.alternatives().try(Joi.array().items(Joi.any()), Joi.object(), Joi.string()).optional().allow(null, ''),
   phoneType: Joi.string().optional().allow(null, ''),
   emailType: Joi.string().optional().allow(null, ''),
   websiteType: Joi.string().optional().allow(null, ''),
@@ -145,6 +223,7 @@ const updateDealSchema = Joi.object({
   lastContactedDate: Joi.date().optional().allow(null),
   nextFollowUpDate: Joi.date().optional().allow(null),
   responsiblePerson: Joi.string().uuid().optional().allow(null),
+  customFields: Joi.object().optional().allow(null),
 }).min(1);
 
 const getAll = async (req, res, next) => {
@@ -299,10 +378,12 @@ const create = async (req, res, next) => {
       probability, notes, tags, expectedCloseDate, 
       contactName, companyName, phone, email, priority, source, description,
       designation, website, address, companyPhone, companyEmail, companySize,
-      agentName, decisionMaker, serviceInterested, interactionNotes, 
-      firstMessage, lastTouch, workspaceId, sourceInfo, 
+      availableToEveryone, clientType, projectType, scope, agentName, decisionMaker, serviceInterested, interactionNotes, 
+      feedback, feedbackDetails, paymentMethod, invoiceLink, qaStatus, quotationReceived,
+      hoursOfWork, hourlyRate, hourlyRateCurrency, proposalAmount, proposalCurrency, invoiceAmount, invoiceCurrency,
+      firstMessage, lastTouch, workspaceId, sourceInfo, projectBlueprints,
       phoneType, emailType, websiteType, customerType, 
-      lastContactedDate, nextFollowUpDate, responsiblePerson
+      lastContactedDate, nextFollowUpDate, responsiblePerson, customFields
     } = value;
 
     const result = await db.query(
@@ -312,16 +393,19 @@ const create = async (req, res, next) => {
          value, currency, probability, notes, tags, expected_close_date, 
          contact_name, company_name, phone, email, priority, source, description,
          designation, website, address, company_phone, company_email, company_size,
-         agent_name, decision_maker, service_interested, interaction_notes, 
-         first_message, last_touch, workspace_id, source_info, 
+         available_to_everyone, client_type, project_type, scope, agent_name, decision_maker, service_interested, interaction_notes, 
+         feedback, feedback_details, payment_method, invoice_link, qa_status, quotation_received,
+         hours_of_work, hourly_rate, hourly_rate_currency, proposal_amount, proposal_currency, invoice_amount, invoice_currency,
+         first_message, last_touch, workspace_id, source_info, project_blueprints,
          phone_type, email_type, website_type, customer_type, 
-         last_contacted_date, next_follow_up_date, responsible_person
+         last_contacted_date, next_follow_up_date, responsible_person, custom_fields
        )
        VALUES (
          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 
          $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26,
          $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38,
-         $39, $40, $41
+         $39, $40, $41, $42, $43, $44, $45, $46, $47, $48,
+         $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60
        )
        RETURNING *`,
       [
@@ -329,10 +413,13 @@ const create = async (req, res, next) => {
         dealValue, currency, probability, notes, tags, expectedCloseDate, 
         contactName, companyName, phone, email, priority, source, description,
         designation, website, address, companyPhone, companyEmail, companySize,
-        agentName, decisionMaker, serviceInterested, interactionNotes, 
-        firstMessage, lastTouch, workspaceId, sourceInfo, 
+        availableToEveryone, clientType, projectType, scope, agentName, decisionMaker, serviceInterested, interactionNotes, 
+        feedback, feedbackDetails, paymentMethod, invoiceLink, qaStatus, quotationReceived,
+        hoursOfWork, hourlyRate, hourlyRateCurrency, proposalAmount, proposalCurrency, invoiceAmount, invoiceCurrency,
+        firstMessage, lastTouch, workspaceId, sourceInfo, serializeBlueprintsField(projectBlueprints), 
         phoneType, emailType, websiteType, customerType, 
-        lastContactedDate, nextFollowUpDate, responsiblePerson
+        lastContactedDate, nextFollowUpDate, responsiblePerson,
+        customFields ? JSON.stringify(customFields) : '{}'
       ]
     );
 
@@ -406,13 +493,18 @@ const update = async (req, res, next) => {
       description: 'description', designation: 'designation',
       website: 'website', address: 'address',
       companyPhone: 'company_phone', companyEmail: 'company_email',
-      companySize: 'company_size', agentName: 'agent_name',
-      decisionMaker: 'decision_maker', serviceInterested: 'service_interested',
-      interactionNotes: 'interaction_notes', firstMessage: 'first_message',
-      sourceInfo: 'source_info', phoneType: 'phone_type',
-      emailType: 'email_type', websiteType: 'website_type',
+      companySize: 'company_size', availableToEveryone: 'available_to_everyone',
+      clientType: 'client_type', projectType: 'project_type', scope: 'scope',
+      agentName: 'agent_name', decisionMaker: 'decision_maker', serviceInterested: 'service_interested',
+      interactionNotes: 'interaction_notes', feedback: 'feedback', feedbackDetails: 'feedback_details',
+      paymentMethod: 'payment_method', invoiceLink: 'invoice_link', qaStatus: 'qa_status',
+      quotationReceived: 'quotation_received', hoursOfWork: 'hours_of_work', hourlyRate: 'hourly_rate',
+      hourlyRateCurrency: 'hourly_rate_currency', proposalAmount: 'proposal_amount', proposalCurrency: 'proposal_currency',
+      invoiceAmount: 'invoice_amount', invoiceCurrency: 'invoice_currency',
+      firstMessage: 'first_message', sourceInfo: 'source_info', projectBlueprints: 'project_blueprints',
+      phoneType: 'phone_type', emailType: 'email_type', websiteType: 'website_type',
       customerType: 'customer_type', workspaceId: 'workspace_id',
-      responsiblePerson: 'responsible_person'
+      responsiblePerson: 'responsible_person', customFields: 'custom_fields'
     };
 
     const dbFieldMapping = {
@@ -426,7 +518,8 @@ const update = async (req, res, next) => {
       const dbField = dbFieldMapping[key] || fieldMapping[key];
       if (dbField && val !== undefined) {
         fields.push(`${dbField} = $${paramIndex}`);
-        values.push(val);
+        const isJson = ['project_blueprints', 'custom_fields'].includes(dbField);
+        values.push(dbField === 'project_blueprints' ? serializeBlueprintsField(val) : (isJson ? JSON.stringify(val) : val));
         paramIndex++;
       }
     }

@@ -112,7 +112,8 @@ export function EmbeddedSoftphone() {
       return;
     }
     try {
-      await sendSMS(manualNumber, manualSms);
+      // Use the selected fromNumber for SMS
+      await sendSMS(manualNumber, manualSms, fromNumber);
       setManualSms('');
       toast.success('SMS sent successfully');
     } catch (e) {

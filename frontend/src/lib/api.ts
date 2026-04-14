@@ -1,4 +1,5 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+
+export const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
 
 class ApiClient {
   private token: string | null = null;
@@ -21,7 +22,7 @@ class ApiClient {
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const token = this.getToken();
-    
+
     const headers: HeadersInit = {
       ...options.headers,
     };
@@ -47,7 +48,7 @@ class ApiClient {
     }
 
     const data = await response.json().catch(() => ({}));
-    
+
     if (!response.ok) {
       const errorMsg = data.message || data.error || 'Request failed';
       throw new Error(errorMsg);
@@ -65,7 +66,7 @@ class ApiClient {
           filteredParams[key] = String(value);
         }
       });
-      
+
       if (Object.keys(filteredParams).length > 0) {
         const searchParams = new URLSearchParams(filteredParams).toString();
         return this.request<T>(`${endpoint}?${searchParams}`);
@@ -113,6 +114,8 @@ export const authApi = {
   logout: () => api.post('/auth/logout'),
   forgotPassword: (email: string) => api.post('/auth/forgot-password', { email }),
   changePassword: (data: { currentPassword: string; newPassword: string }) => api.post('/auth/change-password', data),
+  acceptInvite: (data: { token: string; password: string }) => api.post('/auth/accept-invite', data),
+  verifyInvite: (token: string) => api.get<any>(`/auth/verify-invite/${token}`),
 };
 
 export const emailApi = {
@@ -127,7 +130,7 @@ export const emailApi = {
 };
 
 export const leadsApi = {
-  getAll: (params?: { page?: number; limit?: number; stage?: string; status?: string; search?: string }) => 
+  getAll: (params?: { page?: number; limit?: number; stage?: string; status?: string; search?: string }) =>
     api.get<{ data: any[]; pagination: any }>('/leads', params),
   getById: (id: string) => api.get<any>(`/leads/${id}`),
   create: (data: any) => api.post<any>('/leads', data),
@@ -140,7 +143,7 @@ export const leadsApi = {
 };
 
 export const dealsApi = {
-  getAll: (params?: { page?: number; limit?: number; stage?: string; status?: string; search?: string }) => 
+  getAll: (params?: { page?: number; limit?: number; stage?: string; status?: string; search?: string }) =>
     api.get<{ data: any[]; pagination: any }>('/deals', params),
   getById: (id: string) => api.get<any>(`/deals/${id}`),
   create: (data: any) => api.post<any>('/deals', data),
@@ -165,7 +168,7 @@ export const salesOrdersApi = {
 };
 
 export const contactsApi = {
-  getAll: (params?: { page?: number; limit?: number; search?: string; companyId?: string }) => 
+  getAll: (params?: { page?: number; limit?: number; search?: string; companyId?: string }) =>
     api.get<{ data: any[]; pagination: any }>('/contacts', params),
   getById: (id: string) => api.get<any>(`/contacts/${id}`),
   create: (data: any) => api.post<any>('/contacts', data),
@@ -174,7 +177,7 @@ export const contactsApi = {
 };
 
 export const companiesApi = {
-  getAll: (params?: { page?: number; limit?: number; search?: string; industry?: string }) => 
+  getAll: (params?: { page?: number; limit?: number; search?: string; industry?: string }) =>
     api.get<{ data: any[]; pagination: any }>('/companies', params),
   getById: (id: string) => api.get<any>(`/companies/${id}`),
   create: (data: any) => api.post<any>('/companies', data),
@@ -192,7 +195,7 @@ export const customersApi = {
 };
 
 export const signingPartiesApi = {
-  getAll: (params?: { page?: number; limit?: number; search?: string; companyId?: string }) => 
+  getAll: (params?: { page?: number; limit?: number; search?: string; companyId?: string }) =>
     api.get<{ data: any[]; pagination: any }>('/signing-parties', params),
   getById: (id: string) => api.get<any>(`/signing-parties/${id}`),
   create: (data: any) => api.post<any>('/signing-parties', data),
@@ -201,7 +204,7 @@ export const signingPartiesApi = {
 };
 
 export const employeesApi = {
-  getAll: (params?: { page?: number; limit?: number; search?: string; department?: string; status?: string }) => 
+  getAll: (params?: { page?: number; limit?: number; search?: string; department?: string; status?: string }) =>
     api.get<{ data: any[]; pagination: any }>('/employees', params),
   getById: (id: string) => api.get<any>(`/employees/${id}`),
   create: (data: any) => api.post<any>('/employees', data),
@@ -211,7 +214,7 @@ export const employeesApi = {
 };
 
 export const attendanceApi = {
-  getAll: (params?: { date?: string; userId?: string; employee_id?: string; status?: string; limit?: number }) => 
+  getAll: (params?: { date?: string; userId?: string; employee_id?: string; status?: string; limit?: number }) =>
     api.get<{ data: any[]; pagination: any }>('/attendance', params),
   getStats: (params?: { startDate?: string; endDate?: string; date?: string }) => api.get<any>('/attendance/stats', params),
   clockIn: () => api.post<any>('/attendance/clock-in'),
@@ -224,15 +227,15 @@ export const attendanceApi = {
 };
 
 export const leaveApi = {
-  getAll: (params?: { status?: string; userId?: string; employee_id?: string; limit?: number }) => 
+  getAll: (params?: { status?: string; userId?: string; employee_id?: string; limit?: number }) =>
     api.get<{ data: any[]; pagination: any }>('/leave', params),
   getBalance: (params?: { userId?: string; employee_id?: string }) => api.get<{ data: any[] }>('/leave/balance', params),
   getTypes: () => api.get<{ data: any[] }>('/leave/types'),
   createType: (data: { name: string; days_allowed: number; description?: string }) => api.post<any>('/leave/types', data),
   getById: (id: string) => api.get<any>(`/leave/${id}`),
-  create: (data: { employee_id: string; leave_type_id: string; start_date: string; end_date: string; reason?: string }) => 
+  create: (data: { employee_id: string; leave_type_id: string; start_date: string; end_date: string; reason?: string }) =>
     api.post<any>('/leave', data),
-  createRequest: (data: { leaveTypeId: string; startDate: string; endDate: string; reason?: string }) => 
+  createRequest: (data: { leaveTypeId: string; startDate: string; endDate: string; reason?: string }) =>
     api.post<any>('/leave/request', data),
   update: (id: string, data: any) => api.put<any>(`/leave/${id}`, data),
   approve: (id: string) => api.put<any>(`/leave/${id}/approve`),
@@ -241,16 +244,16 @@ export const leaveApi = {
 };
 
 export const payrollApi = {
-  getSalarySlips: (params?: { month?: number; year?: number; employee_id?: string }) => 
+  getSalarySlips: (params?: { month?: number; year?: number; employee_id?: string }) =>
     api.get<{ data: any[] }>('/payroll/slips', params),
   getSalarySlipById: (id: string) => api.get<{ data: any }>(`/payroll/slips/${id}`),
-  generateSalarySlip: (data: { employee_id: string; month: number; year: number; basic_salary: number; earnings: any[]; deductions: any[] }) => 
+  generateSalarySlip: (data: { employee_id: string; month: number; year: number; basic_salary: number; earnings: any[]; deductions: any[] }) =>
     api.post<{ data: any }>('/payroll/slips', data),
   deleteSalarySlip: (id: string) => api.delete(`/payroll/slips/${id}`),
 };
 
 export const productsApi = {
-  getAll: (params?: { search?: string; category?: string }) => 
+  getAll: (params?: { search?: string; category?: string }) =>
     api.get<{ data: any[]; pagination: any }>('/products', params),
   getCategories: () => api.get<string[]>('/products/categories'),
   getById: (id: string) => api.get<any>(`/products/${id}`),
@@ -323,22 +326,22 @@ export const projectsApi = {
 
 const normalizeTaskFilters = (params?: { project_id?: string; projectId?: string; status?: string; assigned_to?: string; assignedTo?: string }) => {
   if (!params) return undefined;
-  
+
   const normalized: Record<string, string> = {};
-  
+
   // Only add parameters that have actual values (not undefined or empty strings)
   if (params.projectId || params.project_id) {
     normalized.projectId = params.projectId || params.project_id!;
   }
-  
+
   if (params.status && params.status !== 'undefined') {
     normalized.status = params.status;
   }
-  
+
   if ((params.assignedTo || params.assigned_to) && (params.assignedTo !== 'undefined' && params.assigned_to !== 'undefined')) {
     normalized.assignedTo = params.assignedTo || params.assigned_to!;
   }
-  
+
   return Object.keys(normalized).length > 0 ? normalized : undefined;
 };
 
@@ -356,7 +359,7 @@ const serializeTaskPayload = (data: any) => ({
 });
 
 export const tasksApi = {
-  getAll: (params?: { project_id?: string; projectId?: string; status?: string; assigned_to?: string; assignedTo?: string }) => 
+  getAll: (params?: { project_id?: string; projectId?: string; status?: string; assigned_to?: string; assignedTo?: string }) =>
     api.get<any[]>('/tasks', normalizeTaskFilters(params)),
   getById: (id: string) => api.get<any>(`/tasks/${id}`),
   create: (data: any) => api.post<any>('/tasks', serializeTaskPayload(data)),
@@ -367,12 +370,12 @@ export const tasksApi = {
 };
 
 export const usersApi = {
-  getAll: (params?: { search?: string }) => api.get<any[]>('/users', params),
-  getById: (id: string) => api.get<any>(`/users/${id}`),
-  create: (data: any) => api.post<any>('/users', data),
-  update: (id: string, data: any) => api.put<any>(`/users/${id}`, data),
-  delete: (id: string) => api.delete(`/users/${id}`),
-  resetPassword: (id: string) => api.post(`/users/${id}/reset-password`),
+  getAll: (params?: { search?: string }) => api.get<any[]>('/members', params),
+  getById: (id: string) => api.get<any>(`/members/${id}`),
+  create: (data: any) => api.post<any>('/members', data),
+  update: (id: string, data: any) => api.put<any>(`/members/${id}`, data),
+  delete: (id: string) => api.delete(`/members/${id}`),
+  resetPassword: (id: string) => api.post(`/members/${id}/reset-password`),
 };
 
 export const rolesApi = {
@@ -419,17 +422,17 @@ export const activitiesApi = {
 };
 
 export const crmCommentsApi = {
-  getByEntity: (entityType: string, entityId: string, params?: { page?: number; limit?: number }) => 
+  getByEntity: (entityType: string, entityId: string, params?: { page?: number; limit?: number }) =>
     api.get<any[]>(`/crm-comments/${entityType}/${entityId}`, params),
-  create: (data: { entityType: string; entityId: string; content: string }) => 
+  create: (data: { entityType: string; entityId: string; content: string }) =>
     api.post<any>('/crm-comments', data),
-  update: (id: string, content: string) => 
+  update: (id: string, content: string) =>
     api.put<any>(`/crm-comments/${id}`, { content }),
   delete: (id: string) => api.delete(`/crm-comments/${id}`),
 };
 
 export const crmDocumentsApi = {
-  getByEntity: (entityType: string, entityId: string, params?: { page?: number; limit?: number }) => 
+  getByEntity: (entityType: string, entityId: string, params?: { page?: number; limit?: number }) =>
     api.get<any[]>(`/crm-documents/${entityType}/${entityId}`, params),
   upload: (entityType: string, entityId: string, file: File) => {
     const formData = new FormData();
@@ -442,9 +445,9 @@ export const crmDocumentsApi = {
 export const leadWorkspaceApi = {
   getAvailable: (leadId: string) => api.get<any[]>(`/lead-workspace/${leadId}/available-workspaces`),
   getShared: (leadId: string) => api.get<any[]>(`/lead-workspace/${leadId}/shared-workspaces`),
-  share: (leadId: string, data: { workspaceId: string; accessLevel: string; expiresAt?: string | null }) => 
+  share: (leadId: string, data: { workspaceId: string; accessLevel: string; expiresAt?: string | null }) =>
     api.post(`/lead-workspace/${leadId}/share`, data),
-  removeAccess: (leadId: string, workspaceId: string) => 
+  removeAccess: (leadId: string, workspaceId: string) =>
     api.delete(`/lead-workspace/${leadId}/workspace/${workspaceId}`),
 };
 
@@ -458,7 +461,7 @@ export const organizationApi = {
 
 export const driveApi = {
   // Folders
-  getFolders: (parentId?: string, trash?: boolean) => api.get<any[]>('/drive/folders', { 
+  getFolders: (parentId?: string, trash?: boolean) => api.get<any[]>('/drive/folders', {
     parent_id: parentId,
     trash: trash ? 'true' : undefined
   }),
@@ -466,10 +469,10 @@ export const driveApi = {
   deleteFolder: (id: string) => api.delete(`/drive/folders/${id}`),
   restoreFolder: (id: string) => api.post(`/drive/folders/${id}/restore`),
   permanentDeleteFolder: (id: string) => api.delete(`/drive/folders/${id}/permanent`),
-  
+
   // Files
-  getFiles: (folderId?: string, recent?: boolean, trash?: boolean) => api.get<any[]>('/drive/files', { 
-    folder_id: folderId, 
+  getFiles: (folderId?: string, recent?: boolean, trash?: boolean) => api.get<any[]>('/drive/files', {
+    folder_id: folderId,
     recent: recent ? 'true' : undefined,
     trash: trash ? 'true' : undefined
   }),
@@ -487,7 +490,7 @@ export const driveApi = {
   bulkRestore: (ids: string[]) => api.post('/drive/bulk/restore', { ids }),
   bulkMoveToTrash: (ids: string[]) => api.post('/drive/bulk/trash', { ids }),
   bulkPermanentDelete: (ids: string[]) => api.post('/drive/bulk/delete-permanent', { ids }),
-  
+
   // Activities
   getActivities: () => api.get<any[]>('/drive/activities'),
 
@@ -501,25 +504,33 @@ export const workgroupsApi = {
   create: (data: any) => api.post<any>('/workgroups', data),
   update: (id: string, data: any) => api.put<any>(`/workgroups/${id}`, data),
   delete: (id: string) => api.delete(`/workgroups/${id}`),
-  
+
   // Members
   getMembers: (id: string) => api.get<any[]>(`/workgroups/${id}/members`),
-  addMember: (id: string, data: { user_id: string; role?: string }) => 
+  addMember: (id: string, data: { user_id: string; role?: string }) =>
     api.post<any>(`/workgroups/${id}/members`, data),
-  removeMember: (id: string, memberId: string) => 
+  removeMember: (id: string, memberId: string) =>
     api.delete(`/workgroups/${id}/members/${memberId}`),
-  
+
   // Posts/Messages
   getPosts: (id: string, params = {}) => api.get<any[]>(`/workgroups/${id}/posts`, params),
-  createPost: (id: string, data: { content: string; channel_id?: string; parent_id?: string }) =>
+  createPost: (
+    id: string,
+    data: {
+      content: string;
+      channel_id?: string;
+      parent_id?: string;
+      files?: any[];
+    },
+  ) =>
     api.post<any>(`/workgroups/${id}/posts`, data),
   deletePost: (id: string, postId: string) => api.delete(`/workgroups/${id}/posts/${postId}`),
-  togglePinPost: (id: string, postId: string, isPinned: boolean) => 
+  togglePinPost: (id: string, postId: string, isPinned: boolean) =>
     api.put<any>(`/workgroups/${id}/posts/${postId}/pin`, { is_pinned: !isPinned }),
-  
+
   // Activities
   getActivities: (id: string, params = {}) => api.get<any[]>(`/workgroups/${id}/activities`, params),
-  
+
   // Files
   getFiles: (id: string) => api.get<any[]>(`/workgroups/${id}/files`),
   uploadFile: (id: string, file: File) => {
@@ -528,7 +539,7 @@ export const workgroupsApi = {
     return api.post<any>(`/workgroups/${id}/files`, formData);
   },
   deleteFile: (id: string, fileId: string) => api.delete(`/workgroups/${id}/files/${fileId}`),
-  
+
   // Wiki
   getWikiPages: (id: string) => api.get<any[]>(`/workgroups/${id}/wiki`),
   getWikiPage: (id: string, pageId: string) => api.get<any>(`/workgroups/${id}/wiki/${pageId}`),
@@ -537,7 +548,7 @@ export const workgroupsApi = {
   updateWikiPage: (id: string, pageId: string, data: { title?: string; content?: string }) =>
     api.put<any>(`/workgroups/${id}/wiki/${pageId}`, data),
   deleteWikiPage: (id: string, pageId: string) => api.delete(`/workgroups/${id}/wiki/${pageId}`),
-  
+
   // Notifications
   getNotifications: (id: string, params = {}) => api.get<any>(`/workgroups/${id}/notifications`, params),
   markNotificationAsRead: (id: string, notificationId: string) =>
@@ -611,7 +622,7 @@ export const recruitmentApi = {
   updateCandidateStatus: (id: string, status: string) =>
     api.put<any>(`/recruitment/candidates/${id}/status`, { status }),
   shortlistCandidate: (id: string) => api.post<any>(`/recruitment/candidates/${id}/shortlist`),
-  
+
   // New Screening & Workflow Methods
   screenCandidate: (id: string, data: { screeningResult: 'passed' | 'failed'; screeningNotes?: string }) =>
     api.post<any>(`/recruitment/candidates/${id}/screen`, data),
@@ -623,7 +634,7 @@ export const recruitmentApi = {
     additionalNotes?: string;
   }) => api.post<any>(`/recruitment/candidates/${id}/send-interview-email`, data),
   generateApplicationForm: (id: string) => api.post<any>(`/recruitment/candidates/${id}/generate-form`),
-  
+
   deleteCandidate: (id: string) => api.delete(`/recruitment/candidates/${id}`),
 
   // Interviews
@@ -658,7 +669,7 @@ export const recruitmentApi = {
   // =====================================================
   // ADVANCED FEATURES - OFFERS MANAGEMENT
   // =====================================================
-  
+
   // Job Offers
   getAllOffers: (params?: { status?: string; department?: string; candidateId?: string }) =>
     api.get<any[]>('/recruitment/offers', params),
@@ -700,7 +711,7 @@ export const recruitmentApi = {
   // =====================================================
   // CANDIDATE SCORING & RANKING
   // =====================================================
-  
+
   // Scoring Criteria
   getAllCriteria: (params?: { category?: string; isActive?: boolean }) =>
     api.get<any[]>('/recruitment/scoring/criteria', params),
@@ -711,7 +722,7 @@ export const recruitmentApi = {
     maxScore?: number;
     weightPercentage?: number;
   }) => api.post<any>('/recruitment/scoring/criteria', data),
-  
+
   // Candidate Scoring
   submitScore: (data: {
     candidateId: string;
@@ -731,7 +742,7 @@ export const recruitmentApi = {
   }) => api.post<any>('/recruitment/scoring/bulk-score', data),
   getCandidateScores: (candidateId: string) =>
     api.get<any[]>(`/recruitment/scoring/candidate/${candidateId}`),
-  
+
   // Rankings
   getRequisitionRankings: (requisitionId: string) =>
     api.get<any[]>(`/recruitment/scoring/rankings/${requisitionId}`),
@@ -741,7 +752,7 @@ export const recruitmentApi = {
   // =====================================================
   // TALENT POOL MANAGEMENT
   // =====================================================
-  
+
   // Talent Pools
   getAllTalentPools: (params?: { poolType?: string; isActive?: boolean }) =>
     api.get<any[]>('/recruitment/talent-pools', params),
@@ -777,7 +788,7 @@ export const recruitmentApi = {
     minScore?: number;
   }) => api.get<any[]>('/recruitment/talent-pools/search', params),
   getTalentPoolAnalytics: () => api.get<any>('/recruitment/talent-pools/analytics'),
-  
+
   // Analytics
   getRecruitmentAnalytics: (params?: { dateRange?: string; department?: string }) =>
     api.get<any>('/recruitment/analytics', params),

@@ -730,7 +730,26 @@ CREATE TABLE IF NOT EXISTS public.deals (
     contact_last_name character varying(255),
     contact_email character varying(255),
     contact_phone character varying(50),
-    tags text[]
+    tags text[],
+    available_to_everyone boolean DEFAULT true,
+    client_type text,
+    project_type text,
+    scope text,
+    feedback text,
+    feedback_details text,
+    payment_method text,
+    invoice_link text,
+    qa_status text,
+    quotation_received text,
+    hours_of_work text,
+    hourly_rate numeric(10,2),
+    hourly_rate_currency text DEFAULT 'USD'::text,
+    proposal_amount numeric(15,2),
+    proposal_currency text DEFAULT 'USD'::text,
+    invoice_amount numeric(15,2),
+    invoice_currency text DEFAULT 'USD'::text,
+    project_blueprints jsonb DEFAULT '[]'::jsonb,
+    custom_fields jsonb DEFAULT '{}'::jsonb
 );
 
 
@@ -1393,7 +1412,8 @@ CREATE TABLE IF NOT EXISTS public.leads (
     import_id uuid,
     created_by uuid,
     updated_by uuid,
-    is_converted boolean DEFAULT false
+    is_converted boolean DEFAULT false,
+    custom_fields jsonb DEFAULT '{}'::jsonb
 );
 
 
@@ -9067,6 +9087,8 @@ CREATE TABLE IF NOT EXISTS sms_logs (
   updated_at timestamp DEFAULT CURRENT_TIMESTAMP
 );
 
+
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_call_logs_entity ON call_logs(entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_call_logs_org_date ON call_logs(org_id, created_at DESC);
@@ -9075,6 +9097,65 @@ CREATE INDEX IF NOT EXISTS idx_call_logs_rc_session ON call_logs(rc_session_id);
 CREATE INDEX IF NOT EXISTS idx_sms_logs_org ON sms_logs(org_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sms_logs_phone ON sms_logs(phone_number);
 CREATE INDEX IF NOT EXISTS idx_sms_logs_entity ON sms_logs(entity_type, entity_id);
+
+-- Instantly.ai Integration Tables
+
+-- Integration Settings
+CREATE TABLE IF NOT EXISTS instantly_integrations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  api_key_encrypted text,
+  webhook_secret text,
+  webhook_url text,
+  is_enabled boolean DEFAULT false,
+  status text DEFAULT 'disconnected', -- 'connected', 'disconnected', 'error'
+  last_sync_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  UNIQUE(org_id)
+);
+
+-- Unibox Events (incoming from webhooks)
+CREATE TABLE IF NOT EXISTS instantly_unibox_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  event_type text NOT NULL, -- e.g., 'reply_received'
+  payload jsonb NOT NULL,
+  sender_email text,
+  sender_name text,
+  subject text,
+  body_text text,
+  phone text,
+  lead_id uuid REFERENCES leads(id) ON DELETE SET NULL,
+  processed boolean DEFAULT false,
+  processed_at timestamp with time zone,
+  error_message text,
+  received_at timestamp with time zone DEFAULT now(),
+  created_at timestamp with time zone DEFAULT now()
+);
+
+-- Webhook Health Monitoring
+CREATE TABLE IF NOT EXISTS instantly_webhook_health (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  webhook_url text NOT NULL,
+  status text DEFAULT 'healthy',
+  total_received integer DEFAULT 0,
+  total_processed integer DEFAULT 0,
+  total_failed integer DEFAULT 0,
+  last_received_at timestamp with time zone,
+  last_error text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  UNIQUE(org_id)
+);
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_instantly_events_org ON instantly_unibox_events(org_id);
+CREATE INDEX IF NOT EXISTS idx_instantly_events_processed ON instantly_unibox_events(processed);
+CREATE INDEX IF NOT EXISTS idx_instantly_events_sender ON instantly_unibox_events(sender_email);
+
+
 
 -- =====================================================
 -- END OF ADVANCED RECRUITMENT FEATURES

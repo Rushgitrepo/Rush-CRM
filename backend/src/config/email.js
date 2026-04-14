@@ -4,7 +4,7 @@ require('dotenv').config();
 // Email configuration
 const emailConfig = {
   provider: process.env.EMAIL_PROVIDER || 'smtp', // 'smtp' or 'sendgrid'
-  
+
   // SMTP Configuration
   smtp: {
     host: process.env.SMTP_HOST,
@@ -15,18 +15,18 @@ const emailConfig = {
       pass: process.env.SMTP_PASS,
     },
   },
-  
+
   // SendGrid Configuration
   sendgrid: {
     apiKey: process.env.SENDGRID_API_KEY,
   },
-  
+
   // Default sender
   defaults: {
     from: process.env.DEFAULT_FROM_EMAIL,
     fromName: process.env.DEFAULT_FROM_NAME,
   },
-  
+
   // Bulk email settings
   bulk: {
     batchSize: 10, // Send 10 emails at a time

@@ -4,22 +4,34 @@ const db = require('../config/database');
 const auth = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
+    const queryToken =
+      typeof req.query?.token === 'string' ? req.query.token : null;
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const bearerToken =
+      authHeader && authHeader.startsWith('Bearer ')
+        ? authHeader.split(' ')[1]
+        : null;
+    const token = bearerToken || queryToken;
+
+    if (!token) {
       return res.status(401).json({ error: 'No token provided' });
     }
-
-    const token = authHeader.split(' ')[1];
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET, {
       algorithms: ['HS256'],
     });
 
-    req.user = {
-      id: decoded.userId,
-      orgId: decoded.orgId,
-      email: decoded.email,
-    };
+    // Verify user exists and is active
+    const userResult = await db.query(
+      'SELECT id, organization_id as "orgId", email, role FROM public.users WHERE id = $1 AND is_active = true',
+      [decoded.userId]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(401).json({ error: 'User account no longer exists or is inactive' });
+    }
+
+    req.user = userResult.rows[0];
 
     next();
   } catch (error) {

@@ -108,45 +108,48 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2 bg-white dark:bg-slate-950 selection:bg-slate-900 selection:text-white">
+    <div className="min-h-screen grid lg:grid-cols-2 bg-slate-100 selection:bg-slate-900 selection:text-white">
       {/* Left Pane: Brand & Visual */}
-      <div className="hidden lg:flex relative overflow-hidden bg-slate-900 border-r border-slate-800">
+      <div className="hidden lg:flex relative overflow-hidden bg-slate-950 border-r border-slate-800">
         <div className="absolute inset-0 z-0">
           <img
             src="https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=2000"
             alt="Office background"
-            className="w-full h-full object-cover opacity-30 scale-105"
+            className="w-full h-full object-cover opacity-15 scale-105"
           />
-          <div className="absolute inset-0 bg-gradient-to-tr from-slate-950 via-slate-900/40 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-tr from-slate-950 via-slate-950/80 to-slate-900/40" />
         </div>
 
-        <div className="relative z-10 p-16 flex flex-col justify-between w-full h-full">
+        <div className="relative z-10 p-14 flex flex-col justify-between w-full h-full">
           <div>
-            <div className="flex items-center gap-3 mb-12">
-              <div className="w-12 h-12 bg-white flex items-center justify-center rounded-xl shadow-2xl">
+            <div className="flex items-center gap-3 mb-10">
+              <div className="w-11 h-11 bg-white flex items-center justify-center rounded-lg shadow-sm">
                 <LayoutGrid className="w-6 h-6 text-slate-950" />
               </div>
-              <span className="text-2xl font-bold tracking-tighter text-white uppercase">Rush Management System</span>
+              <span className="text-lg font-semibold tracking-tight text-white">Rush Management System</span>
             </div>
 
-            <h2 className="text-6xl font-extralight text-white leading-[1.1] mb-8 tracking-tighter">
-              Next-Gen <br />
-              <span className="text-slate-400">Resource Protocols.</span>
+            <h2 className="text-4xl xl:text-5xl font-semibold text-white leading-[1.1] mb-6 tracking-tight max-w-md">
+              Workflows that stay out of the way.
             </h2>
 
-            <div className="space-y-6">
+            <p className="text-base text-slate-300 max-w-md mb-10 leading-relaxed">
+              A straightforward space to manage leads, calls, follow-ups, and the rest of your day.
+            </p>
+
+            <div className="space-y-5">
               {[
-                { title: 'Integrated Ecosystem', desc: 'Sync your CRM, HRMS, and Inventory in one seamless command center.' },
-                { title: 'Data-Driven Growth', desc: 'Transform raw leads into loyal customers.' },
-                { title: 'Enterprise Security', desc: 'Protect your business with multi-tenant isolation' }
+                { title: 'One place for leads', desc: 'Keep contact details, notes, and follow-up work together.' },
+                { title: 'Useful over flashy', desc: 'Fast forms and clear views that get out of the way.' },
+                { title: 'Built for teams', desc: 'Shared data, accountability, and simple handoffs.' }
               ].map((item, idx) => (
                 <div key={idx} className="flex gap-4 items-start group">
-                  <div className="mt-1 w-5 h-5 rounded-full border border-slate-700 flex items-center justify-center group-hover:border-white transition-colors">
-                    <ChevronRight className="w-3 h-3 text-slate-500 group-hover:text-white" />
+                  <div className="mt-1 w-5 h-5 rounded-full border border-slate-700 flex items-center justify-center group-hover:border-slate-400 transition-colors">
+                    <ChevronRight className="w-3 h-3 text-slate-500 group-hover:text-slate-300" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-slate-200 uppercase tracking-widest mb-1">{item.title}</h4>
-                    <p className="text-sm text-slate-500 leading-relaxed max-w-sm">{item.desc}</p>
+                    <h4 className="text-sm font-semibold text-slate-100 mb-1">{item.title}</h4>
+                    <p className="text-sm text-slate-400 leading-relaxed max-w-sm">{item.desc}</p>
                   </div>
                 </div>
               ))}
@@ -156,51 +159,51 @@ export default function AuthPage() {
       </div>
 
       {/* Right Pane: Form */}
-      <div className="flex flex-col justify-center items-center p-8 lg:p-24 bg-white dark:bg-slate-950">
-        <div className="w-full max-w-[400px]">
+      <div className="flex flex-col justify-center items-center p-6 sm:p-8 lg:p-12 bg-slate-100">
+        <div className="w-full max-w-[420px]">
           <div className="mb-10 lg:hidden text-center">
             <div className="flex items-center justify-center gap-2 mb-4">
-              <div className="w-8 h-8 bg-slate-900 dark:bg-white flex items-center justify-center rounded-lg">
-                <LayoutGrid className="w-4 h-4 text-white dark:text-slate-900" />
+              <div className="w-8 h-8 bg-slate-900 flex items-center justify-center rounded-lg">
+                <LayoutGrid className="w-4 h-4 text-white" />
               </div>
-              <span className="text-xl font-bold tracking-tighter text-slate-900 dark:text-white uppercase">Rush RMS</span>
+              <span className="text-lg font-semibold tracking-tight text-slate-900">Rush RMS</span>
             </div>
           </div>
 
-          <div className="mb-12">
-            <h3 className="text-3xl font-extralight tracking-tighter text-slate-900 dark:text-white mb-2">
+          <div className="mb-8">
+            <h3 className="text-3xl font-semibold tracking-tight text-slate-900 mb-2">
               {activeTab === 'signin' ? 'RMS Login' : 'Create Account'}
             </h3>
-            <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-              Sign in to your account or create a new one
+            <p className="text-sm text-slate-500">
+              Sign in to your account or create a new one.
             </p>
           </div>
 
           {error && (
-            <Alert variant="destructive" className="mb-6 border-red-100 dark:border-red-900/30 bg-red-50 dark:bg-red-950/20 rounded-xl">
+            <Alert variant="destructive" className="mb-6 border-red-200 bg-red-50 rounded-lg">
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription className="text-red-700 dark:text-red-400 font-medium text-xs uppercase tracking-wider">{error}</AlertDescription>
+              <AlertDescription className="text-red-700 font-medium text-sm">{error}</AlertDescription>
             </Alert>
           )}
 
           {successMessage && (
-            <Alert className="mb-6 border-green-100 dark:border-green-900/30 bg-green-50 dark:bg-green-950/20 rounded-xl">
-              <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
-              <AlertDescription className="text-green-700 dark:text-green-400 font-medium text-xs uppercase tracking-wider">{successMessage}</AlertDescription>
+            <Alert className="mb-6 border-green-200 bg-green-50 rounded-lg">
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              <AlertDescription className="text-green-700 font-medium text-sm">{successMessage}</AlertDescription>
             </Alert>
           )}
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="flex w-full bg-transparent border-b border-slate-100 dark:border-slate-800 rounded-none h-auto p-0 mb-8 overflow-hidden">
+            <TabsList className="flex w-full bg-white border border-slate-200 rounded-lg h-auto p-1 mb-8 overflow-hidden shadow-sm">
               <TabsTrigger
                 value="signin"
-                className="flex-1 font-bold uppercase tracking-[0.2em] text-[10px] py-4 data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-slate-900 dark:data-[state=active]:border-white data-[state=active]:text-slate-900 dark:data-[state=active]:text-white rounded-none transition-all opacity-40 data-[state=active]:opacity-100"
+                className="flex-1 font-medium text-sm py-2.5 data-[state=active]:bg-primary data-[state=active]:text-white rounded-md transition-all"
               >
                 Sign In
               </TabsTrigger>
               <TabsTrigger
                 value="signup"
-                className="flex-1 font-bold uppercase tracking-[0.2em] text-[10px] py-4 data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-slate-900 dark:data-[state=active]:border-white data-[state=active]:text-slate-900 dark:data-[state=active]:text-white rounded-none transition-all opacity-40 data-[state=active]:opacity-100"
+                className="flex-1 font-medium text-sm py-2.5 data-[state=active]:bg-primary data-[state=active]:text-white rounded-md transition-all"
               >
                 Sign Up
               </TabsTrigger>
@@ -209,7 +212,7 @@ export default function AuthPage() {
             <TabsContent value="signin" className="space-y-6">
               <form onSubmit={handleSignIn} className="space-y-5">
                 <div className="space-y-2">
-                  <Label htmlFor="signin-email" className="font-bold text-slate-400 dark:text-slate-500 text-[10px] uppercase tracking-widest pl-1">
+                  <Label htmlFor="signin-email" className="text-sm font-medium text-slate-700 pl-1">
                     Email Address
                   </Label>
                   <Input
@@ -218,16 +221,16 @@ export default function AuthPage() {
                     type="email"
                     required
                     disabled={isLoading}
-                    className="h-12 border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-sm rounded-xl focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-white/5 transition-all"
+                    className="h-11 border-slate-200 bg-white text-sm rounded-lg focus:ring-2 focus:ring-slate-900/10 transition-all"
                   />
                 </div>
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between pl-1">
-                    <Label htmlFor="signin-password" className="font-bold text-slate-400 dark:text-slate-500 text-[10px] uppercase tracking-widest">
+                    <Label htmlFor="signin-password" className="text-sm font-medium text-slate-700">
                       Session Password
                     </Label>
-                    <Link to="/forgot-password" size="sm" className="text-[10px] font-bold text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors uppercase tracking-widest">
+                    <Link to="/forgot-password" size="sm" className="text-xs font-medium text-slate-500 hover:text-slate-900 transition-colors">
                       Forgot Password?
                     </Link>
                   </div>
@@ -238,11 +241,11 @@ export default function AuthPage() {
                       type={showSignInPassword ? "text" : "password"}
                       required
                       disabled={isLoading}
-                      className="h-12 border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-sm rounded-xl focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-white/5 transition-all pr-12"
+                      className="h-11 border-slate-200 bg-white text-sm rounded-lg focus:ring-2 focus:ring-slate-900/10 transition-all pr-12"
                     />
                     <a
                       type="button"
-                      className="absolute right-0 top-0 h-12 w-12 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 flex items-center justify-center cursor-pointer"
+                      className="absolute right-0 top-0 h-11 w-11 text-slate-400 hover:text-slate-600 flex items-center justify-center cursor-pointer"
                       onClick={() => setShowSignInPassword(!showSignInPassword)}
                     >
                       {showSignInPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -253,7 +256,7 @@ export default function AuthPage() {
                 <Button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full h-12 bg-primary hover:bg-primary/80 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 font-bold uppercase tracking-[0.2em] text-xs rounded-xl transition-all duration-300 active:scale-[0.98] shadow-lg shadow-slate-900/10 dark:shadow-none"
+                  className="w-full h-11 bg-primary hover:bg-slate-800 text-white font-medium rounded-lg transition-all duration-300 active:scale-[0.99] shadow-sm"
                 >
                   {isLoading ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
@@ -267,7 +270,7 @@ export default function AuthPage() {
             <TabsContent value="signup" className="space-y-6">
               <form onSubmit={handleSignUp} className="space-y-5">
                 <div className="space-y-2">
-                  <Label htmlFor="signup-name" className="font-bold text-slate-400 dark:text-slate-500 text-[10px] uppercase tracking-widest pl-1">
+                  <Label htmlFor="signup-name" className="text-sm font-medium text-slate-700 pl-1">
                     Complete Name
                   </Label>
                   <Input
@@ -276,12 +279,12 @@ export default function AuthPage() {
                     type="text"
                     required
                     disabled={isLoading}
-                    className="h-12 border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-sm rounded-xl focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-white/5 transition-all"
+                    className="h-11 border-slate-200 bg-white text-sm rounded-lg focus:ring-2 focus:ring-slate-900/10 transition-all"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="signup-email" className="font-bold text-slate-400 dark:text-slate-500 text-[10px] uppercase tracking-widest pl-1">
+                  <Label htmlFor="signup-email" className="text-sm font-medium text-slate-700 pl-1">
                     System Email
                   </Label>
                   <Input
@@ -290,12 +293,12 @@ export default function AuthPage() {
                     type="email"
                     required
                     disabled={isLoading}
-                    className="h-12 border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-sm rounded-xl focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-white/5 transition-all"
+                    className="h-11 border-slate-200 bg-white text-sm rounded-lg focus:ring-2 focus:ring-slate-900/10 transition-all"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="signup-password" className="font-bold text-slate-400 dark:text-slate-500 text-[10px] uppercase tracking-widest pl-1">
+                  <Label htmlFor="signup-password" className="text-sm font-medium text-slate-700 pl-1">
                     Secure Password
                   </Label>
                   <div className="relative">
@@ -305,11 +308,11 @@ export default function AuthPage() {
                       type={showSignUpPassword ? "text" : "password"}
                       required
                       disabled={isLoading}
-                      className="h-12 border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-sm rounded-xl focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-white/5 transition-all pr-12"
+                      className="h-11 border-slate-200 bg-white text-sm rounded-lg focus:ring-2 focus:ring-slate-900/10 transition-all pr-12"
                     />
                     <a
                       type="button"
-                      className="absolute right-0 top-0 h-12 w-12 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 flex items-center justify-center cursor-pointer"
+                      className="absolute right-0 top-0 h-11 w-11 text-slate-400 hover:text-slate-600 flex items-center justify-center cursor-pointer"
                       onClick={() => setShowSignUpPassword(!showSignUpPassword)}
                     >
                       {showSignUpPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -318,7 +321,7 @@ export default function AuthPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="signup-confirm" className="font-bold text-slate-400 dark:text-slate-500 text-[10px] uppercase tracking-widest pl-1">
+                  <Label htmlFor="signup-confirm" className="text-sm font-medium text-slate-700 pl-1">
                     Verify Password
                   </Label>
                   <div className="relative">
@@ -328,11 +331,11 @@ export default function AuthPage() {
                       type={showSignUpConfirm ? "text" : "password"}
                       required
                       disabled={isLoading}
-                      className="h-12 border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-sm rounded-xl focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-white/5 transition-all pr-12"
+                      className="h-11 border-slate-200 bg-white text-sm rounded-lg focus:ring-2 focus:ring-slate-900/10 transition-all pr-12"
                     />
                     <a
                       type="button"
-                      className="absolute right-0 top-0 h-12 w-12 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 flex items-center justify-center cursor-pointer"
+                      className="absolute right-0 top-0 h-11 w-11 text-slate-400 hover:text-slate-600 flex items-center justify-center cursor-pointer"
                       onClick={() => setShowSignUpConfirm(!showSignUpConfirm)}
                     >
                       {showSignUpConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -343,7 +346,7 @@ export default function AuthPage() {
                 <Button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full h-12 bg-primary hover:bg-primary/80 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 font-bold uppercase tracking-[0.2em] text-xs rounded-xl transition-all duration-300 active:scale-[0.98] shadow-lg shadow-slate-900/10 dark:shadow-none"
+                  className="w-full h-11 bg-primary hover:bg-primary text-white font-medium rounded-lg transition-all duration-300 active:scale-[0.99] shadow-sm"
                 >
                   {isLoading ? (
                     <Loader2 className="h-5 w-5 animate-spin" />

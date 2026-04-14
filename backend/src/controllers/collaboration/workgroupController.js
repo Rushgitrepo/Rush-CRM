@@ -2,6 +2,28 @@ const db = require('../../config/database');
 const { v4: uuidv4 } = require('uuid');
 const realtimeService = require('../../services/realtimeService');
 
+const createSystemPost = async (workgroupId, actorUserId, content) => {
+  const postId = uuidv4();
+  await db.query(
+    `INSERT INTO workgroup_posts (
+      id, workgroup_id, user_id, content, content_type
+    ) VALUES ($1, $2, $3, $4, $5)`,
+    [postId, workgroupId, actorUserId, `[SYSTEM] ${content}`, 'text']
+  );
+
+  const postResult = await db.query(
+    `SELECT p.*, u.full_name as author_name, u.avatar_url as author_avatar
+     FROM workgroup_posts p
+     JOIN users u ON p.user_id = u.id
+     WHERE p.id = $1`,
+    [postId]
+  );
+
+  if (postResult.rows[0]) {
+    realtimeService.emitWorkgroupPost(workgroupId, postResult.rows[0]);
+  }
+};
+
 // Get all workgroups for organization
 const getWorkgroups = async (req, res, next) => {
   try {
@@ -131,6 +153,8 @@ const createWorkgroup = async (req, res, next) => {
     }
     
     const id = uuidv4();
+    await db.query('BEGIN');
+
     const query = `
       INSERT INTO workgroups (
         id, org_id, name, description, avatar_color, type, is_private, created_by
@@ -148,15 +172,26 @@ const createWorkgroup = async (req, res, next) => {
       is_private || false,
       req.user.id
     ]);
+
+    // Auto-add creator as owner so team can chat immediately.
+    await db.query(
+      `INSERT INTO workgroup_members (workgroup_id, user_id, role, invited_by)
+       VALUES ($1, $2, 'owner', $2)
+       ON CONFLICT (workgroup_id, user_id) DO NOTHING`,
+      [id, req.user.id]
+    );
     
     // Log activity
     await logActivity(id, req.user.id, 'workgroup_created', {
       workgroup_name: name.trim(),
       type: type || 'team'
     });
+
+    await db.query('COMMIT');
     
     res.status(201).json(result.rows[0]);
   } catch (err) {
+    await db.query('ROLLBACK').catch(() => {});
     next(err);
   }
 };
@@ -331,6 +366,19 @@ const addWorkgroupMember = async (req, res, next) => {
       return res.status(400).json({ error: 'User ID is required' });
     }
     
+    // Check workgroup and enforce org isolation
+    const workgroupCheckQuery = `
+      SELECT id, org_id FROM workgroups
+      WHERE id = $1 AND is_archived = false
+    `;
+    const workgroupCheckResult = await db.query(workgroupCheckQuery, [id]);
+    if (workgroupCheckResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Workgroup not found' });
+    }
+    if (workgroupCheckResult.rows[0].org_id !== req.user.orgId) {
+      return res.status(403).json({ error: 'You cannot manage members outside your organization' });
+    }
+
     // Check if current user can add members
     const permissionQuery = `
       SELECT wm.role, w.allow_member_add_remove
@@ -350,12 +398,12 @@ const addWorkgroupMember = async (req, res, next) => {
       return res.status(403).json({ error: 'You do not have permission to add members' });
     }
     
-    // Check if user exists
+    // Check if user exists in same organization
     const userQuery = `
       SELECT id, full_name FROM users 
-      WHERE id = $1
+      WHERE id = $1 AND org_id = $2
     `;
-    const userResult = await db.query(userQuery, [user_id]);
+    const userResult = await db.query(userQuery, [user_id, req.user.orgId]);
     
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
@@ -390,6 +438,19 @@ const addWorkgroupMember = async (req, res, next) => {
       added_user_name: userResult.rows[0].full_name,
       role: role || 'member'
     });
+
+    const actorResult = await db.query(
+      'SELECT full_name FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    const actorName = actorResult.rows[0]?.full_name || 'A member';
+    const addedName = userResult.rows[0]?.full_name || 'a user';
+    try {
+      await createSystemPost(id, req.user.id, `${actorName} added ${addedName} to the team.`);
+    } catch (systemErr) {
+      // Do not fail add-member API if system activity post fails.
+      console.error('Failed to create system activity post (member_added):', systemErr.message);
+    }
     
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -459,6 +520,23 @@ const removeWorkgroupMember = async (req, res, next) => {
       removed_user_name: full_name,
       was_self_removal: targetUserId === req.user.id
     });
+
+    const actorResult = await db.query(
+      'SELECT full_name FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    const actorName = actorResult.rows[0]?.full_name || 'A member';
+    const removedName = full_name || 'a user';
+    const systemMessage =
+      targetUserId === req.user.id
+        ? `${removedName} left the team.`
+        : `${actorName} removed ${removedName} from the team.`;
+    try {
+      await createSystemPost(id, req.user.id, systemMessage);
+    } catch (systemErr) {
+      // Do not fail remove-member API if system activity post fails.
+      console.error('Failed to create system activity post (member_removed):', systemErr.message);
+    }
     
     res.json({ message: 'Member removed successfully' });
   } catch (err) {

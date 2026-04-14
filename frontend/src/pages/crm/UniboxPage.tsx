@@ -72,7 +72,8 @@ export default function UniboxPage() {
     toggleStarred, 
     markAsRead, 
     toggleArchive, 
-    convertToLead 
+    convertToLead,
+    syncInstantly
   } = useUniboxEmails({
     status: statusFilter,
     search: searchQuery,
@@ -124,6 +125,15 @@ export default function UniboxPage() {
           <h1 className="text-3xl font-bold text-foreground">Unibox Mailbox</h1>
           <p className="text-muted-foreground">Manage emails from Instantly.ai and convert to leads</p>
         </div>
+        <Button 
+          variant="outline" 
+          onClick={() => syncInstantly.mutate()} 
+          disabled={syncInstantly.isPending}
+          className="gap-2"
+        >
+          <TrendingUp className={cn("h-4 w-4", syncInstantly.isPending && "animate-spin")} />
+          {syncInstantly.isPending ? "Syncing..." : "Sync Instantly"}
+        </Button>
       </div>
 
       {/* Stats Dashboard */}
