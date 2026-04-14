@@ -90,6 +90,8 @@ import CustomerDetailPage from "./pages/crm/CustomerDetailPage";
 // Tasks & Automation
 import TasksPage from "./pages/tasks/TasksPage";
 import WorkflowsPage from "./pages/automation/WorkflowsPage";
+import IntegrationsPage from "./pages/automation/IntegrationsPage";
+import WebhooksPage from "./pages/automation/WebhooksPage";
 // Projects
 import ProjectsDashboardPage from "./pages/projects/ProjectsDashboardPage";
 import ProjectDetailPage from "./pages/projects/ProjectDetailPage";
@@ -227,6 +229,8 @@ const App = () => (
                   {/* Tasks & Automation */}
                   <Route path="/tasks" element={<TasksPage />} />
                   <Route path="/automation/workflows" element={<WorkflowsPage />} />
+                  <Route path="/automation/integrations" element={<IntegrationsPage />} />
+                  <Route path="/automation/webhooks" element={<WebhooksPage />} />
                   {/* Projects — /projects redirects to /tasks, detail page stays */}
                   <Route path="/projects" element={<Navigate to="/tasks" replace />} />
                   <Route path="/projects/:id" element={<ProjectDetailPage />} />

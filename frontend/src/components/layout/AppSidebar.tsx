@@ -179,6 +179,8 @@ const navigation: NavItem[] = [
     icon: Zap,
     children: [
       { title: "Workflows", href: "/automation/workflows", icon: Zap },
+      { title: "Integrations", href: "/automation/integrations", icon: Package },
+      { title: "Webhooks", href: "/automation/webhooks", icon: Zap },
     ],
   },
   {
