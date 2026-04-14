@@ -702,6 +702,9 @@ const convertToDeal = async (req, res, next) => {
     const stage = lead.stage || 'qualification';
     const status = 'open';
 
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const validateUuid = (val) => val && uuidRegex.test(val) ? val : null;
+
     const { rows: dealRows } = await db.query(
       `INSERT INTO public.deals 
        (
@@ -726,8 +729,8 @@ const convertToDeal = async (req, res, next) => {
         req.user.orgId,
         req.user.id,
         lead.title || lead.name || 'Converted Lead',
-        lead.contact_id,
-        lead.company_id,
+        validateUuid(lead.contact_id),
+        validateUuid(lead.company_id),
         stage,
         status,
         lead.value,
@@ -756,7 +759,7 @@ const convertToDeal = async (req, res, next) => {
         lead.interaction_notes,
         lead.first_message,
         lead.last_touch,
-        lead.workspace_id,
+        validateUuid(lead.workspace_id),
         lead.source_info,
         lead.phone_type || 'work',
         lead.email_type || 'work',
@@ -764,7 +767,7 @@ const convertToDeal = async (req, res, next) => {
         lead.customer_type,
         lead.last_contacted_date,
         lead.next_follow_up_date,
-        lead.responsible_person || lead.assigned_to,
+        validateUuid(lead.responsible_person || lead.assigned_to),
         JSON.stringify(lead.custom_fields || {})
       ]
     );

@@ -128,7 +128,7 @@ export default function SalesPage() {
       header: "Order",
       render: (d) => (
         <div className="space-y-1">
-          <p className="font-semibold">{d.invoice_number || d.title || d.id}</p>
+          <p className="font-semibold">{d.invoice_number || d.title || `#${String(d.id).slice(0, 8)}`}</p>
           <p className="text-xs text-muted-foreground">{d.invoice_date || d.created_at ? new Date(d.invoice_date || d.created_at).toLocaleDateString() : "—"}</p>
         </div>
       ),
@@ -138,7 +138,11 @@ export default function SalesPage() {
       header: "Customer",
       render: (d) => {
         const customer = d.customer_name || d.contact_name || "—";
-        return <span className="text-sm text-foreground">{customer}</span>;
+        return (
+          <div className="space-y-0.5">
+            <p className="text-sm font-medium text-foreground">{customer}</p>
+          </div>
+        );
       },
     },
     {
@@ -146,19 +150,28 @@ export default function SalesPage() {
       header: "Amount",
       align: "right",
       sortable: true,
-      render: (d) => <span className="font-semibold">{formatCurrency(d.total_amount || d.subtotal || d.value || d.amount)}</span>,
+      render: (d) => (
+        <div className="text-right space-y-0.5">
+          <p className="font-semibold">{formatCurrency(d.total_amount || d.subtotal || d.value || d.amount || 0)}</p>
+          {d.paid_amount > 0 && (
+            <p className="text-xs text-green-600">Paid: {formatCurrency(d.paid_amount)}</p>
+          )}
+        </div>
+      ),
     },
     {
-      key: "items",
-      header: "Items",
-      render: (d) => <span className="text-sm text-muted-foreground">{d.items?.length ?? d.item_count ?? "—"}</span>,
+      key: "due_date",
+      header: "Due Date",
+      render: (d) => (
+        <span className="text-sm">{d.due_date ? new Date(d.due_date).toLocaleDateString() : "—"}</span>
+      ),
     },
     {
       key: "status",
       header: "Status",
       render: (d) => (
         <Badge variant="outline" className={getStatusColor(d.status)}>
-          {d.status || "Open"}
+          {d.status || "Draft"}
         </Badge>
       ),
     },

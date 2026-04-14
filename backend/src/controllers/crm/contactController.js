@@ -29,6 +29,10 @@ const updateContactSchema = Joi.object({
   source: Joi.string().optional().allow(null),
   notes: Joi.string().optional().allow(null),
   tags: Joi.array().items(Joi.string()).optional(),
+  salutation: Joi.string().optional().allow(null),
+  contactType: Joi.string().optional().allow(null),
+  address: Joi.string().optional().allow(null),
+  messenger: Joi.string().optional().allow(null),
 }).min(1);
 
 const getAll = async (req, res, next) => {
@@ -121,6 +125,7 @@ const normalizeContactInput = (body = {}) => {
     messenger: body.messenger ?? null,
     availableToEveryone: body.availableToEveryone ?? body.available_to_everyone ?? true,
     includedInExport: body.includedInExport ?? body.included_in_export ?? true,
+    salutation: body.salutation ?? null,
   };
 };
 
@@ -185,11 +190,12 @@ const update = async (req, res, next) => {
       includedInExport: 'included_in_export',
       address: 'address',
       messenger: 'messenger',
+      salutation: 'salutation',
     };
 
     for (const [key, val] of Object.entries(value)) {
       const dbField = fieldMapping[key];
-      if (dbField) {
+      if (dbField && val !== undefined) {
         fields.push(`${dbField} = $${paramIndex}`);
         values.push(val);
         paramIndex++;
@@ -230,6 +236,11 @@ const remove = async (req, res, next) => {
 
     res.json({ message: 'Contact deleted successfully' });
   } catch (err) {
+    if (err.code === '23503') {
+      return res.status(400).json({ 
+        error: 'This contact cannot be deleted because it is being used in invoices, deals, or other records. Please remove those records first.' 
+      });
+    }
     next(err);
   }
 };
