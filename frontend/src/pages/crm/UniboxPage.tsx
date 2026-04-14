@@ -461,7 +461,6 @@ export default function UniboxPage() {
                     value={selectedEmail.status}
                     onValueChange={(val) => {
                       updateStatus.mutate({ emailId: selectedEmail.id, status: val });
-                      setSelectedEmail({ ...selectedEmail, status: val });
                     }}
                   >
                     <SelectTrigger className="w-[180px] h-8 text-sm">

@@ -75,6 +75,9 @@ export default function ContactDetailPage() {
       toast.success("Contact deleted");
       navigate("/crm/contacts");
     },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to delete contact");
+    },
   });
 
   useEffect(() => {
@@ -218,11 +221,11 @@ export default function ContactDetailPage() {
                     <Field label="Contact Type" value={form.contact_type as string} onChange={(v) => set("contact_type", v)} editing={editing} />
                     <Field label="Source" value={form.source as string} onChange={(v) => set("source", v)} editing={editing} />
                     <div className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">Comment</Label>
+                      <Label className="text-xs text-muted-foreground">Notes</Label>
                       {editing ? (
-                        <Textarea value={form.comment as string || ""} onChange={(e) => set("comment", e.target.value)} rows={4} />
+                        <Textarea value={form.notes as string || ""} onChange={(e) => set("notes", e.target.value)} rows={4} />
                       ) : (
-                        <p className="text-sm whitespace-pre-wrap leading-relaxed">{(form.comment as string) || "—"}</p>
+                        <p className="text-sm whitespace-pre-wrap leading-relaxed">{(form.notes as string) || "—"}</p>
                       )}
                     </div>
                   </div>

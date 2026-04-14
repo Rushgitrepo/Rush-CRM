@@ -58,11 +58,24 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
 
   const handleSubmitComment = () => {
     if (!commentText.trim()) return;
-    createComment.mutate({
-      entityType: entityType,
-      entityId: entityId,
-      content: commentText,
-    });
+    
+    if (activeTab === "activity") {
+      // Create activity
+      createActivity.mutate({
+        entityType: entityType,
+        entityId: entityId,
+        activityType: 'note',
+        title: commentText,
+        description: commentText,
+      });
+    } else {
+      // Create comment
+      createComment.mutate({
+        entityType: entityType,
+        entityId: entityId,
+        content: commentText,
+      });
+    }
     setCommentText("");
   };
 
@@ -101,36 +114,34 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
     }
   };
 
-  // Merge activities and comments into a single timeline
-  // Since we use crm_activities for both now, we filter them to avoid duplicates
-  const timeline = [
-    ...activities.filter(a => a.activity_type !== 'comment').map(a => ({
-      id: a.id,
-      type: 'activity' as const,
-      content: a.title || a.description || a.activity_type,
-      detail: a.description,
-      activityType: a.activity_type,
-      createdAt: a.created_at,
-      userId: a.user_id,
-      userName: a.user_name || (a.user_id === user?.id ? profile?.full_name : null),
-    })),
-    ...comments.map(c => ({
-      id: c.id,
-      type: 'comment' as const,
-      content: c.content || c.description, // Support both formats
-      detail: null,
-      activityType: 'comment',
-      createdAt: c.created_at,
-      userId: c.user_id,
-      userName: c.user_name || (c.user_id === user?.id ? profile?.full_name : null),
-      isEdited: c.is_edited,
-    })),
-  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  // Separate timelines for activities and comments
+  const activityTimeline = activities.map(a => ({
+    id: a.id,
+    type: 'activity' as const,
+    content: a.title || a.description || a.activity_type,
+    detail: a.description,
+    activityType: a.activity_type,
+    createdAt: a.created_at,
+    userId: a.user_id,
+    userName: a.user_name || (a.user_id === user?.id ? profile?.full_name : null),
+  })).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const commentTimeline = comments.map(c => ({
+    id: c.id,
+    type: 'comment' as const,
+    content: c.content || c.description,
+    detail: null,
+    activityType: 'comment',
+    createdAt: c.created_at,
+    userId: c.user_id,
+    userName: c.user_name || (c.user_id === user?.id ? profile?.full_name : null),
+    isEdited: c.is_edited,
+  })).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   const filteredTimeline = activeTab === "activity"
-    ? timeline
+    ? activityTimeline
     : activeTab === "comment"
-    ? timeline.filter(t => t.type === 'comment')
+    ? commentTimeline
     : [];
 
   return (
@@ -176,7 +187,7 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
                 </div>
               )}
               <Textarea
-                placeholder={activeTab === "sms" ? "Write SMS message..." : "Add a comment..."}
+                placeholder={activeTab === "sms" ? "Write SMS message..." : activeTab === "activity" ? "Add an activity note..." : "Add a comment..."}
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
                 className="min-h-[60px] text-sm"
@@ -190,7 +201,7 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
                 <Button
                   size="sm"
                   onClick={activeTab === "sms" ? handleSendSms : handleSubmitComment}
-                  disabled={!commentText.trim() || createComment.isPending || isSending || (activeTab === "sms" && !activeProvider)}
+                  disabled={!commentText.trim() || createComment.isPending || createActivity.isPending || isSending || (activeTab === "sms" && !activeProvider)}
                   className="gap-1"
                 >
                   <Send className="h-3 w-3" />
