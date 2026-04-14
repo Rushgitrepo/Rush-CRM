@@ -146,7 +146,7 @@ const fallbackStages = [
     color: "bg-slate-500",
     bgColor: "bg-slate-50",
     textColor: "text-slate-700",
-    borderColor: "border-slate-200",
+    borderColor: "",
     icon: Award
   },
 ];
@@ -252,12 +252,12 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
       ) : (
         <div className="min-h-[2.5rem] px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 flex items-center">
           {type === "tel" ? (
-             <ClickToCall 
-               phoneNumber={value || ""} 
-               entityType="deal" 
-               entityId={entityId || ""} 
-               className="font-medium break-words w-full text-left" 
-             />
+            <ClickToCall
+              phoneNumber={value || ""}
+              entityType="deal"
+              entityId={entityId || ""}
+              className="font-medium break-words w-full text-left"
+            />
           ) : (
             <span className="text-gray-900 font-medium break-words w-full">{value}</span>
           )}
@@ -286,7 +286,7 @@ function displayJsonValue(value: unknown): string {
 
 const getStatusColor = (status: string) => {
   const stage = fallbackStages.find(s => s.id === status);
-  return stage ? `${stage.bgColor} ${stage.textColor} ${stage.borderColor}` : 'bg-slate-50 text-slate-700 border-slate-200';
+  return stage ? `${stage.bgColor} ${stage.textColor} ${stage.borderColor}` : 'bg-slate-50 text-slate-700 ';
 };
 
 const getStatusIcon = (status: string) => {
@@ -376,7 +376,7 @@ export default function DealDetailPage() {
       color: "bg-slate-500",
       bgColor: "bg-slate-50",
       textColor: "text-slate-700",
-      borderColor: "border-slate-200",
+      borderColor: "",
       icon: Clock
     }));
 
@@ -400,7 +400,7 @@ export default function DealDetailPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
-        <div className="text-center bg-white p-8 rounded-2xl shadow-xl border border-slate-200">
+        <div className="text-center  p-8 rounded-2xl shadow-xl border ">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <h3 className="text-lg font-semibold text-slate-900 mb-2">Loading Deal Details</h3>
           <p className="text-slate-600">Please wait while we fetch the information...</p>
@@ -412,7 +412,7 @@ export default function DealDetailPage() {
   if (!deal) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
-        <div className="text-center bg-white p-8 rounded-2xl shadow-xl border border-slate-200 max-w-md">
+        <div className="text-center  p-8 rounded-2xl shadow-xl border  max-w-md">
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <AlertCircle className="h-8 w-8 text-red-600" />
           </div>
@@ -441,8 +441,8 @@ export default function DealDetailPage() {
       return acc;
     }, {} as Record<string, string>);
 
-    updateDeal.mutate({ 
-      id: deal.id, 
+    updateDeal.mutate({
+      id: deal.id,
       ...changes,
       customFields: customFieldsObj
     }, {
@@ -543,9 +543,9 @@ export default function DealDetailPage() {
 
   const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+    <div className="min-h-screen">
       {/* Enterprise Header with Breadcrumb Navigation */}
-      <div className="bg-white border-b border-slate-200 shadow-sm">
+      <div className=" border-b  shadow-sm">
         <div className="px-4 md:px-6 py-4">
           {/* Professional Breadcrumb */}
           <nav className="flex flex-wrap items-center gap-2 text-sm text-slate-500 mb-6">
@@ -580,14 +580,14 @@ export default function DealDetailPage() {
                 </div>
                 <div>
                   <div className="flex flex-wrap items-center gap-3 mb-1">
-                    <h1 className="text-xl md:text-2xl font-bold text-slate-900 break-words max-w-[200px] sm:max-w-none">{deal.title}</h1>
+                    <h1 className="text-xl md:text-2xl font-bold text-white break-words max-w-[200px] sm:max-w-none">{deal.title}</h1>
                     <Badge className={cn("gap-1 px-3 py-1 font-medium whitespace-nowrap", getStatusColor(deal.stage))}>
                       {getStatusIcon(deal.stage)}
                       {pipelineStages.find(s => s.id === deal.stage)?.label || deal.stage}
                     </Badge>
                   </div>
                   <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-                    <div className="flex items-center gap-2 text-slate-600">
+                    <div className="flex items-center gap-2 text-white">
                       <Building2 className="h-4 w-4" />
                       <span className="font-medium">{linkedCompany?.name || 'No Company'}</span>
                     </div>
@@ -598,7 +598,7 @@ export default function DealDetailPage() {
                       </div>
                     )}
                     {deal.created_at && (
-                      <div className="flex items-center gap-1 text-slate-500 whitespace-nowrap">
+                      <div className="flex items-center gap-1 text-white whitespace-nowrap">
                         <CalendarIcon className="h-4 w-4" />
                         <span>Created {format(new Date(deal.created_at), 'MMM d, yyyy')}</span>
                       </div>
@@ -614,7 +614,7 @@ export default function DealDetailPage() {
                   <Button
                     variant="outline"
                     onClick={() => { setEditing(false); setForm({ ...deal }); }}
-                    className="gap-2 border-slate-300 text-slate-700"
+                    className="gap-2  text-slate-700"
                   >
                     Cancel
                   </Button>
@@ -631,11 +631,11 @@ export default function DealDetailPage() {
                 <>
                   {/* Quick Action Buttons */}
                   {linkedContact?.phone && (
-                    <ClickToCall 
-                      phoneNumber={linkedContact.phone} 
-                      entityType="deal" 
-                      entityId={deal.id} 
-                      className="gap-2 text-emerald-600 border-emerald-200 hover:bg-emerald-50" 
+                    <ClickToCall
+                      phoneNumber={linkedContact.phone}
+                      entityType="deal"
+                      entityId={deal.id}
+                      className="gap-2 text-emerald-600 border-emerald-200 hover:bg-emerald-50"
                       variant="outline"
                       size="sm"
                     />
@@ -657,7 +657,7 @@ export default function DealDetailPage() {
                   <Button
                     variant="outline"
                     onClick={() => setEditing(true)}
-                    className="gap-2 border-slate-300"
+                    className="gap-2 "
                   >
                     <Edit3 className="h-4 w-4" />
                     Edit Deal
@@ -705,11 +705,11 @@ export default function DealDetailPage() {
 
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="icon" className="border-slate-300">
+                      <Button variant="outline" size="icon" className="">
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-72 p-2 rounded-xl shadow-xl border-slate-200 z-[100] pointer-events-auto bg-white max-h-[450px] overflow-y-auto">
+                    <DropdownMenuContent align="end" className="w-72 p-2 rounded-xl shadow-xl  z-[100] pointer-events-auto  max-h-[450px] overflow-y-auto">
                       <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Communication</DropdownMenuLabel>
                       {linkedContact?.email && (
                         <DropdownMenuItem onSelect={() => copyToClipboard(linkedContact.email, 'Email')} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
@@ -826,7 +826,7 @@ export default function DealDetailPage() {
       </div>
 
       {/* Enterprise Metrics Dashboard */}
-      <div className="px-4 md:px-6 py-6 bg-white border-b border-slate-200">
+      <div className="px-4 md:px-6 py-6  border-b ">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
             <div className="flex items-center justify-between mb-3">
@@ -911,7 +911,7 @@ export default function DealDetailPage() {
       </div>
 
       {/* Interactive Pipeline Progress */}
-      <div className="px-4 md:px-6 py-6 bg-white border-b border-slate-200">
+      <div className="px-4 md:px-6 py-6  border-b ">
         <div className="mb-4">
           <h3 className="text-lg font-semibold text-slate-900 mb-2">Deal Pipeline Progress</h3>
           <p className="text-sm text-slate-600">Track your deal through each stage of the sales process</p>
@@ -932,7 +932,7 @@ export default function DealDetailPage() {
                         ? "bg-blue-600 border-blue-600 text-white shadow-lg scale-110"
                         : isPassed
                           ? "bg-emerald-500 border-emerald-500 text-white"
-                          : "bg-white border-slate-300 text-slate-400 hover:border-slate-400",
+                          : "   hover:",
                       isClickable && "hover:scale-105"
                     )}
                     onClick={() => isClickable && handleStageChange(stage.id)}
@@ -953,7 +953,7 @@ export default function DealDetailPage() {
                     )}>
                       {stage.label}
                     </div>
-                    <div className="text-xs text-slate-400 max-w-20 leading-tight">
+                    <div className="text-xs  max-w-20 leading-tight">
                       {stage.description}
                     </div>
                   </div>
@@ -976,10 +976,10 @@ export default function DealDetailPage() {
           {/* Professional Form Sections */}
           <div className="lg:col-span-8 space-y-6">
             {/* Deal Information Card */}
-            <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+            <Card className="shadow-lg border-0  backdrop-blur-sm">
               <CardHeader className="pb-4">
                 <div className="flex items-center gap-3">
-                  
+
                   <div>
                     <CardTitle className="text-lg text-slate-900">Deal Information</CardTitle>
                     <CardDescription className="text-slate-600">Core details about this deal</CardDescription>
@@ -1045,10 +1045,10 @@ export default function DealDetailPage() {
             </Card>
 
             {/* Contact Information Card */}
-            <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+            <Card className="shadow-lg border-0  backdrop-blur-sm">
               <CardHeader className="pb-4">
                 <div className="flex items-center gap-3">
-                  
+
                   <div>
                     <CardTitle className="text-lg text-slate-900">Contact Information</CardTitle>
                     <CardDescription className="text-slate-600">Details of the primary contact</CardDescription>
@@ -1064,7 +1064,7 @@ export default function DealDetailPage() {
                     </label>
                     {editing ? (
                       <Select value={form.contact_id as string} onValueChange={(val) => set("contact_id", val)}>
-                        <SelectTrigger className="border-slate-300 focus:border-blue-500 focus:ring-blue-500">
+                        <SelectTrigger className=" focus:border-blue-500 focus:ring-blue-500">
                           <SelectValue placeholder="Select contact..." />
                         </SelectTrigger>
                         <SelectContent>
@@ -1079,7 +1079,7 @@ export default function DealDetailPage() {
                         </SelectContent>
                       </Select>
                     ) : (
-                      <div className="h-10 px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 flex items-center">
+                      <div className="h-10 px-3 py-2 border  rounded-lg bg-slate-50 flex items-center">
                         <span className="text-slate-900 font-medium">
                           {linkedContact ? `${linkedContact.first_name} ${linkedContact.last_name || ''}`.trim() : 'No contact selected'}
                         </span>
@@ -1134,10 +1134,10 @@ export default function DealDetailPage() {
             </Card>
 
             {/* Company Information Card */}
-            <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+            <Card className="shadow-lg border-0  backdrop-blur-sm">
               <CardHeader className="pb-4">
                 <div className="flex items-center gap-3">
-                  
+
                   <div>
                     <CardTitle className="text-lg text-slate-900">Company Information</CardTitle>
                     <CardDescription className="text-slate-600">Organizational details</CardDescription>
@@ -1153,7 +1153,7 @@ export default function DealDetailPage() {
                     </label>
                     {editing ? (
                       <Select value={form.company_id as string} onValueChange={(val) => set("company_id", val)}>
-                        <SelectTrigger className="border-slate-300 focus:border-blue-500 focus:ring-blue-500">
+                        <SelectTrigger className=" focus:border-blue-500 focus:ring-blue-500">
                           <SelectValue placeholder="Select company..." />
                         </SelectTrigger>
                         <SelectContent>
@@ -1168,7 +1168,7 @@ export default function DealDetailPage() {
                         </SelectContent>
                       </Select>
                     ) : (
-                      <div className="h-10 px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 flex items-center">
+                      <div className="h-10 px-3 py-2 border  rounded-lg bg-slate-50 flex items-center">
                         <span className="text-slate-900 font-medium">{linkedCompany?.name || 'No company selected'}</span>
                       </div>
                     )}
@@ -1217,8 +1217,8 @@ export default function DealDetailPage() {
               </CardContent>
             </Card>
 
-            <Card className="border border-slate-200 bg-white shadow-sm rounded-xl">
-              <CardHeader className="border-b border-slate-200 bg-slate-50/80">
+            <Card className="border   shadow-sm rounded-xl">
+              <CardHeader className="border-b  bg-slate-50/80">
                 <CardTitle className="text-base text-slate-900">About Deal</CardTitle>
                 <CardDescription className="text-slate-500">Client and project basics</CardDescription>
               </CardHeader>
@@ -1227,7 +1227,7 @@ export default function DealDetailPage() {
                   <Label className="text-sm font-medium text-slate-700">Client Type</Label>
                   {editing ? (
                     <Select value={(form.client_type as string) || ""} onValueChange={(val) => set("client_type", val)}>
-                      <SelectTrigger className="border-slate-200 bg-white">
+                      <SelectTrigger className=" ">
                         <SelectValue placeholder="not selected" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1235,7 +1235,7 @@ export default function DealDetailPage() {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <div className="h-10 px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 flex items-center">
+                    <div className="h-10 px-3 py-2 border  rounded-lg bg-slate-50 flex items-center">
                       <span className="text-slate-900 font-medium">{(form.client_type as string) || 'Not selected'}</span>
                     </div>
                   )}
@@ -1244,7 +1244,7 @@ export default function DealDetailPage() {
                   <Label className="text-sm font-medium text-slate-700">Project Type</Label>
                   {editing ? (
                     <Select value={(form.project_type as string) || ""} onValueChange={(val) => set("project_type", val)}>
-                      <SelectTrigger className="border-slate-200 bg-white">
+                      <SelectTrigger className=" ">
                         <SelectValue placeholder="not selected" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1252,7 +1252,7 @@ export default function DealDetailPage() {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <div className="h-10 px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 flex items-center">
+                    <div className="h-10 px-3 py-2 border  rounded-lg bg-slate-50 flex items-center">
                       <span className="text-slate-900 font-medium">{(form.project_type as string) || 'Not selected'}</span>
                     </div>
                   )}
@@ -1261,7 +1261,7 @@ export default function DealDetailPage() {
                   <Label className="text-sm font-medium text-slate-700">Available to everyone</Label>
                   {editing ? (
                     <Select value={form.available_to_everyone === true ? "yes" : form.available_to_everyone === false ? "no" : "yes"} onValueChange={(val) => set("available_to_everyone", val === "yes")}>
-                      <SelectTrigger className="border-slate-200 bg-white">
+                      <SelectTrigger className=" ">
                         <SelectValue placeholder="not selected" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1269,7 +1269,7 @@ export default function DealDetailPage() {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <div className="h-10 px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 flex items-center">
+                    <div className="h-10 px-3 py-2 border  rounded-lg bg-slate-50 flex items-center">
                       <span className="text-slate-900 font-medium">
                         {form.available_to_everyone === true ? "Yes" : form.available_to_everyone === false ? "No" : "Not selected"}
                       </span>
@@ -1279,8 +1279,8 @@ export default function DealDetailPage() {
               </CardContent>
             </Card>
 
-            <Card className="border border-slate-200 bg-white shadow-sm rounded-xl">
-              <CardHeader className="border-b border-slate-200 bg-slate-50/80">
+            <Card className="border   shadow-sm rounded-xl">
+              <CardHeader className="border-b  bg-slate-50/80">
                 <CardTitle className="text-base text-slate-900">More</CardTitle>
                 <CardDescription className="text-slate-500">Source, deadline, and feedback</CardDescription>
               </CardHeader>
@@ -1289,7 +1289,7 @@ export default function DealDetailPage() {
                   <Label className="text-sm font-medium text-slate-700">Source</Label>
                   {editing ? (
                     <Select value={(form.source as string) || ""} onValueChange={(val) => set("source", val)}>
-                      <SelectTrigger className="border-slate-200 bg-white">
+                      <SelectTrigger className=" ">
                         <SelectValue placeholder="Not selected" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1304,7 +1304,7 @@ export default function DealDetailPage() {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <div className="h-10 px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 flex items-center">
+                    <div className="h-10 px-3 py-2 border  rounded-lg bg-slate-50 flex items-center">
                       <span className="text-slate-900 font-medium">{(form.source as string) || 'Not selected'}</span>
                     </div>
                   )}
@@ -1328,7 +1328,7 @@ export default function DealDetailPage() {
                   <Label className="text-sm font-medium text-slate-700">QA Status</Label>
                   {editing ? (
                     <Select value={(form.qa_status as string) || ""} onValueChange={(val) => set("qa_status", val)}>
-                      <SelectTrigger className="border-slate-200 bg-white">
+                      <SelectTrigger className=" ">
                         <SelectValue placeholder="not selected" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1336,7 +1336,7 @@ export default function DealDetailPage() {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <div className="h-10 px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 flex items-center">
+                    <div className="h-10 px-3 py-2 border  rounded-lg bg-slate-50 flex items-center">
                       <span className="text-slate-900 font-medium">{(form.qa_status as string) || 'Not selected'}</span>
                     </div>
                   )}
@@ -1364,15 +1364,15 @@ export default function DealDetailPage() {
               </CardContent>
             </Card>
 
-            <CustomFieldsSection 
-              fields={customFields} 
-              onChange={setCustomFields} 
+            <CustomFieldsSection
+              fields={customFields}
+              onChange={setCustomFields}
               className={!editing ? "opacity-90 pointer-events-none" : "animate-in fade-in slide-in-from-bottom-2 duration-300"}
             />
 
 
-            <Card className="border border-slate-200 bg-white shadow-sm rounded-xl">
-              <CardHeader className="border-b border-slate-200 bg-slate-50/80">
+            <Card className="border   shadow-sm rounded-xl">
+              <CardHeader className="border-b  bg-slate-50/80">
                 <CardTitle className="text-base text-slate-900">Budget & Payment</CardTitle>
                 <CardDescription className="text-slate-500">Proposal, invoice, and hourly pricing</CardDescription>
               </CardHeader>
@@ -1381,7 +1381,7 @@ export default function DealDetailPage() {
                   <Label className="text-sm font-medium text-slate-700">Payment Method</Label>
                   {editing ? (
                     <Select value={(form.payment_method as string) || ""} onValueChange={(val) => set("payment_method", val)}>
-                      <SelectTrigger className="border-slate-200 bg-white">
+                      <SelectTrigger className=" ">
                         <SelectValue placeholder="not selected" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1389,7 +1389,7 @@ export default function DealDetailPage() {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <div className="h-10 px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 flex items-center">
+                    <div className="h-10 px-3 py-2 border  rounded-lg bg-slate-50 flex items-center">
                       <span className="text-slate-900 font-medium">{(form.payment_method as string) || 'Not selected'}</span>
                     </div>
                   )}
@@ -1409,10 +1409,10 @@ export default function DealDetailPage() {
                       value={form.hourly_rate !== undefined && form.hourly_rate !== null ? String(form.hourly_rate) : ""}
                       onChange={(e) => set("hourly_rate", e.target.value ? Number(e.target.value) : null)}
                       disabled={!editing}
-                      className="border-slate-200 bg-white"
+                      className=" "
                     />
                     <Select value={(form.hourly_rate_currency as string) || "USD"} onValueChange={(val) => set("hourly_rate_currency", val)} disabled={!editing}>
-                      <SelectTrigger className="w-[120px] border-slate-200 bg-white"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="w-[120px]  "><SelectValue /></SelectTrigger>
                       <SelectContent>{currencyOptions.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
@@ -1432,10 +1432,10 @@ export default function DealDetailPage() {
                       value={form.proposal_amount !== undefined && form.proposal_amount !== null ? String(form.proposal_amount) : ""}
                       onChange={(e) => set("proposal_amount", e.target.value ? Number(e.target.value) : null)}
                       disabled={!editing}
-                      className="border-slate-200 bg-white"
+                      className=" "
                     />
                     <Select value={(form.proposal_currency as string) || "USD"} onValueChange={(val) => set("proposal_currency", val)} disabled={!editing}>
-                      <SelectTrigger className="w-[120px] border-slate-200 bg-white"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="w-[120px]  "><SelectValue /></SelectTrigger>
                       <SelectContent>{currencyOptions.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
@@ -1448,10 +1448,10 @@ export default function DealDetailPage() {
                       value={form.invoice_amount !== undefined && form.invoice_amount !== null ? String(form.invoice_amount) : ""}
                       onChange={(e) => set("invoice_amount", e.target.value ? Number(e.target.value) : null)}
                       disabled={!editing}
-                      className="border-slate-200 bg-white"
+                      className=" "
                     />
                     <Select value={(form.invoice_currency as string) || "USD"} onValueChange={(val) => set("invoice_currency", val)} disabled={!editing}>
-                      <SelectTrigger className="w-[120px] border-slate-200 bg-white"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="w-[120px]  "><SelectValue /></SelectTrigger>
                       <SelectContent>{currencyOptions.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
@@ -1459,8 +1459,8 @@ export default function DealDetailPage() {
               </CardContent>
             </Card>
 
-            <Card className="border border-slate-200 bg-white shadow-sm rounded-xl">
-              <CardHeader className="border-b border-slate-200 bg-slate-50/80">
+            <Card className="border   shadow-sm rounded-xl">
+              <CardHeader className="border-b  bg-slate-50/80">
                 <CardTitle className="text-base text-slate-900">Project Details</CardTitle>
                 <CardDescription className="text-slate-500">Scope and blueprint files</CardDescription>
               </CardHeader>
@@ -1489,7 +1489,7 @@ export default function DealDetailPage() {
             </Card>
 
             {/* Marketing & Qualification Card */}
-            <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+            <Card className="shadow-lg border-0  backdrop-blur-sm">
               <CardHeader className="pb-4">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-amber-100 rounded-lg">
@@ -1509,7 +1509,7 @@ export default function DealDetailPage() {
                   </label>
                   {editing ? (
                     <Select value={form.priority as string} onValueChange={(val) => set("priority", val)}>
-                      <SelectTrigger className="border-slate-300">
+                      <SelectTrigger className="">
                         <SelectValue placeholder="Select priority..." />
                       </SelectTrigger>
                       <SelectContent>
@@ -1520,12 +1520,12 @@ export default function DealDetailPage() {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <div className="h-10 px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 flex items-center">
+                    <div className="h-10 px-3 py-2 border  rounded-lg bg-slate-50 flex items-center">
                       <Badge className={cn(
                         form.priority === 'urgent' ? 'bg-red-100 text-red-700 border-red-200' :
                           form.priority === 'high' ? 'bg-orange-100 text-orange-700 border-orange-200' :
                             form.priority === 'medium' ? 'bg-blue-100 text-blue-700 border-blue-200' :
-                              'bg-slate-100 text-slate-700 border-slate-200'
+                              'bg-slate-100 text-slate-700 '
                       )}>
                         {(form.priority as string || 'Medium').toUpperCase()}
                       </Badge>
@@ -1576,7 +1576,7 @@ export default function DealDetailPage() {
             </Card>
 
             {/* Interaction Notes Card */}
-            <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+            <Card className="shadow-lg border-0  backdrop-blur-sm">
               <CardHeader className="pb-4">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-purple-100 rounded-lg">
@@ -1632,8 +1632,8 @@ export default function DealDetailPage() {
 
         {/* Activity & Documents Section - Standardized Full Width */}
         <div className="mt-12">
-          <Card ref={activitySectionRef} className="shadow-2xl border-0 bg-white overflow-hidden rounded-3xl scroll-mt-24 border-t-4 border-t-primary/20">
-            <CardHeader className="pb-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-8 py-6">
+          <Card ref={activitySectionRef} className="shadow-2xl border-0  overflow-hidden rounded-3xl scroll-mt-24 border-t-4 border-t-primary/20">
+            <CardHeader className="pb-4 border-b  bg-gradient-to-r from-slate-50 to-white px-8 py-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <div className="p-3 bg-primary/10 rounded-2xl">
@@ -1645,7 +1645,7 @@ export default function DealDetailPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">
+                  <Badge variant="outline" className="bg-slate-50 text-slate-600 ">
                     {sidebarTab === 'activity' ? 'Timeline View' : 'Files View'}
                   </Badge>
                 </div>
@@ -1653,7 +1653,7 @@ export default function DealDetailPage() {
             </CardHeader>
             <CardContent className="p-0">
               <Tabs value={sidebarTab} onValueChange={setSidebarTab} className="w-full">
-                <TabsList className="flex w-full justify-start gap-10 px-8 border-b border-slate-100 bg-slate-50/50 h-16 rounded-none">
+                <TabsList className="flex w-full justify-start gap-10 px-8 border-b  bg-slate-50/50 h-16 rounded-none">
                   <TabsTrigger
                     value="activity"
                     className="relative px-4 h-full bg-transparent border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none rounded-none gap-2 text-base font-semibold transition-all hover:text-primary/70"
@@ -1671,7 +1671,7 @@ export default function DealDetailPage() {
                 </TabsList>
 
                 <TabsContent value="activity" className="mt-0 p-8">
-                  <div className="rounded-xl bg-white border border-slate-100 shadow-sm p-4 md:p-6 min-h-[500px]">
+                  <div className="rounded-xl  border  shadow-sm p-4 md:p-6 min-h-[500px]">
                     <InteractionPanel
                       entityType="deal"
                       entityId={deal.id}
@@ -1683,7 +1683,7 @@ export default function DealDetailPage() {
                 </TabsContent>
 
                 <TabsContent value="files" className="mt-0 p-8">
-                  <div className="rounded-xl bg-white border border-slate-100 shadow-sm p-4 md:p-6 min-h-[500px]">
+                  <div className="rounded-xl  border  shadow-sm p-4 md:p-6 min-h-[500px]">
                     <EntityFilesSection entityType="deal" entityId={deal.id} />
                   </div>
                 </TabsContent>

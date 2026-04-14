@@ -416,7 +416,7 @@ export default function LeadsPage() {
           <WorkspaceFilter 
             value={workspaceFilter} 
             onChange={setWorkspaceFilter}
-            className="border-slate-200 bg-white"
+            
           />
           <Button variant="outline" size="sm" onClick={() => { setType("all"); setWorkspaceFilter("all"); }}>
             Reset Filters
@@ -439,7 +439,7 @@ export default function LeadsPage() {
       </DataToolbar>
 
       {view === "list" && (
-        <Card className="border border-slate-200 bg-white shadow-sm">
+        <Card >
           <CardContent className="p-4 lg:p-6">
             <EntityTable
               data={filtered}

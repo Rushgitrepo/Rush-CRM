@@ -159,14 +159,44 @@
 
 @layer utilities {
   .text-balance { text-wrap: balance; }
-  .custom-scrollbar::-webkit-scrollbar { width: 5px; }
-  .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+  
+  /* Custom Scrollbars */
+  .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+  .custom-scrollbar::-webkit-scrollbar-track { 
+    background: hsl(var(--muted) / 0.3);
+    border-radius: 10px;
+  }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: hsl(var(--sidebar-accent));
-    border-radius: 20px;
+    background: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 10px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: hsl(var(--sidebar-primary) / 0.4);
+    background: hsl(var(--primary) / 0.5);
+    background-clip: padding-box;
+  }
+  
+  /* Apply to all scrollable elements */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.3) hsl(var(--muted) / 0.3);
+  }
+  
+  *::-webkit-scrollbar { width: 8px; height: 8px; }
+  *::-webkit-scrollbar-track { 
+    background: hsl(var(--muted) / 0.3);
+    border-radius: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 10px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--primary) / 0.5);
+    background-clip: padding-box;
   }
 }
 

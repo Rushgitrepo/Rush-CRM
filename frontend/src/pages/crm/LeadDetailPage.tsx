@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Trash2, Save, ArrowRightLeft, Phone, Mail, Globe,
@@ -275,7 +275,7 @@ const getStatusColor = (status: string) => {
     case 'new': return 'bg-amber-50 text-amber-700 border-amber-200';
     case 'proposal': return 'bg-purple-50 text-purple-700 border-purple-200';
     case 'negotiation': return 'bg-orange-50 text-orange-700 border-orange-200';
-    default: return 'bg-slate-50 text-slate-700 border-slate-200';
+    default: return ' text-slate-700 ';
   }
 };
 
@@ -457,7 +457,7 @@ export default function LeadDetailPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary/5 flex items-center justify-center">
-        <div className="text-center bg-white p-8 rounded-2xl shadow-xl border border-slate-200">
+        <div className="text-center  p-8 rounded-2xl shadow-xl border ">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
           <h3 className="text-lg font-semibold text-slate-900 mb-2">Loading Lead Details</h3>
           <p className="text-slate-600">Please wait while we fetch the information...</p>
@@ -469,7 +469,7 @@ export default function LeadDetailPage() {
   if (!lead && !deleteLead.isPending && !deleteLead.isSuccess) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary/5 flex items-center justify-center">
-        <div className="text-center bg-white p-8 rounded-2xl shadow-xl border border-slate-200 max-w-md">
+        <div className="text-center  p-8 rounded-2xl shadow-xl border  max-w-md">
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <AlertCircle className="h-8 w-8 text-red-600" />
           </div>
@@ -485,12 +485,12 @@ export default function LeadDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen ">
       {/* Enterprise Header with Breadcrumb Navigation */}
-      <div className="bg-white border-b border-slate-200 shadow-sm">
+      <div className=" border-b  shadow-sm">
         <div className="px-6 py-4">
           {/* Professional Breadcrumb */}
-          <nav className="flex items-center gap-2 text-sm text-slate-500 mb-6">
+          <nav className="flex items-center gap-2 text-sm  mb-6">
             <span className="hover:text-slate-700 cursor-pointer">CRM</span>
             <ChevronRight className="h-4 w-4" />
             <span className="hover:text-slate-700 cursor-pointer" onClick={() => navigate('/crm/leads')}>Leads</span>
@@ -522,14 +522,14 @@ export default function LeadDetailPage() {
                 </div>
                 <div>
                   <div className="flex flex-wrap items-center gap-3 mb-1">
-                    <h1 className="text-xl md:text-2xl font-bold text-slate-900 break-words max-w-[200px] sm:max-w-none">{lead.title}</h1>
+                    <h1 className="text-xl md:text-2xl font-bold text-white-900 break-words max-w-[200px] sm:max-w-none">{lead.title}</h1>
                     <Badge className={cn("gap-1 px-3 py-1 font-medium whitespace-nowrap", getStatusColor(lead.status))}>
                       {getStatusIcon(lead.status)}
                       {lead.status || 'New Lead'}
                     </Badge>
                   </div>
                   <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-                    <div className="flex items-center gap-2 text-slate-600">
+                    <div className="flex items-center gap-2 text-white-600">
                       <Building2 className="h-4 w-4 shrink-0" />
                       <span className="font-medium break-words">{lead.company_name || 'No Company'}</span>
                     </div>
@@ -540,7 +540,7 @@ export default function LeadDetailPage() {
                       </div>
                     )}
                     {lead.created_at && (
-                      <div className="flex items-center gap-1 text-slate-500 whitespace-nowrap">
+                      <div className="flex items-center gap-1  whitespace-nowrap">
                         <CalendarIcon className="h-4 w-4" />
                         <span>Created {format(new Date(lead.created_at), 'MMM d, yyyy')}</span>
                       </div>
@@ -556,7 +556,7 @@ export default function LeadDetailPage() {
                   <Button
                     variant="outline"
                     onClick={() => { setEditing(false); setForm({ ...lead }); }}
-                    className="gap-2 border-slate-300 text-slate-700"
+                    className="gap-2  text-slate-700"
                   >
                     Cancel
                   </Button>
@@ -576,7 +576,7 @@ export default function LeadDetailPage() {
                       phoneNumber={lead.phone}
                       entityType="lead"
                       entityId={id}
-                      className="px-3 py-1 text-sm border-emerald-200 text-emerald-600 bg-white hover:bg-emerald-50 rounded-md border"
+                      className="px-3 py-1 text-sm border-emerald-200 text-emerald-600  hover:bg-emerald-50 rounded-md border"
                     />
                   )}
                   {lead.email && (
@@ -596,7 +596,7 @@ export default function LeadDetailPage() {
                   <Button
                     variant="outline"
                     onClick={() => setEditing(true)}
-                    className="gap-2 border-slate-300"
+                    className="gap-2 "
                   >
                     <Edit3 className="h-4 w-4" />
                     Edit Lead
@@ -604,7 +604,7 @@ export default function LeadDetailPage() {
 
                   {lead.status === 'converted' || lead.converted_to_deal_id ? (
                     <Button
-                      className="gap-2 bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300 shadow-sm"
+                      className="gap-2 bg-slate-100 text-slate-700 hover:bg-slate-200 border  shadow-sm"
                       onClick={() => navigate(`/crm/deals/${lead.converted_to_deal_id || ''}`)}
                     >
                       <Target className="h-4 w-4 text-emerald-600" />
@@ -622,15 +622,15 @@ export default function LeadDetailPage() {
 
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="icon" className="h-10 w-10 border-slate-200 bg-slate-50 hover:bg-white hover:border-primary transition-all shadow-sm group">
-                        <MoreHorizontal className="h-5 w-5 text-slate-500 group-hover:text-slate-900 transition-colors" />
+                      <Button variant="outline" size="icon" className="h-10 w-10   hover: hover:border-primary transition-all shadow-sm group">
+                        <MoreHorizontal className="h-5 w-5  group-hover:text-slate-900 transition-colors" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-80 max-h-[450px] overflow-y-auto p-1.5 shadow-[0_20px_50px_rgba(0,0,0,0.2)] border-slate-200 z-[100] bg-white rounded-xl animate-in fade-in-0 transform-gpu zoom-in-95">
+                    <DropdownMenuContent align="end" className="w-80 max-h-[450px] overflow-y-auto p-1.5 shadow-[0_20px_50px_rgba(0,0,0,0.2)]  z-[100]  rounded-xl animate-in fade-in-0 transform-gpu zoom-in-95">
                       <DropdownMenuLabel className="px-2.5 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">Communication</DropdownMenuLabel>
                       {lead.email && (
                         <DropdownMenuItem
-                          className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-slate-50 transition-all group"
+                          className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover: transition-all group"
                           onSelect={() => copyToClipboard(lead.email, 'Email')}
                         >
                           <div className="p-2 bg-blue-50 rounded-md group-hover:bg-blue-100 transition-colors">
@@ -638,13 +638,13 @@ export default function LeadDetailPage() {
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="font-semibold text-sm text-slate-900">Copy Email Address</p>
-                            <p className="text-xs text-slate-500 truncate">{lead.email}</p>
+                            <p className="text-xs  truncate">{lead.email}</p>
                           </div>
                         </DropdownMenuItem>
                       )}
                       {lead.phone && (
                         <DropdownMenuItem
-                          className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-slate-50 transition-all group"
+                          className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover: transition-all group"
                           onSelect={() => copyToClipboard(lead.phone, 'Phone')}
                         >
                           <div className="p-2 bg-emerald-50 rounded-md group-hover:bg-emerald-100 transition-colors">
@@ -652,7 +652,7 @@ export default function LeadDetailPage() {
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="font-semibold text-sm text-slate-900">Copy Phone Number</p>
-                            <p className="text-xs text-slate-500">{lead.phone}</p>
+                            <p className="text-xs ">{lead.phone}</p>
                           </div>
                         </DropdownMenuItem>
                       )}
@@ -661,7 +661,7 @@ export default function LeadDetailPage() {
 
                       <DropdownMenuLabel className="px-2.5 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">Quick Jump</DropdownMenuLabel>
                       <DropdownMenuItem
-                        className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-slate-50 transition-all group"
+                        className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover: transition-all group"
                         onSelect={() => handleScrollToActivity("activity")}
                       >
                         <div className="p-2 bg-purple-50 rounded-md group-hover:bg-purple-100 transition-colors">
@@ -692,7 +692,7 @@ export default function LeadDetailPage() {
 
                       <DropdownMenuLabel className="px-2.5 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">Reports & Data</DropdownMenuLabel>
                       <DropdownMenuItem
-                        className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-slate-50 transition-all group"
+                        className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover: transition-all group"
                         onSelect={handlePrint}
                       >
                         <div className="p-2 bg-orange-50 rounded-md group-hover:bg-orange-100 transition-colors">
@@ -701,7 +701,7 @@ export default function LeadDetailPage() {
                         <p className="font-semibold text-sm text-slate-900 flex-1">Print Lead Details</p>
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-slate-50 transition-all group"
+                        className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover: transition-all group"
                         onSelect={handleExport}
                       >
                         <div className="p-2 bg-emerald-50 rounded-md group-hover:bg-emerald-100 transition-colors">
@@ -714,7 +714,7 @@ export default function LeadDetailPage() {
 
                       <DropdownMenuLabel className="px-2.5 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">Access & Admin</DropdownMenuLabel>
                       <DropdownMenuItem
-                        className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-slate-50 transition-all group"
+                        className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover: transition-all group"
                         onSelect={() => setShowWorkspaceModal(true)}
                       >
                         <div className="p-2 bg-slate-100 rounded-md group-hover:bg-slate-200 transition-colors">
@@ -763,15 +763,15 @@ export default function LeadDetailPage() {
       </div>
       {/* Enterprise Pipeline Progress Tracker */}
       <div className="px-6 pb-6">
-        <div className="bg-gradient-to-r from-slate-50 to-primary/5 rounded-xl p-6 border border-slate-200">
+        <div className="rounded-xl p-6 border ">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-lg font-semibold text-slate-900">Lead Progress Pipeline</h3>
-              <p className="text-sm text-slate-600">Track your lead through the sales process</p>
+              <h3 className="text-lg font-semibold text-white-900">Lead Progress Pipeline</h3>
+              <p className="text-sm text-white-600">Track your lead through the sales process</p>
             </div>
             <div className="text-right">
-              <div className="text-sm text-slate-500">Progress</div>
-              <div className="text-lg font-bold text-slate-900">
+              <div className="text-sm ">Progress</div>
+              <div className="text-lg font-bold text-white-900">
                 {Math.round(((pipelineStages.findIndex(s => s.id === (form.stage || lead.stage)) + 1) / pipelineStages.length) * 100)}%
               </div>
             </div>
@@ -795,7 +795,7 @@ export default function LeadDetailPage() {
                           ? "bg-red-50 border-red-200 text-red-700 shadow-lg"
                           : isPassed && !isUnqualified
                             ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                            : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300"
+                            : "   hover: hover:"
                     )}
                   >
                     <div className="flex items-center gap-3">
@@ -839,7 +839,7 @@ export default function LeadDetailPage() {
           <div className="lg:col-span-8 space-y-8">
             {/* Enterprise Metrics Dashboard */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card className="border border-slate-200 bg-white shadow-sm">
+              <Card className="border   shadow-sm">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-slate-100 rounded-lg">
@@ -854,7 +854,7 @@ export default function LeadDetailPage() {
                 </CardContent>
               </Card>
 
-              <Card className="border border-slate-200 bg-white shadow-sm">
+              <Card className="border   shadow-sm">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-slate-100 rounded-lg">
@@ -869,7 +869,7 @@ export default function LeadDetailPage() {
                 </CardContent>
               </Card>
 
-              <Card className="border border-slate-200 bg-white shadow-sm">
+              <Card className="border   shadow-sm">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-slate-100 rounded-lg">
@@ -890,8 +890,8 @@ export default function LeadDetailPage() {
             {/* Professional Form Sections */}
             <div className="space-y-8">
               {/* Lead and Company Details */}
-              <Card className="border border-slate-200 bg-white shadow-sm">
-                <CardHeader className="border-b border-slate-200 bg-slate-50/80 rounded-t-lg">
+              <Card className="border   shadow-sm">
+                <CardHeader className="border-b  /80 rounded-t-lg">
                   <CardTitle className="flex items-center gap-3 text-xl">
                     Lead and Company Details
                   </CardTitle>
@@ -1108,8 +1108,8 @@ export default function LeadDetailPage() {
                 </CardContent>
               </Card>
               {/* Activity & Interaction Tracking */}
-              <Card className="border border-slate-200 bg-white shadow-sm">
-                <CardHeader className="border-b border-slate-200 bg-slate-50/80 rounded-t-lg">
+              <Card className="border   shadow-sm">
+                <CardHeader className="border-b  /80 rounded-t-lg">
                   <CardTitle className="flex items-center gap-3 text-xl">
                     Activity & Interaction Tracking
                   </CardTitle>
@@ -1152,8 +1152,8 @@ export default function LeadDetailPage() {
               </Card>
 
               {/* Qualification & Opportunity */}
-              <Card className="border border-slate-200 bg-white shadow-sm">
-                <CardHeader className="border-b border-slate-200 bg-slate-50/80 rounded-t-lg">
+              <Card className="border   shadow-sm">
+                <CardHeader className="border-b  /80 rounded-t-lg">
                   <CardTitle className="flex items-center gap-3 text-xl">
 
                     Qualification & Opportunity
@@ -1241,8 +1241,8 @@ export default function LeadDetailPage() {
               </Card>
 
               {/* Source */}
-              <Card className="border border-slate-200 bg-white shadow-sm">
-                <CardHeader className="border-b border-slate-200 bg-slate-50/80 rounded-t-lg">
+              <Card className="border   shadow-sm">
+                <CardHeader className="border-b  /80 rounded-t-lg">
                   <CardTitle className="flex items-center gap-3 text-xl">
                     Source
                   </CardTitle>
@@ -1301,8 +1301,8 @@ export default function LeadDetailPage() {
           {/* Right Sidebar - Enterprise Dashboard */}
           <div className="lg:col-span-4 space-y-8">
             {/* Lead Summary Dashboard */}
-            <Card className="border border-slate-200 bg-white shadow-sm">
-              <CardHeader className="pb-4 border-b border-slate-200 bg-slate-50/80">
+            <Card className="border   shadow-sm">
+              <CardHeader className="pb-4 border-b  /80">
                 <CardTitle className="text-2xl flex items-center gap-3">
                   <div className="p-2 bg-slate-100 rounded-lg">
                     <Award className="h-6 w-6 text-slate-700" />
@@ -1311,7 +1311,7 @@ export default function LeadDetailPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="text-center pb-6 border-b border-slate-200">
+                <div className="text-center pb-6 border-b ">
                   <Avatar className="h-20 w-20 mx-auto mb-4 ring-2 ring-white shadow-sm">
                     <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${lead.title}`} />
                     <AvatarFallback className="bg-slate-800 text-white text-2xl font-bold">
@@ -1320,27 +1320,27 @@ export default function LeadDetailPage() {
                   </Avatar>
                   <h3 className="font-bold text-xl text-slate-900 mb-1 break-words">{lead.title}</h3>
                   <p className="text-slate-600 font-medium break-words">{lead.company_name}</p>
-                  <p className="text-sm text-slate-500 break-words">{lead.designation}</p>
+                  <p className="text-sm  break-words">{lead.designation}</p>
                 </div>
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
+                  <div className="flex items-center justify-between p-4  rounded-lg border ">
                     <span className="text-sm font-semibold text-slate-600">Current Status</span>
                     <Badge className={cn("gap-1 px-3 py-1", getStatusColor(lead.status))}>
                       {getStatusIcon(lead.status)}
                       {lead.status || 'New Lead'}
                     </Badge>
                   </div>
-                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
+                  <div className="flex items-center justify-between p-4  rounded-lg border ">
                     <span className="text-sm font-semibold text-slate-600">Potential Value</span>
                     <span className="font-bold text-lg text-emerald-600">
                       {lead.value ? `$${Number(lead.value).toLocaleString()}` : 'Not specified'}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
+                  <div className="flex items-center justify-between p-4  rounded-lg border ">
                     <span className="text-sm font-semibold text-slate-600">Source</span>
                     <span className="text-sm font-semibold text-slate-900">{lead.source || 'Unknown'}</span>
                   </div>
-                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
+                  <div className="flex items-center justify-between p-4  rounded-lg border ">
                     <span className="text-sm font-semibold text-slate-600">Date Created</span>
                     <span className="text-sm font-medium text-slate-700">
                       {lead.created_at ? format(new Date(lead.created_at), 'MMM d, yyyy') : 'Unknown'}
@@ -1351,8 +1351,8 @@ export default function LeadDetailPage() {
             </Card>
 
             {/* Enterprise Quick Actions */}
-            <Card className="border border-slate-200 bg-white shadow-sm">
-              <CardHeader className="border-b border-slate-200 bg-slate-50/80">
+            <Card className="border   shadow-sm">
+              <CardHeader className="border-b  /80">
                 <CardTitle className="text-xl flex items-center gap-3">
                   <div className="p-2 bg-slate-100 rounded-lg">
                     <Zap className="h-5 w-5 text-slate-700" />
@@ -1367,7 +1367,7 @@ export default function LeadDetailPage() {
                       phoneNumber={lead.phone}
                       entityType="lead"
                       entityId={lead.id}
-                      className="w-full justify-start p-0 h-14 text-left border border-slate-200 hover:bg-slate-50 transition-all rounded-md overflow-hidden bg-white"
+                      className="w-full justify-start p-0 h-14 text-left border  hover: transition-all rounded-md overflow-hidden "
                       customTrigger={
                         <div className="flex items-center gap-4 w-full h-full px-4">
                           <div className="p-3 bg-slate-100 rounded-lg">
@@ -1375,7 +1375,7 @@ export default function LeadDetailPage() {
                           </div>
                           <div>
                             <p className="font-semibold text-slate-900">Call Lead</p>
-                            <p className="text-sm text-slate-500">{lead.phone}</p>
+                            <p className="text-sm ">{lead.phone}</p>
                           </div>
                         </div>
                       }
@@ -1386,7 +1386,7 @@ export default function LeadDetailPage() {
                 {lead.email && (
                   <Button
                     variant="outline"
-                    className="w-full justify-start gap-4 h-14 text-left border border-slate-200 hover:bg-slate-50 transition-all"
+                    className="w-full justify-start gap-4 h-14 text-left border  hover: transition-all"
                     onClick={() => window.open(`mailto:${lead.email}`, '_blank')}
                   >
                     <div className="p-3 bg-slate-100 rounded-lg">
@@ -1394,7 +1394,7 @@ export default function LeadDetailPage() {
                     </div>
                     <div>
                       <p className="font-semibold text-slate-900">Send Email</p>
-                      <p className="text-sm text-slate-500">{lead.email}</p>
+                      <p className="text-sm ">{lead.email}</p>
                     </div>
                   </Button>
                 )}
@@ -1402,7 +1402,7 @@ export default function LeadDetailPage() {
                 {lead.website && (
                   <Button
                     variant="outline"
-                    className="w-full justify-start gap-4 h-14 text-left border border-slate-200 hover:bg-slate-50 transition-all"
+                    className="w-full justify-start gap-4 h-14 text-left border  hover: transition-all"
                     onClick={() => window.open(lead.website, '_blank')}
                   >
                     <div className="p-3 bg-slate-100 rounded-lg">
@@ -1410,14 +1410,14 @@ export default function LeadDetailPage() {
                     </div>
                     <div>
                       <p className="font-semibold text-slate-900">Visit Website</p>
-                      <p className="text-sm text-slate-500">Open in new tab</p>
+                      <p className="text-sm ">Open in new tab</p>
                     </div>
                   </Button>
                 )}
 
                 <Button
                   variant="outline"
-                  className="w-full justify-start gap-4 h-14 text-left border border-slate-200 hover:bg-slate-50 transition-all"
+                  className="w-full justify-start gap-4 h-14 text-left border  hover: transition-all"
                   onClick={() => handleScrollToActivity("activity", "booking")}
                 >
                   <div className="p-3 bg-slate-100 rounded-lg">
@@ -1425,7 +1425,7 @@ export default function LeadDetailPage() {
                   </div>
                   <div>
                     <p className="font-semibold text-slate-900">Schedule Meeting</p>
-                    <p className="text-sm text-slate-500">Book a call or demo</p>
+                    <p className="text-sm ">Book a call or demo</p>
                   </div>
                 </Button>
               </CardContent>
@@ -1436,8 +1436,8 @@ export default function LeadDetailPage() {
 
         {/* Activity & Documents Dashboard - Prominent Full Width Section */}
         <div className="mt-12">
-          <Card ref={activitySectionRef} className="border border-slate-200 bg-white shadow-sm scroll-mt-24 overflow-hidden">
-            <CardHeader className="pb-4 bg-slate-50/80">
+          <Card ref={activitySectionRef} className="border   shadow-sm scroll-mt-24 overflow-hidden">
+            <CardHeader className="pb-4 /80">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <CardTitle className="text-2xl flex items-center gap-3">
@@ -1448,7 +1448,7 @@ export default function LeadDetailPage() {
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">
+                  <Badge variant="outline" className=" text-slate-600 ">
                     {sidebarTab === 'activity' ? 'Timeline View' : 'Files View'}
                   </Badge>
                 </div>
@@ -1456,7 +1456,7 @@ export default function LeadDetailPage() {
             </CardHeader>
             <CardContent className="p-0">
               <Tabs value={sidebarTab} onValueChange={setSidebarTab} className="w-full">
-                <TabsList className="flex w-full items-center justify-start h-16 border-b border-slate-100 rounded-none bg-slate-50/50 px-6 gap-8">
+                <TabsList className="flex w-full items-center justify-start h-16 border-b  rounded-none /50 px-6 gap-8">
                   <TabsTrigger
                     value="activity"
                     className="relative px-4 h-full bg-transparent border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none rounded-none gap-2 text-base font-semibold transition-all hover:text-primary/70"
@@ -1474,7 +1474,7 @@ export default function LeadDetailPage() {
                 </TabsList>
 
                 <TabsContent value="activity" className="m-0 border-0 p-6 md:p-8">
-                  <div className="rounded-xl bg-white border border-slate-100 shadow-sm p-4 md:p-6 min-h-[500px]">
+                  <div className="rounded-xl  border  shadow-sm p-4 md:p-6 min-h-[500px]">
                     <InteractionPanel
                       entityType="lead"
                       entityId={lead.id}
@@ -1486,7 +1486,7 @@ export default function LeadDetailPage() {
                 </TabsContent>
 
                 <TabsContent value="files" className="m-0 border-0 p-6 md:p-8">
-                  <div className="rounded-xl bg-white border border-slate-100 shadow-sm p-4 md:p-6 min-h-[500px]">
+                  <div className="rounded-xl  border  shadow-sm p-4 md:p-6 min-h-[500px]">
                     <EntityFilesSection entityType="lead" entityId={lead.id} />
                   </div>
                 </TabsContent>
@@ -1571,17 +1571,17 @@ export default function LeadDetailPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="py-4 space-y-4">
-            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+            <div className="flex items-center justify-between p-3  rounded-lg border ">
               <div className="flex items-center gap-3">
                 <Avatar className="h-8 w-8">
                   <AvatarFallback className="text-xs">U</AvatarFallback>
                 </Avatar>
                 <div>
                   <p className="text-sm font-semibold">You (Owner)</p>
-                  <p className="text-xs text-slate-500">Full Access</p>
+                  <p className="text-xs ">Full Access</p>
                 </div>
               </div>
-              <Badge variant="outline" className="bg-white border-slate-200">Owner</Badge>
+              <Badge variant="outline" className=" ">Owner</Badge>
             </div>
             <p className="text-xs text-center text-slate-400 italic">Collaborative workspace features are coming soon to Rush CRM.</p>
           </div>
