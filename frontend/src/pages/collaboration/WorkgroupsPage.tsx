@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Card,
   CardContent,
@@ -57,18 +58,23 @@ import {
   ChevronDown,
   LayoutGrid,
   List,
+  MessageCircle,
 } from "lucide-react";
 import {
   useWorkgroups,
   useCreateWorkgroup,
   useUpdateWorkgroup,
   useDeleteWorkgroup,
-  useWorkgroupMemberCounts,
-  useWorkgroupPostCounts,
+  useWorkgroupMembers,
+  type WorkgroupMember,
   type Workgroup,
 } from "@/hooks/useWorkgroups";
 import WorkgroupDetailView from "@/components/workgroups/WorkgroupDetailView";
 import { toast } from "sonner";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { useRealtime } from "@/hooks/useRealtime";
+import { useAdminUsers } from "@/hooks/useAdminUsers";
 
 const WORKGROUP_TYPES = [
   {
@@ -98,20 +104,54 @@ const WORKGROUP_TYPES = [
 ];
 
 export default function WorkgroupsPage() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const {
+    on: onRealtime,
+    off: offRealtime,
+    subscribeToWorkgroup,
+    unsubscribeFromWorkgroup,
+  } = useRealtime();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { data: workgroups = [], isLoading } = useWorkgroups();
+  useAdminUsers();
   const createWg = useCreateWorkgroup();
   const updateWg = useUpdateWorkgroup();
   const deleteWg = useDeleteWorkgroup();
 
-  const wgIds = workgroups.map((w) => w.id);
-  const { data: memberCounts = {} } = useWorkgroupMemberCounts(wgIds);
-  const { data: postCounts = {} } = useWorkgroupPostCounts(wgIds);
+  const visibleWorkgroups = workgroups.filter((wg) => {
+    // Defense-in-depth: never render private teams for non-members.
+    const canAccessPrivate = !wg.is_private || Boolean(wg.is_member || wg.user_role);
+    return canAccessPrivate;
+  });
+
+  const totalMembers = visibleWorkgroups.reduce(
+    (sum, wg) => sum + Number(wg.member_count || 0),
+    0,
+  );
+  const todayMessages = visibleWorkgroups.reduce(
+    (sum, wg) => sum + Number(wg.today_message_count || 0),
+    0,
+  );
 
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [editing, setEditing] = useState<Workgroup | null>(null);
+  const [manageMembersUserId, setManageMembersUserId] = useState<string>("none");
   const [deleteTarget, setDeleteTarget] = useState<Workgroup | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedId = searchParams.get("team");
+  const openWorkgroup = (id: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("team", id);
+    setSearchParams(next);
+  };
+  const closeWorkgroup = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("team");
+    setSearchParams(next);
+  };
+
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [filterType, setFilterType] = useState<
     "all" | "team" | "project" | "private" | "department"
@@ -130,11 +170,26 @@ export default function WorkgroupsPage() {
     is_private: false,
   });
 
-  const filtered = workgroups.filter((w) => {
-    const matchesSearch = w.name.toLowerCase().includes(search.toLowerCase());
-    const matchesType = filterType === "all" || w.type === filterType;
-    return matchesSearch && matchesType;
-  });
+  const { data: editingMembers = [] } = useWorkgroupMembers(editing?.id || "");
+  const assignableMembers = (editingMembers as WorkgroupMember[]).filter(
+    (m) => !["owner", "admin"].includes(m.role),
+  );
+
+  const teamOnlyWorkgroups = visibleWorkgroups.filter(
+    (wg) => !((wg.type === "private") && Boolean((wg.settings as any)?.is_direct_chat)),
+  );
+
+  const filtered = teamOnlyWorkgroups
+    .filter((w) => {
+      const matchesSearch = w.name.toLowerCase().includes(search.toLowerCase());
+      const matchesType = filterType === "all" || w.type === filterType;
+      return matchesSearch && matchesType;
+    })
+    .sort((a, b) => {
+      const timeA = new Date(a.last_message_at || a.updated_at || a.created_at).getTime();
+      const timeB = new Date(b.last_message_at || b.updated_at || b.created_at).getTime();
+      return timeB - timeA;
+    });
 
   const resetForm = () => {
     setForm({
@@ -147,6 +202,10 @@ export default function WorkgroupsPage() {
   };
 
   const openEdit = (wg: Workgroup) => {
+    const canEditOrDelete =
+      wg.user_role === "owner" || wg.created_by === user?.id;
+    if (!canEditOrDelete) return;
+
     setForm({
       name: wg.name,
       description: wg.description || "",
@@ -154,8 +213,112 @@ export default function WorkgroupsPage() {
       type: wg.type,
       is_private: wg.is_private,
     });
+    setManageMembersUserId(
+      (wg.settings?.member_manager_user_id as string) || "none",
+    );
     setEditing(wg);
   };
+
+  useEffect(() => {
+    const handleWorkgroupUpdated = (payload: {
+      action?: "created" | "updated" | "deleted";
+      workgroup_id?: string;
+      workgroup?: Partial<Workgroup> & { id?: string };
+    }) => {
+      const targetId = payload?.workgroup?.id || payload?.workgroup_id;
+
+      if (targetId && payload?.action !== "created") {
+        queryClient.setQueriesData(
+          { queryKey: ["workgroups"] },
+          (prev: Workgroup[] | undefined) => {
+            if (!Array.isArray(prev)) return prev;
+            if (payload?.action === "deleted") {
+              return prev.filter((wg) => wg.id !== targetId);
+            }
+            return prev.map((wg) =>
+              wg.id === targetId ? { ...wg, ...(payload.workgroup || {}) } : wg,
+            );
+          },
+        );
+      }
+
+      // Keep both admin/super_admin views in sync without manual refresh.
+      queryClient.invalidateQueries({ queryKey: ["workgroups"] });
+      if (selectedId && (!targetId || targetId === selectedId)) {
+        queryClient.invalidateQueries({ queryKey: ["workgroup", selectedId] });
+      }
+    };
+
+    onRealtime("workgroup:updated", handleWorkgroupUpdated);
+    onRealtime("connect", handleWorkgroupUpdated);
+    return () => {
+      offRealtime("workgroup:updated", handleWorkgroupUpdated);
+      offRealtime("connect", handleWorkgroupUpdated);
+    };
+  }, [onRealtime, offRealtime, queryClient, selectedId]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    queryClient.setQueriesData(
+      { queryKey: ["workgroups"] },
+      (prev: any[] | undefined) => {
+        if (!Array.isArray(prev)) return prev;
+        return prev.map((wg) =>
+          wg?.id === selectedId
+            ? {
+                ...wg,
+                unread_count: 0,
+              }
+            : wg,
+        );
+      },
+    );
+  }, [selectedId, queryClient]);
+
+  useEffect(() => {
+    const handleWorkgroupPost = (payload: { workgroup_id?: string; user_id?: string }) => {
+      if (!payload?.workgroup_id) return;
+      queryClient.setQueriesData(
+        { queryKey: ["workgroups"] },
+        (prev: any[] | undefined) => {
+          if (!Array.isArray(prev)) return prev;
+          return prev.map((wg) => {
+            if (wg?.id !== payload.workgroup_id) return wg;
+            // Do not increase count for own message or currently opened room.
+            if (payload.user_id === user?.id || selectedId === payload.workgroup_id) {
+              return { ...wg, unread_count: 0 };
+            }
+            return {
+              ...wg,
+              unread_count: Number(wg.unread_count || 0) + 1,
+            };
+          });
+        },
+      );
+    };
+
+    onRealtime("workgroup_post:new", handleWorkgroupPost);
+    return () => {
+      offRealtime("workgroup_post:new", handleWorkgroupPost);
+    };
+  }, [onRealtime, offRealtime, queryClient, selectedId, user?.id]);
+
+  useEffect(() => {
+    const ids = visibleWorkgroups.map((wg) => wg.id);
+    ids.forEach((id) => subscribeToWorkgroup(id));
+    return () => {
+      ids.forEach((id) => unsubscribeFromWorkgroup(id));
+    };
+  }, [visibleWorkgroups, subscribeToWorkgroup, unsubscribeFromWorkgroup]);
+
+  useEffect(() => {
+    if (!editing) return;
+    if (manageMembersUserId === "none") return;
+    const exists = assignableMembers.some((m) => m.user_id === manageMembersUserId);
+    if (!exists) {
+      setManageMembersUserId("none");
+    }
+  }, [editing, assignableMembers, manageMembersUserId]);
 
   const handleCreate = () => {
     createWg.mutate(
@@ -186,10 +349,13 @@ export default function WorkgroupsPage() {
         avatar_color: form.avatar_color,
         type: form.type,
         is_private: form.is_private,
+        manage_member_user_id:
+          manageMembersUserId === "none" ? null : manageMembersUserId,
       },
       {
         onSuccess: () => {
           setEditing(null);
+          setManageMembersUserId("none");
           resetForm();
           toast.success(`Team "${form.name}" updated successfully!`);
         },
@@ -221,7 +387,7 @@ export default function WorkgroupsPage() {
     return (
       <WorkgroupDetailView
         workgroupId={selectedId}
-        onBack={() => setSelectedId(null)}
+        onBack={closeWorkgroup}
       />
     );
   }
@@ -269,7 +435,7 @@ export default function WorkgroupsPage() {
                     Total Teams
                   </p>
                   <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-                    {workgroups.length}
+                    {visibleWorkgroups.length}
                   </p>
                 </div>
                 <Users className="h-8 w-8 text-blue-600 dark:text-blue-400" />
@@ -297,7 +463,7 @@ export default function WorkgroupsPage() {
                     Messages Today
                   </p>
                   <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">
-                    {Object.values(postCounts).reduce((a, b) => a + b, 0)}
+                    {todayMessages}
                   </p>
                 </div>
                 <MessageSquare className="h-8 w-8 text-purple-600 dark:text-purple-400" />
@@ -310,7 +476,7 @@ export default function WorkgroupsPage() {
                     Total Members
                   </p>
                   <p className="text-2xl font-bold text-orange-900 dark:text-orange-100">
-                    {Object.values(memberCounts).reduce((a, b) => a + b, 0)}
+                    {totalMembers}
                   </p>
                 </div>
                 <UserPlus className="h-8 w-8 text-orange-600 dark:text-orange-400" />
@@ -331,6 +497,15 @@ export default function WorkgroupsPage() {
                 className="pl-10 bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600"
               />
             </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => navigate("/collaboration/direct-chats")}
+                className="gap-2 bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600"
+              >
+                Friends
+              </Button>
+              </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -382,48 +557,54 @@ export default function WorkgroupsPage() {
           </div>
         </div>
 
-        {/* Teams Grid - Microsoft Teams Style */}
-        {isLoading ? (
-          <div className="text-center py-12 text-gray-500">
-            <Users className="h-12 w-12 mx-auto mb-3 opacity-40 animate-pulse" />
-            <p>Loading teams...</p>
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center">
-            <Users className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-              No teams found
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-6">
-              {search
-                ? `No teams match "${search}"`
-                : "Create your first team to start collaborating with your colleagues."}
-            </p>
-            {!search && (
-              <Button
-                onClick={() => {
-                  resetForm();
-                  setShowCreate(true);
-                }}
-                className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
+        <div>
+          <div className="flex-1">
+            {/* Teams Grid - Microsoft Teams Style */}
+            {isLoading ? (
+              <div className="text-center py-12 text-gray-500">
+                <Users className="h-12 w-12 mx-auto mb-3 opacity-40 animate-pulse" />
+                <p>Loading teams...</p>
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center">
+                <Users className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  No teams found
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-6">
+                  {search
+                    ? `No teams match "${search}"`
+                    : "Create your first team to start collaborating with your colleagues."}
+                </p>
+                {!search && (
+                  <Button
+                    onClick={() => {
+                      resetForm();
+                      setShowCreate(true);
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
+                  >
+                    <Plus className="h-4 w-4" /> Create Your First Team
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div
+                className={
+                  viewMode === "grid"
+                    ? "grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3"
+                    : "space-y-3"
+                }
               >
-                <Plus className="h-4 w-4" /> Create Your First Team
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div
-            className={
-              viewMode === "grid"
-                ? "grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3"
-                : "space-y-3"
-            }
-          >
             {filtered.map((wg) => {
               const TypeIcon = getWorkgroupTypeIcon(wg.type || "team");
-              const memberCount = memberCounts[wg.id] || 0;
-              const postCount = postCounts[wg.id] || 0;
+              const memberCount = Number(wg.member_count || 0);
+              const postCount = Number(wg.message_count || 0);
+              const unreadCount =
+                selectedId === wg.id ? 0 : Number(wg.unread_count || 0);
               const hasActivity = (wg.id.charCodeAt(0) + wg.id.charCodeAt(wg.id.length - 1)) % 3 === 0;
+              const canEditOrDelete =
+                wg.user_role === "owner" || wg.created_by === user?.id;
 
               return (
                 <div
@@ -431,7 +612,7 @@ export default function WorkgroupsPage() {
                   className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-600 transition-all cursor-pointer group relative ${
                     viewMode === "list" ? "flex items-center p-4" : "p-4"
                   } ${hasActivity ? "ring-2 ring-blue-200 dark:ring-blue-800" : ""}`}
-                  onClick={() => setSelectedId(wg.id)}
+                  onClick={() => openWorkgroup(wg.id)}
                 >
                   {hasActivity && (
                     <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-pulse border-2 border-white dark:border-gray-800" />
@@ -477,7 +658,20 @@ export default function WorkgroupsPage() {
                         {hasActivity && (
                           <Star className="h-4 w-4 text-yellow-500 fill-current shrink-0" />
                         )}
+                        {unreadCount > 0 && (
+                          <Badge className="bg-red-600 bg-primary text-white text-[10px] px-2 py-0.5">
+                            <MessageCircle className="h-3 w-3 mr-1" />
+                            {unreadCount}
+                          </Badge>
+                        )}
                       </div>
+                      {wg.last_message_sender_name && (
+                        <p
+                          className={`text-xs text-primary mb-1 ${viewMode === "grid" ? "text-center" : ""}`}
+                        >
+                          Last sender: {wg.last_message_sender_name}
+                        </p>
+                      )}
                       {wg.description && (
                         <p
                           className={`text-sm text-gray-600 dark:text-gray-400 line-clamp-2 mb-2 ${viewMode === "grid" ? "text-center px-2" : "line-clamp-1"}`}
@@ -524,34 +718,40 @@ export default function WorkgroupsPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => setSelectedId(wg.id)}
+                        onClick={() => openWorkgroup(wg.id)}
                         className="h-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 flex-1"
                       >
                         <MessageSquare className="h-3.5 w-3.5 mr-1" /> Open
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => openEdit(wg)}
-                        className="h-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 flex-1"
-                      >
-                        <Edit className="h-3.5 w-3.5 mr-1" /> Edit
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setDeleteTarget(wg)}
-                        className="h-8 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/30 flex-1"
-                      >
-                        <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
-                      </Button>
+                      {canEditOrDelete && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openEdit(wg)}
+                          className="h-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 flex-1"
+                        >
+                          <Edit className="h-3.5 w-3.5 mr-1" /> Edit
+                        </Button>
+                      )}
+                      {canEditOrDelete && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDeleteTarget(wg)}
+                          className="h-8 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/30 flex-1"
+                        >
+                          <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>
               );
-            })}
+              })}
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
       {/* Simple Create / Edit Dialog */}
@@ -621,15 +821,19 @@ export default function WorkgroupsPage() {
                       name="type"
                       value={type.value}
                       checked={form.type === type.value}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const selectedType = e.target.value as
+                          | "team"
+                          | "project"
+                          | "private"
+                          | "department";
                         setForm({
                           ...form,
-                          type: e.target.value as
-                            | "team"
-                            | "project"
-                            | "private",
-                        })
-                      }
+                          type: selectedType,
+                          // Keep privacy behavior strict with type selection.
+                          is_private: selectedType === "private",
+                        });
+                      }}
                       className="w-4 h-4 text-blue-600"
                     />
                     <Label
@@ -642,6 +846,30 @@ export default function WorkgroupsPage() {
                 ))}
               </div>
             </div>
+
+            {editing && (
+              <div className="space-y-2">
+                <Label htmlFor="assign-member-manager">
+                  Assign Member Management Permission
+                </Label>
+                <select
+                  id="assign-member-manager"
+                  value={manageMembersUserId}
+                  onChange={(e) => setManageMembersUserId(e.target.value)}
+                  className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="none">None (only owner/admin can add/remove)</option>
+                  {assignableMembers.map((member) => (
+                    <option key={member.user_id} value={member.user_id}>
+                      {(member.full_name || "Unknown").trim()} - {member.email}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Selected member can add/remove team members, but cannot delete team and role stays unchanged.
+                </p>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
@@ -650,6 +878,7 @@ export default function WorkgroupsPage() {
               onClick={() => {
                 setShowCreate(false);
                 setEditing(null);
+                setManageMembersUserId("none");
                 resetForm();
               }}
             >
