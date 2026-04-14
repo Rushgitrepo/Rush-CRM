@@ -15,10 +15,10 @@ class InstantlyService {
       [orgId]
     );
     let settings = result.rows[0];
-    
+
     // If no org-specific settings, but we have a global key in .env
     const globalApiKey = process.env.INSTANTLY_API_KEY;
-    
+
     if (!settings && globalApiKey) {
       // Auto-create/return virtual settings using global key
       settings = {
@@ -37,14 +37,14 @@ class InstantlyService {
     if (settings && !settings.webhook_url) {
       const appUrl = process.env.APP_URL || 'http://localhost:4000';
       settings.webhook_url = `${appUrl}/api/webhooks/instantly/${orgId}`;
-      
+
       // Update it in background
       db.query(
         'UPDATE instantly_integrations SET webhook_url = $1 WHERE org_id = $2',
         [settings.webhook_url, orgId]
       ).catch(err => console.error('Failed to update webhook URL:', err));
     }
-    
+
     return settings;
   }
 
@@ -137,12 +137,12 @@ class InstantlyService {
       const data = await response.json();
       const emails = data.items || data.data || [];
       console.log(`[Instantly Service] Syncing ${emails.length} emails for org ${orgId}...`);
-      
+
       let syncCount = 0;
 
       for (const email of emails) {
         const externalId = (email.id || email.message_id).toString();
-        
+
         // Check if email already exists to avoid duplicates
         const existing = await db.query(
           'SELECT id FROM unibox_emails WHERE message_id = $1 AND org_id = $2',
@@ -150,12 +150,14 @@ class InstantlyService {
         );
 
         if (existing.rows.length === 0) {
-          const bodyHtml = email.body?.html || email.body_html || '';
-          const bodyText = email.body_text || email.body || '';
+          const bodyRaw = email.body_text || email.body || '';
+          const isHtml = /<[a-z][\s\S]*>/i.test(bodyRaw) || (typeof email.body === 'object' && email.body.html);
+          const bodyHtml = email.body?.html || email.body_html || (isHtml ? bodyRaw : '');
+          const bodyText = !isHtml ? bodyRaw : (email.body_text || email.body?.text || '');
 
           const result = await db.query(
             `INSERT INTO unibox_emails (
-              org_id, message_id, sender_email, sender_name, subject, body_text, body_html,
+              org_id, external_id, sender_email, sender_name, subject, body_text, body_html,
               status, priority, received_at, is_read, metadata
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             RETURNING *`,
@@ -163,18 +165,18 @@ class InstantlyService {
               orgId,
               externalId,
               email.from_address_email || email.sender || email.eaccount,
-              email.sender_name || email.from_name || email.eaccount?.split('@')[0],
+              email.sender_name || email.from_name || email.lead_name || email.eaccount?.split('@')[0] || 'Unknown Sender',
               email.subject,
               bodyText,
               bodyHtml,
               'New',
-              'normal',
+              'Normal',
               new Date(email.timestamp_email || email.received_at || Date.now()),
               false,
               JSON.stringify(email)
             ]
           );
-          
+
           if (result.rows[0]) {
             realtimeService.emitUniboxEmailCreated(orgId, result.rows[0]);
           }
@@ -216,15 +218,17 @@ class InstantlyService {
 
     if (payload.event_type === 'reply_received' || !payload.event_type) {
       const externalId = (payload.id || payload.message_id || `inst-${Date.now()}`).toString();
-      
-      // Extract body - Instantly uses reply_html/reply_body for webhooks
-      const bodyHtml = payload.reply_html || payload.body_html || payload.body?.html || '';
-      const bodyText = payload.reply_body || payload.body_text || payload.body || '';
+
+      // Extract and normalize body content
+      const bodyRaw = payload.reply_body || payload.body_text || payload.body || '';
+      const isHtml = /<[a-z][\s\S]*>/i.test(bodyRaw) || payload.reply_html || payload.body_html;
+      const bodyHtml = payload.reply_html || payload.body_html || (isHtml ? bodyRaw : '');
+      const bodyText = !isHtml ? bodyRaw : (payload.reply_text || payload.body_text || '');
 
       // Create record in unibox_emails
       const result = await db.query(
         `INSERT INTO unibox_emails (
-          org_id, message_id, sender_email, sender_name, subject, body_text, body_html,
+          org_id, external_id, sender_email, sender_name, subject, body_text, body_html,
           status, priority, received_at, is_read, metadata
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING *`,
@@ -232,12 +236,12 @@ class InstantlyService {
           orgId,
           externalId,
           payload.from_email || payload.sender || payload.from_address_email || payload.eaccount,
-          payload.from_name || payload.sender_name || payload.from_name || payload.eaccount?.split('@')[0],
+          payload.from_name || payload.sender_name || payload.lead_name || payload.eaccount?.split('@')[0] || 'Unknown Sender',
           payload.subject,
           bodyText,
           bodyHtml,
           'New',
-          'normal',
+          'Normal',
           new Date(payload.timestamp_email || payload.received_at || Date.now()),
           false,
           JSON.stringify(payload)
@@ -249,7 +253,7 @@ class InstantlyService {
       }
     }
 
-    
+
     // Update health stats
     await db.query(
       `INSERT INTO instantly_webhook_health (org_id, webhook_url, total_received, total_processed, last_received_at)

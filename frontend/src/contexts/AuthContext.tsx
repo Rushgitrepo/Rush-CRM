@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { api, authApi } from '@/lib/api';
+import { LoadingScreen } from '@/components/ui/loading-screen';
 
 interface Profile {
   id: string;
@@ -194,7 +195,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         hasPermission,
       }}
     >
-      {children}
+      {loading ? <LoadingScreen /> : children}
     </AuthContext.Provider>
   );
 }

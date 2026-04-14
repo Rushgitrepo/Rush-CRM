@@ -3,11 +3,11 @@ const db = require('../../config/database');
 // Get unibox emails with enhanced features
 const getEmails = async (req, res, next) => {
   try {
-    const { 
-      status = 'All', 
-      limit = 50, 
-      offset = 0, 
-      search = '', 
+    const {
+      status = 'All',
+      limit = 50,
+      offset = 0,
+      search = '',
       starred = false,
       unread = false,
       priority = 'all'
@@ -72,12 +72,9 @@ const getEmails = async (req, res, next) => {
         priority,
         tags,
         attachments,
-        message_id,
-        in_reply_to,
         is_read,
         is_starred,
         is_archived,
-        interaction_notes,
         converted_to_lead_id,
         received_at,
         created_at,
@@ -126,11 +123,6 @@ const updateEmailStatus = async (req, res, next) => {
     const fields = ['status = $1', 'updated_at = now()'];
     const values = [status];
     let paramIndex = 2;
-
-    if (interaction_notes !== undefined) {
-      fields.push(`interaction_notes = $${paramIndex++}`);
-      values.push(interaction_notes);
-    }
 
     if (priority !== undefined) {
       fields.push(`priority = $${paramIndex++}`);
@@ -276,18 +268,30 @@ const convertToLead = async (req, res, next) => {
       return res.status(400).json({ error: 'Lead title is required' });
     }
 
-    // First, create the lead
+    // Fetch email details first to get sender information
+    const emailResult = await db.query(
+      'SELECT sender_name, sender_email, subject, body_text FROM unibox_emails WHERE id = $1 AND org_id = $2',
+      [id, req.user.orgId]
+    );
+
+    if (emailResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Email record not found' });
+    }
+
+    const email = emailResult.rows[0];
+
+    // Create the lead
     const leadResult = await db.query(
       `INSERT INTO leads (org_id, title, name, email, phone, company, description, created_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
       [
         req.user.orgId,
-        title,
-        company_name || 'Unknown',
-        company_email || null,
+        title || email.subject || 'Lead from Unibox',
+        company_name || email.sender_name || 'Prospect',
+        company_email || email.sender_email,
         company_phone || null,
         company_name || null,
-        interaction_notes || null,
+        interaction_notes || email.body_text?.substring(0, 1000) || '',
         req.user.id
       ]
     );
@@ -301,7 +305,7 @@ const convertToLead = async (req, res, next) => {
       [lead.id, id, req.user.orgId]
     );
 
-    res.json({ 
+    res.json({
       message: 'Email converted to lead successfully',
       lead: lead
     });

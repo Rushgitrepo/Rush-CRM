@@ -65,13 +65,13 @@ export default function UniboxPage() {
   const [selectedEmail, setSelectedEmail] = useState<UniboxEmail | null>(null);
   const [convertDialogOpen, setConvertDialogOpen] = useState(false);
 
-  const { 
-    emails, 
-    isLoading, 
-    updateStatus, 
-    toggleStarred, 
-    markAsRead, 
-    toggleArchive, 
+  const {
+    emails,
+    isLoading,
+    updateStatus,
+    toggleStarred,
+    markAsRead,
+    toggleArchive,
     convertToLead,
     syncInstantly
   } = useUniboxEmails({
@@ -125,9 +125,9 @@ export default function UniboxPage() {
           <h1 className="text-3xl font-bold text-foreground">Unibox Mailbox</h1>
           <p className="text-muted-foreground">Manage emails from Instantly.ai and convert to leads</p>
         </div>
-        <Button 
-          variant="outline" 
-          onClick={() => syncInstantly.mutate()} 
+        <Button
+          variant="outline"
+          onClick={() => syncInstantly.mutate()}
           disabled={syncInstantly.isPending}
           className="gap-2"
         >
@@ -218,7 +218,7 @@ export default function UniboxPage() {
         {/* Left: Filters and Search */}
         <Card className="col-span-3 p-3 flex flex-col">
           <h3 className="text-sm font-semibold text-foreground mb-3">Search & Filters</h3>
-          
+
           {/* Search */}
           <div className="relative mb-4">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -406,9 +406,9 @@ export default function UniboxPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => toggleStarred.mutate({ 
-                      emailId: selectedEmail.id, 
-                      is_starred: !selectedEmail.is_starred 
+                    onClick={() => toggleStarred.mutate({
+                      emailId: selectedEmail.id,
+                      is_starred: !selectedEmail.is_starred
                     })}
                     className="gap-1"
                   >
@@ -423,9 +423,9 @@ export default function UniboxPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => markAsRead.mutate({ 
-                      emailId: selectedEmail.id, 
-                      is_read: !selectedEmail.is_read 
+                    onClick={() => markAsRead.mutate({
+                      emailId: selectedEmail.id,
+                      is_read: !selectedEmail.is_read
                     })}
                     className="gap-1"
                   >
@@ -440,9 +440,9 @@ export default function UniboxPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => toggleArchive.mutate({ 
-                      emailId: selectedEmail.id, 
-                      is_archived: !selectedEmail.is_archived 
+                    onClick={() => toggleArchive.mutate({
+                      emailId: selectedEmail.id,
+                      is_archived: !selectedEmail.is_archived
                     })}
                     className="gap-1"
                   >
@@ -497,13 +497,15 @@ export default function UniboxPage() {
               <ScrollArea className="flex-1 p-4">
                 {selectedEmail.body_html ? (
                   <div
-                    className="prose prose-sm max-w-none text-foreground"
+                    className="prose prose-sm max-w-none dark:prose-invert"
                     dangerouslySetInnerHTML={{ __html: selectedEmail.body_html }}
                   />
-                ) : (
-                  <pre className="text-sm text-foreground whitespace-pre-wrap font-sans">
-                    {selectedEmail.body_text || selectedEmail.body || "(No content)"}
+                ) : selectedEmail.body_text ? (
+                  <pre className="text-sm whitespace-pre-wrap font-sans">
+                    {selectedEmail.body_text}
                   </pre>
+                ) : (
+                  <p className="text-sm text-muted-foreground">(No content)</p>
                 )}
               </ScrollArea>
             </>
