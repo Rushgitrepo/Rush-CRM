@@ -5,12 +5,15 @@ class RealtimeService {
   constructor() {
     this.io = null;
     this.connectedUsers = new Map();
+    this.userSockets = new Map();
+    this.userActiveSockets = new Map();
+    this.lastSeenAt = new Map();
   }
 
   initialize(server) {
     this.io = new Server(server, {
       cors: {
-        origin: process.env.FRONTEND_URL,
+        origin: process.env.APP_URL,
         credentials: true,
       },
     });
@@ -36,8 +39,11 @@ class RealtimeService {
     // Connection handling
     this.io.on('connection', (socket) => {
       console.log(`User connected: ${socket.userId} (Org: ${socket.orgId})`);
-      
-      // Store connection
+      // Track multi-tab/socket presence at app level
+      const existingSockets = this.userSockets.get(socket.userId) || new Set();
+      existingSockets.add(socket.id);
+      this.userSockets.set(socket.userId, existingSockets);
+
       this.connectedUsers.set(socket.userId, {
         socketId: socket.id,
         orgId: socket.orgId,
@@ -72,10 +78,65 @@ class RealtimeService {
         socket.leave(`workgroup:${workgroupId}`);
       });
 
+      socket.on('presence:active', () => {
+        const activeSet = this.userActiveSockets.get(socket.userId) || new Set();
+        const wasOnline = this.isUserConnected(socket.userId);
+        activeSet.add(socket.id);
+        this.userActiveSockets.set(socket.userId, activeSet);
+        this.lastSeenAt.delete(socket.userId);
+        if (!wasOnline) {
+          this.emitPresenceUpdate(socket.orgId, socket.userId, true, null);
+        }
+      });
+
+      socket.on('presence:inactive', () => {
+        const activeSet = this.userActiveSockets.get(socket.userId);
+        if (activeSet) {
+          activeSet.delete(socket.id);
+          if (activeSet.size === 0) {
+            this.userActiveSockets.delete(socket.userId);
+            const now = new Date();
+            this.lastSeenAt.set(socket.userId, now);
+            this.emitPresenceUpdate(socket.orgId, socket.userId, false, now);
+          } else {
+            this.userActiveSockets.set(socket.userId, activeSet);
+          }
+        }
+      });
+
       // Disconnect handling
       socket.on('disconnect', () => {
         console.log(`User disconnected: ${socket.userId}`);
-        this.connectedUsers.delete(socket.userId);
+        const existingSockets = this.userSockets.get(socket.userId);
+        const activeSockets = this.userActiveSockets.get(socket.userId);
+        const wasOnlineBeforeDisconnect = this.isUserConnected(socket.userId);
+        if (existingSockets) {
+          existingSockets.delete(socket.id);
+          if (existingSockets.size === 0) {
+            this.userSockets.delete(socket.userId);
+            this.connectedUsers.delete(socket.userId);
+          } else {
+            this.userSockets.set(socket.userId, existingSockets);
+          }
+        } else {
+          this.connectedUsers.delete(socket.userId);
+        }
+
+        if (activeSockets) {
+          activeSockets.delete(socket.id);
+          if (activeSockets.size === 0) {
+            this.userActiveSockets.delete(socket.userId);
+          } else {
+            this.userActiveSockets.set(socket.userId, activeSockets);
+          }
+        }
+
+        const isOnlineAfterDisconnect = this.isUserConnected(socket.userId);
+        if (wasOnlineBeforeDisconnect && !isOnlineAfterDisconnect) {
+          const now = new Date();
+          this.lastSeenAt.set(socket.userId, now);
+          this.emitPresenceUpdate(socket.orgId, socket.userId, false, now);
+        }
       });
     });
 
@@ -165,9 +226,30 @@ class RealtimeService {
     this.io.to(`org:${orgId}`).emit('broadcast:new', broadcastData);
   }
 
+  emitWorkgroupUpdated(orgId, payload) {
+    this.io.to(`org:${orgId}`).emit('workgroup:updated', payload);
+  }
+
+  emitPresenceUpdate(orgId, userId, isOnline, lastSeenAt) {
+    this.io.to(`org:${orgId}`).emit('presence:update', {
+      userId,
+      is_online: isOnline,
+      last_seen_at: lastSeenAt ? new Date(lastSeenAt).toISOString() : null,
+    });
+  }
+
   // Check if user is connected
   isUserConnected(userId) {
-    return this.connectedUsers.has(userId);
+    const sockets = this.userActiveSockets.get(userId);
+    return Boolean(sockets && sockets.size > 0);
+  }
+
+  getUserPresence(userId) {
+    const isOnline = this.isUserConnected(userId);
+    return {
+      isOnline,
+      lastSeenAt: isOnline ? null : this.lastSeenAt.get(userId) || null,
+    };
   }
 }
 

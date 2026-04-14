@@ -8,6 +8,23 @@ const SOCKET_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://
 let socketInstance: Socket | null = null;
 let connectionCount = 0;
 let workgroupToastListenerAttached = false;
+let presenceWindowListenersAttached = false;
+let presenceHeartbeatId: number | null = null;
+
+const emitPresenceFromWindowState = () => {
+  if (!socketInstance || !socketInstance.connected) return;
+  const isVisible = document.visibilityState === 'visible';
+  if (isVisible) {
+    socketInstance.emit('presence:active');
+  } else {
+    socketInstance.emit('presence:inactive');
+  }
+};
+
+const handleBeforeUnload = () => {
+  if (!socketInstance || !socketInstance.connected) return;
+  socketInstance.emit('presence:inactive');
+};
 
 export const getSocket = (): Socket | null => {
   if (socketInstance) return socketInstance;
@@ -36,7 +53,21 @@ export const getSocket = (): Socket | null => {
     socketInstance.on('workgroup_post:new', (message: any) => {
       const path = window.location.pathname;
       const isOnWorkgroupsScreen = path.startsWith('/collaboration/workgroups');
-      if (isOnWorkgroupsScreen) return;
+      const isOnDirectChatsScreen = path.startsWith('/collaboration/direct-chats');
+      if (isOnWorkgroupsScreen || isOnDirectChatsScreen) return;
+
+      // Do not show toast for current user's own sent messages.
+      let currentUserId: string | null = null;
+      try {
+        const rawUser = localStorage.getItem('user');
+        if (rawUser) {
+          const parsedUser = JSON.parse(rawUser);
+          currentUserId = parsedUser?.id || null;
+        }
+      } catch (error) {
+        currentUserId = null;
+      }
+      if (currentUserId && message?.user_id === currentUserId) return;
 
       const author = message?.author_name || 'Team member';
       const content = String(message?.content || '').replace('[SYSTEM] ', '');
@@ -50,6 +81,24 @@ export const getSocket = (): Socket | null => {
     workgroupToastListenerAttached = true;
   }
 
+  if (!socketInstance.connected) {
+    socketInstance.connect();
+  }
+
+  emitPresenceFromWindowState();
+  if (!presenceWindowListenersAttached) {
+    window.addEventListener('focus', emitPresenceFromWindowState);
+    window.addEventListener('blur', emitPresenceFromWindowState);
+    document.addEventListener('visibilitychange', emitPresenceFromWindowState);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    presenceWindowListenersAttached = true;
+  }
+  if (presenceHeartbeatId === null) {
+    presenceHeartbeatId = window.setInterval(emitPresenceFromWindowState, 10000);
+  }
+  socketInstance.off('connect', emitPresenceFromWindowState);
+  socketInstance.on('connect', emitPresenceFromWindowState);
+
   return socketInstance;
 };
 
@@ -57,6 +106,10 @@ export const closeSocket = () => {
   if (socketInstance && connectionCount <= 0) {
     socketInstance.disconnect();
     socketInstance = null;
+  }
+  if (!socketInstance && presenceHeartbeatId !== null) {
+    window.clearInterval(presenceHeartbeatId);
+    presenceHeartbeatId = null;
   }
 };
 

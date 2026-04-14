@@ -493,6 +493,8 @@ export const workgroupsApi = {
   getAll: (params = {}) => api.get<any[]>('/workgroups', params),
   getById: (id: string) => api.get<any>(`/workgroups/${id}`),
   create: (data: any) => api.post<any>('/workgroups', data),
+  openDirectChat: (contactUserId: string) =>
+    api.post<any>('/workgroups/direct-chat', { contact_user_id: contactUserId }),
   update: (id: string, data: any) => api.put<any>(`/workgroups/${id}`, data),
   delete: (id: string) => api.delete(`/workgroups/${id}`),
   
@@ -512,10 +514,13 @@ export const workgroupsApi = {
       channel_id?: string;
       parent_id?: string;
       files?: any[];
+      mentions?: string[];
     },
   ) =>
     api.post<any>(`/workgroups/${id}/posts`, data),
   deletePost: (id: string, postId: string) => api.delete(`/workgroups/${id}/posts/${postId}`),
+  deletePostForMe: (id: string, postId: string) =>
+    api.delete(`/workgroups/${id}/posts/${postId}/me`),
   togglePinPost: (id: string, postId: string, isPinned: boolean) => 
     api.put<any>(`/workgroups/${id}/posts/${postId}/pin`, { is_pinned: !isPinned }),
   

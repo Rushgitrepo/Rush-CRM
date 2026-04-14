@@ -12,8 +12,10 @@ const {
   getWorkgroupPosts,
   createWorkgroupPost,
   deleteWorkgroupPost,
+  deleteWorkgroupPostForMe,
   togglePinWorkgroupPost,
   addWorkgroupPostReaction,
+  getOrCreateDirectChatWorkgroup,
   getWorkgroupActivities
 } = require('../../controllers/collaboration/workgroupController');
 const { auth } = require('../../middleware/auth');
@@ -24,6 +26,7 @@ router.use(auth);
 // Workgroup routes
 router.get('/', getWorkgroups);
 router.post('/', createWorkgroup);
+router.post('/direct-chat', getOrCreateDirectChatWorkgroup);
 router.get('/:id', getWorkgroup);
 router.put('/:id', updateWorkgroup);
 router.delete('/:id', deleteWorkgroup);
@@ -37,6 +40,7 @@ router.delete('/:id/members/:memberId', removeWorkgroupMember);
 router.get('/:id/posts', getWorkgroupPosts);
 router.post('/:id/posts', createWorkgroupPost);
 router.delete('/:id/posts/:postId', deleteWorkgroupPost);
+router.delete('/:id/posts/:postId/me', deleteWorkgroupPostForMe);
 router.put('/:id/posts/:postId/pin', togglePinWorkgroupPost);
 router.post('/:id/posts/:postId/reactions', addWorkgroupPostReaction);
 

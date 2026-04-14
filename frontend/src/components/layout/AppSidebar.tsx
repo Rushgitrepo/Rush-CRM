@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useWorkgroups } from "@/hooks/useWorkgroups";
 import {
   LayoutDashboard,
   LayoutGrid,
@@ -201,6 +202,7 @@ const navigation: NavItem[] = [
 export function AppSidebar() {
   const location = useLocation();
   const { userRole } = useAuth();
+  const { data: workgroups = [] } = useWorkgroups();
   const [openSections, setOpenSections] = useState<string[]>(["Collaboration", "CRM"]);
   const [expandedSubItems, setExpandedSubItems] = useState<string[]>([]);
   const [expandedNestedItems, setExpandedNestedItems] = useState<string[]>([]);
@@ -230,6 +232,14 @@ export function AppSidebar() {
   const isActive = (href: string) => location.pathname === href;
   const isSectionActive = (children?: { href: string }[]) =>
     children?.some((child) => location.pathname.startsWith(child.href));
+  const totalWorkgroupUnread = useMemo(
+    () =>
+      workgroups.reduce(
+        (sum: number, wg: any) => sum + Number(wg?.unread_count || 0),
+        0,
+      ),
+    [workgroups],
+  );
 
   // Define nested submenus for items that have hasNested flag
   const getDeepNestedItems = (title: string): NestedChild[] => {
@@ -371,7 +381,14 @@ export function AppSidebar() {
         )}
       >
         {child.icon && <child.icon className={cn("h-4 w-4", isActive(child.href) ? "text-primary" : "text-slate-500 group-hover:text-slate-300")} />}
-        <span>{child.title}</span>
+        <span className="flex items-center gap-2">
+          {child.title}
+          {child.title === "Workgroups" && totalWorkgroupUnread > 0 && (
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-bold text-white">
+              {totalWorkgroupUnread}
+            </span>
+          )}
+        </span>
       </NavLink>
     );
   };
