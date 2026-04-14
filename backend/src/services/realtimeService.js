@@ -10,7 +10,7 @@ class RealtimeService {
   initialize(server) {
     this.io = new Server(server, {
       cors: {
-        origin: process.env.FRONTEND_URL,
+        origin: process.env.APP_URL,
         credentials: true,
       },
     });

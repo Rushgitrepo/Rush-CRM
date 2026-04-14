@@ -46,7 +46,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // normalize camelCase from backend to snake_case
       const normalized = {
         ...profileData,
-        org_id: profileData.org_id ?? profileData.orgId ?? null,
+        org_id: profileData.org_id ?? profileData.orgId ?? profileData.organization_id ?? null,
         full_name: profileData.full_name ?? profileData.fullName ?? '',
       };
       setProfile(normalized);

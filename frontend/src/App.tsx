@@ -171,11 +171,13 @@ const App = () => (
                   <Route path="/crm/leads/import" element={<LeadImportPage />} />
                   <Route path="/crm/leads/external-sources" element={<ExternalSourcesPage />} />
                   <Route path="/crm/leads/:id" element={<LeadDetailPage />} />
+                  <Route path="/crm/leads/:id/edit" element={<LeadDetailPage />} />
                   <Route path="/crm/unqualified" element={<UnqualifiedPage />} />
                   <Route path="/workspaces/create" element={<CreateWorkspacePage />} />
                   <Route path="/crm/deals" element={<DealsPage />} />
                   <Route path="/crm/deals/create" element={<CreateDealPage />} />
                   <Route path="/crm/deals/:id" element={<DealDetailPage />} />
+                  <Route path="/crm/deals/:id/edit" element={<DealDetailPage />} />
                   <Route path="/crm/customers" element={<CustomersPage />} />
                   <Route path="/crm/customers/:id" element={<CustomerDetailPage />} />
                   <Route path="/crm/customers/contacts" element={<ContactsPage />} />
@@ -228,7 +230,7 @@ const App = () => (
                   <Route path="/tasks" element={<TasksPage />} />
                   <Route path="/automation/workflows" element={<WorkflowsPage />} />
                   {/* Projects — /projects redirects to /tasks, detail page stays */}
-                  <Route path="/projects" element={<Navigate to="/tasks" replace />} />
+                  <Route path="/projects" element={<ProjectsDashboardPage />} />
                   <Route path="/projects/:id" element={<ProjectDetailPage />} />
                   {/* Marketing */}
                   <Route path="/marketing" element={<MarketingDashboardPage />} />

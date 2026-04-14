@@ -16,7 +16,7 @@ import {
   Plus, Search, Trash2, CheckCircle2, Clock, Eye, Activity,
   FolderKanban, List, LayoutGrid, FolderOpen, ChevronRight,
   AlertCircle, ArrowUpRight, Circle, ChevronDown, MoreHorizontal,
-  CalendarDays, User, Flag, Hash, Inbox,
+  CalendarDays, User, Flag, Hash, Inbox, FileText,
 } from "lucide-react";
 import { TasksKanbanBoard } from "@/components/tasks/TasksKanbanBoard";
 import {
@@ -27,6 +27,8 @@ import {
 import { useOrganizationProfiles } from "@/hooks/useTenantQuery";
 import { format, isToday, isTomorrow, isPast } from "date-fns";
 import { cn } from "@/lib/utils";
+import { ProjectTemplatesDialog } from "@/components/projects/ProjectTemplatesDialog";
+import { useApplyTemplate, type ProjectTemplate } from "@/hooks/useProjectFeatures";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STATUS_OPTIONS = [
@@ -81,6 +83,7 @@ export default function TasksPage() {
   const [search, setSearch] = useState("");
   const [taskDialog, setTaskDialog] = useState(false);
   const [projectDialog, setProjectDialog] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   const { data: projects = [], isLoading: loadingProjects } = useProjects();
@@ -92,6 +95,7 @@ export default function TasksPage() {
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
   const deleteProject = useDeleteProject();
+  const applyTemplate = useApplyTemplate();
 
   const [newProject, setNewProject] = useState({ name: "", description: "" });
   const [newTask, setNewTask] = useState({
@@ -117,6 +121,20 @@ export default function TasksPage() {
     createProject.mutate(newProject, {
       onSuccess: () => { setProjectDialog(false); setNewProject({ name: "", description: "" }); },
     });
+  };
+
+  const handleApplyTemplate = (template: ProjectTemplate) => {
+    createProject.mutate(
+      { name: template.name, description: template.description || undefined },
+      {
+        onSuccess: (p: any) => {
+          applyTemplate.mutate(
+            { template_id: template.id, project_id: p.id },
+            { onSuccess: () => navigate(`/projects/${p.id}`) }
+          );
+        },
+      }
+    );
   };
 
   const handleCreateTask = () => {
@@ -283,6 +301,10 @@ export default function TasksPage() {
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
               <Input className="pl-8 h-8 w-40 text-sm bg-muted/40 border-border/40 focus:bg-background" placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
+
+            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-sm" onClick={() => setTemplatesOpen(true)}>
+              <FileText className="h-3.5 w-3.5" /> Templates
+            </Button>
 
             <Button size="sm" className="h-8 gap-1.5 text-sm" onClick={() => setTaskDialog(true)}>
               <Plus className="h-3.5 w-3.5" /> New Task
@@ -480,6 +502,12 @@ export default function TasksPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ProjectTemplatesDialog
+        open={templatesOpen}
+        onOpenChange={setTemplatesOpen}
+        onApply={handleApplyTemplate}
+      />
     </div>
   );
 }
