@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Trash2, Save, ArrowRightLeft, Phone, Mail, Globe,
@@ -170,11 +170,11 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
       ) : (
         <div className="min-h-[2.5rem] px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 flex items-center overflow-hidden">
           {type === "tel" ? (
-            <ClickToCall 
-              phoneNumber={value || ""} 
-              entityType="lead" 
-              entityId={entityId || ""} 
-              className="font-medium break-words w-full text-left" 
+            <ClickToCall
+              phoneNumber={value || ""}
+              entityType="lead"
+              entityId={entityId || ""}
+              className="font-medium break-words w-full text-left"
             />
           ) : type === "email" ? (
             <a href={`mailto:${value}`} className="text-primary hover:underline font-medium break-words w-full">{value}</a>
@@ -400,8 +400,8 @@ export default function LeadDetailPage() {
       return acc;
     }, {} as Record<string, string>);
 
-    updateLead.mutate({ 
-      id: lead.id, 
+    updateLead.mutate({
+      id: lead.id,
       ...changes,
       customFields: customFieldsObj
     }, {
@@ -572,11 +572,11 @@ export default function LeadDetailPage() {
               ) : (
                 <>
                   {lead.phone && (
-                    <ClickToCall 
-                      phoneNumber={lead.phone} 
-                      entityType="lead" 
-                      entityId={id} 
-                      className="px-3 py-1 text-sm border-emerald-200 text-emerald-600 bg-white hover:bg-emerald-50 rounded-md border" 
+                    <ClickToCall
+                      phoneNumber={lead.phone}
+                      entityType="lead"
+                      entityId={id}
+                      className="px-3 py-1 text-sm border-emerald-200 text-emerald-600 bg-white hover:bg-emerald-50 rounded-md border"
                     />
                   )}
                   {lead.email && (
@@ -1155,7 +1155,7 @@ export default function LeadDetailPage() {
               <Card className="border border-slate-200 bg-white shadow-sm">
                 <CardHeader className="border-b border-slate-200 bg-slate-50/80 rounded-t-lg">
                   <CardTitle className="flex items-center gap-3 text-xl">
-            
+
                     Qualification & Opportunity
                   </CardTitle>
                   <CardDescription>Capture the sales potential and buying intent.</CardDescription>
@@ -1290,9 +1290,9 @@ export default function LeadDetailPage() {
                 </CardContent>
               </Card>
 
-              <CustomFieldsSection 
-                fields={customFields} 
-                onChange={setCustomFields} 
+              <CustomFieldsSection
+                fields={customFields}
+                onChange={setCustomFields}
                 className={!editing ? "opacity-90 pointer-events-none" : "animate-in fade-in slide-in-from-bottom-2 duration-300"}
               />
 
@@ -1363,10 +1363,10 @@ export default function LeadDetailPage() {
               <CardContent className="space-y-4">
                 {lead.phone && (
                   <div className="w-full">
-                    <ClickToCall 
-                      phoneNumber={lead.phone} 
-                      entityType="lead" 
-                      entityId={lead.id} 
+                    <ClickToCall
+                      phoneNumber={lead.phone}
+                      entityType="lead"
+                      entityId={lead.id}
                       className="w-full justify-start p-0 h-14 text-left border border-slate-200 hover:bg-slate-50 transition-all rounded-md overflow-hidden bg-white"
                       customTrigger={
                         <div className="flex items-center gap-4 w-full h-full px-4">
