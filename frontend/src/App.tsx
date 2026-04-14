@@ -91,7 +91,6 @@ import CustomerDetailPage from "./pages/crm/CustomerDetailPage";
 import TasksPage from "./pages/tasks/TasksPage";
 import WorkflowsPage from "./pages/automation/WorkflowsPage";
 // Projects
-import ProjectsDashboardPage from "./pages/projects/ProjectsDashboardPage";
 import ProjectDetailPage from "./pages/projects/ProjectDetailPage";
 import ProjectReportPage from "./pages/projects/ProjectReportPage";
 // Marketing
@@ -230,7 +229,6 @@ const App = () => (
                   <Route path="/tasks" element={<TasksPage />} />
                   <Route path="/automation/workflows" element={<WorkflowsPage />} />
                   {/* Projects — /projects redirects to /tasks, detail page stays */}
-                  <Route path="/projects" element={<ProjectsDashboardPage />} />
                   <Route path="/projects/:id" element={<ProjectDetailPage />} />
                   {/* Marketing */}
                   <Route path="/marketing" element={<MarketingDashboardPage />} />
