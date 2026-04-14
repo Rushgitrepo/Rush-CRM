@@ -252,7 +252,6 @@ export default function LeadsPage() {
       header: "Contact",
       render: (lead) => (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Phone className="h-4 w-4" />
           {lead.phone ? (
             <ClickToCall 
               phoneNumber={lead.phone} 
@@ -281,16 +280,6 @@ export default function LeadsPage() {
       header: "",
       render: (lead) => (
         <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1">
-          {lead.phone && (
-            <ClickToCall 
-              phoneNumber={lead.phone} 
-              entityType="lead" 
-              entityId={lead.id} 
-              className="h-8 w-8 p-0" 
-              variant="ghost"
-              showText={false}
-            />
-          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm">
@@ -427,7 +416,7 @@ export default function LeadsPage() {
           <WorkspaceFilter 
             value={workspaceFilter} 
             onChange={setWorkspaceFilter}
-            className="border-primary/20 bg-primary/5"
+            className="border-slate-200 bg-white"
           />
           <Button variant="outline" size="sm" onClick={() => { setType("all"); setWorkspaceFilter("all"); }}>
             Reset Filters
@@ -450,7 +439,7 @@ export default function LeadsPage() {
       </DataToolbar>
 
       {view === "list" && (
-        <Card className="border-0 shadow-card">
+        <Card className="border border-slate-200 bg-white shadow-sm">
           <CardContent className="p-4 lg:p-6">
             <EntityTable
               data={filtered}

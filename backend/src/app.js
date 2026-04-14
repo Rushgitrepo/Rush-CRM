@@ -13,7 +13,7 @@ const customerRoutes = require('./routes/crm/customers');
 const activityRoutes = require('./routes/crm/activities');
 const crmCommentRoutes = require('./routes/crm/comments');
 const crmDocumentRoutes = require('./routes/crm/documents');
-const employeeRoutes = require('./routes/hrms/employees');
+const hrmsEmployeeRoutes = require('./routes/hrms/employees');
 const attendanceRoutes = require('./routes/hrms/attendance');
 const leaveRoutes = require('./routes/hrms/leave');
 const payrollRoutes = require('./routes/payroll/payroll');
@@ -33,7 +33,7 @@ const workgroupRoutes = require('./routes/collaboration/workgroups');
 const workgroupFilesRoutes = require('./routes/collaboration/workgroupFiles');
 const workgroupWikiRoutes = require('./routes/collaboration/workgroupWiki');
 const workgroupNotificationsRoutes = require('./routes/collaboration/workgroupNotifications');
-const userRoutes = require('./routes/auth/users');
+const memberRoutes = require('./routes/auth/employeeRoutes');
 const roleRoutes = require('./routes/auth/roles');
 const permissionRoutes = require('./routes/auth/permissions');
 const orgRoutes = require('./routes/auth/organizations');
@@ -66,6 +66,7 @@ const scoringRoutes = require('./routes/recruitment/scoringRoutes');
 const talentPoolRoutes = require('./routes/recruitment/talentPoolRoutes');
 const analyticsRoutes = require('./routes/recruitment/analyticsRoutes');
 const salesOrderRoutes = require('./routes/crm/salesOrders');
+const instantlyWebhookRoutes = require('./routes/webhooks/instantly');
 const errorHandler = require('./middleware/errorHandler');
 
 
@@ -84,7 +85,7 @@ router.use('/api/customers', customerRoutes);
 router.use('/api/activities', activityRoutes);
 router.use('/api/crm-comments', crmCommentRoutes);
 router.use('/api/crm-documents', crmDocumentRoutes);
-router.use('/api/employees', employeeRoutes);
+router.use('/api/employees', hrmsEmployeeRoutes);
 router.use('/api/attendance', attendanceRoutes);
 router.use('/api/leave', leaveRoutes);
 router.use('/api/payroll', payrollRoutes);
@@ -104,7 +105,7 @@ router.use('/api/workgroups', workgroupRoutes);
 router.use('/api/workgroups', workgroupFilesRoutes);
 router.use('/api/workgroups', workgroupWikiRoutes);
 router.use('/api/workgroups', workgroupNotificationsRoutes);
-router.use('/api/users', userRoutes);
+router.use('/api/members', memberRoutes);
 router.use('/api/roles', roleRoutes);
 router.use('/api/permissions', permissionRoutes);
 router.use('/api/organizations', orgRoutes);
@@ -139,6 +140,7 @@ router.use('/api/recruitment/analytics', analyticsRoutes);
 
 
 router.use('/api/sales-orders', salesOrderRoutes);
+router.use('/api/webhooks/instantly', instantlyWebhookRoutes);
 
 router.get('/api/health', (req, res) => {
 

@@ -118,9 +118,9 @@ function ProfileSettings() {
     }
     setChangingPassword(true);
     try {
-      await api.post(`/auth/change-password`, { 
+      await api.post(`/auth/change-password`, {
         currentPassword,
-        newPassword 
+        newPassword
       });
       toast.success("Password updated successfully");
       setCurrentPassword("");

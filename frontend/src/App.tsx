@@ -77,7 +77,7 @@ import CarFormPage from "./pages/inventory/CarFormPage";
 // Admin
 import UsersPage from "./pages/admin/UsersPage";
 import RolesPage from "./pages/admin/RolesPage";
-import PermissionsPage from "./pages/admin/PermissionsPage";
+import PermissionCenter from "./pages/admin/PermissionCenter";
 import AdminSettingsPage from "./pages/admin/AdminSettingsPage";
 import JoinRequestsPage from "./pages/admin/JoinRequestsPage";
 import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
@@ -222,7 +222,7 @@ const App = () => (
                   {/* Admin Routes - restricted to admin users */}
                   <Route path="/admin/users" element={<AdminRoute><UsersPage /></AdminRoute>} />
                   <Route path="/admin/roles" element={<AdminRoute><RolesPage /></AdminRoute>} />
-                  <Route path="/admin/permissions" element={<AdminRoute><PermissionsPage /></AdminRoute>} />
+                  <Route path="/admin/permissions" element={<AdminRoute><PermissionCenter /></AdminRoute>} />
                   <Route path="/admin/settings" element={<AdminRoute><AdminSettingsPage /></AdminRoute>} />
                   <Route path="/admin/join-requests" element={<AdminRoute><JoinRequestsPage /></AdminRoute>} />
                   <Route path="/admin-dashboard" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />

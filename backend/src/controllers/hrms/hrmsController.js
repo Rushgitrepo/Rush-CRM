@@ -225,48 +225,92 @@ const clockIn = async (req, res, next) => {
     const today = new Date().toISOString().split('T')[0];
     const now = new Date();
 
-    // Get or create employee record
+    console.log('Clock-in request for user:', req.user.id, 'org:', req.user.orgId);
+
+    // Get user details first
+    const userResult = await db.query(
+      'SELECT email, full_name FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = userResult.rows[0];
+    console.log('User details:', user.email);
+
+    // Try to find existing employee record by user_id first
     let employeeResult = await db.query(
       'SELECT id FROM employees WHERE user_id = $1 AND org_id = $2',
       [req.user.id, req.user.orgId]
     );
 
     let employeeId;
-    if (employeeResult.rows.length === 0) {
-      // Create employee record
-      const userResult = await db.query(
-        'SELECT email, full_name FROM users WHERE id = $1',
-        [req.user.id]
-      );
-      
-      if (userResult.rows.length === 0) {
-        return res.status(404).json({ error: 'User not found' });
-      }
-      
-      const user = userResult.rows[0];
-      const nameParts = (user.full_name || 'Employee').split(' ');
-      
-      const createEmployeeResult = await db.query(
-        `INSERT INTO employees (
-          org_id, user_id, first_name, last_name, email, status, hire_date, created_by, name
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        RETURNING id`,
-        [
-          req.user.orgId, 
-          req.user.id, 
-          nameParts[0] || 'Employee',
-          nameParts.slice(1).join(' ') || '',
-          user.email,
-          'active',
-          today,
-          req.user.id,
-          user.full_name || 'Employee'
-        ]
-      );
-      
-      employeeId = createEmployeeResult.rows[0].id;
-    } else {
+    
+    if (employeeResult.rows.length > 0) {
+      // Employee record exists for this user
       employeeId = employeeResult.rows[0].id;
+      console.log('Found existing employee by user_id:', employeeId);
+    } else {
+      // No employee record for this user, check by email
+      const emailEmployeeResult = await db.query(
+        'SELECT id, user_id FROM employees WHERE email = $1 AND org_id = $2',
+        [user.email, req.user.orgId]
+      );
+      
+      if (emailEmployeeResult.rows.length > 0) {
+        // Employee exists with this email, link it to user
+        employeeId = emailEmployeeResult.rows[0].id;
+        console.log('Found existing employee by email, linking to user:', employeeId);
+        
+        await db.query(
+          'UPDATE employees SET user_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+          [req.user.id, employeeId]
+        );
+      } else {
+        // No employee exists, create new one
+        console.log('Creating new employee record');
+        const nameParts = (user.full_name || 'Employee').split(' ');
+        
+        // Use a more defensive approach - check one more time before insert
+        const finalCheck = await db.query(
+          'SELECT id FROM employees WHERE email = $1 AND org_id = $2',
+          [user.email, req.user.orgId]
+        );
+        
+        if (finalCheck.rows.length > 0) {
+          // Someone else created it in the meantime
+          employeeId = finalCheck.rows[0].id;
+          await db.query(
+            'UPDATE employees SET user_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+            [req.user.id, employeeId]
+          );
+          console.log('Race condition detected, using existing employee:', employeeId);
+        } else {
+          // Safe to create
+          const createEmployeeResult = await db.query(
+            `INSERT INTO employees (
+              org_id, user_id, first_name, last_name, email, status, hire_date, created_by, name
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            RETURNING id`,
+            [
+              req.user.orgId, 
+              req.user.id, 
+              nameParts[0] || 'Employee',
+              nameParts.slice(1).join(' ') || '',
+              user.email,
+              'active',
+              today,
+              req.user.id,
+              user.full_name || 'Employee'
+            ]
+          );
+          
+          employeeId = createEmployeeResult.rows[0].id;
+          console.log('Successfully created new employee:', employeeId);
+        }
+      }
     }
 
     // Check if already clocked in today
@@ -285,6 +329,7 @@ const clockIn = async (req, res, next) => {
     const isLate = clockInHour > 9 || (clockInHour === 9 && clockInMinute > 30);
     const status = isLate ? 'late' : 'present';
 
+    console.log('Creating attendance record for employee:', employeeId);
     const result = await db.query(
       `INSERT INTO attendance (
         org_id, user_id, employee_id, date, clock_in, status, notes, 
@@ -317,8 +362,10 @@ const clockIn = async (req, res, next) => {
       { status, location }
     );
 
+    console.log('Clock-in successful for employee:', employeeId);
     res.status(201).json(result.rows[0]);
   } catch (err) {
+    console.error('Clock-in error:', err.message, err.code, err.constraint);
     next(err);
   }
 };
