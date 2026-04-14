@@ -189,9 +189,9 @@ export default function CreateEmployeePage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+    <div className="min-h-screen">
       {/* Header */}
-      <div className="bg-white border-b border-slate-200 shadow-sm">
+      <div className="border-b border-slate-200 shadow-sm">
         <div className="max-w-6xl mx-auto px-6 py-6">
           <Button
             variant="ghost"
@@ -207,7 +207,7 @@ export default function CreateEmployeePage() {
               <User className="h-8 w-8 text-white" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Add New Employee</h1>
+              <h1 className="text-3xl font-bold text-white">Add New Employee</h1>
               <p className="text-gray-600 mt-1">Complete employee information and documentation</p>
             </div>
           </div>

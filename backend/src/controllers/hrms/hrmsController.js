@@ -6,7 +6,7 @@ const getStats = async (req, res, next) => {
   try {
     const { period = 'today' } = req.query;
     let dateFilter = '';
-    
+
     switch (period) {
       case 'today':
         dateFilter = "AND DATE(a.date) = CURRENT_DATE";
@@ -232,11 +232,11 @@ const clockIn = async (req, res, next) => {
       'SELECT email, full_name FROM users WHERE id = $1',
       [req.user.id]
     );
-    
+
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     const user = userResult.rows[0];
     console.log('User details:', user.email);
 
@@ -247,7 +247,7 @@ const clockIn = async (req, res, next) => {
     );
 
     let employeeId;
-    
+
     if (employeeResult.rows.length > 0) {
       // Employee record exists for this user
       employeeId = employeeResult.rows[0].id;
@@ -258,58 +258,63 @@ const clockIn = async (req, res, next) => {
         'SELECT id, user_id FROM employees WHERE email = $1 AND org_id = $2',
         [user.email, req.user.orgId]
       );
-      
+
       if (emailEmployeeResult.rows.length > 0) {
-        // Employee exists with this email, link it to user
+        // Employee exists with this email in THIS organization, link it to user
         employeeId = emailEmployeeResult.rows[0].id;
-        console.log('Found existing employee by email, linking to user:', employeeId);
-        
+        console.log('Found existing employee by email in this org, linking to user:', employeeId);
+
         await db.query(
           'UPDATE employees SET user_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
           [req.user.id, employeeId]
         );
       } else {
-        // No employee exists, create new one
+        // Check if employee exists GLOBALLY (due to potential global unique constraint on email)
+        const globalEmailResult = await db.query(
+          'SELECT id, org_id FROM employees WHERE email = $1 LIMIT 1',
+          [user.email]
+        );
+
+        if (globalEmailResult.rows.length > 0) {
+           console.log('Employee exists globally in another org:', globalEmailResult.rows[0].org_id);
+           // We can't create a new record in this org because of the UNIQUE(email) constraint in the DB.
+           // For now, we will link the existing global employee to this org (or return error)
+           // But actually, we should try to update the existing one's org if it's currently null
+           // or just return an error that clearly explains the situation.
+           return res.status(409).json({ 
+             error: 'An employee with this email already exists in the system (potentially in another organization).',
+             details: 'Multi-tenant email uniqueness is currently enforced globally.' 
+           });
+        }
+
+        // No employee exists anywhere, create new record
         console.log('Creating new employee record');
         const nameParts = (user.full_name || 'Employee').split(' ');
-        
-        // Use a more defensive approach - check one more time before insert
-        const finalCheck = await db.query(
-          'SELECT id FROM employees WHERE email = $1 AND org_id = $2',
-          [user.email, req.user.orgId]
+
+        const createEmployeeResult = await db.query(
+          `INSERT INTO employees (
+            org_id, user_id, first_name, last_name, email, status, hire_date, created_by, name
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          RETURNING id`,
+          [
+            req.user.orgId,
+            req.user.id,
+            nameParts[0] || 'Employee',
+            nameParts.slice(1).join(' ') || '',
+            user.email,
+            'active',
+            today,
+            req.user.id,
+            user.full_name || 'Employee'
+          ]
         );
-        
-        if (finalCheck.rows.length > 0) {
-          // Someone else created it in the meantime
-          employeeId = finalCheck.rows[0].id;
-          await db.query(
-            'UPDATE employees SET user_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-            [req.user.id, employeeId]
-          );
-          console.log('Race condition detected, using existing employee:', employeeId);
-        } else {
-          // Safe to create
-          const createEmployeeResult = await db.query(
-            `INSERT INTO employees (
-              org_id, user_id, first_name, last_name, email, status, hire_date, created_by, name
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            RETURNING id`,
-            [
-              req.user.orgId, 
-              req.user.id, 
-              nameParts[0] || 'Employee',
-              nameParts.slice(1).join(' ') || '',
-              user.email,
-              'active',
-              today,
-              req.user.id,
-              user.full_name || 'Employee'
-            ]
-          );
-          
-          employeeId = createEmployeeResult.rows[0].id;
-          console.log('Successfully created new employee:', employeeId);
+
+        if (createEmployeeResult.rows.length === 0) {
+          throw new Error('Failed to create employee record');
         }
+
+        employeeId = createEmployeeResult.rows[0].id;
+        console.log('Employee record created:', employeeId);
       }
     }
 
@@ -337,12 +342,12 @@ const clockIn = async (req, res, next) => {
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *`,
       [
-        req.user.orgId, 
-        req.user.id, 
-        employeeId, 
-        today, 
-        now, 
-        status, 
+        req.user.orgId,
+        req.user.id,
+        employeeId,
+        today,
+        now,
+        status,
         notes,
         location?.lat || null,
         location?.lng || null,
@@ -400,10 +405,10 @@ const clockOut = async (req, res, next) => {
 
     const attendance = attendanceResult.rows[0];
     const clockIn = new Date(attendance.clock_in);
-    
+
     // Calculate total hours
     let totalHours = (now - clockIn) / (1000 * 60 * 60); // Convert to hours
-    
+
     // Subtract break time if any
     if (attendance.break_start && attendance.break_end) {
       const breakStart = new Date(attendance.break_start);

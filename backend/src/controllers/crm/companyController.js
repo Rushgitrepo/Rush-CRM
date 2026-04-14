@@ -21,6 +21,7 @@ const updateCompanySchema = Joi.object({
   email: Joi.string().optional().allow('', null),
   address: Joi.string().optional().allow('', null),
   revenue: Joi.alternatives().try(Joi.number(), Joi.string()).optional().allow(null, ''),
+  employee_count: Joi.alternatives().try(Joi.number(), Joi.string()).optional().allow(null, ''),
   logoUrl: Joi.string().optional().allow('', null),
   notes: Joi.string().optional().allow('', null),
 }).min(1).options({ stripUnknown: true });
@@ -31,6 +32,13 @@ const normalizeCompanyInput = (body = {}) => {
   if (revenueRaw !== '' && revenueRaw !== null && revenueRaw !== undefined) {
     const parsed = parseFloat(revenueRaw);
     revenue = !isNaN(parsed) ? parsed : null;
+  }
+
+  const employeeCountRaw = body.employee_count;
+  let employeeCount = null;
+  if (employeeCountRaw !== '' && employeeCountRaw !== null && employeeCountRaw !== undefined) {
+    const parsed = parseInt(employeeCountRaw);
+    employeeCount = !isNaN(parsed) ? parsed : null;
   }
 
   const website = body.website?.trim();
@@ -45,6 +53,7 @@ const normalizeCompanyInput = (body = {}) => {
     email: email && email !== '' ? email : null,
     address: body.address ?? null,
     revenue,
+    employee_count: employeeCount,
     logoUrl: logoUrl?.trim() && logoUrl.trim() !== '' ? logoUrl.trim() : null,
     notes: body.notes ?? body.comment ?? null,
   };
@@ -189,12 +198,15 @@ const update = async (req, res, next) => {
     const fieldMapping = {
       name: 'name', industry: 'industry', website: 'website',
       phone: 'phone', email: 'email', address: 'address',
-      revenue: 'revenue', logoUrl: 'logo_url', notes: 'notes',
+      revenue: 'revenue', employee_count: 'employee_count',
+      logoUrl: 'logo_url', notes: 'notes',
     };
 
     for (const [key, val] of Object.entries(value)) {
       const dbField = fieldMapping[key];
-      if (dbField && val !== undefined) {
+      if (dbField) {
+        // Skip name if it's null/undefined to prevent NOT NULL violation
+        if (key === 'name' && (val === null || val === undefined)) continue;
         fields.push(`${dbField} = $${paramIndex}`);
         values.push(val);
         paramIndex++;

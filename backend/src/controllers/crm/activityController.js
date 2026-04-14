@@ -80,17 +80,21 @@ const getByEmailId = async (req, res, next) => {
 
 const create = async (req, res, next) => {
   try {
-    const { entityType, entityId, activityType, title, description, dueDate } = req.body;
+    const { entityType, entityId, activityType, entity_type, entity_id, activity_type, title, description, dueDate } = req.body;
     
-    if (!entityType || !entityId || !activityType) {
+    const normalizedEntityType = entityType || entity_type;
+    const normalizedEntityId = entityId || entity_id;
+    const normalizedActivityType = activityType || activity_type;
+    
+    if (!normalizedEntityType || !normalizedEntityId || !normalizedActivityType) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
     // Map entity type to the correct column
-    const entityColumn = entityType === 'contact' ? 'contact_id' 
-      : entityType === 'deal' ? 'deal_id'
-      : entityType === 'lead' ? 'lead_id'
-      : entityType === 'company' ? 'company_id'
+    const entityColumn = normalizedEntityType === 'contact' ? 'contact_id' 
+      : normalizedEntityType === 'deal' ? 'deal_id'
+      : normalizedEntityType === 'lead' ? 'lead_id'
+      : normalizedEntityType === 'company' ? 'company_id'
       : null;
 
     if (!entityColumn) {
@@ -105,8 +109,8 @@ const create = async (req, res, next) => {
       [
         req.user.orgId,
         req.user.id,
-        entityId,
-        activityType,
+        normalizedEntityId,
+        normalizedActivityType,
         title,
         description,
         dueDate || null

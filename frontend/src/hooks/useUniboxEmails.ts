@@ -72,7 +72,7 @@ export function useUniboxEmails(filters: {
     console.log('📬 New email received in real-time:', email);
     queryClient.invalidateQueries({ queryKey: ["unibox-emails"] });
     queryClient.invalidateQueries({ queryKey: ["unibox-stats"] });
-    
+
     // Optionally show a toast for new emails if user is not on unibox page? 
     // Or just a general notification.
     toast(`New email from ${email.sender_name || email.sender_email}`, {
@@ -95,7 +95,7 @@ export function useUniboxEmails(filters: {
       if (filters.starred) params.starred = 'true';
       if (filters.unread) params.unread = 'true';
       if (filters.priority && filters.priority !== 'all') params.priority = filters.priority;
-      
+
       return api.get("/unibox/emails", params);
     },
     select: (data: any) => {
@@ -142,30 +142,30 @@ export function useUniboxEmails(filters: {
   });
 
   const updateStatus = useMutation({
-    mutationFn: async ({ 
-      emailId, 
-      status, 
-      interaction_notes, 
-      priority, 
-      tags 
-    }: { 
-      emailId: string; 
-      status: string; 
+    mutationFn: async ({
+      emailId,
+      status,
+      interaction_notes,
+      priority,
+      tags
+    }: {
+      emailId: string;
+      status: string;
       interaction_notes?: string;
       priority?: string;
       tags?: string[];
     }) => {
-      return api.patch(`/unibox/emails/${emailId}/status`, { 
-        status, 
-        interaction_notes, 
-        priority, 
-        tags 
+      return api.patch(`/unibox/emails/${emailId}/status`, {
+        status,
+        interaction_notes,
+        priority,
+        tags
       });
     },
     onMutate: async ({ emailId, status }) => {
       await queryClient.cancelQueries({ queryKey: ["unibox-emails"] });
       const previousData = queryClient.getQueryData(["unibox-emails", filters]);
-      
+
       queryClient.setQueryData(["unibox-emails", filters], (old: any) => {
         if (!old?.emails) return old;
         return {
@@ -175,7 +175,7 @@ export function useUniboxEmails(filters: {
           ),
         };
       });
-      
+
       return { previousData };
     },
     onSuccess: () => {
@@ -198,7 +198,7 @@ export function useUniboxEmails(filters: {
     onMutate: async ({ emailId, is_starred }) => {
       await queryClient.cancelQueries({ queryKey: ["unibox-emails"] });
       const previousData = queryClient.getQueryData(["unibox-emails", filters]);
-      
+
       queryClient.setQueryData(["unibox-emails", filters], (old: any) => {
         if (!old?.emails) return old;
         return {
@@ -208,7 +208,7 @@ export function useUniboxEmails(filters: {
           ),
         };
       });
-      
+
       return { previousData };
     },
     onSuccess: () => {
@@ -230,7 +230,7 @@ export function useUniboxEmails(filters: {
     onMutate: async ({ emailId, is_read }) => {
       await queryClient.cancelQueries({ queryKey: ["unibox-emails"] });
       const previousData = queryClient.getQueryData(["unibox-emails", filters]);
-      
+
       queryClient.setQueryData(["unibox-emails", filters], (old: any) => {
         if (!old?.emails) return old;
         return {
@@ -240,7 +240,7 @@ export function useUniboxEmails(filters: {
           ),
         };
       });
-      
+
       return { previousData };
     },
     onSuccess: () => {
@@ -262,7 +262,7 @@ export function useUniboxEmails(filters: {
     onMutate: async ({ emailId, is_archived }) => {
       await queryClient.cancelQueries({ queryKey: ["unibox-emails"] });
       const previousData = queryClient.getQueryData(["unibox-emails", filters]);
-      
+
       queryClient.setQueryData(["unibox-emails", filters], (old: any) => {
         if (!old?.emails) return old;
         return {
@@ -272,7 +272,7 @@ export function useUniboxEmails(filters: {
           ),
         };
       });
-      
+
       return { previousData };
     },
     onSuccess: () => {
