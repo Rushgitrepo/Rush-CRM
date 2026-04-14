@@ -31,6 +31,7 @@ import DrivePage from "./pages/collaboration/DrivePage";
 import MailPage from "./pages/collaboration/MailPage";
 import UniboxPage from "./pages/collaboration/UniboxPage";
 import WorkgroupsPage from "./pages/collaboration/WorkgroupsPage";
+import DirectChatPage from "./pages/collaboration/DirectChatPage";
 // CRM
 import LeadsPage from "./pages/crm/LeadsPage";
 import CreateLeadPage from "./pages/crm/CreateLeadPage";
@@ -164,6 +165,7 @@ const App = () => (
                   <Route path="/collaboration/mail" element={<MailPage />} />
                   <Route path="/collaboration/unibox" element={<UniboxPage />} />
                   <Route path="/collaboration/workgroups" element={<WorkgroupsPage />} />
+                  <Route path="/collaboration/direct-chats" element={<DirectChatPage />} />
                   {/* CRM Routes */}
                   <Route path="/crm/leads" element={<LeadsPage />} />
                   <Route path="/crm/leads/create" element={<CreateLeadPage />} />

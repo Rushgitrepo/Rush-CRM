@@ -32,19 +32,72 @@ const getWorkgroups = async (req, res, next) => {
     let query = `
       SELECT 
         w.*,
+        CASE
+          WHEN COALESCE((w.settings->>'is_direct_chat')::boolean, false) = true THEN (
+            SELECT u_peer.full_name
+            FROM workgroup_members wm_peer
+            JOIN users u_peer ON u_peer.id = wm_peer.user_id
+            WHERE wm_peer.workgroup_id = w.id
+              AND wm_peer.user_id <> $1
+            ORDER BY wm_peer.joined_at ASC
+            LIMIT 1
+          )
+          ELSE w.name
+        END as display_name,
+        CASE
+          WHEN COALESCE((w.settings->>'is_direct_chat')::boolean, false) = true THEN (
+            SELECT wm_peer.user_id
+            FROM workgroup_members wm_peer
+            WHERE wm_peer.workgroup_id = w.id
+              AND wm_peer.user_id <> $1
+            ORDER BY wm_peer.joined_at ASC
+            LIMIT 1
+          )
+          ELSE NULL
+        END as direct_peer_user_id,
         u.full_name as created_by_name,
         COUNT(DISTINCT wm.user_id) as member_count,
         COUNT(DISTINCT wp.id) as message_count,
+        COUNT(
+          DISTINCT CASE
+            WHEN wp.created_at >= CURRENT_DATE THEN wp.id
+            ELSE NULL
+          END
+        ) as today_message_count,
         MAX(wp.created_at) as last_message_at,
-        CASE 
-          WHEN wm_current.user_id IS NOT NULL THEN true 
-          ELSE false 
-        END as is_member
+        (
+          SELECT u2.full_name
+          FROM workgroup_posts p2
+          JOIN users u2 ON u2.id = p2.user_id
+          WHERE p2.workgroup_id = w.id
+            AND p2.is_deleted = false
+          ORDER BY p2.created_at DESC
+          LIMIT 1
+        ) as last_message_sender_name,
+        (
+          SELECT COUNT(*)::int
+          FROM workgroup_posts p3
+          WHERE p3.workgroup_id = w.id
+            AND p3.is_deleted = false
+            AND p3.user_id <> $1
+            AND NOT ($1::uuid = ANY(COALESCE(p3.deleted_for_users, '{}'::uuid[])))
+            AND NOT EXISTS (
+              SELECT 1
+              FROM workgroup_post_reads r
+              WHERE r.post_id = p3.id
+                AND r.user_id = $1
+            )
+        ) as unread_count,
+        EXISTS (
+          SELECT 1
+          FROM workgroup_members wm_self
+          WHERE wm_self.workgroup_id = w.id
+            AND wm_self.user_id = $1
+        ) as is_member
       FROM workgroups w
       LEFT JOIN users u ON w.created_by = u.id
       LEFT JOIN workgroup_members wm ON w.id = wm.workgroup_id
       LEFT JOIN workgroup_posts wp ON w.id = wp.workgroup_id AND wp.is_deleted = false
-      LEFT JOIN workgroup_members wm_current ON w.id = wm_current.workgroup_id AND wm_current.user_id = $1
       WHERE w.org_id = $2 AND w.is_archived = false
     `;
     
@@ -65,23 +118,45 @@ const getWorkgroups = async (req, res, next) => {
       paramIndex++;
     }
     
-    // Privacy filter - only show private groups if user is a member
-    query += ` AND (w.is_private = false OR wm_current.user_id IS NOT NULL)`;
+    // Privacy filter - only show private groups if current user is a member.
+    query += `
+      AND (
+        w.is_private = false
+        OR EXISTS (
+          SELECT 1
+          FROM workgroup_members wm_self
+          WHERE wm_self.workgroup_id = w.id
+            AND wm_self.user_id = $1
+        )
+      )
+    `;
     
     query += `
-      GROUP BY w.id, u.full_name, wm_current.user_id
-      ORDER BY w.last_activity_at DESC, w.created_at DESC
+      GROUP BY w.id, u.full_name
+      ORDER BY COALESCE(MAX(wp.created_at), w.last_activity_at, w.created_at) DESC
     `;
     
     const result = await db.query(query, params);
     
     // Add activity indicators
-    const workgroups = result.rows.map(wg => ({
-      ...wg,
-      has_recent_activity: wg.last_message_at && 
-        new Date(wg.last_message_at) > new Date(Date.now() - 24 * 60 * 60 * 1000), // Last 24 hours
-      is_online: Math.random() > 0.5 // Mock online status - in real app, use WebSocket
-    }));
+    const workgroups = result.rows.map((wg) => {
+      let isOnline = false;
+      let lastSeenAt = null;
+      if (wg.direct_peer_user_id) {
+        const presence = realtimeService.getUserPresence(wg.direct_peer_user_id);
+        isOnline = Boolean(presence.isOnline);
+        lastSeenAt = presence.lastSeenAt;
+      }
+
+      return {
+        ...wg,
+        has_recent_activity:
+          wg.last_message_at &&
+          new Date(wg.last_message_at) > new Date(Date.now() - 24 * 60 * 60 * 1000), // Last 24 hours
+        is_online: isOnline,
+        last_seen_at: lastSeenAt,
+      };
+    });
     
     res.json(workgroups);
   } catch (err) {
@@ -97,6 +172,18 @@ const getWorkgroup = async (req, res, next) => {
     const query = `
       SELECT 
         w.*,
+        CASE
+          WHEN COALESCE((w.settings->>'is_direct_chat')::boolean, false) = true THEN (
+            SELECT u_peer.full_name
+            FROM workgroup_members wm_peer
+            JOIN users u_peer ON u_peer.id = wm_peer.user_id
+            WHERE wm_peer.workgroup_id = w.id
+              AND wm_peer.user_id <> $1
+            ORDER BY wm_peer.joined_at ASC
+            LIMIT 1
+          )
+          ELSE w.name
+        END as display_name,
         u.full_name as created_by_name,
         COUNT(DISTINCT wm.user_id) as member_count,
         COUNT(DISTINCT wp.id) as message_count,
@@ -136,6 +223,8 @@ const getWorkgroup = async (req, res, next) => {
 const createWorkgroup = async (req, res, next) => {
   try {
     const { name, description, avatar_color, type, is_private } = req.body;
+    const normalizedType = type || 'team';
+    const normalizedIsPrivate = normalizedType === 'private' ? true : false;
     
     if (!name || !name.trim()) {
       return res.status(400).json({ error: 'Workgroup name is required' });
@@ -168,8 +257,8 @@ const createWorkgroup = async (req, res, next) => {
       name.trim(),
       description?.trim() || null,
       avatar_color || 'bg-blue-500',
-      type || 'team',
-      is_private || false,
+      normalizedType,
+      normalizedIsPrivate,
       req.user.id
     ]);
 
@@ -188,6 +277,12 @@ const createWorkgroup = async (req, res, next) => {
     });
 
     await db.query('COMMIT');
+
+    realtimeService.emitWorkgroupUpdated(req.user.orgId, {
+      action: 'created',
+      workgroup_id: id,
+      workgroup: result.rows[0],
+    });
     
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -200,7 +295,19 @@ const createWorkgroup = async (req, res, next) => {
 const updateWorkgroup = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, description, avatar_color, type, is_private } = req.body;
+    const {
+      name,
+      description,
+      avatar_color,
+      type,
+      is_private,
+      manage_member_user_id,
+    } = req.body;
+    const normalizedType = type;
+    const normalizedIsPrivate =
+      normalizedType === undefined
+        ? is_private
+        : normalizedType === 'private';
     
     // Check if user is admin or owner
     const memberQuery = `
@@ -244,8 +351,8 @@ const updateWorkgroup = async (req, res, next) => {
       name?.trim(),
       description?.trim(),
       avatar_color,
-      type,
-      is_private,
+      normalizedType,
+      normalizedIsPrivate,
       id,
       req.user.orgId
     ]);
@@ -253,13 +360,64 @@ const updateWorkgroup = async (req, res, next) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Workgroup not found' });
     }
+
+    // Optional: assign a specific non-admin/owner member who can add/remove members.
+    if (manage_member_user_id !== undefined) {
+      if (manage_member_user_id) {
+        const targetMemberCheck = await db.query(
+          `
+            SELECT wm.user_id
+            FROM workgroup_members wm
+            JOIN users u ON u.id = wm.user_id
+            WHERE wm.workgroup_id = $1
+              AND wm.user_id = $2
+              AND u.org_id = $3
+          `,
+          [id, manage_member_user_id, req.user.orgId],
+        );
+        if (targetMemberCheck.rows.length === 0) {
+          return res.status(400).json({ error: 'Assigned user must be a member of this team' });
+        }
+      }
+
+      await db.query(
+        `
+          UPDATE workgroups
+          SET settings = CASE
+            WHEN $1::text IS NULL
+              THEN COALESCE(settings, '{}'::jsonb) - 'member_manager_user_id'
+            ELSE jsonb_set(
+              COALESCE(settings, '{}'::jsonb),
+              '{member_manager_user_id}',
+              to_jsonb($1::text),
+              true
+            )
+          END,
+          updated_at = CURRENT_TIMESTAMP
+          WHERE id = $2 AND org_id = $3
+        `,
+        [manage_member_user_id || null, id, req.user.orgId],
+      );
+    }
     
     // Log activity
     await logActivity(id, req.user.id, 'workgroup_updated', {
       changes: { name, description, avatar_color, type, is_private }
     });
-    
-    res.json(result.rows[0]);
+
+    const latestResult = await db.query(
+      `SELECT * FROM workgroups WHERE id = $1 AND org_id = $2`,
+      [id, req.user.orgId]
+    );
+    const latestWorkgroup = latestResult.rows[0] || result.rows[0];
+
+    realtimeService.emitWorkgroupUpdated(req.user.orgId, {
+      action: 'updated',
+      workgroup_id: id,
+      workgroup: latestWorkgroup,
+    });
+
+    res.json(latestWorkgroup);
   } catch (err) {
     next(err);
   }
@@ -299,6 +457,12 @@ const deleteWorkgroup = async (req, res, next) => {
     await logActivity(id, req.user.id, 'workgroup_deleted', {
       workgroup_name: result.rows[0].name
     });
+
+    realtimeService.emitWorkgroupUpdated(req.user.orgId, {
+      action: 'deleted',
+      workgroup_id: id,
+      workgroup: { id },
+    });
     
     res.json({ message: 'Workgroup deleted successfully' });
   } catch (err) {
@@ -327,6 +491,22 @@ const getWorkgroupMembers = async (req, res, next) => {
     if (accessResult.rows[0].is_private && !accessResult.rows[0].user_id) {
       return res.status(403).json({ error: 'Access denied to private workgroup' });
     }
+
+    // When user opens the workgroup, mark all messages from others as read.
+    await db.query(
+      `
+        INSERT INTO workgroup_post_reads (post_id, user_id, read_at)
+        SELECT p.id, $2::uuid, CURRENT_TIMESTAMP
+        FROM workgroup_posts p
+        WHERE p.workgroup_id = $1
+          AND p.user_id <> $2
+          AND p.is_deleted = false
+          AND NOT ($2::uuid = ANY(COALESCE(p.deleted_for_users, '{}'::uuid[])))
+        ON CONFLICT (post_id, user_id) DO UPDATE
+        SET read_at = EXCLUDED.read_at
+      `,
+      [id, req.user.id],
+    );
     
     const query = `
       SELECT 
@@ -334,6 +514,7 @@ const getWorkgroupMembers = async (req, res, next) => {
         u.full_name,
         u.email,
         u.avatar_url,
+        u.role as user_role,
         ui.full_name as invited_by_name
       FROM workgroup_members wm
       JOIN users u ON wm.user_id = u.id
@@ -350,7 +531,15 @@ const getWorkgroupMembers = async (req, res, next) => {
     `;
     
     const result = await db.query(query, [id]);
-    res.json(result.rows);
+    const membersWithPresence = result.rows.map((member) => {
+      const presence = realtimeService.getUserPresence(member.user_id);
+      return {
+        ...member,
+        is_online: presence.isOnline,
+        last_seen_at: presence.lastSeenAt,
+      };
+    });
+    res.json(membersWithPresence);
   } catch (err) {
     next(err);
   }
@@ -381,7 +570,7 @@ const addWorkgroupMember = async (req, res, next) => {
 
     // Check if current user can add members
     const permissionQuery = `
-      SELECT wm.role, w.allow_member_add_remove
+      SELECT wm.role, w.allow_member_add_remove, w.created_by, w.settings
       FROM workgroup_members wm
       JOIN workgroups w ON wm.workgroup_id = w.id
       WHERE wm.workgroup_id = $1 AND wm.user_id = $2
@@ -392,9 +581,22 @@ const addWorkgroupMember = async (req, res, next) => {
       return res.status(403).json({ error: 'You are not a member of this workgroup' });
     }
     
-    const { role: currentUserRole, allow_member_add_remove } = permissionResult.rows[0];
+    const {
+      role: currentUserRole,
+      allow_member_add_remove,
+      created_by,
+      settings,
+    } = permissionResult.rows[0];
+    const isTeamCreator = created_by === req.user.id;
+    const assignedManagerUserId = settings?.member_manager_user_id || null;
+    const isAssignedMemberManager = assignedManagerUserId === req.user.id;
     
-    if (!['owner', 'admin'].includes(currentUserRole) && !allow_member_add_remove) {
+    if (
+      !['owner', 'admin'].includes(currentUserRole) &&
+      !allow_member_add_remove &&
+      !isTeamCreator &&
+      !isAssignedMemberManager
+    ) {
       return res.status(403).json({ error: 'You do not have permission to add members' });
     }
     
@@ -480,8 +682,10 @@ const removeWorkgroupMember = async (req, res, next) => {
     
     // Check permissions
     const permissionQuery = `
-      SELECT role FROM workgroup_members 
-      WHERE workgroup_id = $1 AND user_id = $2
+      SELECT wm.role, w.created_by, w.settings
+      FROM workgroup_members wm
+      JOIN workgroups w ON wm.workgroup_id = w.id
+      WHERE wm.workgroup_id = $1 AND wm.user_id = $2
     `;
     const permissionResult = await db.query(permissionQuery, [id, req.user.id]);
     
@@ -490,6 +694,10 @@ const removeWorkgroupMember = async (req, res, next) => {
     }
     
     const currentUserRole = permissionResult.rows[0].role;
+    const isTeamCreator = permissionResult.rows[0].created_by === req.user.id;
+    const assignedManagerUserId =
+      permissionResult.rows[0].settings?.member_manager_user_id || null;
+    const isAssignedMemberManager = assignedManagerUserId === req.user.id;
     
     // Users can remove themselves, owners can remove anyone, admins can remove members/guests
     if (targetUserId !== req.user.id) {
@@ -503,7 +711,7 @@ const removeWorkgroupMember = async (req, res, next) => {
         if (['owner', 'admin'].includes(targetRole)) {
           return res.status(403).json({ error: 'Cannot remove owners or other admins' });
         }
-      } else {
+      } else if (!isTeamCreator && !isAssignedMemberManager) {
         return res.status(403).json({ error: 'You do not have permission to remove members' });
       }
     }
@@ -580,11 +788,15 @@ const getWorkgroupPosts = async (req, res, next) => {
         JOIN users u ON p.user_id = u.id
         WHERE p.workgroup_id = $1 
           AND p.parent_id IS NULL 
-          AND p.is_deleted = false
+          AND (
+            p.is_deleted = false
+            OR p.is_deleted = true
+            OR $2::uuid = ANY(COALESCE(p.deleted_for_users, '{}'::uuid[]))
+          )
     `;
     
-    const params = [id];
-    let paramIndex = 2;
+    const params = [id, req.user.id];
+    let paramIndex = 3;
     
     if (channel_id) {
       query += ` AND p.channel_id = $${paramIndex}`;
@@ -604,7 +816,11 @@ const getWorkgroupPosts = async (req, res, next) => {
         FROM workgroup_posts p
         JOIN users u ON p.user_id = u.id
         JOIN post_tree pt ON p.parent_id = pt.id
-        WHERE p.is_deleted = false
+        WHERE (
+          p.is_deleted = false
+          OR p.is_deleted = true
+          OR $2::uuid = ANY(COALESCE(p.deleted_for_users, '{}'::uuid[]))
+        )
       )
       SELECT * FROM post_tree
       ORDER BY root_id DESC, depth ASC, created_at ASC
@@ -614,12 +830,31 @@ const getWorkgroupPosts = async (req, res, next) => {
     params.push(parseInt(limit), parseInt(offset));
     
     const result = await db.query(query, params);
+
+    // Build seen-count map for tick color rendering.
+    const allPostIds = result.rows.map((post) => post.id);
+    const seenCountMap = new Map();
+    if (allPostIds.length > 0) {
+      const seenResult = await db.query(
+        `
+          SELECT post_id, COUNT(*)::int AS seen_count
+          FROM workgroup_post_reads
+          WHERE post_id = ANY($1::uuid[])
+          GROUP BY post_id
+        `,
+        [allPostIds],
+      );
+      seenResult.rows.forEach((row) => {
+        seenCountMap.set(row.post_id, row.seen_count);
+      });
+    }
     
     // Group replies under parent posts
     const postsMap = new Map();
     const rootPosts = [];
     
     result.rows.forEach(post => {
+      post.seen_count = seenCountMap.get(post.id) || 0;
       if (post.depth === 0) {
         post.replies = [];
         postsMap.set(post.id, post);
@@ -650,13 +885,27 @@ const createWorkgroupPost = async (req, res, next) => {
     
     // Check if user is member
     const memberQuery = `
-      SELECT id FROM workgroup_members 
+      SELECT id, role FROM workgroup_members 
       WHERE workgroup_id = $1 AND user_id = $2
     `;
     const memberResult = await db.query(memberQuery, [id, req.user.id]);
     
     if (memberResult.rows.length === 0) {
       return res.status(403).json({ error: 'You must be a member to post messages' });
+    }
+
+    // Require at least two members before starting team conversation
+    const teamSizeQuery = `
+      SELECT COUNT(*)::int AS total_members
+      FROM workgroup_members
+      WHERE workgroup_id = $1
+    `;
+    const teamSizeResult = await db.query(teamSizeQuery, [id]);
+    const totalMembers = teamSizeResult.rows[0]?.total_members || 0;
+    if (totalMembers < 2) {
+      return res.status(400).json({
+        error: 'Add at least one team member before starting conversation'
+      });
     }
     
     // Check if channel exists and is broadcast
@@ -773,6 +1022,48 @@ const deleteWorkgroupPost = async (req, res, next) => {
   }
 };
 
+// Delete workgroup post only for current user
+const deleteWorkgroupPostForMe = async (req, res, next) => {
+  try {
+    const { id, postId } = req.params;
+
+    // Ensure requester is a member and post exists in this workgroup
+    const postQuery = `
+      SELECT p.id, p.user_id
+      FROM workgroup_posts p
+      JOIN workgroup_members wm
+        ON wm.workgroup_id = p.workgroup_id
+       AND wm.user_id = $1
+      WHERE p.id = $2
+        AND p.workgroup_id = $3
+        AND p.is_deleted = false
+    `;
+    const postResult = await db.query(postQuery, [req.user.id, postId, id]);
+
+    if (postResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    await db.query(
+      `
+        UPDATE workgroup_posts
+        SET deleted_for_users = CASE
+          WHEN deleted_for_users IS NULL THEN ARRAY[$1::uuid]
+          WHEN $1::uuid = ANY(deleted_for_users) THEN deleted_for_users
+          ELSE array_append(deleted_for_users, $1::uuid)
+        END,
+        updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2 AND workgroup_id = $3
+      `,
+      [req.user.id, postId, id],
+    );
+
+    res.json({ message: 'Post deleted for you' });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // Toggle pin status of workgroup post
 const togglePinWorkgroupPost = async (req, res, next) => {
   try {
@@ -862,6 +1153,100 @@ const addWorkgroupPostReaction = async (req, res, next) => {
   }
 };
 
+// Find existing direct chat or create one
+const getOrCreateDirectChatWorkgroup = async (req, res, next) => {
+  let client = null;
+  try {
+    const { contact_user_id } = req.body;
+    if (!contact_user_id) {
+      return res.status(400).json({ error: 'contact_user_id is required' });
+    }
+
+    const currentUserId = String(req.user.id || '').toLowerCase();
+    const contactUserId = String(contact_user_id || '').toLowerCase();
+    if (contactUserId === currentUserId) {
+      return res.status(400).json({ error: 'Cannot open direct chat with yourself' });
+    }
+
+    const contactResult = await db.query(
+      `SELECT id, full_name, email FROM users WHERE id = $1 AND org_id = $2`,
+      [contact_user_id, req.user.orgId]
+    );
+    if (contactResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found in your organization' });
+    }
+
+    const existingResult = await db.query(
+      `
+        SELECT w.*
+        FROM workgroups w
+        JOIN workgroup_members wm_me ON wm_me.workgroup_id = w.id AND wm_me.user_id = $1
+        JOIN workgroup_members wm_contact ON wm_contact.workgroup_id = w.id AND wm_contact.user_id = $2
+        WHERE w.org_id = $3
+          AND w.type = 'private'
+          AND w.is_archived = false
+          AND COALESCE((w.settings->>'is_direct_chat')::boolean, false) = true
+        LIMIT 1
+      `,
+      [req.user.id, contact_user_id, req.user.orgId]
+    );
+    if (existingResult.rows.length > 0) {
+      return res.json(existingResult.rows[0]);
+    }
+
+    const contact = contactResult.rows[0];
+    const directChatName = contact.full_name || contact.email || 'Direct Chat';
+    const pairKey = [currentUserId, contactUserId].sort().join(':');
+
+    client = await db.pool.connect();
+    await client.query('BEGIN');
+    const workgroupId = uuidv4();
+    const createdResult = await client.query(
+      `
+        INSERT INTO workgroups (id, org_id, name, type, is_private, created_by, settings)
+        VALUES ($1, $2, $3, 'private', true, $4, $5::jsonb)
+        RETURNING *
+      `,
+      [
+        workgroupId,
+        req.user.orgId,
+        directChatName,
+        req.user.id,
+        JSON.stringify({ is_direct_chat: true, direct_pair_key: pairKey }),
+      ]
+    );
+
+    await client.query(
+      `
+        INSERT INTO workgroup_members (workgroup_id, user_id, role)
+        VALUES ($1, $2, 'owner')
+        ON CONFLICT (workgroup_id, user_id) DO NOTHING
+      `,
+      [workgroupId, req.user.id]
+    );
+    await client.query(
+      `
+        INSERT INTO workgroup_members (workgroup_id, user_id, role)
+        SELECT $1::uuid, $2::uuid, 'member'
+        WHERE $2::uuid <> $3::uuid
+        ON CONFLICT (workgroup_id, user_id) DO NOTHING
+      `,
+      [workgroupId, contact_user_id, req.user.id]
+    );
+
+    await client.query('COMMIT');
+    client.release();
+    client = null;
+    res.status(201).json(createdResult.rows[0]);
+  } catch (err) {
+    try {
+      if (client) await client.query('ROLLBACK');
+    } catch (_) {}
+    if (client) client.release();
+    next(err);
+  }
+};
+
 // Helper function to log activities
 const logActivity = async (workgroupId, userId, activityType, activityData = {}) => {
   try {
@@ -912,7 +1297,9 @@ module.exports = {
   getWorkgroupPosts,
   createWorkgroupPost,
   deleteWorkgroupPost,
+  deleteWorkgroupPostForMe,
   togglePinWorkgroupPost,
   addWorkgroupPostReaction,
+  getOrCreateDirectChatWorkgroup,
   getWorkgroupActivities
 };
