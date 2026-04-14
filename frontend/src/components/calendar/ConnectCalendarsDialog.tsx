@@ -78,14 +78,6 @@ export function ConnectCalendarsDialog({
       <DialogContent className="max-w-2xl">
         <DialogHeader className="flex flex-row items-center gap-4 pb-4">
           <div className="relative">
-            <div className="w-16 h-16 rounded-full bg-success/20 flex items-center justify-center">
-              <Calendar className="w-8 h-8 text-success" />
-            </div>
-            <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-sky-400 flex items-center justify-center">
-              <svg viewBox="0 0 24 24" className="w-4 h-4 text-white" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-            </div>
           </div>
           <div>
             <DialogTitle className="text-xl">Connect calendars</DialogTitle>
@@ -148,7 +140,7 @@ export function ConnectCalendarsDialog({
                 </div>
               ) : (
                 <Button
-                  className="bg-success hover:bg-success/90 text-success-foreground rounded-full px-6"
+                  className="bg-primary hover:bg-primary/90 text-success-foreground rounded-full px-6"
                   onClick={() => onConnect(provider.id)}
                 >
                   CONNECT

@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { OrganizationProvider } from "@/contexts/OrganizationContext";
 import { DialogProvider } from "@/contexts/DialogContext";
@@ -77,7 +78,7 @@ import CarFormPage from "./pages/inventory/CarFormPage";
 // Admin
 import UsersPage from "./pages/admin/UsersPage";
 import RolesPage from "./pages/admin/RolesPage";
-import PermissionCenter from "./pages/admin/PermissionCenter";
+import PermissionCenter from "./pages/admin/PermissionCenter.tsx";
 import AdminSettingsPage from "./pages/admin/AdminSettingsPage";
 import JoinRequestsPage from "./pages/admin/JoinRequestsPage";
 import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
@@ -128,11 +129,12 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
+    <ThemeProvider defaultTheme="system" storageKey="rush-crm-theme">
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
           <OrganizationProvider>
             <DialogProvider>
               <Routes>
@@ -267,6 +269,7 @@ const App = () => (
 
       </BrowserRouter>
     </TooltipProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 

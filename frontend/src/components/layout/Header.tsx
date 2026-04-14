@@ -18,6 +18,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { leadsApi, contactsApi, companiesApi, dealsApi, attendanceApi, leaveApi, employeesApi } from "@/lib/api";
 import { Card } from "@/components/ui/card";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export function TopBar() {
   const navigate = useNavigate();
@@ -221,6 +222,9 @@ export function TopBar() {
 
         {/* Softphone Toggle */}
         <SoftphoneToggleButton />
+
+        {/* Theme Toggle */}
+        <ThemeToggle />
 
         {/* Notifications */}
         <Button variant="ghost" size="icon" className="relative" onClick={() => navigate('/hrms/notifications')}>

@@ -213,7 +213,7 @@ export function CreateEventDialog({ open, onOpenChange, defaultDate, defaultHour
         {/* Actions */}
         <div className="flex gap-3 pt-4 border-t">
           <Button
-            className="bg-success hover:bg-success/90 text-success-foreground"
+            className="bg-primary hover:bg-primary/90 text-success-foreground"
             onClick={handleSubmit}
             disabled={!title.trim() || createEvent.isPending}
           >
