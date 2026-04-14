@@ -28,7 +28,7 @@ function StatTile({
     <button
       onClick={onClick}
       className={cn(
-        "rounded-xl border border-border/50 bg-card p-5 text-left transition-all hover:shadow-sm hover:border-primary/20 group",
+        "rounded-xl border border-border/50 bg-card p-5 w-full text-left transition-all hover:shadow-sm hover:border-primary/20 group",
         onClick ? "cursor-pointer" : "cursor-default"
       )}
     >

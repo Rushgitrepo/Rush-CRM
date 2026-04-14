@@ -280,12 +280,99 @@ const createComment = async (req, res) => {
 
 const getReport = async (req, res, next) => {
   try {
-    const projectId = req.params.token;
-    const { rows: projectRows } = await db.query('SELECT * FROM public.projects WHERE id = $1 AND org_id = $2', [projectId, req.user.orgId]);
+    const token = req.params.token;
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token);
+    
+    if (!isUUID) {
+      // Token is a share token (hex string)
+      const { rows: shareRows } = await db.query(
+        'SELECT * FROM project_shares WHERE share_token = $1',
+        [token]
+      );
+      
+      if (shareRows.length === 0) {
+        return res.status(404).json({ error: 'Share link not found' });
+      }
+      
+      if (!shareRows[0].is_active) {
+        return res.status(403).json({ error: 'Access denied. This share link has been disabled.' });
+      }
+      
+      const share = shareRows[0];
+      const { rows: projectRows } = await db.query('SELECT * FROM public.projects WHERE id = $1', [share.project_id]);
+      if (!projectRows.length) return res.status(404).json({ error: 'Project not found' });
+      const project = projectRows[0];
+      const { rows: taskRows } = await db.query('SELECT * FROM public.tasks WHERE project_id = $1 ORDER BY sort_order ASC', [share.project_id]);
+      return res.json({ project, milestones: [], tasks: taskRows, permissions: { canEdit: false } });
+    }
+    
+    // Token is a UUID - authenticated access
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const { rows: projectRows } = await db.query('SELECT * FROM public.projects WHERE id = $1 AND org_id = $2', [token, req.user.orgId]);
     if (!projectRows.length) return res.status(404).json({ error: 'Project not found' });
     const project = projectRows[0];
-    const { rows: taskRows } = await db.query('SELECT * FROM public.tasks WHERE project_id = $1 AND org_id = $2 ORDER BY sort_order ASC', [projectId, req.user.orgId]);
+    const { rows: taskRows } = await db.query('SELECT * FROM public.tasks WHERE project_id = $1 AND org_id = $2 ORDER BY sort_order ASC', [token, req.user.orgId]);
     res.json({ project, milestones: [], tasks: taskRows, permissions: { canEdit: true } });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const getShares = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { rows } = await db.query(
+      `SELECT * FROM project_shares 
+       WHERE project_id = $1 AND org_id = $2 
+       ORDER BY created_at DESC`,
+      [id, req.user.orgId]
+    );
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+};
+
+const createShare = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { client_name, client_email } = req.body;
+    
+    // Generate a unique share token
+    const crypto = require('crypto');
+    const share_token = crypto.randomBytes(32).toString('hex');
+    
+    const { rows } = await db.query(
+      `INSERT INTO project_shares (org_id, project_id, share_token, client_name, client_email, is_active)
+       VALUES ($1, $2, $3, $4, $5, true)
+       RETURNING *`,
+      [req.user.orgId, id, share_token, client_name || null, client_email || null]
+    );
+    
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    next(err);
+  }
+};
+
+const updateShare = async (req, res, next) => {
+  try {
+    const { shareId } = req.params;
+    const { is_active } = req.body;
+    
+    const { rows } = await db.query(
+      `UPDATE project_shares 
+       SET is_active = $1, updated_at = now()
+       WHERE id = $2 AND org_id = $3
+       RETURNING *`,
+      [is_active, shareId, req.user.orgId]
+    );
+    
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Share not found' });
+    }
+    
+    res.json(rows[0]);
   } catch (err) {
     next(err);
   }
@@ -304,4 +391,7 @@ module.exports = {
   getComments,
   createComment,
   getReport,
+  getShares,
+  createShare,
+  updateShare,
 };

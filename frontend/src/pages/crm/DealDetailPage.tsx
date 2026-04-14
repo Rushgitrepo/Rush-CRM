@@ -314,7 +314,7 @@ export default function DealDetailPage() {
   const { data: dbStages } = usePipelineStages();
   const createStage = useCreatePipelineStage();
 
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(() => window.location.pathname.endsWith('/edit'));
   const [form, setForm] = useState<Record<string, unknown>>({});
   const [customFields, setCustomFields] = useState<{ key: string; value: string }[]>([]);
 
