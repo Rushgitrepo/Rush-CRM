@@ -276,15 +276,15 @@ const clockIn = async (req, res, next) => {
         );
 
         if (globalEmailResult.rows.length > 0) {
-           console.log('Employee exists globally in another org:', globalEmailResult.rows[0].org_id);
-           // We can't create a new record in this org because of the UNIQUE(email) constraint in the DB.
-           // For now, we will link the existing global employee to this org (or return error)
-           // But actually, we should try to update the existing one's org if it's currently null
-           // or just return an error that clearly explains the situation.
-           return res.status(409).json({ 
-             error: 'An employee with this email already exists in the system (potentially in another organization).',
-             details: 'Multi-tenant email uniqueness is currently enforced globally.' 
-           });
+          console.log('Employee exists globally in another org:', globalEmailResult.rows[0].org_id);
+          // We can't create a new record in this org because of the UNIQUE(email) constraint in the DB.
+          // For now, we will link the existing global employee to this org (or return error)
+          // But actually, we should try to update the existing one's org if it's currently null
+          // or just return an error that clearly explains the situation.
+          return res.status(409).json({
+            error: 'An employee with this email already exists in the system (potentially in another organization).',
+            details: 'Multi-tenant email uniqueness is currently enforced globally.'
+          });
         }
 
         // No employee exists anywhere, create new record

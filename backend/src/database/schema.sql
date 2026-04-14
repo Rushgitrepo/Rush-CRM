@@ -2663,27 +2663,53 @@ CREATE TYPE user_role AS ENUM (
 );
 
 CREATE TABLE IF NOT EXISTS users (
-    id uuid DEFAULT uuid_generate_v4() NOT NULL,
-    organization_id uuid REFERENCES organizations(id),
+    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    organization_id uuid REFERENCES public.organizations(id),
+    org_id uuid REFERENCES public.organizations(id),
+    full_name character varying(255) NOT NULL,
     email character varying(255) NOT NULL,
     password_hash character varying(255) NOT NULL,
-    full_name character varying(255) NOT NULL,
-    role user_role DEFAULT 'employee'::user_role,
-    is_active boolean DEFAULT true,
-    last_login timestamp without time zone,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    avatar_url character varying(500),
     phone character varying(50),
-    "position" character varying(100),
-    org_id uuid REFERENCES organizations(id),
+    role public.user_role DEFAULT 'employee'::public.user_role,
     department character varying(100),
     bio text,
+    avatar_url character varying(500),
+    password_change_required BOOLEAN DEFAULT FALSE,
+    module_permissions JSONB DEFAULT '{}'::jsonb,
+    invite_token TEXT UNIQUE,
+    invite_expires_at TIMESTAMP WITH TIME ZONE,
+    is_active boolean DEFAULT true,
+    last_login timestamp without time zone,
+    "position" character varying(100),
     timezone character varying(100),
     language character varying(10) DEFAULT 'en'::character varying
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON public.users (email);
+CREATE INDEX IF NOT EXISTS idx_users_organization ON public.users (organization_id);
+ALTER TABLE public.users OWNER TO postgres;
 
+CREATE TABLE invites (
+    id UUID PRIMARY KEY,
+    email VARCHAR(255) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    role VARCHAR(50) NOT NULL,
+    phone VARCHAR(20),
+    password TEXT,
+    department VARCHAR(100),
+    permissions JSONB DEFAULT '{}'::jsonb,
+    organization_id UUID,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_by UUID,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invites_email ON public.invites (email);
+CREATE INDEX IF NOT EXISTS idx_invites_organization ON public.invites (organization_id);
+
+ALTER TABLE public.invites OWNER TO postgres;
 
 --
 -- Name: vendors; Type: TABLE; Schema: public; Owner: postgres
@@ -3037,6 +3063,7 @@ CREATE TABLE IF NOT EXISTS workgroup_posts (
     is_deleted boolean DEFAULT false,
     edited_at timestamp with time zone,
     deleted_at timestamp with time zone,
+    deleted_for_users uuid[] DEFAULT '{}'::uuid[],
     reactions jsonb DEFAULT '{}'::jsonb,
     mention_users uuid[] DEFAULT '{}'::uuid[],
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
@@ -3052,6 +3079,18 @@ CREATE TABLE IF NOT EXISTS workgroup_posts (
 
 COMMENT ON TABLE workgroup_posts IS 'Messages/posts within workgroups and channels';
 
+
+--
+-- Name: workgroup_post_reads; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE IF NOT EXISTS public.workgroup_post_reads (
+    post_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    read_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE public.workgroup_post_reads OWNER TO postgres;
 
 --
 -- Name: workgroups; Type: TABLE; Schema: public; Owner: postgres
