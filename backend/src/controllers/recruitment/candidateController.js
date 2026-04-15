@@ -1,6 +1,7 @@
 const db = require('../../config/database');
 const Joi = require('joi');
 const nodemailer = require('nodemailer');
+const notificationService = require('../../services/notificationService');
 
 // Email configuration
 const transporter = nodemailer.createTransport({
@@ -505,18 +506,17 @@ exports.updateCandidateStatus = async (req, res) => {
       return res.status(404).json({ error: 'Candidate not found' });
     }
 
-    // Add timeline entry
-    await db.query(
-      `INSERT INTO candidate_timeline (
-        candidate_id, activity_type, description, performed_by, performed_by_name
-      ) VALUES ($1, $2, $3, $4, $5)`,
-      [
-        id,
-        status,
-        `Status changed to ${status}`,
-        req.user.id,
-        req.user.full_name
-      ]
+    // Notify organization admins about the status change
+    const admins = await notificationService.getOrgAdmins(organizationId);
+    notificationService.notify(
+      organizationId,
+      admins,
+      'candidate_status_changed',
+      'Candidate Status Updated',
+      `Candidate "${result.rows[0].full_name}" is now ${status.replace('_', ' ')}`,
+      `/recruitment/candidates/${id}`,
+      req.user.id,
+      { candidateId: id, status }
     );
 
     res.json({

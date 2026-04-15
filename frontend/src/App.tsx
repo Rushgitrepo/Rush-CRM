@@ -33,6 +33,7 @@ import MailPage from "./pages/collaboration/MailPage";
 import UniboxPage from "./pages/crm/UniboxPage";
 import WorkgroupsPage from "./pages/collaboration/WorkgroupsPage";
 import DirectChatPage from "./pages/collaboration/DirectChatPage";
+import { NotificationsProvider } from "./contexts/NotificationsContext";
 // CRM
 import LeadsPage from "./pages/crm/LeadsPage";
 import CreateLeadPage from "./pages/crm/CreateLeadPage";
@@ -136,8 +137,9 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
-          <OrganizationProvider>
-            <DialogProvider>
+            <NotificationsProvider>
+            <OrganizationProvider>
+              <DialogProvider>
               <Routes>
                 {/* Public Pages (for Google OAuth verification) */}
                 <Route path="/home" element={<HomePage />} />
@@ -265,12 +267,13 @@ const App = () => (
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
-            </DialogProvider>
-          </OrganizationProvider>
-        </AuthProvider>
+              </DialogProvider>
+            </OrganizationProvider>
+            </NotificationsProvider>
+          </AuthProvider>
 
-      </BrowserRouter>
-    </TooltipProvider>
+        </BrowserRouter>
+      </TooltipProvider>
     </ThemeProvider>
   </QueryClientProvider>
 );

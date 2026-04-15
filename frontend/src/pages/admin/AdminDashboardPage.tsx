@@ -64,6 +64,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import { ModulePermissionEditor } from "@/components/admin/ModulePermissionEditor";
+import { getAvatarUrl } from "@/lib/utils";
 
 const ROLE_OPTIONS = [
   { value: "admin", label: "Admin" },
@@ -443,7 +444,7 @@ export default function AdminDashboardPage() {
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
                               <Avatar className="h-9 w-9 border border-border/50">
-                                <AvatarImage src={u.avatar_url} />
+                                <AvatarImage src={getAvatarUrl(u.avatar_url)} />
                                 <AvatarFallback className="bg-primary/10 text-primary font-bold">
                                   {u.full_name
                                     ?.split(" ")

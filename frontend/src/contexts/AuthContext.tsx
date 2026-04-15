@@ -10,6 +10,7 @@ interface Profile {
   avatar_url: string | null;
   password_change_required?: boolean;
   module_permissions?: Record<string, string[]>;
+  notification_settings?: Record<string, boolean>;
 }
 
 interface UserRole {

@@ -51,7 +51,7 @@ async function bootstrap() {
     // Eagerly verify database connection on startup
     await db.query('SELECT 1');
     console.log('Database connected successfully.');
-    
+
 
     const server = app.listen(PORT, () => {
       console.log(`Server running successfully on port ${PORT}`);
