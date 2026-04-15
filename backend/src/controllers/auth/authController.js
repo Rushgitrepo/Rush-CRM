@@ -121,7 +121,7 @@ const login = async (req, res, next) => {
 const getProfile = async (req, res, next) => {
   try {
     const userResult = await db.query(
-      `SELECT u.id, u.email, u.full_name, u.organization_id, u.org_id, u.avatar_url, u.role, u.phone, u.position, u.department, u.bio, u.timezone, u.language, u.module_permissions
+      `SELECT u.id, u.email, u.full_name, u.organization_id, u.org_id, u.avatar_url, u.role, u.phone, u.position, u.department, u.bio, u.timezone, u.language, u.module_permissions, u.notification_settings
        FROM users u 
        WHERE u.id = $1`,
       [req.user.id]
@@ -162,6 +162,29 @@ const updateProfile = async (req, res, next) => {
   }
 };
 
+const updateNotificationSettings = async (req, res, next) => {
+  try {
+    const { settings } = req.body;
+
+    if (!settings || typeof settings !== 'object') {
+      return res.status(400).json({ error: 'Settings object is required' });
+    }
+
+    const result = await db.query(
+      `UPDATE users 
+       SET notification_settings = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING notification_settings`,
+      [JSON.stringify(settings), req.user.id]
+    );
+
+    res.json(result.rows[0].notification_settings);
+  } catch (err) {
+    next(err);
+  }
+};
+
 const changePassword = async (req, res, next) => {
   try {
     const { currentPassword, newPassword } = req.body;
@@ -183,6 +206,26 @@ const changePassword = async (req, res, next) => {
     );
 
     res.json({ message: 'Password changed successfully' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const uploadAvatar = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    // Path where the file is accessible (assuming /uploads is statically served)
+    const avatarUrl = `/uploads/profiles/${req.file.filename}`;
+
+    await db.query(
+      'UPDATE users SET avatar_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [avatarUrl, req.user.id]
+    );
+
+    res.json({ avatarUrl });
   } catch (err) {
     next(err);
   }
@@ -285,4 +328,6 @@ module.exports = {
   changePassword,
   acceptInvite,
   verifyInvite,
+  updateNotificationSettings,
+  uploadAvatar,
 };

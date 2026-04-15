@@ -256,6 +256,15 @@ class RealtimeService {
       lastSeenAt: isOnline ? null : this.lastSeenAt.get(userId) || null,
     };
   }
+
+  /**
+   * Emit an event directly to a specific user (via their personal room).
+   * Used by notificationService to deliver real-time notifications.
+   */
+  emitToUser(userId, event, data) {
+    if (!this.io) return;
+    this.io.to(`user:${userId}`).emit(event, data);
+  }
 }
 
 module.exports = new RealtimeService();

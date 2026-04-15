@@ -1,4 +1,5 @@
 const db = require('../../config/database');
+const notificationService = require('../../services/notificationService');
 
 const getAll = async (req, res, next) => {
   try {
@@ -104,7 +105,23 @@ const create = async (req, res, next) => {
     );
 
     console.log('Task created successfully:', result.rows[0]);
-    res.status(201).json(result.rows[0]);
+    const task = result.rows[0];
+
+    // Notify assignee (if different from creator)
+    if (task.assigned_to && task.assigned_to !== req.user.id) {
+      notificationService.notify(
+        req.user.orgId,
+        task.assigned_to,
+        'task_assigned',
+        'New Task Assigned',
+        `${req.user.full_name || req.user.email} assigned you the task "${task.title}"`,
+        `/projects/tasks`,
+        req.user.id,
+        { taskId: task.id, taskTitle: task.title, projectId: task.project_id }
+      );
+    }
+
+    res.status(201).json(task);
   } catch (err) {
     console.error('Task creation error:', err);
     next(err);
@@ -159,7 +176,23 @@ const update = async (req, res, next) => {
       return res.status(404).json({ error: 'Task not found' });
     }
 
-    res.json(result.rows[0]);
+    const updatedTask = result.rows[0];
+
+    // Notify new assignee if assignment changed
+    if (assignedTo && assignedTo !== req.user.id) {
+      notificationService.notify(
+        req.user.orgId,
+        assignedTo,
+        'task_assigned',
+        'Task Assigned to You',
+        `${req.user.full_name || req.user.email} assigned you the task "${updatedTask.title}"`,
+        `/projects/tasks`,
+        req.user.id,
+        { taskId: updatedTask.id, taskTitle: updatedTask.title }
+      );
+    }
+
+    res.json(updatedTask);
   } catch (err) {
     next(err);
   }
@@ -190,7 +223,23 @@ const updateStatus = async (req, res, next) => {
       return res.status(404).json({ error: 'Task not found' });
     }
 
-    res.json(result.rows[0]);
+    const doneTask = result.rows[0];
+
+    // Notify creator when task is completed (if different from the one marking it done)
+    if (status === 'done' && doneTask.created_by && doneTask.created_by !== req.user.id) {
+      notificationService.notify(
+        req.user.orgId,
+        doneTask.created_by,
+        'task_completed',
+        'Task Completed',
+        `${req.user.full_name || req.user.email} completed the task "${doneTask.title}"`,
+        `/projects/tasks`,
+        req.user.id,
+        { taskId: doneTask.id, taskTitle: doneTask.title }
+      );
+    }
+
+    res.json(doneTask);
   } catch (err) {
     next(err);
   }

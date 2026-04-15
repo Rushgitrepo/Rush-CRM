@@ -1,5 +1,6 @@
 const db = require('../../config/database');
 const Joi = require('joi');
+const notificationService = require('../../services/notificationService');
 
 // ==================== LEAVE TYPES ====================
 
@@ -379,6 +380,23 @@ const createLeaveRequest = async (req, res, next) => {
       [result.rows[0].id, req.user.id, 'Leave request submitted']
     );
 
+    // Notify HR managers about the new leave request
+    const managers = await notificationService.getOrgAdmins(req.user.orgId);
+    const leaveType = await db.query('SELECT name FROM leave_types WHERE id = $1', [value.leave_type_id]);
+    const leaveTypeName = leaveType.rows[0]?.name || 'Leave';
+    const startFmt = new Date(value.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const endFmt = new Date(value.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    notificationService.notify(
+      req.user.orgId,
+      managers,
+      'leave_requested',
+      'New Leave Request',
+      `${req.user.full_name || req.user.email} requested ${leaveTypeName} from ${startFmt} to ${endFmt}`,
+      `/hrms/leaves`,
+      req.user.id,
+      { leaveRequestId: result.rows[0].id, employeeEmail: req.user.email }
+    );
+
     res.status(201).json(result.rows[0]);
   } catch (err) {
     next(err);
@@ -444,6 +462,25 @@ const updateLeaveRequest = async (req, res, next) => {
        VALUES ($1, $2, $3, $4)`,
       [id, req.user.id, comment, status]
     );
+
+    // Notify the employee whose leave was acted upon
+    const empUser = await db.query(
+      `SELECT u.id FROM employees e JOIN users u ON u.email = e.email WHERE e.id = $1 AND e.org_id = $2 LIMIT 1`,
+      [leave.employee_id, req.user.orgId]
+    );
+    if (empUser.rows.length > 0) {
+      const statusLabel = status === 'approved' ? 'approved ✅' : status === 'rejected' ? 'rejected ❌' : status;
+      notificationService.notify(
+        req.user.orgId,
+        empUser.rows[0].id,
+        'leave_status_changed',
+        `Leave Request ${status.charAt(0).toUpperCase() + status.slice(1)}`,
+        `Your leave request has been ${statusLabel}${rejection_reason ? ': ' + rejection_reason : ''}`,
+        `/hrms/leaves`,
+        req.user.id,
+        { leaveRequestId: id, status }
+      );
+    }
 
     res.json(result.rows[0]);
   } catch (err) {
