@@ -107,7 +107,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
     isLoading: postsLoading,
     refetch: refetchPosts,
   } = useWorkgroupPosts(workgroupId);
-  const { users: orgUsers = [] } = useAdminUsers();
+  const { users: orgUsers = [], isLoading: orgUsersLoading } = useAdminUsers();
   const addMember = useAddWorkgroupMember();
   const removeMember = useRemoveWorkgroupMember();
   const createPost = useCreatePost();
@@ -197,6 +197,23 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
     onRealtime("workgroup:updated", handleWorkgroupUpdated);
     return () => {
       offRealtime("workgroup:updated", handleWorkgroupUpdated);
+    };
+  }, [onRealtime, offRealtime, queryClient, workgroupId]);
+
+  useEffect(() => {
+    const handleMemberAdded = () => {
+      queryClient.invalidateQueries({ queryKey: ["workgroup-members", workgroupId] });
+      queryClient.invalidateQueries({ queryKey: ["workgroups"] });
+    };
+    const handleMemberRemoved = () => {
+      queryClient.invalidateQueries({ queryKey: ["workgroup-members", workgroupId] });
+      queryClient.invalidateQueries({ queryKey: ["workgroups"] });
+    };
+    onRealtime("workgroup:member_added", handleMemberAdded);
+    onRealtime("workgroup:member_removed", handleMemberRemoved);
+    return () => {
+      offRealtime("workgroup:member_added", handleMemberAdded);
+      offRealtime("workgroup:member_removed", handleMemberRemoved);
     };
   }, [onRealtime, offRealtime, queryClient, workgroupId]);
 
@@ -1114,9 +1131,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                   )}
                 </div>
                 {((member.user_id === user?.id && member.role !== "owner") ||
-                  (canManageMembers &&
-                    member.user_id !== user?.id &&
-                    member.role !== "owner")) && (
+                  member.user_id !== user?.id) && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
@@ -1164,18 +1179,20 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                             Leave Team
                           </DropdownMenuItem>
                         ) : (
-                          <DropdownMenuItem
-                            className="text-red-600 dark:text-red-400"
-                            onClick={() =>
-                              removeMember.mutate({
-                                memberId: member.id,
-                                workgroupId,
-                              })
-                            }
-                          >
-                            <UserMinus className="h-4 w-4 mr-2" />
-                            Remove Team Member
-                          </DropdownMenuItem>
+                          canManageMembers && (
+                            <DropdownMenuItem
+                              className="text-red-600 dark:text-red-400"
+                              onClick={() =>
+                                removeMember.mutate({
+                                  memberId: member.id,
+                                  workgroupId,
+                                })
+                              }
+                            >
+                              <UserMinus className="h-4 w-4 mr-2" />
+                              Remove Team Member
+                            </DropdownMenuItem>
+                          )
                         )}
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -1971,7 +1988,14 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {availableUsers.length === 0 ? (
+            {orgUsersLoading || membersLoading ? (
+              <div className="text-center py-6">
+                <div className="h-8 w-8 mx-auto mb-3 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Loading users...
+                </p>
+              </div>
+            ) : availableUsers.length === 0 ? (
               <div className="text-center py-6">
                 <Users className="h-12 w-12 mx-auto mb-3 text-gray-300" />
                 <h3 className="font-medium text-gray-900 dark:text-white mb-2">
@@ -2249,9 +2273,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                       {member.role}
                     </Badge>
                     {((member.user_id === user?.id && member.role !== "owner") ||
-                      (canManageMembers &&
-                        member.user_id !== user?.id &&
-                        member.role !== "owner")) && (
+                      member.user_id !== user?.id) && (
                         <Button
                           variant="ghost"
                           size="icon"
