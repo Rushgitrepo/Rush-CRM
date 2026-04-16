@@ -121,9 +121,9 @@ const create = async (req, res, next) => {
     const inviteId = uuidv4();
     await client.query(
       `INSERT INTO public.invites 
-       (id, email, name, role, phone, department, permissions, organization_id, created_by) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [inviteId, email, fullName, role || 'employee', phone, department, JSON.stringify(module_permissions || {}), orgId, req.user.id]
+       (id, email, full_name, role, phone, position, department, module_permissions, invite_token, expires_at, org_id) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      [inviteId, email, fullName, role || 'employee', phone, position, department, JSON.stringify(module_permissions || {}), inviteToken, expiresAt, orgId]
     );
 
     // Send Invite Email

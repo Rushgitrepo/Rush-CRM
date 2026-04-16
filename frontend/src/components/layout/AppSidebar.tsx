@@ -156,10 +156,10 @@ const navigation: NavItem[] = [
       { title: "Dashboard", href: "/inventory", icon: BarChart3 },
       { title: "Products", href: "/inventory/products", icon: ShoppingCart },
       { title: "Stock Tracking", href: "/inventory/stock", icon: Package },
-      { title: "Purchase Orders", href: "/inventory/purchase-orders", icon: FileText },
       { title: "Vendors", href: "/inventory/vendors", icon: Truck },
+      { title: "Purchase Orders", href: "/inventory/purchase-orders", icon: FileText },
       { title: "Warehouses", href: "/inventory/warehouses", icon: Warehouse },
-      { title: "Assignments", href: "/inventory/assignments", icon: Users },
+      { title: "Product Assignments", href: "/inventory/assignments", icon: Users },
     ],
   },
   {

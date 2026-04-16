@@ -63,7 +63,7 @@ import {
   Copy,
   Forward,
   ChevronDown,
-  X,
+  X, MessageCircle
 } from "lucide-react";
 import {
   useWorkgroup,
@@ -231,6 +231,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   const [selectedDeletePostIds, setSelectedDeletePostIds] = useState<string[]>([]);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeletingMessages, setIsDeletingMessages] = useState(false);
+  const [, setLastSeenTick] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const membersScrollRef = useRef<HTMLDivElement>(null);
   const composerEmojiRef = useRef<HTMLDivElement>(null);
@@ -245,6 +246,13 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [posts]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setLastSeenTick((prev) => prev + 1);
+    }, 15000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   // Refresh teams list unread badge after opening/reading messages.
   useEffect(() => {
@@ -880,6 +888,28 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={async () => {
+                    // Find another member to start direct chat with
+                    const otherMember = members.find(m => m.user_id !== user?.id);
+                    if (otherMember) {
+                      try {
+                        const direct = await workgroupsApi.openDirectChat(otherMember.user_id);
+                        if (direct?.id) {
+                          navigate(`/collaboration/workgroups?team=${direct.id}`);
+                        }
+                      } catch (error: any) {
+                        toast.error(
+                          error?.response?.data?.error || "Failed to open direct chat",
+                        );
+                      }
+                    } else {
+                      toast.error("No other members available for direct chat");
+                    }
+                  }}
+                >
+                  <MessageCircle className="h-4 w-4 mr-2" /> Direct Chat
+                </DropdownMenuItem>
                 {!isDirectChat && (
                   <DropdownMenuItem onClick={() => setShowMembersList(true)}>
                     <Users className="h-4 w-4 mr-2" /> Manage Members
@@ -1057,15 +1087,21 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                     >
                       {member.is_online ? "Online" : "Offline"}
                     </span>
-                    {!member.is_online && member.last_seen_at && (
-                      <span className="text-[10px] text-gray-500 dark:text-gray-400">
-                        Last seen{" "}
-                        {formatDistanceToNow(new Date(member.last_seen_at), {
-                          addSuffix: true,
-                        })}
-                      </span>
-                    )}
                   </div>
+                  {!member.is_online && (
+                    <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">
+                      {member.last_seen_at ? (
+                        <>
+                          Last seen{" "}
+                          {formatDistanceToNow(new Date(member.last_seen_at), {
+                            addSuffix: true,
+                          })}
+                        </>
+                      ) : (
+                        <>Last seen recently</>
+                      )}
+                    </p>
+                  )}
                 </div>
                 {((member.user_id === user?.id && member.role !== "owner") ||
                   (canManageMembers &&
@@ -1082,6 +1118,24 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        {member.user_id !== user?.id && (
+                          <DropdownMenuItem
+                            onClick={async () => {
+                              try {
+                                const direct = await workgroupsApi.openDirectChat(member.user_id);
+                                if (direct?.id) {
+                                  navigate(`/collaboration/workgroups?team=${direct.id}`);
+                                }
+                              } catch (error: any) {
+                                toast.error(
+                                  error?.response?.data?.error || "Failed to open direct chat",
+                                );
+                              }
+                            }}
+                          >
+                            <MessageCircle className="h-4 w-4 mr-2" /> Direct Chat
+                          </DropdownMenuItem>
+                        )}
                         {member.user_id === user?.id ? (
                           <DropdownMenuItem
                             className="text-red-600 dark:text-red-400"
@@ -1348,11 +1402,11 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                           <div className="flex animate-in slide-in-from-bottom-2 duration-200">
                             <div className="flex-1 flex gap-3 p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg border-l-4 border-blue-500 shadow-sm">
                               <div className="flex-1 min-w-0">
-                                <p className="text-[11px] font-bold text-blue-600 uppercase tracking-tight">
+                                <p className="text-[11px] font-bold text-primary uppercase tracking-tight">
                                   Replying to{" "}
                                   {findMessageById(replyTo)?.author_name}
                                 </p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
+                                <p className="text-xs text-gray-500 dark:text-gray-300 truncate mt-0.5">
                                   {findMessageById(replyTo)?.content}
                                 </p>
                               </div>
@@ -2150,12 +2204,18 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                     >
                       {member.is_online ? "Online" : "Offline"}
                     </p>
-                    {!member.is_online && member.last_seen_at && (
+                    {!member.is_online && (
                       <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                        Last seen{" "}
-                        {formatDistanceToNow(new Date(member.last_seen_at), {
-                          addSuffix: true,
-                        })}
+                        {member.last_seen_at ? (
+                          <>
+                            Last seen{" "}
+                            {formatDistanceToNow(new Date(member.last_seen_at), {
+                              addSuffix: true,
+                            })}
+                          </>
+                        ) : (
+                          <>Last seen recently</>
+                        )}
                       </p>
                     )}
                   </div>
@@ -2177,16 +2237,29 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 text-gray-600 dark:text-gray-300 transition-colors group-hover:bg-primary group-hover:text-white hover:bg-primary hover:text-white"
-                          onClick={() =>
-                            member.user_id === user?.id
-                              ? handleLeaveTeam(member.id)
-                              : removeMember.mutate({
-                                memberId: member.id,
-                                workgroupId,
-                              })
-                          }
+                          onClick={async () => {
+                            if (member.user_id === user?.id) {
+                              handleLeaveTeam(member.id);
+                            } else {
+                              try {
+                                const direct = await workgroupsApi.openDirectChat(member.user_id);
+                                if (direct?.id) {
+                                  setShowMembersList(false);
+                                  navigate(`/collaboration/workgroups?team=${direct.id}`);
+                                }
+                              } catch (error: any) {
+                                toast.error(
+                                  error?.response?.data?.error || "Failed to open direct chat",
+                                );
+                              }
+                            }
+                          }}
                         >
-                          <UserMinus className="h-4 w-4" />
+                          {member.user_id === user?.id ? (
+                            <UserMinus className="h-4 w-4" />
+                          ) : (
+                            <MessageCircle className="h-4 w-4" />
+                          )}
                         </Button>
                       )}
                   </div>
@@ -2446,7 +2519,9 @@ function PostCard({
               );
             }
           }}
-          className="font-semibold text-emerald-700 hover:underline"
+          className={`font-semibold hover:underline ${
+            isAuthor ? "text-emerald-700 dark:text-emerald-300" : "text-primary"
+          }`}
         >
           {part}
         </button>
@@ -2539,9 +2614,9 @@ function PostCard({
 
           {/* The Actual Bubble */}
           <div
-            className={`relative min-w-[85px] order-1 ${isAuthor
-              ? "bg-white text-gray-800 rounded-2xl rounded-tr-sm shadow-sm"
-              : "bg-[#d9fdd3] text-gray-800 rounded-2xl rounded-tl-sm"
+            className={`relative min-w-[120px] order-1 ${isAuthor
+              ? "bg-white text-gray-800 dark:bg-blue-600/10 dark:text-blue-600 rounded-2xl rounded-tr-sm shadow-sm"
+              : "bg-[#d9fdd3] text-gray-800 dark:bg-[#005c4b] dark:text-white/95 rounded-2xl rounded-tl-sm"
               } px-3 py-2 shadow-sm group/bubble border border-black/5`}
           >
             {/* Dropdown Chevron - Inside Bubble top-right */}
@@ -2551,7 +2626,13 @@ function PostCard({
               {!isDeletedMessage && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="text-gray-400 hover:text-gray-600 transition-colors p-0.5 rounded">
+                    <button
+                      className={`transition-colors p-0.5 rounded ${
+                        isAuthor
+                          ? "text-gray-400 hover:text-gray-600 dark:text-white/70 dark:hover:text-white"
+                          : "text-gray-400 hover:text-gray-600 dark:text-white/70 dark:hover:text-white"
+                      }`}
+                    >
                       <MoreVertical className="h-4 w-4" />
                     </button>
                   </DropdownMenuTrigger>
@@ -2626,14 +2707,14 @@ function PostCard({
             {/* Quoted Message (WhatsApp style) */}
             {post.parent_id && !isDeletedMessage && (
               <div
-                className="mb-1.5 p-2 bg-black/5 dark:bg-black/10 rounded border-l-[3px] border-emerald-500 cursor-pointer hover:bg-black/10 transition-colors overflow-hidden"
+                className="mb-1.5 p-2 bg-black/5 dark:bg-black/10 rounded border-l-[3px] border-primary cursor-pointer hover:bg-black/10 transition-colors overflow-hidden"
                 onClick={() => onScrollToMessage?.(post.parent_id!)}
               >
                 <p className="text-[10px] font-bold text-emerald-600 flex items-center gap-1 uppercase tracking-tight">
                   {allPosts.find((p) => p.id === post.parent_id)?.author_name ||
                     "Original Message"}
                 </p>
-                <p className="text-[11px] text-gray-500 truncate mt-0.5 whitespace-nowrap overflow-hidden">
+                <p className="text-[11px] text-gray-500 dark:text-gray-300 truncate mt-0.5 whitespace-nowrap overflow-hidden">
                   {allPosts.find((p) => p.id === post.parent_id)?.content ||
                     "Message deleted or missing"}
                 </p>
@@ -2677,13 +2758,17 @@ function PostCard({
 
             {/* Author name for received */}
             {!isAuthor && (
-              <p className="text-[11px] font-bold text-emerald-600 mb-0.5">
+              <p className="text-[11px] font-bold text-primary mb-0.5">
                 {post.author_name || "Unknown"}
               </p>
             )}
 
             {/* Message content */}
-            <p className="text-[13px] leading-relaxed whitespace-pre-wrap break-words pr-6 text-gray-800 dark:text-gray-200">
+            <p
+              className={`text-[13px] leading-relaxed whitespace-pre-wrap break-words pr-6 text-gray-800 ${
+                isAuthor ? "dark:text-white" : "dark:text-gray-200"
+              }`}
+            >
               {isDeletedMessage ? (
                 <span className="italic text-gray-500 dark:text-gray-400">
                   🚫 {deletedPlaceholder}

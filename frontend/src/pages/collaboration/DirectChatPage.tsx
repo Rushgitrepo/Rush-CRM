@@ -29,6 +29,7 @@ export default function DirectChatPage() {
   const { users: orgUsers = [] } = useAdminUsers();
   const [friendSearch, setFriendSearch] = useState("");
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const [, setLastSeenTick] = useState(0);
   const selectedId = searchParams.get("chat");
   const searchBoxRef = useRef<HTMLDivElement>(null);
 
@@ -127,6 +128,13 @@ export default function DirectChatPage() {
     return () => {
       document.removeEventListener("mousedown", handleOutsideClick);
     };
+  }, []);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setLastSeenTick((prev) => prev + 1);
+    }, 15000);
+    return () => window.clearInterval(interval);
   }, []);
 
   useEffect(() => {

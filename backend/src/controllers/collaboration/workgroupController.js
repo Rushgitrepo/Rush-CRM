@@ -55,6 +55,18 @@ const getWorkgroups = async (req, res, next) => {
           )
           ELSE NULL
         END as direct_peer_user_id,
+        CASE
+          WHEN COALESCE((w.settings->>'is_direct_chat')::boolean, false) = true THEN (
+            SELECT COALESCE(u_peer.last_seen_at, u_peer.last_login)
+            FROM workgroup_members wm_peer
+            JOIN users u_peer ON u_peer.id = wm_peer.user_id
+            WHERE wm_peer.workgroup_id = w.id
+              AND wm_peer.user_id <> $1
+            ORDER BY wm_peer.joined_at ASC
+            LIMIT 1
+          )
+          ELSE NULL
+        END as direct_peer_last_seen_at,
         u.full_name as created_by_name,
         COUNT(DISTINCT wm.user_id) as member_count,
         COUNT(DISTINCT wp.id) as message_count,
@@ -145,7 +157,7 @@ const getWorkgroups = async (req, res, next) => {
       if (wg.direct_peer_user_id) {
         const presence = realtimeService.getUserPresence(wg.direct_peer_user_id);
         isOnline = Boolean(presence.isOnline);
-        lastSeenAt = presence.lastSeenAt;
+        lastSeenAt = presence.lastSeenAt || wg.direct_peer_last_seen_at || null;
       }
 
       return {
@@ -514,6 +526,8 @@ const getWorkgroupMembers = async (req, res, next) => {
         u.full_name,
         u.email,
         u.avatar_url,
+        u.last_login,
+        u.last_seen_at as persisted_last_seen_at,
         u.role as user_role,
         ui.full_name as invited_by_name
       FROM workgroup_members wm
@@ -536,7 +550,11 @@ const getWorkgroupMembers = async (req, res, next) => {
       return {
         ...member,
         is_online: presence.isOnline,
-        last_seen_at: presence.lastSeenAt,
+        last_seen_at:
+          presence.lastSeenAt ||
+          member.persisted_last_seen_at ||
+          member.last_login ||
+          null,
       };
     });
     res.json(membersWithPresence);
