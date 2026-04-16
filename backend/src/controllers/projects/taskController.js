@@ -6,42 +6,30 @@ const getAll = async (req, res, next) => {
     const { page = 1, limit = 50, projectId, status, assignedTo } = req.query;
     const offset = (page - 1) * limit;
 
-    let query = `
-      SELECT DISTINCT t.* FROM public.tasks t
-      LEFT JOIN projects p ON t.project_id = p.id
-      LEFT JOIN project_members pm ON p.id = pm.project_id
-      WHERE t.org_id = $1 
-      AND (
-        t.assigned_to = $2 OR 
-        t.created_by = $2 OR 
-        p.owner_id = $2 OR 
-        pm.user_id = $2 OR
-        t.project_id IS NULL
-      )
-    `;
-    const params = [req.user.orgId, req.user.id];
-    let paramIndex = 3;
+    let query = `SELECT * FROM public.tasks WHERE org_id = $1`;
+    const params = [req.user.orgId];
+    let paramIndex = 2;
 
     // Only add filters if they have actual values (not undefined or 'undefined' strings)
     if (projectId && projectId !== 'undefined') {
-      query += ` AND t.project_id = $${paramIndex}`;
+      query += ` AND project_id = $${paramIndex}`;
       params.push(projectId);
       paramIndex++;
     }
 
     if (status && status !== 'undefined') {
-      query += ` AND t.status = $${paramIndex}`;
+      query += ` AND status = $${paramIndex}`;
       params.push(status);
       paramIndex++;
     }
 
     if (assignedTo && assignedTo !== 'undefined') {
-      query += ` AND t.assigned_to = $${paramIndex}`;
+      query += ` AND assigned_to = $${paramIndex}`;
       params.push(assignedTo);
       paramIndex++;
     }
 
-    query += ` ORDER BY t.sort_order ASC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    query += ` ORDER BY sort_order ASC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     params.push(limit, offset);
 
     console.log('Task query:', query);
@@ -59,23 +47,13 @@ const getById = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    // Check if user has access to this task
-    const result = await db.query(`
-      SELECT DISTINCT t.* FROM public.tasks t
-      LEFT JOIN projects p ON t.project_id = p.id
-      LEFT JOIN project_members pm ON p.id = pm.project_id
-      WHERE t.id = $1 AND t.org_id = $2 
-      AND (
-        t.assigned_to = $3 OR 
-        t.created_by = $3 OR 
-        p.owner_id = $3 OR 
-        pm.user_id = $3 OR
-        t.project_id IS NULL
-      )
-    `, [id, req.user.orgId, req.user.id]);
+    const result = await db.query(
+      'SELECT * FROM public.tasks WHERE id = $1 AND org_id = $2',
+      [id, req.user.orgId]
+    );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Task not found or access denied' });
+      return res.status(404).json({ error: 'Task not found' });
     }
 
     res.json(result.rows[0]);
@@ -94,21 +72,6 @@ const create = async (req, res, next) => {
 
     if (!title || !title.trim()) {
       return res.status(400).json({ error: 'Task title is required' });
-    }
-
-    // If projectId is provided, check if user has access to the project
-    if (projectId) {
-      const projectAccess = await db.query(`
-        SELECT p.id 
-        FROM projects p
-        LEFT JOIN project_members pm ON p.id = pm.project_id
-        WHERE p.id = $1 AND p.org_id = $2 
-        AND (p.owner_id = $3 OR pm.user_id = $3)
-      `, [projectId, req.user.orgId, req.user.id]);
-
-      if (projectAccess.rows.length === 0) {
-        return res.status(403).json({ error: 'Access denied to this project' });
-      }
     }
 
     // Get the next sort order
@@ -172,25 +135,6 @@ const update = async (req, res, next) => {
       title, description, assignedTo, dueDate, priority, status, 
       recurrence_rule 
     } = req.body;
-
-    // Check if user has access to this task
-    const accessCheck = await db.query(`
-      SELECT DISTINCT t.id FROM public.tasks t
-      LEFT JOIN projects p ON t.project_id = p.id
-      LEFT JOIN project_members pm ON p.id = pm.project_id
-      WHERE t.id = $1 AND t.org_id = $2 
-      AND (
-        t.assigned_to = $3 OR 
-        t.created_by = $3 OR 
-        p.owner_id = $3 OR 
-        pm.user_id = $3 OR
-        t.project_id IS NULL
-      )
-    `, [id, req.user.orgId, req.user.id]);
-
-    if (accessCheck.rows.length === 0) {
-      return res.status(403).json({ error: 'Access denied to this task' });
-    }
 
     const fields = [];
     const values = [];
@@ -305,20 +249,13 @@ const remove = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    // Only allow deletion if user created the task or owns the project
-    const result = await db.query(`
-      DELETE FROM public.tasks t
-      USING projects p
-      WHERE t.id = $1 AND t.org_id = $2 
-      AND (
-        t.created_by = $3 OR 
-        (t.project_id = p.id AND p.owner_id = $3)
-      )
-      RETURNING t.id
-    `, [id, req.user.orgId, req.user.id]);
+    const result = await db.query(
+      'DELETE FROM public.tasks WHERE id = $1 AND org_id = $2 RETURNING id',
+      [id, req.user.orgId]
+    );
 
     if (result.rows.length === 0) {
-      return res.status(403).json({ error: 'Only task creator or project owner can delete this task' });
+      return res.status(404).json({ error: 'Task not found' });
     }
 
     res.json({ message: 'Task deleted' });
