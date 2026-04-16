@@ -1,22 +1,17 @@
 const db = require('../../config/database');
+const { getUserAccessibleProjects } = require('../../middleware/projectAccess');
 
 const getAll = async (req, res, next) => {
   try {
     const { page = 1, limit = 50, status } = req.query;
     const offset = (page - 1) * limit;
 
-    let query = `SELECT * FROM public.projects WHERE org_id = $1`;
-    const params = [req.user.orgId];
-    let paramIndex = 2;
-
-    if (status) {
-      query += ` AND status = $${paramIndex}`;
-      params.push(status);
-      paramIndex++;
-    }
-
-    query += ` ORDER BY created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-    params.push(limit, offset);
+    // Get only projects user has access to (owns or is member of)
+    const { query, params } = getUserAccessibleProjects(
+      req.user.id, 
+      req.user.orgId, 
+      { status, limit, offset }
+    );
 
     const result = await db.query(query, params);
     res.json(result.rows);
@@ -46,13 +41,17 @@ const getById = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    const result = await db.query(
-      'SELECT * FROM public.projects WHERE id = $1 AND org_id = $2',
-      [id, req.user.orgId]
-    );
+    // Check if user has access to this project
+    const result = await db.query(`
+      SELECT DISTINCT p.* 
+      FROM projects p
+      LEFT JOIN project_members pm ON p.id = pm.project_id
+      WHERE p.id = $1 AND p.org_id = $2 
+      AND (p.owner_id = $3 OR pm.user_id = $3)
+    `, [id, req.user.orgId, req.user.id]);
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Project not found' });
+      return res.status(404).json({ error: 'Project not found or access denied' });
     }
 
     res.json(result.rows[0]);
@@ -100,6 +99,19 @@ const update = async (req, res, next) => {
     const { id } = req.params;
     const { name, description, startDate, endDate, color, status } = req.body;
 
+    // Check if user has access to this project
+    const accessCheck = await db.query(`
+      SELECT p.id 
+      FROM projects p
+      LEFT JOIN project_members pm ON p.id = pm.project_id AND pm.user_id = $2
+      WHERE p.id = $1 AND p.org_id = $3 
+      AND (p.owner_id = $2 OR pm.user_id IS NOT NULL)
+    `, [id, req.user.id, req.user.orgId]);
+
+    if (accessCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Access denied to this project' });
+    }
+
     const fields = [];
     const values = [];
     let paramIndex = 1;
@@ -139,13 +151,14 @@ const remove = async (req, res, next) => {
   try {
     const { id } = req.params;
 
+    // Only project owner can delete the project
     const result = await db.query(
-      'DELETE FROM public.projects WHERE id = $1 AND org_id = $2 RETURNING id',
-      [id, req.user.orgId]
+      'DELETE FROM public.projects WHERE id = $1 AND org_id = $2 AND owner_id = $3 RETURNING id',
+      [id, req.user.orgId, req.user.id]
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Project not found' });
+      return res.status(403).json({ error: 'Only project owner can delete the project' });
     }
 
     res.json({ message: 'Project deleted' });

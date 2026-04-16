@@ -318,7 +318,7 @@ export default function CreateLeadPage() {
   );
 
   return (
-    <div className="space-y-6 bg-slate-50">
+    <div className="space-y-6">
       <PageHeader
         title="Create Lead"
         description="Capture a new lead with custom fields support."
@@ -334,8 +334,8 @@ export default function CreateLeadPage() {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-6">
-          <Card className="border border-slate-200 bg-white shadow-sm rounded-xl">
-            <CardHeader className="border-b border-slate-200 bg-slate-50/80">
+          <Card className="border border-slate-200 shadow-sm rounded-xl">
+            <CardHeader className="border-b border-slate-200 ">
               <SectionTitle
                 icon={Building2}
                 title="Lead and Company Details"
@@ -347,7 +347,7 @@ export default function CreateLeadPage() {
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-foreground">Stage</Label>
                   <Select value={watch("stage")} onValueChange={v => { setValue("stage", v); setValue("status", v); }}>
-                    <SelectTrigger className="h-10 border-slate-200 bg-white">
+                    <SelectTrigger className="h-10 border-slate-200 ">
                       <SelectValue placeholder="Select stage" />
                     </SelectTrigger>
                     <SelectContent>
@@ -361,7 +361,7 @@ export default function CreateLeadPage() {
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-foreground">Customer Type</Label>
                   <Select value={watch("customerType")} onValueChange={v => setValue("customerType", v)}>
-                    <SelectTrigger className="h-10 border-slate-200 bg-white">
+                    <SelectTrigger className="h-10 border-slate-200 ">
                       <SelectValue placeholder="not selected" />
                     </SelectTrigger>
                     <SelectContent>
@@ -445,8 +445,8 @@ export default function CreateLeadPage() {
             </CardContent>
           </Card>
 
-          <Card className="border border-slate-200 bg-white shadow-sm rounded-xl">
-            <CardHeader className="border-b border-slate-200 bg-slate-50/80">
+          <Card className="border border-slate  shadow-sm rounded-xl">
+            <CardHeader className="border-b border-slate-200 ">
               <SectionTitle
                 icon={CalendarDays}
                 title="Activity & Interaction Tracking"
@@ -457,11 +457,11 @@ export default function CreateLeadPage() {
               <div className="grid gap-5 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-foreground">Last Contacted Date</Label>
-                  <Input type="date" {...register("lastContactedDate")} className="h-10 border-slate-200 bg-white" />
+                  <Input type="date" {...register("lastContactedDate")} className="h-10 border-slate-200 " />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-foreground">Next Follow-up Date</Label>
-                  <Input type="date" {...register("nextFollowUpDate")} className="h-10 border-slate-200 bg-white" />
+                  <Input type="date" {...register("nextFollowUpDate")} className="h-10 border-slate-200 " />
                 </div>
               </div>
 
@@ -474,8 +474,8 @@ export default function CreateLeadPage() {
             </CardContent>
           </Card>
 
-          <Card className="border border-slate-200 bg-white shadow-sm rounded-xl">
-            <CardHeader className="border-b border-slate-200 bg-slate-50/80">
+          <Card className="border border-slate-200  shadow-sm rounded-xl">
+            <CardHeader className="border-b border-slate-200 ">
               <SectionTitle
                 icon={Sparkles}
                 title="Qualification & Opportunity"
@@ -487,7 +487,7 @@ export default function CreateLeadPage() {
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-foreground">Service Interested</Label>
                   <Select value={watch("serviceInterested")} onValueChange={v => setValue("serviceInterested", v)}>
-                    <SelectTrigger className="h-10 border-slate-200 bg-white">
+                    <SelectTrigger className="h-10 border-slate-200 ">
                       <SelectValue placeholder="Select service..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -501,7 +501,7 @@ export default function CreateLeadPage() {
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-foreground">Company Size</Label>
                   <Select value={watch("companySize")} onValueChange={v => setValue("companySize", v)}>
-                    <SelectTrigger className="h-10 border-slate-200 bg-white">
+                    <SelectTrigger className="h-10 border-slate-200 ">
                       <SelectValue placeholder="Company Size" />
                     </SelectTrigger>
                     <SelectContent>
@@ -515,13 +515,13 @@ export default function CreateLeadPage() {
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-foreground">Estimated Opportunity Value</Label>
                   <div className="flex items-stretch gap-2">
-                    <Input type="number" placeholder="0" {...register("value")} className="h-10 flex-1 border-slate-200 bg-white" />
+                    <Input type="number" placeholder="0" {...register("value")} className="h-10 flex-1 border-slate-200 " />
                     <InlineSelect
                       value={watch("currency")}
                       onChange={v => setValue("currency", v)}
                       placeholder="US Dollar"
                       options={currencyOptions}
-                      className="w-[170px] h-10 border-slate-200 bg-white"
+                      className="w-[170px] h-10 border-slate-200 "
                     />
                   </div>
                 </div>
@@ -535,8 +535,8 @@ export default function CreateLeadPage() {
             </CardContent>
           </Card>
 
-          <Card className="border border-slate-200 bg-white shadow-sm rounded-xl">
-            <CardHeader className="border-b border-slate-200 bg-slate-50/80">
+          <Card className="border border-slate-200  shadow-sm rounded-xl">
+            <CardHeader className="border-b border-slate-200 ">
               <SectionTitle
                 icon={Tag}
                 title="Source"
@@ -555,7 +555,7 @@ export default function CreateLeadPage() {
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-foreground">Source</Label>
                   <Select value={watch("source")} onValueChange={v => setValue("source", v)}>
-                    <SelectTrigger className="h-10 border-slate-200 bg-white">
+                    <SelectTrigger className="h-10 border-slate-200 ">
                       <SelectValue placeholder="Call" />
                     </SelectTrigger>
                     <SelectContent>
@@ -571,7 +571,7 @@ export default function CreateLeadPage() {
                   <Textarea
                     placeholder="Source Information"
                     {...register("sourceInfo")}
-                    className="min-h-[110px] border-slate-200 bg-white"
+                    className="min-h-[110px] border-slate-200 "
                   />
                 </div>
 
@@ -580,7 +580,7 @@ export default function CreateLeadPage() {
                   <Textarea
                     placeholder="Add any extra context"
                     {...register("notes")}
-                    className="min-h-[110px] border-slate-200 bg-white"
+                    className="min-h-[110px] border-slate-200 "
                   />
                 </div>
               </div>
@@ -594,8 +594,8 @@ export default function CreateLeadPage() {
         </div>
 
         <div className="space-y-6">
-          <Card className="border border-slate-200 bg-white shadow-sm sticky top-6 rounded-xl">
-            <CardHeader className="border-b border-slate-200 bg-slate-50/80">
+          <Card className="border border-slate-200  shadow-sm sticky top-6 rounded-xl">
+            <CardHeader className="border-b border-slate-200 ">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <MessageSquare className="h-5 w-5 text-primary" />
                 Lead Preview
@@ -605,7 +605,7 @@ export default function CreateLeadPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 p-6">
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <div className="rounded-lg border border-slate-200  p-4">
                 <p className="text-sm font-medium text-slate-900">Add a new activity</p>
                 <p className="mt-1 text-sm text-slate-600">
                   Plan your next action on the lead to keep follow-up details in one place.
