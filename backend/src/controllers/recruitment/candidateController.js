@@ -880,7 +880,7 @@ exports.submitPublicApplicationForm = async (req, res) => {
         current_salary = $16,
         expected_salary = $17,
         joining_availability = $18,
-        status = 'form_completed',
+        status = 'form_generated',
         updated_at = NOW()
       WHERE id = $19`,
       [

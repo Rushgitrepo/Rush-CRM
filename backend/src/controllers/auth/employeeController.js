@@ -118,11 +118,12 @@ const create = async (req, res, next) => {
     const orgId = req.user.orgId;
 
     // Save to invites table instead of users
+    const inviteId = uuidv4();
     await client.query(
       `INSERT INTO public.invites 
-       (email, full_name, role, phone, position, department, module_permissions, invite_token, expires_at, org_id) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-      [email, fullName, role || 'employee', phone, position, department, JSON.stringify(module_permissions || {}), inviteToken, expiresAt, orgId]
+       (id, email, name, role, phone, department, permissions, organization_id, created_by) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [inviteId, email, fullName, role || 'employee', phone, department, JSON.stringify(module_permissions || {}), orgId, req.user.id]
     );
 
     // Send Invite Email

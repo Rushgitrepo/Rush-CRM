@@ -276,19 +276,24 @@ const create = async (req, res, next) => {
 
       // Create balance entries for each leave type
       if (leaveTypes.rows.length > 0) {
-        const balanceInserts = leaveTypes.rows.map(lt => 
-          db.query(
-            `INSERT INTO employee_leave_balances (
-              employee_id, leave_type_id, org_id, year, 
-              total_allocated, used, pending, available
-            ) VALUES ($1, $2, $3, $4, $5, 0, 0, $5)
-            ON CONFLICT (employee_id, leave_type_id, year) DO NOTHING`,
-            [newEmployee.id, lt.id, req.user.orgId, currentYear, lt.days_allowed]
-          )
-        );
+        const balanceInserts = leaveTypes.rows.map(async (lt) => {
+          try {
+            return await db.query(
+              `INSERT INTO employee_leave_balances (
+                employee_id, leave_type_id, org_id, year, 
+                total_allocated, used, pending
+              ) VALUES ($1, $2, $3, $4, $5, 0, 0)
+              ON CONFLICT (employee_id, leave_type_id, year) DO NOTHING`,
+              [newEmployee.id, lt.id, req.user.orgId, currentYear, lt.days_allowed]
+            );
+          } catch (balanceError) {
+            console.error(`Failed to create balance for leave type ${lt.id}:`, balanceError);
+            return null;
+          }
+        });
         
-        await Promise.all(balanceInserts);
-        console.log(`✅ Initialized ${leaveTypes.rows.length} leave balances for employee ${newEmployee.id}`);
+        await Promise.allSettled(balanceInserts);
+        console.log(`✅ Processed ${leaveTypes.rows.length} leave balance entries for employee ${newEmployee.id}`);
       }
     } catch (balanceError) {
       console.error('⚠️ Failed to initialize leave balances:', balanceError);
@@ -370,37 +375,20 @@ const remove = async (req, res, next) => {
       return res.status(404).json({ error: 'Employee not found' });
     }
 
-    // Check for related records that would prevent deletion
-    const attendanceCount = await db.query(
-      'SELECT COUNT(*) FROM attendance WHERE employee_id = $1',
-      [id]
-    );
+    // Delete related records first to avoid foreign key constraints
+    await db.query('DELETE FROM employee_leave_balances WHERE employee_id = $1', [id]);
+    await db.query('DELETE FROM employee_documents WHERE employee_id = $1', [id]);
+    await db.query('DELETE FROM attendance WHERE employee_id = $1', [id]);
+    await db.query('DELETE FROM leave_requests WHERE employee_id = $1', [id]);
 
-    const leaveCount = await db.query(
-      'SELECT COUNT(*) FROM leave_requests WHERE employee_id = $1',
-      [id]
-    );
-
-    if (parseInt(attendanceCount.rows[0].count) > 0 || parseInt(leaveCount.rows[0].count) > 0) {
-      return res.status(400).json({ 
-        error: 'Cannot delete employee with existing attendance or leave records. Please archive the employee instead.' 
-      });
-    }
-
-    // If no related records, proceed with deletion
-    const result = await db.query(
-      'DELETE FROM public.employees WHERE id = $1 AND org_id = $2 RETURNING id',
+    // Now delete the employee
+    await db.query(
+      'DELETE FROM public.employees WHERE id = $1 AND org_id = $2',
       [id, req.user.orgId]
     );
 
-    res.json({ message: 'Employee deleted successfully' });
+    res.json({ message: 'Employee and all related records deleted successfully' });
   } catch (err) {
-    // Handle foreign key constraint errors
-    if (err.code === '23503') {
-      return res.status(400).json({ 
-        error: 'Cannot delete employee due to existing related records. Please archive the employee instead.' 
-      });
-    }
     next(err);
   }
 };

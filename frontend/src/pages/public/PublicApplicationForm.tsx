@@ -163,7 +163,7 @@ export default function PublicApplicationForm() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
@@ -171,10 +171,10 @@ export default function PublicApplicationForm() {
 
   if (!candidate) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <Card className="max-w-md">
           <CardContent className="pt-6 text-center">
-            <p className="text-lg font-semibold text-red-600">Invalid or Expired Form Link</p>
+            <p className="text-lg font-semibold text-destructive">Invalid or Expired Form Link</p>
             <p className="text-sm text-muted-foreground mt-2">
               Please contact HR department for a new link.
             </p>
@@ -185,22 +185,22 @@ export default function PublicApplicationForm() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-background py-8">
       <div className="max-w-4xl mx-auto px-4">
         <form onSubmit={handleSubmit}>
-          <Card className="shadow-lg">
+          <Card className="shadow-xl">
             <CardContent className="p-8">
               {/* Header */}
               <div className="text-center mb-8 border-b-4 border-primary pb-6">
                 <div className="flex justify-center mb-4">
                   <div className="w-16 h-16 bg-primary rounded-lg flex items-center justify-center">
-                    <span className="text-white font-bold text-2xl">FC</span>
+                    <span className="text-primary-foreground font-bold text-2xl">FC</span>
                   </div>
                 </div>
                 <h1 className="text-3xl font-bold text-primary mb-2">
                   FUSION CORTEX - Rush Group of Companies
                 </h1>
-                <h2 className="text-xl font-semibold">EMPLOYMENT APPLICATION FORM</h2>
+                <h2 className="text-xl font-semibold text-foreground">EMPLOYMENT APPLICATION FORM</h2>
                 <p className="text-sm text-muted-foreground mt-2">HR Department</p>
               </div>
 
@@ -208,7 +208,7 @@ export default function PublicApplicationForm() {
               <div className="grid grid-cols-2 gap-6 mb-6">
                 <div>
                   <Label>Position Applied For:</Label>
-                  <Input value={candidate.position || 'N/A'} disabled className="bg-gray-100" />
+                  <Input value={candidate.position || 'N/A'} disabled className="bg-muted" />
                 </div>
                 <div>
                   <Label>Name: *</Label>
@@ -310,7 +310,7 @@ export default function PublicApplicationForm() {
                 <div>
                   <Label>Marital Status:</Label>
                   <select
-                    className="w-full border rounded-md p-2"
+                    className="w-full border border-border rounded-md p-2 bg-background text-foreground"
                     value={formData.maritalStatus}
                     onChange={(e) => setFormData({ ...formData, maritalStatus: e.target.value })}
                   >
@@ -379,23 +379,23 @@ export default function PublicApplicationForm() {
                 <p className="text-sm text-muted-foreground mb-3">(Please commence with the highest qualification)</p>
                 
                 <div className="overflow-x-auto">
-                  <table className="w-full border-collapse border">
-                    <thead className="bg-gray-100">
+                  <table className="w-full border-collapse border border-border">
+                    <thead className="bg-muted">
                       <tr>
-                        <th className="border p-2 text-sm">Sr</th>
-                        <th className="border p-2 text-sm">Diploma/Degree/Projects</th>
-                        <th className="border p-2 text-sm">Name of Institution</th>
-                        <th className="border p-2 text-sm">From</th>
-                        <th className="border p-2 text-sm">To</th>
-                        <th className="border p-2 text-sm">Division</th>
-                        <th className="border p-2 text-sm">Major Subjects</th>
+                        <th className="border border-border p-2 text-sm text-foreground">Sr</th>
+                        <th className="border border-border p-2 text-sm text-foreground">Diploma/Degree/Projects</th>
+                        <th className="border border-border p-2 text-sm text-foreground">Name of Institution</th>
+                        <th className="border border-border p-2 text-sm text-foreground">From</th>
+                        <th className="border border-border p-2 text-sm text-foreground">To</th>
+                        <th className="border border-border p-2 text-sm text-foreground">Division</th>
+                        <th className="border border-border p-2 text-sm text-foreground">Major Subjects</th>
                       </tr>
                     </thead>
                     <tbody>
                       {formData.academicRecords.map((record, index) => (
                         <tr key={index}>
-                          <td className="border p-1 text-center">{index + 1}</td>
-                          <td className="border p-1">
+                          <td className="border border-border p-1 text-center text-foreground">{index + 1}</td>
+                          <td className="border border-border p-1">
                             <Input
                               value={record.diploma}
                               onChange={(e) => {
@@ -479,23 +479,23 @@ export default function PublicApplicationForm() {
                 <p className="text-sm text-muted-foreground mb-3">(Please commence with current / last employment)</p>
                 
                 <div className="overflow-x-auto">
-                  <table className="w-full border-collapse border">
-                    <thead className="bg-gray-100">
+                  <table className="w-full border-collapse border border-border">
+                    <thead className="bg-muted">
                       <tr>
-                        <th className="border p-2 text-sm">Sr</th>
-                        <th className="border p-2 text-sm">Designation</th>
-                        <th className="border p-2 text-sm">Company Name</th>
-                        <th className="border p-2 text-sm">From</th>
-                        <th className="border p-2 text-sm">To</th>
-                        <th className="border p-2 text-sm">Salary</th>
-                        <th className="border p-2 text-sm">Reason for leaving</th>
+                        <th className="border border-border p-2 text-sm text-foreground">Sr</th>
+                        <th className="border border-border p-2 text-sm text-foreground">Designation</th>
+                        <th className="border border-border p-2 text-sm text-foreground">Company Name</th>
+                        <th className="border border-border p-2 text-sm text-foreground">From</th>
+                        <th className="border border-border p-2 text-sm text-foreground">To</th>
+                        <th className="border border-border p-2 text-sm text-foreground">Salary</th>
+                        <th className="border border-border p-2 text-sm text-foreground">Reason for leaving</th>
                       </tr>
                     </thead>
                     <tbody>
                       {formData.workExperience.map((exp, index) => (
                         <tr key={index}>
-                          <td className="border p-1 text-center">{index + 1}</td>
-                          <td className="border p-1">
+                          <td className="border border-border p-1 text-center text-foreground">{index + 1}</td>
+                          <td className="border border-border p-1">
                             <Input
                               value={exp.designation}
                               onChange={(e) => {
@@ -600,8 +600,8 @@ export default function PublicApplicationForm() {
               </div>
 
               {/* Declaration */}
-              <div className="bg-gray-50 p-4 rounded-lg mb-6">
-                <h3 className="font-semibold mb-2">Declaration:</h3>
+              <div className="bg-muted p-4 rounded-lg mb-6">
+                <h3 className="font-semibold mb-2 text-foreground">Declaration:</h3>
                 <p className="text-sm text-muted-foreground">
                   I hereby declare that information given in this application form are true to the best of my knowledge.
                 </p>
