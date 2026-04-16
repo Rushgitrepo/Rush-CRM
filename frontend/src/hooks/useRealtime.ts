@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { toast } from 'sonner';
 
@@ -257,33 +257,55 @@ export function useAnalyticsRealtime() {
 
 // Hook for direct messaging real-time updates
 export function useDirectMessageRealtime(onMessage: (message: any) => void) {
-  const { on, off } = useRealtime();
+  const onMessageRef = useRef(onMessage);
+  onMessageRef.current = onMessage;
 
   useEffect(() => {
-    on('direct_message:new', onMessage);
+    const socket = getSocket();
+    if (!socket) return;
+
+    const handleMessage = (msg: any) => onMessageRef.current(msg);
+    socket.on('direct_message:new', handleMessage);
+
     return () => {
-      off('direct_message:new', onMessage);
+      socket.off('direct_message:new', handleMessage);
     };
-  }, [onMessage]);
+  }, []);
 }
 
 // Hook for workgroup real-time updates
 export function useWorkgroupRealtime(workgroupId: string, onMessage: (message: any) => void, onReaction?: (data: any) => void) {
-  const { subscribeToWorkgroup, unsubscribeFromWorkgroup, on, off } = useRealtime();
+  const onMessageRef = useRef(onMessage);
+  const onReactionRef = useRef(onReaction);
+  // Always keep refs current without triggering re-subscription
+  onMessageRef.current = onMessage;
+  onReactionRef.current = onReaction;
 
   useEffect(() => {
     if (!workgroupId) return;
 
-    subscribeToWorkgroup(workgroupId);
-    on('workgroup_post:new', onMessage);
-    if(onReaction) on('reaction:added', onReaction);
+    const socket = getSocket();
+    if (!socket) return;
+
+    const handleMessage = (msg: any) => onMessageRef.current(msg);
+    const handleReaction = (data: any) => onReactionRef.current?.(data);
+
+    const subscribe = () => socket.emit('subscribe:workgroup', workgroupId);
+
+    // Subscribe now and re-subscribe automatically after any reconnect
+    // (Socket.IO rooms are per-connection — they're lost on disconnect)
+    subscribe();
+    socket.on('workgroup_post:new', handleMessage);
+    socket.on('reaction:added', handleReaction);
+    socket.on('connect', subscribe);
 
     return () => {
-      unsubscribeFromWorkgroup(workgroupId);
-      off('workgroup_post:new', onMessage);
-      if(onReaction) off('reaction:added', onReaction);
+      socket.emit('unsubscribe:workgroup', workgroupId);
+      socket.off('workgroup_post:new', handleMessage);
+      socket.off('reaction:added', handleReaction);
+      socket.off('connect', subscribe);
     };
-  }, [workgroupId, onMessage, onReaction]);
+  }, [workgroupId]);
 }
 
 // Hook for unibox real-time updates

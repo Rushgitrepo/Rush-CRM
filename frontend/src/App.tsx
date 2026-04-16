@@ -259,7 +259,7 @@ const App = () => (
                   <Route path="/recruitment/candidates/:candidateId/interview" element={<InterviewPage />} />
                   <Route path="/recruitment/offers" element={<OffersPage />} />
                   <Route path="/recruitment/scoring" element={<ScoringPage />} />
-                  <Route path="/recruitment/talent-pool" element={<TalentPoolPage />} />
+                  {/* <Route path="/recruitment/talent-pool" element={<TalentPoolPage />} /> */}
                   <Route path="/recruitment/analytics" element={<RecruitmentAnalyticsPage />} />
                   {/* Other Routes */}
                   <Route path="/settings" element={<SettingsPage />} />

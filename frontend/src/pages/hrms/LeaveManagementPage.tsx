@@ -14,7 +14,7 @@ export default function LeaveManagementPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Leave Management</h1>
+        <h1 className="text-2xl font-bold text-primary-900">Leave Management</h1>
         <p className="text-gray-600 mt-1">Manage leave requests, balances, and policies</p>
       </div>
 

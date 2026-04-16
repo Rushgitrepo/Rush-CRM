@@ -177,7 +177,7 @@ export default function EmployeesPage() {
             <div className="flex flex-col items-center justify-center py-16 gap-2">
               <Users className="h-10 w-10 text-muted-foreground/20" />
               <p className="text-sm text-muted-foreground">No employees found</p>
-              <Button size="sm" variant="outline" onClick={() => setDialog(true)} className="gap-1.5 mt-1">
+              <Button size="sm" variant="outline" onClick={() => navigate('/hrms/employees/create')} className="gap-1.5 mt-1">
                 <Plus className="h-3.5 w-3.5" /> Add first employee
               </Button>
             </div>

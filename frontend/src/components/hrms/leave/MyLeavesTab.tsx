@@ -140,7 +140,7 @@ export default function MyLeavesTab() {
                   const duration = differenceInDays(new Date(request.end_date), new Date(request.start_date)) + 1;
 
                   return (
-                    <div key={request.id} className="p-4 hover:bg-gray-50 transition-colors">
+                    <div key={request.id} className="p-4 hover:bg-primary-50 transition-colors">
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-3 mb-2">
