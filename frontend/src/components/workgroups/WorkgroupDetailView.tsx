@@ -1985,7 +1985,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
             ) : (
               <>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-900 dark:text-white">
+                  <label className="text-sm font-medium text-white dark:text-white">
                     Select User ({availableUsers.length} available)
                   </label>
                   <Select
@@ -2007,10 +2007,10 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                               </AvatarFallback>
                             </Avatar>
                             <div className="flex-1 min-w-0">
-                              <p className="font-medium text-gray-900">
+                              <p className="font-medium text-white">
                                 {u.full_name || "Unknown"}
                               </p>
-                              <p className="text-sm text-gray-600">{u.email}</p>
+                              <p className="text-sm dark:text-gray-400 text-gray-600">{u.email}</p>
                             </div>
                           </div>
                         </SelectItem>
