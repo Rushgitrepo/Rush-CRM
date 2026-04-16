@@ -130,16 +130,13 @@ const getWorkgroups = async (req, res, next) => {
       paramIndex++;
     }
     
-    // Privacy filter - only show private groups if current user is a member.
+    // Only show workgroups the current user is a member of.
     query += `
-      AND (
-        w.is_private = false
-        OR EXISTS (
-          SELECT 1
-          FROM workgroup_members wm_self
-          WHERE wm_self.workgroup_id = w.id
-            AND wm_self.user_id = $1
-        )
+      AND EXISTS (
+        SELECT 1
+        FROM workgroup_members wm_self
+        WHERE wm_self.workgroup_id = w.id
+          AND wm_self.user_id = $1
       )
     `;
     
@@ -671,7 +668,10 @@ const addWorkgroupMember = async (req, res, next) => {
       // Do not fail add-member API if system activity post fails.
       console.error('Failed to create system activity post (member_added):', systemErr.message);
     }
-    
+
+    // Notify all members in the workgroup to refresh their member list.
+    realtimeService.emitWorkgroupMemberAdded(id, result.rows[0]);
+
     res.status(201).json(result.rows[0]);
   } catch (err) {
     next(err);
@@ -763,7 +763,10 @@ const removeWorkgroupMember = async (req, res, next) => {
       // Do not fail remove-member API if system activity post fails.
       console.error('Failed to create system activity post (member_removed):', systemErr.message);
     }
-    
+
+    // Notify all members in the workgroup to refresh their member list.
+    realtimeService.emitWorkgroupMemberRemoved(id, memberId);
+
     res.json({ message: 'Member removed successfully' });
   } catch (err) {
     next(err);

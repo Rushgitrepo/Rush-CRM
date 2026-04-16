@@ -15,12 +15,12 @@ const getFolders = async (req, res, next) => {
     let query = `
       SELECT f.*, u.full_name as created_by_name,
              p.is_deleted as parent_is_deleted,
-             (SELECT COUNT(*) FROM drive_files WHERE folder_id = f.id AND is_deleted = f.is_deleted) as file_count,
-             (SELECT COALESCE(SUM(file_size), 0) FROM drive_files WHERE folder_id = f.id AND is_deleted = f.is_deleted) as total_size
+             (SELECT COUNT(*) FROM drive_files WHERE folder_id = f.id AND is_deleted = f.is_deleted AND created_by = $2) as file_count,
+             (SELECT COALESCE(SUM(file_size), 0) FROM drive_files WHERE folder_id = f.id AND is_deleted = f.is_deleted AND created_by = $2) as total_size
       FROM drive_folders f
       LEFT JOIN users u ON f.created_by = u.id
       LEFT JOIN drive_folders p ON f.parent_folder_id = p.id
-      WHERE f.org_id = $1 
+      WHERE f.org_id = $1 AND f.created_by = $2
     `;
 
     if (trash === 'true') {
@@ -29,8 +29,8 @@ const getFolders = async (req, res, next) => {
       query += ` AND (f.is_deleted = false OR f.is_deleted IS NULL)`;
     }
 
-    const params = [req.user.orgId];
-    let paramIndex = 2;
+    const params = [req.user.orgId, req.user.id];
+    let paramIndex = 3;
 
     if (trash === 'true') {
       // For trash view, if no parent_id is specified, show root deleted folders 
@@ -39,7 +39,7 @@ const getFolders = async (req, res, next) => {
         query += ` 
           AND (f.parent_folder_id IS NULL OR EXISTS (
             SELECT 1 FROM drive_folders pf 
-            WHERE pf.id = f.parent_folder_id AND (pf.is_deleted = false OR pf.is_deleted IS NULL)
+            WHERE pf.id = f.parent_folder_id AND (pf.is_deleted = false OR pf.is_deleted IS NULL) AND pf.created_by = $2
           ))
         `;
       } else {
@@ -76,11 +76,11 @@ const getFiles = async (req, res, next) => {
       FROM drive_files f
       LEFT JOIN users u ON f.created_by = u.id
       LEFT JOIN drive_folders fo ON f.folder_id = fo.id
-      WHERE f.org_id = $1 
+      WHERE f.org_id = $1 AND f.created_by = $2
     `;
 
-    const params = [req.user.orgId];
-    let paramIndex = 2;
+    const params = [req.user.orgId, req.user.id];
+    let paramIndex = 3;
 
     if (folder_id) {
       query += ` AND f.folder_id = $${paramIndex}`;
@@ -89,7 +89,7 @@ const getFiles = async (req, res, next) => {
 
       if (trash === 'true') {
         // Trash Mode: Show files that are individually trashed OR inside a trashed folder
-        query += ` AND (f.is_deleted = true OR (fo.id IS NOT NULL AND fo.is_deleted = true))`;
+        query += ` AND (f.is_deleted = true OR (fo.id IS NOT NULL AND fo.is_deleted = true AND fo.created_by = $2))`;
       } else {
         // Active Mode: Only show active files
         query += ` AND (f.is_deleted = false OR f.is_deleted IS NULL)`;
@@ -98,7 +98,7 @@ const getFiles = async (req, res, next) => {
       // Root view
       if (trash === 'true') {
         // Show files deleted OR files in deleted folders
-        query += ` AND (f.is_deleted = true OR (fo.id IS NOT NULL AND fo.is_deleted = true))`;
+        query += ` AND (f.is_deleted = true OR (fo.id IS NOT NULL AND fo.is_deleted = true AND fo.created_by = $2))`;
         // Hide items whose parent is also deleted (to show the folder instead)
         query += ` AND (f.folder_id IS NULL OR (fo.id IS NOT NULL AND fo.is_deleted = false))`;
       } else {
@@ -132,19 +132,19 @@ const createFolder = async (req, res, next) => {
     let path = name;
     if (parent_folder_id) {
       const parentResult = await db.query(
-        'SELECT path FROM drive_folders WHERE id = $1 AND org_id = $2',
-        [parent_folder_id, req.user.orgId]
+        'SELECT path FROM drive_folders WHERE id = $1 AND org_id = $2 AND created_by = $3',
+        [parent_folder_id, req.user.orgId, req.user.id]
       );
       if (parentResult.rows.length === 0) {
-        return res.status(404).json({ error: 'Parent folder not found' });
+        return res.status(404).json({ error: 'Parent folder not found or access denied' });
       }
       path = `${parentResult.rows[0].path}/${name}`;
     }
 
-    // Check if folder with same name exists in same parent
+    // Check if folder with same name exists in same parent for this user
     const existingResult = await db.query(
-      'SELECT id FROM drive_folders WHERE name = $1 AND parent_folder_id = $2 AND org_id = $3',
-      [name, parent_folder_id || null, req.user.orgId]
+      'SELECT id FROM drive_folders WHERE name = $1 AND parent_folder_id = $2 AND org_id = $3 AND created_by = $4',
+      [name, parent_folder_id || null, req.user.orgId, req.user.id]
     );
 
     if (existingResult.rows.length > 0) {
@@ -191,14 +191,14 @@ const uploadFile = async (req, res, next) => {
       path: file.path
     });
 
-    // Verify folder exists if provided
+    // Verify folder exists and belongs to user if provided
     if (folder_id) {
       const folderResult = await db.query(
-        'SELECT id FROM drive_folders WHERE id = $1 AND org_id = $2',
-        [folder_id, req.user.orgId]
+        'SELECT id FROM drive_folders WHERE id = $1 AND org_id = $2 AND created_by = $3',
+        [folder_id, req.user.orgId, req.user.id]
       );
       if (folderResult.rows.length === 0) {
-        return res.status(404).json({ error: 'Folder not found' });
+        return res.status(404).json({ error: 'Folder not found or access denied' });
       }
     }
 
@@ -250,10 +250,10 @@ const deleteFolder = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    // Check if folder exists and belongs to org
+    // Check if folder exists and belongs to user
     const folderResult = await db.query(
-      'SELECT * FROM drive_folders WHERE id = $1 AND org_id = $2',
-      [id, req.user.orgId]
+      'SELECT * FROM drive_folders WHERE id = $1 AND org_id = $2 AND created_by = $3',
+      [id, req.user.orgId, req.user.id]
     );
 
     if (folderResult.rows.length === 0) {
@@ -270,12 +270,12 @@ const deleteFolder = async (req, res, next) => {
       [id, req.user.orgId]
     );
 
-    // Also move all files in this folder to trash
+    // Also move all files in this folder to trash (only user's files)
     await db.query(
       `UPDATE drive_files 
        SET is_deleted = true, deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-       WHERE folder_id = $1 AND org_id = $2`,
-      [id, req.user.orgId]
+       WHERE folder_id = $1 AND org_id = $2 AND created_by = $3`,
+      [id, req.user.orgId, req.user.id]
     );
 
     // Log activity
@@ -299,9 +299,9 @@ const deleteFile = async (req, res, next) => {
     const result = await db.query(
       `UPDATE drive_files 
        SET is_deleted = true, deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1 AND org_id = $2 AND (is_deleted = false OR is_deleted IS NULL)
+       WHERE id = $1 AND org_id = $2 AND created_by = $3 AND (is_deleted = false OR is_deleted IS NULL)
        RETURNING *`,
-      [id, req.user.orgId]
+      [id, req.user.orgId, req.user.id]
     );
 
     if (result.rows.length === 0) {
@@ -329,9 +329,9 @@ const restoreFile = async (req, res, next) => {
     const result = await db.query(
       `UPDATE drive_files 
        SET is_deleted = false, deleted_at = NULL, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1 AND org_id = $2 AND is_deleted = true
+       WHERE id = $1 AND org_id = $2 AND created_by = $3 AND is_deleted = true
        RETURNING *`,
-      [id, req.user.orgId]
+      [id, req.user.orgId, req.user.id]
     );
 
     if (result.rows.length === 0) {
@@ -359,21 +359,21 @@ const restoreFolder = async (req, res, next) => {
     const result = await db.query(
       `UPDATE drive_folders 
        SET is_deleted = false, deleted_at = NULL, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1 AND org_id = $2 AND is_deleted = true
+       WHERE id = $1 AND org_id = $2 AND created_by = $3 AND is_deleted = true
        RETURNING *`,
-      [id, req.user.orgId]
+      [id, req.user.orgId, req.user.id]
     );
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Folder not found or not in trash' });
     }
 
-    // Also restore all files in this folder
+    // Also restore all files in this folder (only user's files)
     await db.query(
       `UPDATE drive_files 
        SET is_deleted = false, deleted_at = NULL, updated_at = CURRENT_TIMESTAMP
-       WHERE folder_id = $1 AND org_id = $2`,
-      [id, req.user.orgId]
+       WHERE folder_id = $1 AND org_id = $2 AND created_by = $3`,
+      [id, req.user.orgId, req.user.id]
     );
 
     // Log activity
@@ -394,10 +394,10 @@ const permanentDeleteFile = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    // Get file info first to delete from storage
+    // Get file info first to delete from storage (only user's files)
     const fileResult = await db.query(
-      'SELECT file_path FROM drive_files WHERE id = $1 AND org_id = $2',
-      [id, req.user.orgId]
+      'SELECT file_path FROM drive_files WHERE id = $1 AND org_id = $2 AND created_by = $3',
+      [id, req.user.orgId, req.user.id]
     );
 
     if (fileResult.rows.length === 0) {
@@ -456,23 +456,23 @@ const bulkRestore = async (req, res, next) => {
     await db.query(
       `UPDATE drive_files 
        SET is_deleted = false, deleted_at = NULL, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ANY($1) AND org_id = $2`,
-      [ids, req.user.orgId]
+       WHERE id = ANY($1) AND org_id = $2 AND created_by = $3`,
+      [ids, req.user.orgId, req.user.id]
     );
 
     await db.query(
       `UPDATE drive_folders 
        SET is_deleted = false, deleted_at = NULL, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ANY($1) AND org_id = $2`,
-      [ids, req.user.orgId]
+       WHERE id = ANY($1) AND org_id = $2 AND created_by = $3`,
+      [ids, req.user.orgId, req.user.id]
     );
 
-    // Also restore all files that were in restored folders
+    // Also restore all files that were in restored folders (only user's files)
     await db.query(
       `UPDATE drive_files 
        SET is_deleted = false, deleted_at = NULL, updated_at = CURRENT_TIMESTAMP
-       WHERE (id = ANY($1) OR folder_id = ANY($1)) AND org_id = $2`,
-      [ids, req.user.orgId]
+       WHERE (id = ANY($1) OR folder_id = ANY($1)) AND org_id = $2 AND created_by = $3`,
+      [ids, req.user.orgId, req.user.id]
     );
 
     res.json({ message: 'Items restored successfully' });
@@ -489,21 +489,21 @@ const bulkMoveToTrash = async (req, res, next) => {
       return res.status(400).json({ error: 'Item IDs are required' });
     }
 
-    // Soft delete folders
+    // Soft delete folders (only user's folders)
     await db.query(
       `UPDATE drive_folders 
        SET is_deleted = true, deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ANY($1) AND org_id = $2`,
-      [ids, req.user.orgId]
+       WHERE id = ANY($1) AND org_id = $2 AND created_by = $3`,
+      [ids, req.user.orgId, req.user.id]
     );
 
-    // Soft delete files
+    // Soft delete files (only user's files)
     // Also include files inside the selected folders
     await db.query(
       `UPDATE drive_files 
        SET is_deleted = true, deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-       WHERE (id = ANY($1) OR folder_id = ANY($1)) AND org_id = $2`,
-      [ids, req.user.orgId]
+       WHERE (id = ANY($1) OR folder_id = ANY($1)) AND org_id = $2 AND created_by = $3`,
+      [ids, req.user.orgId, req.user.id]
     );
 
     res.json({ message: 'Items moved to trash success' });
@@ -522,8 +522,8 @@ const bulkPermanentDelete = async (req, res, next) => {
 
     const filesResult = await db.query(
       `SELECT file_path FROM drive_files 
-       WHERE (id = ANY($1) OR folder_id = ANY($1)) AND org_id = $2`,
-      [ids, req.user.orgId]
+       WHERE (id = ANY($1) OR folder_id = ANY($1)) AND org_id = $2 AND created_by = $3`,
+      [ids, req.user.orgId, req.user.id]
     );
 
     for (const file of filesResult.rows) {
@@ -539,17 +539,17 @@ const bulkPermanentDelete = async (req, res, next) => {
       }
     }
 
-    // Delete files first
+    // Delete files first (only user's files)
     await db.query(
       `DELETE FROM drive_files 
-       WHERE (id = ANY($1) OR folder_id = ANY($1)) AND org_id = $2`,
-      [ids, req.user.orgId]
+       WHERE (id = ANY($1) OR folder_id = ANY($1)) AND org_id = $2 AND created_by = $3`,
+      [ids, req.user.orgId, req.user.id]
     );
 
-    // Delete folders
+    // Delete folders (only user's folders)
     await db.query(
-      'DELETE FROM drive_folders WHERE id = ANY($1) AND org_id = $2',
-      [ids, req.user.orgId]
+      'DELETE FROM drive_folders WHERE id = ANY($1) AND org_id = $2 AND created_by = $3',
+      [ids, req.user.orgId, req.user.id]
     );
 
     res.json({ message: 'Items permanently deleted' });
@@ -569,22 +569,22 @@ const search = async (req, res, next) => {
 
     const searchTerm = `%${q.trim()}%`;
 
-    // Search folders
+    // Search folders (only user's folders)
     const foldersResult = await db.query(
       `SELECT 'folder' as type, id, name, created_at, updated_at, path
        FROM drive_folders 
-       WHERE org_id = $1 AND name ILIKE $2
+       WHERE org_id = $1 AND created_by = $2 AND name ILIKE $3
        ORDER BY name ASC`,
-      [req.user.orgId, searchTerm]
+      [req.user.orgId, req.user.id, searchTerm]
     );
 
-    // Search files
+    // Search files (only user's files)
     const filesResult = await db.query(
       `SELECT 'file' as type, id, name, file_type, file_size, created_at, updated_at
        FROM drive_files 
-       WHERE org_id = $1 AND is_deleted = false AND name ILIKE $2
+       WHERE org_id = $1 AND created_by = $2 AND is_deleted = false AND name ILIKE $3
        ORDER BY name ASC`,
-      [req.user.orgId, searchTerm]
+      [req.user.orgId, req.user.id, searchTerm]
     );
 
     const results = [
@@ -603,10 +603,10 @@ const permanentDeleteFolder = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    // Check if folder exists
+    // Check if folder exists and belongs to user
     const folderResult = await db.query(
-      'SELECT id FROM drive_folders WHERE id = $1 AND org_id = $2',
-      [id, req.user.orgId]
+      'SELECT id FROM drive_folders WHERE id = $1 AND org_id = $2 AND created_by = $3',
+      [id, req.user.orgId, req.user.id]
     );
 
     if (folderResult.rows.length === 0) {
@@ -614,8 +614,8 @@ const permanentDeleteFolder = async (req, res, next) => {
     }
 
     const filesResult = await db.query(
-      'SELECT file_path FROM drive_files WHERE folder_id = $1 AND org_id = $2',
-      [id, req.user.orgId]
+      'SELECT file_path FROM drive_files WHERE folder_id = $1 AND org_id = $2 AND created_by = $3',
+      [id, req.user.orgId, req.user.id]
     );
 
     for (const file of filesResult.rows) {
@@ -631,11 +631,11 @@ const permanentDeleteFolder = async (req, res, next) => {
       }
     }
 
-    // Delete files from database first
-    await db.query('DELETE FROM drive_files WHERE folder_id = $1 AND org_id = $2', [id, req.user.orgId]);
+    // Delete files from database first (only user's files)
+    await db.query('DELETE FROM drive_files WHERE folder_id = $1 AND org_id = $2 AND created_by = $3', [id, req.user.orgId, req.user.id]);
 
-    // Delete folder from database
-    await db.query('DELETE FROM drive_folders WHERE id = $1 AND org_id = $2', [id, req.user.orgId]);
+    // Delete folder from database (only user's folder)
+    await db.query('DELETE FROM drive_folders WHERE id = $1 AND org_id = $2 AND created_by = $3', [id, req.user.orgId, req.user.id]);
 
     res.json({ message: 'Folder and its contents permanently deleted' });
   } catch (err) {

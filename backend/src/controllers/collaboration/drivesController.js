@@ -6,8 +6,12 @@ const getAll = async (req, res, next) => {
     let query = 'SELECT * FROM connected_drives WHERE org_id = $1 AND is_active = true';
     const params = [req.user.orgId];
     if (ownership) {
-      query += ' AND ownership = $2';
+      query += ` AND ownership = $${params.length + 1}`;
       params.push(ownership);
+      if (ownership === 'personal') {
+        query += ` AND connected_by = $${params.length + 1}`;
+        params.push(req.user.id);
+      }
     }
     query += ' ORDER BY created_at DESC';
     const { rows } = await db.query(query, params);

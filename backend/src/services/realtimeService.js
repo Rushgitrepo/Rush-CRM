@@ -221,6 +221,14 @@ class RealtimeService {
   emitWorkgroupPost(workgroupId, post) {
     this.io.to(`workgroup:${workgroupId}`).emit('workgroup_post:new', post);
   }
+
+  emitWorkgroupMemberAdded(workgroupId, member) {
+    this.io.to(`workgroup:${workgroupId}`).emit('workgroup:member_added', member);
+  }
+
+  emitWorkgroupMemberRemoved(workgroupId, memberId) {
+    this.io.to(`workgroup:${workgroupId}`).emit('workgroup:member_removed', { memberId });
+  }
   
   emitReactionAdded(roomName, data) {
     this.io.to(roomName).emit('reaction:added', data);
