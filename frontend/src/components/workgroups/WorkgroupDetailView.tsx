@@ -97,6 +97,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   const { prompt, confirm } = useCustomDialog();
   const { data: workgroup } = useWorkgroup(workgroupId);
   const { data: allWorkgroups = [] } = useWorkgroups();
+  const navigate = useNavigate();
   const { data: members = [], isLoading: membersLoading } =
     useWorkgroupMembers(workgroupId);
   const queryClient = useQueryClient();
@@ -894,13 +895,22 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                     const otherMember = members.find(m => m.user_id !== user?.id);
                     if (otherMember) {
                       try {
+                        console.log('Opening direct chat with user:', otherMember.user_id);
                         const direct = await workgroupsApi.openDirectChat(otherMember.user_id);
+                        console.log('Direct chat response:', direct);
                         if (direct?.id) {
                           navigate(`/collaboration/workgroups?team=${direct.id}`);
+                        } else {
+                          toast.error("No direct chat ID returned from server");
                         }
                       } catch (error: any) {
+                        console.error('Direct chat error:', error);
+                        const serverMessage = error?.response?.data?.error;
+                        const fallbackMessage = error?.message;
                         toast.error(
-                          error?.response?.data?.error || "Failed to open direct chat",
+                          serverMessage ||
+                          fallbackMessage ||
+                          "Failed to open direct chat",
                         );
                       }
                     } else {
@@ -1122,13 +1132,22 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                           <DropdownMenuItem
                             onClick={async () => {
                               try {
+                                console.log('Opening direct chat with user:', member.user_id);
                                 const direct = await workgroupsApi.openDirectChat(member.user_id);
+                                console.log('Direct chat response:', direct);
                                 if (direct?.id) {
                                   navigate(`/collaboration/workgroups?team=${direct.id}`);
+                                } else {
+                                  toast.error("No direct chat ID returned from server");
                                 }
                               } catch (error: any) {
+                                console.error('Direct chat error:', error);
+                                const serverMessage = error?.response?.data?.error;
+                                const fallbackMessage = error?.message;
                                 toast.error(
-                                  error?.response?.data?.error || "Failed to open direct chat",
+                                  serverMessage ||
+                                  fallbackMessage ||
+                                  "Failed to open direct chat",
                                 );
                               }
                             }}
@@ -2242,14 +2261,23 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                               handleLeaveTeam(member.id);
                             } else {
                               try {
+                                console.log('Opening direct chat with user:', member.user_id);
                                 const direct = await workgroupsApi.openDirectChat(member.user_id);
+                                console.log('Direct chat response:', direct);
                                 if (direct?.id) {
                                   setShowMembersList(false);
                                   navigate(`/collaboration/workgroups?team=${direct.id}`);
+                                } else {
+                                  toast.error("No direct chat ID returned from server");
                                 }
                               } catch (error: any) {
+                                console.error('Direct chat error:', error);
+                                const serverMessage = error?.response?.data?.error;
+                                const fallbackMessage = error?.message;
                                 toast.error(
-                                  error?.response?.data?.error || "Failed to open direct chat",
+                                  serverMessage ||
+                                  fallbackMessage ||
+                                  "Failed to open direct chat",
                                 );
                               }
                             }
