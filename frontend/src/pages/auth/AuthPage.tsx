@@ -194,7 +194,7 @@ export default function AuthPage() {
           )}
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="flex w-full bg-white border border-slate-200 rounded-lg h-auto p-1 mb-8 overflow-hidden shadow-sm">
+            {/* <TabsList className="flex w-full bg-white border border-slate-200 rounded-lg h-auto p-1 mb-8 overflow-hidden shadow-sm">
               <TabsTrigger
                 value="signin"
                 className="flex-1 font-medium text-sm py-2.5 data-[state=active]:bg-primary data-[state=active]:text-white rounded-md transition-all"
@@ -207,7 +207,7 @@ export default function AuthPage() {
               >
                 Sign Up
               </TabsTrigger>
-            </TabsList>
+            </TabsList> */}
 
             <TabsContent value="signin" className="space-y-6">
               <form onSubmit={handleSignIn} className="space-y-5">
@@ -271,7 +271,7 @@ export default function AuthPage() {
               <form onSubmit={handleSignUp} className="space-y-5">
                 <div className="space-y-2">
                   <Label htmlFor="signup-name" className="text-sm font-medium text-slate-700 pl-1">
-                    Complete Name
+                    Full Name
                   </Label>
                   <Input
                     id="signup-name"
@@ -285,7 +285,7 @@ export default function AuthPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="signup-email" className="text-sm font-medium text-slate-700 pl-1">
-                    System Email
+                    Email
                   </Label>
                   <Input
                     id="signup-email"
@@ -299,7 +299,7 @@ export default function AuthPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="signup-password" className="text-sm font-medium text-slate-700 pl-1">
-                    Secure Password
+                    Password
                   </Label>
                   <div className="relative">
                     <Input
