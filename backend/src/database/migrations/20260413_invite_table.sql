@@ -1,14 +1,17 @@
+DROP TABLE invites IF EXISTS;
+
 CREATE TABLE IF NOT EXISTS invites (
     id UUID PRIMARY KEY,
-    email VARCHAR(255) NOT NULL,
-    name VARCHAR(255) NOT NULL,
+    email TEXT NOT NULL,
+    full_name TEXT,
     role VARCHAR(50) NOT NULL,
-    phone VARCHAR(20),
-    password TEXT,
-    department VARCHAR(100),
-    permissions JSONB DEFAULT '{}'::jsonb,
-    organization_id UUID,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    created_by UUID,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    phone TEXT,
+    position TEXT,
+    department TEXT,
+    module_permissions JSONB DEFAULT '{}'::jsonb,
+    org_id UUID,
+    invite_token TEXT UNIQUE,
+    invite_expires_at TIMESTAMP WITH TIME ZONE,
+    last_seen_at TIMESTAMPTZ,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

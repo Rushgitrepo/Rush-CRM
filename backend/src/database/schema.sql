@@ -2680,30 +2680,33 @@ CREATE TABLE IF NOT EXISTS users (
     invite_expires_at TIMESTAMP WITH TIME ZONE,
     is_active boolean DEFAULT true,
     last_login timestamp without time zone,
+    last_seen_at timestamp with time zone,
     "position" character varying(100),
     timezone character varying(100),
-    language character varying(10) DEFAULT 'en'::character varying
+    language character varying(10) DEFAULT 'en'::character varying,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON public.users (email);
 CREATE INDEX IF NOT EXISTS idx_users_organization ON public.users (organization_id);
+CREATE INDEX IF NOT EXISTS idx_users_last_seen_at ON public.users (last_seen_at);
 ALTER TABLE public.users OWNER TO postgres;
 
 CREATE TABLE invites (
     id UUID PRIMARY KEY,
-    email VARCHAR(255) NOT NULL,
-    name VARCHAR(255) NOT NULL,
+    email TEXT NOT NULL,
+    full_name TEXT,
     role VARCHAR(50) NOT NULL,
-    phone VARCHAR(20),
-    password TEXT,
-    department VARCHAR(100),
-    permissions JSONB DEFAULT '{}'::jsonb,
-    organization_id UUID,
+    phone TEXT,
+    position TEXT,
+    department TEXT,
+    module_permissions JSONB DEFAULT '{}'::jsonb,
+    org_id UUID,
+    invite_token TEXT UNIQUE,
+    invite_expires_at TIMESTAMP WITH TIME ZONE,
+    last_seen_at TIMESTAMPTZ,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    created_by UUID,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_invites_email ON public.invites (email);

@@ -503,7 +503,7 @@ export default function WorkgroupsPage() {
                 onClick={() => navigate("/collaboration/direct-chats")}
                 className="gap-2 bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600"
               >
-                Friends
+                Direct Chats
               </Button>
               </div>
             <DropdownMenu>

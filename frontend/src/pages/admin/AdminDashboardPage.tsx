@@ -126,7 +126,7 @@ export default function AdminDashboardPage() {
   const { data: users, isLoading } = useQuery({
     queryKey: ["admin-users"],
     queryFn: () => usersApi.getAll(),
-    refetchInterval: pendingInvites.length > 0 ? 5000 : false,
+    refetchInterval: 3000, // Refetch every 3 seconds to catch new users
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
@@ -320,7 +320,13 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     if (!users?.length) return;
     const activeEmails = new Set(users.map((u: any) => String(u.email || "").toLowerCase()));
-    setPendingInvites((prev) => prev.filter((p) => !activeEmails.has(p.email.toLowerCase())));
+    console.log('Active emails:', Array.from(activeEmails));
+    console.log('Pending invites before filter:', pendingInvites);
+    setPendingInvites((prev) => {
+      const filtered = prev.filter((p) => !activeEmails.has(p.email.toLowerCase()));
+      console.log('Pending invites after filter:', filtered);
+      return filtered;
+    });
   }, [users]);
 
   return (
