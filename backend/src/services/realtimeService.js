@@ -1,5 +1,6 @@
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
+const db = require('../config/database');
 
 class RealtimeService {
   constructor() {
@@ -97,6 +98,7 @@ class RealtimeService {
             this.userActiveSockets.delete(socket.userId);
             const now = new Date();
             this.lastSeenAt.set(socket.userId, now);
+            this.persistLastSeenAt(socket.userId, now);
             this.emitPresenceUpdate(socket.orgId, socket.userId, false, now);
           } else {
             this.userActiveSockets.set(socket.userId, activeSet);
@@ -135,6 +137,7 @@ class RealtimeService {
         if (wasOnlineBeforeDisconnect && !isOnlineAfterDisconnect) {
           const now = new Date();
           this.lastSeenAt.set(socket.userId, now);
+          this.persistLastSeenAt(socket.userId, now);
           this.emitPresenceUpdate(socket.orgId, socket.userId, false, now);
         }
       });
@@ -255,6 +258,17 @@ class RealtimeService {
       isOnline,
       lastSeenAt: isOnline ? null : this.lastSeenAt.get(userId) || null,
     };
+  }
+
+  async persistLastSeenAt(userId, when) {
+    try {
+      await db.query(
+        'UPDATE users SET last_seen_at = $2 WHERE id = $1',
+        [userId, when],
+      );
+    } catch (error) {
+      console.error('Failed to persist last_seen_at:', error?.message || error);
+    }
   }
 }
 

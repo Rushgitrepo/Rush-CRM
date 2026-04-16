@@ -2680,15 +2680,17 @@ CREATE TABLE IF NOT EXISTS users (
     invite_expires_at TIMESTAMP WITH TIME ZONE,
     is_active boolean DEFAULT true,
     last_login timestamp without time zone,
+    last_seen_at timestamp with time zone,
     "position" character varying(100),
     timezone character varying(100),
-    language character varying(10) DEFAULT 'en'::character varying
+    language character varying(10) DEFAULT 'en'::character varying,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON public.users (email);
 CREATE INDEX IF NOT EXISTS idx_users_organization ON public.users (organization_id);
+CREATE INDEX IF NOT EXISTS idx_users_last_seen_at ON public.users (last_seen_at);
 ALTER TABLE public.users OWNER TO postgres;
 
 CREATE TABLE invites (
