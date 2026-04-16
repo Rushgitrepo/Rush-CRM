@@ -1,4 +1,3 @@
-DROP TABLE invites IF EXISTS;
 
 CREATE TABLE IF NOT EXISTS invites (
     id UUID PRIMARY KEY,
@@ -11,7 +10,6 @@ CREATE TABLE IF NOT EXISTS invites (
     module_permissions JSONB DEFAULT '{}'::jsonb,
     org_id UUID,
     invite_token TEXT UNIQUE,
-    invite_expires_at TIMESTAMP WITH TIME ZONE,
-    last_seen_at TIMESTAMPTZ,
+    expires_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
