@@ -379,8 +379,7 @@ const updateWorkgroup = async (req, res, next) => {
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $6 AND org_id = $7
       RETURNING *
-    `;
-    
+    `;    
     const result = await db.query(query, [
       name?.trim(),
       description?.trim(),

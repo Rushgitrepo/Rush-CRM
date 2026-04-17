@@ -233,10 +233,12 @@ export function AppSidebar() {
     children?.some((child) => location.pathname.startsWith(child.href));
   const totalWorkgroupUnread = useMemo(
     () =>
-      workgroups.reduce(
-        (sum: number, wg: any) => sum + Number(wg?.unread_count || 0),
-        0,
-      ),
+      workgroups
+        .filter((wg: any) => !((wg.type === 'private') && Boolean(wg.settings?.is_direct_chat)))
+        .reduce(
+          (sum: number, wg: any) => sum + Number(wg?.unread_count || 0),
+          0,
+        ),
     [workgroups],
   );
 
