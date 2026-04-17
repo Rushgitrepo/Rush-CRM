@@ -8,8 +8,42 @@ const SOCKET_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || "http://
 let socketInstance: Socket | null = null;
 let connectionCount = 0;
 let workgroupToastListenerAttached = false;
+let workgroupNotificationListenerAttached = false;
 let presenceWindowListenersAttached = false;
 let presenceHeartbeatId: number | null = null;
+
+function getCurrentUserId(): string | null {
+  try {
+    const raw = localStorage.getItem('user');
+    return raw ? JSON.parse(raw)?.id ?? null : null;
+  } catch {
+    return null;
+  }
+}
+
+function isViewingWorkgroup(workgroupId: string): boolean {
+  const params = new URLSearchParams(window.location.search);
+  const activeId = params.get('team') || params.get('chat');
+  return activeId === workgroupId;
+}
+
+function showDesktopNotification(title: string, body: string, workgroupId: string, isDirectChat: boolean) {
+  if (Notification.permission !== 'granted') return;
+  const url = isDirectChat
+    ? `/collaboration/direct-chats?chat=${workgroupId}`
+    : `/collaboration/workgroups?team=${workgroupId}`;
+  const n = new Notification(title, {
+    body,
+    icon: '/crm.png',
+    tag: `workgroup-${workgroupId}`,
+    renotify: true,
+  });
+  n.onclick = () => {
+    window.focus();
+    window.location.href = url;
+    n.close();
+  };
+}
 
 const emitPresenceFromWindowState = () => {
   if (!socketInstance || !socketInstance.connected) return;
@@ -49,36 +83,39 @@ export const getSocket = (): Socket | null => {
     console.error('WebSocket connection error:', error);
   });
 
+  // Legacy room-based toast — kept for workgroup rooms the user is subscribed to,
+  // but suppressed in favour of the per-user workgroup:notification handler below.
   if (!workgroupToastListenerAttached) {
-    socketInstance.on('workgroup_post:new', (message: any) => {
-      const path = window.location.pathname;
-      const isOnWorkgroupsScreen = path.startsWith('/collaboration/workgroups');
-      const isOnDirectChatsScreen = path.startsWith('/collaboration/direct-chats');
-      if (isOnWorkgroupsScreen || isOnDirectChatsScreen) return;
-
-      // Do not show toast for current user's own sent messages.
-      let currentUserId: string | null = null;
-      try {
-        const rawUser = localStorage.getItem('user');
-        if (rawUser) {
-          const parsedUser = JSON.parse(rawUser);
-          currentUserId = parsedUser?.id || null;
-        }
-      } catch (error) {
-        currentUserId = null;
-      }
-      if (currentUserId && message?.user_id === currentUserId) return;
-
-      const author = message?.author_name || 'Team member';
-      const content = String(message?.content || '').replace('[SYSTEM] ', '');
-      if (!content.trim()) return;
-
-      toast(`${author}: ${content}`, {
-        duration: 3500,
-        position: 'bottom-right',
-      });
-    });
     workgroupToastListenerAttached = true;
+  }
+
+  // Per-user notification handler — fires regardless of which page the user is on.
+  if (!workgroupNotificationListenerAttached) {
+    socketInstance.on('workgroup:notification', (msg: any) => {
+      const workgroupId: string = msg?.workgroup_id;
+      if (!workgroupId) return;
+
+      // Suppress own messages
+      const currentUserId = getCurrentUserId();
+      if (currentUserId && msg?.user_id === currentUserId) return;
+
+      // Suppress if user is actively viewing this exact chat (WhatsApp behaviour)
+      if (isViewingWorkgroup(workgroupId) && document.visibilityState === 'visible') return;
+
+      const title: string = msg?.title || msg?.author_name || 'Rush CRM';
+      const body: string = String(msg?.body || msg?.content || '').replace('[SYSTEM] ', '');
+      if (!body.trim()) return;
+      const isDirectChat: boolean = Boolean(msg?.is_direct_chat);
+
+      if (document.visibilityState === 'hidden') {
+        // Tab minimized or in background — prefer desktop notification
+        showDesktopNotification(title, body, workgroupId, isDirectChat);
+      } else {
+        // Tab visible but user is on a different page or different chat
+        toast(`${title}: ${body}`, { duration: 4000, position: 'bottom-right' });
+      }
+    });
+    workgroupNotificationListenerAttached = true;
   }
 
   if (!socketInstance.connected) {

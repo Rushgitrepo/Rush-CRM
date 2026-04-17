@@ -1,6 +1,7 @@
 const db = require('../../config/database');
 const { v4: uuidv4 } = require('uuid');
 const realtimeService = require('../../services/realtimeService');
+const pushService = require('../../services/pushService');
 
 const createSystemPost = async (workgroupId, actorUserId, content) => {
   const postId = uuidv4();
@@ -67,6 +68,18 @@ const getWorkgroups = async (req, res, next) => {
           )
           ELSE NULL
         END as direct_peer_last_seen_at,
+        CASE
+          WHEN COALESCE((w.settings->>'is_direct_chat')::boolean, false) = true THEN (
+            SELECT u_peer.avatar_url
+            FROM workgroup_members wm_peer
+            JOIN users u_peer ON u_peer.id = wm_peer.user_id
+            WHERE wm_peer.workgroup_id = w.id
+              AND wm_peer.user_id <> $1
+            ORDER BY wm_peer.joined_at ASC
+            LIMIT 1
+          )
+          ELSE NULL
+        END as direct_peer_avatar_url,
         u.full_name as created_by_name,
         COUNT(DISTINCT wm.user_id) as member_count,
         COUNT(DISTINCT wp.id) as message_count,
@@ -193,6 +206,18 @@ const getWorkgroup = async (req, res, next) => {
           )
           ELSE w.name
         END as display_name,
+        CASE
+          WHEN COALESCE((w.settings->>'is_direct_chat')::boolean, false) = true THEN (
+            SELECT u_peer.avatar_url
+            FROM workgroup_members wm_peer
+            JOIN users u_peer ON u_peer.id = wm_peer.user_id
+            WHERE wm_peer.workgroup_id = w.id
+              AND wm_peer.user_id <> $1
+            ORDER BY wm_peer.joined_at ASC
+            LIMIT 1
+          )
+          ELSE NULL
+        END as direct_peer_avatar_url,
         u.full_name as created_by_name,
         COUNT(DISTINCT wm.user_id) as member_count,
         COUNT(DISTINCT wp.id) as message_count,
@@ -980,8 +1005,44 @@ const createWorkgroupPost = async (req, res, next) => {
     
     const insertedPost = postResult.rows[0];
 
-    // Real-time
+    // Real-time: broadcast to everyone subscribed to this workgroup room
     realtimeService.emitWorkgroupPost(id, insertedPost);
+
+    // Fetch workgroup name and all members (excluding sender) for per-user notifications
+    const [wgResult, membersResult] = await Promise.all([
+      db.query(`SELECT name, type, settings FROM workgroups WHERE id = $1`, [id]),
+      db.query(
+        `SELECT wm.user_id FROM workgroup_members wm WHERE wm.workgroup_id = $1 AND wm.user_id <> $2`,
+        [id, req.user.id]
+      ),
+    ]);
+
+    const workgroup = wgResult.rows[0];
+    const isDirectChat = workgroup?.settings?.is_direct_chat === true || workgroup?.settings?.is_direct_chat === 'true';
+    const chatName = isDirectChat ? insertedPost.author_name : (workgroup?.name || 'Team');
+    const notifTitle = isDirectChat ? insertedPost.author_name : `${chatName}`;
+    const notifBody = insertedPost.content.replace('[SYSTEM] ', '');
+    const notifPayload = {
+      title: notifTitle,
+      body: notifBody,
+      workgroup_id: id,
+      workgroup_name: chatName,
+      user_id: req.user.id,
+      author_name: insertedPost.author_name,
+      author_avatar: insertedPost.author_avatar,
+      post_id: insertedPost.id,
+      is_direct_chat: isDirectChat,
+    };
+
+    for (const { user_id } of membersResult.rows) {
+      // Per-user socket notification (reaches connected clients on any page)
+      realtimeService.emitWorkgroupNotification(user_id, notifPayload);
+      // Web push for closed/background tabs
+      pushService.sendPushToUser(user_id, {
+        type: 'workgroup_message',
+        ...notifPayload,
+      });
+    }
 
     // Send Mention Events
     for (const mentionedUser of messageMentions) {
@@ -991,7 +1052,7 @@ const createWorkgroupPost = async (req, res, next) => {
             message: insertedPost
         });
     }
-    
+
     res.status(201).json(insertedPost);
   } catch (err) {
     next(err);

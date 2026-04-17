@@ -1868,27 +1868,37 @@ CREATE TABLE IF NOT EXISTS notification_templates (
     org_id uuid
 );
 
-
-
---
--- Name: notifications; Type: TABLE; Schema: public
---
+-- ============================================================
+-- Rush-CRM: Unified Notifications System
+-- Enhanced migration to handle potential legacy table conflicts
+-- ============================================================
 
 CREATE TABLE IF NOT EXISTS notifications (
     id uuid DEFAULT uuid_generate_v4() NOT NULL,
-    organization_id uuid,
-    user_id uuid,
-    type character varying(50) NOT NULL,
-    title character varying(255) NOT NULL,
-    message text,
+    org_id SET NOT NULL,
+    title SET NOT NULL,
+    target_user_id SET NOT NULL,
+    type SET NOT NULL,
+    category SET NOT NULL,
+    message SET NOT NULL,
+    metadata SET NOT NULL,
+    category VARCHAR(40) DEFAULT 'general';
+    is_read SET NOT NULL,
+    action_url VARCHAR(500),
+    actor_user_id UUID,
+    created_at SET NOT NULL,
     link character varying(500),
     is_read boolean DEFAULT false,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    org_id uuid,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 4. Create indices (safely handles existence)
+CREATE INDEX IF NOT EXISTS idx_notifications_user_unread
+    ON notifications (target_user_id, org_id, is_read, created_at DESC);
 
+CREATE INDEX IF NOT EXISTS idx_notifications_user_org
+    ON notifications (target_user_id, org_id);
 
 --
 -- Name: organizations; Type: TABLE; Schema: public
@@ -1902,7 +1912,6 @@ CREATE TABLE IF NOT EXISTS organizations (
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
 );
-
 
 
 --
@@ -1937,7 +1946,6 @@ CREATE TABLE IF NOT EXISTS payroll (
 );
 
 
-
 --
 -- Name: permissions; Type: TABLE; Schema: public
 --
@@ -1951,7 +1959,6 @@ CREATE TABLE IF NOT EXISTS permissions (
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
 );
-
 
 
 --
@@ -8983,90 +8990,6 @@ CREATE INDEX IF NOT EXISTS idx_project_shares_org_id ON project_shares(org_id);
 COMMENT ON TABLE project_shares IS 'Stores shareable links for projects to share with external clients';
 
 
--- ============================================================
--- Rush-CRM: Unified Notifications System
--- Enhanced migration to handle potential legacy table conflicts
--- ============================================================
-
--- 1. Ensure the base table exists
-CREATE TABLE IF NOT EXISTS notifications (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid()
-);
-
--- 2. Robustly add all required columns if they are missing
-DO $$ 
-BEGIN 
-    -- Organization reference
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='notifications' AND column_name='org_id') THEN
-        ALTER TABLE notifications ADD COLUMN org_id UUID;
-    END IF;
-
-    -- Target User (Recipient)
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='notifications' AND column_name='target_user_id') THEN
-        ALTER TABLE notifications ADD COLUMN target_user_id UUID;
-    END IF;
-
-    -- Actor User (Triggerer, NULL = system)
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='notifications' AND column_name='actor_user_id') THEN
-        ALTER TABLE notifications ADD COLUMN actor_user_id UUID;
-    END IF;
-
-    -- Type (e.g., 'lead_assigned')
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='notifications' AND column_name='type') THEN
-        ALTER TABLE notifications ADD COLUMN type VARCHAR(80);
-    END IF;
-
-    -- Category (e.g., 'crm', 'hrms')
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='notifications' AND column_name='category') THEN
-        ALTER TABLE notifications ADD COLUMN category VARCHAR(40) DEFAULT 'general';
-    END IF;
-
-    -- Content
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='notifications' AND column_name='title') THEN
-        ALTER TABLE notifications ADD COLUMN title VARCHAR(255) DEFAULT 'Notification';
-    END IF;
-
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='notifications' AND column_name='message') THEN
-        ALTER TABLE notifications ADD COLUMN message TEXT DEFAULT '';
-    END IF;
-
-    -- Actions & Metadata
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='notifications' AND column_name='action_url') THEN
-        ALTER TABLE notifications ADD COLUMN action_url VARCHAR(500);
-    END IF;
-
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='notifications' AND column_name='metadata') THEN
-        ALTER TABLE notifications ADD COLUMN metadata JSONB DEFAULT '{}';
-    END IF;
-
-    -- State
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='notifications' AND column_name='is_read') THEN
-        ALTER TABLE notifications ADD COLUMN is_read BOOLEAN DEFAULT FALSE;
-    END IF;
-
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='notifications' AND column_name='created_at') THEN
-        ALTER TABLE notifications ADD COLUMN created_at TIMESTAMPTZ DEFAULT NOW();
-    END IF;
-
-END $$;
-
--- 3. Set NOT NULL where required (safely)
-ALTER TABLE notifications ALTER COLUMN org_id SET NOT NULL;
-ALTER TABLE notifications ALTER COLUMN target_user_id SET NOT NULL;
-ALTER TABLE notifications ALTER COLUMN type SET NOT NULL;
-ALTER TABLE notifications ALTER COLUMN category SET NOT NULL;
-ALTER TABLE notifications ALTER COLUMN title SET NOT NULL;
-ALTER TABLE notifications ALTER COLUMN message SET NOT NULL;
-ALTER TABLE notifications ALTER COLUMN metadata SET NOT NULL;
-ALTER TABLE notifications ALTER COLUMN is_read SET NOT NULL;
-ALTER TABLE notifications ALTER COLUMN created_at SET NOT NULL;
-
--- 4. Create indices (safely handles existence)
-CREATE INDEX IF NOT EXISTS idx_notifications_user_unread
-    ON notifications (target_user_id, org_id, is_read, created_at DESC);
-
-CREATE INDEX IF NOT EXISTS idx_notifications_user_org
-    ON notifications (target_user_id, org_id);
 
 -- 5. Auto-cleanup Trigger
 CREATE OR REPLACE FUNCTION prune_old_notifications() RETURNS trigger LANGUAGE plpgsql AS $$
@@ -9089,6 +9012,18 @@ CREATE TRIGGER trg_prune_notifications
   FOR EACH ROW EXECUTE FUNCTION prune_old_notifications();
 
 
+ CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+      user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      org_id uuid NOT NULL,
+      endpoint text NOT NULL UNIQUE,
+      p256dh text NOT NULL,
+      auth text NOT NULL,
+      created_at timestamptz DEFAULT CURRENT_TIMESTAMP,
+      updated_at timestamptz DEFAULT CURRENT_TIMESTAMP
+    )
+
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id ON push_subscriptions(user_id)
 
 -- =====================================================
 -- END OF ADVANCED RECRUITMENT FEATURES

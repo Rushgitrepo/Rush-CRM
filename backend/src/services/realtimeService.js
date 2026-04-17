@@ -222,6 +222,10 @@ class RealtimeService {
     this.io.to(`workgroup:${workgroupId}`).emit('workgroup_post:new', post);
   }
 
+  emitWorkgroupNotification(userId, data) {
+    this.io.to(`user:${userId}`).emit('workgroup:notification', data);
+  }
+
   emitWorkgroupMemberAdded(workgroupId, member) {
     this.io.to(`workgroup:${workgroupId}`).emit('workgroup:member_added', member);
   }

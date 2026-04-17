@@ -4,7 +4,7 @@ import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -79,6 +79,7 @@ import {
   type WorkgroupPost,
 } from "@/hooks/useWorkgroups";
 import { API_BASE_URL, api, workgroupsApi } from "@/lib/api";
+import { getAvatarUrl } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdminUsers } from "@/hooks/useAdminUsers";
 import { formatDistanceToNow } from "date-fns";
@@ -885,6 +886,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <Avatar className="h-10 w-10">
+              <AvatarImage src={getAvatarUrl((workgroup as any).direct_peer_avatar_url)} />
               <AvatarFallback
                 className={`${workgroup.avatar_color} text-white font-semibold`}
               >
@@ -1091,6 +1093,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                 className="group flex items-start gap-2 p-2.5 rounded-xl border border-gray-200/70 dark:border-gray-700 bg-white/60 dark:bg-gray-800/50 hover:border-primary/30 hover:bg-primary/5 transition-colors"
               >
                 <Avatar className="h-8 w-8 shrink-0">
+                  <AvatarImage src={getAvatarUrl(member.avatar_url)} />
                   <AvatarFallback className="bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 text-xs">
                     {(member.full_name || "?").slice(0, 2).toUpperCase()}
                   </AvatarFallback>
@@ -2220,6 +2223,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                   className="group flex items-start gap-3 p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/40 hover:border-primary/30 hover:bg-primary/5 transition-colors"
                 >
                   <Avatar className="h-10 w-10 shrink-0">
+                    <AvatarImage src={getAvatarUrl(member.avatar_url)} />
                     <AvatarFallback className="bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300">
                       {(member.full_name || "?").slice(0, 2).toUpperCase()}
                     </AvatarFallback>
@@ -2637,6 +2641,7 @@ function PostCard({
         {/* Avatar — only for received */}
         {!isAuthor && (
           <Avatar className="h-7 w-7 flex-shrink-0 mb-0.5">
+            <AvatarImage src={getAvatarUrl(post.author_avatar)} />
             <AvatarFallback className="bg-emerald-100 text-emerald-700 text-[10px] font-bold">
               {(post.author_name || "?").slice(0, 2).toUpperCase()}
             </AvatarFallback>
@@ -2923,6 +2928,7 @@ function PostCard({
         {/* Avatar — only for sent */}
         {isAuthor && (
           <Avatar className="h-7 w-7 flex-shrink-0 mb-0.5">
+            <AvatarImage src={getAvatarUrl(post.author_avatar)} />
             <AvatarFallback className="bg-blue-100 text-blue-700 text-[10px] font-bold">
               {(post.author_name || "?").slice(0, 2).toUpperCase()}
             </AvatarFallback>
