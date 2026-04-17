@@ -77,14 +77,14 @@ const getById = async (req, res, next) => {
 
 const create = async (req, res, next) => {
   try {
-    let { 
-      customerId, 
-      contactId, 
+    let {
+      customerId,
+      contactId,
       companyName,
       contactName,
-      title, 
-      items, 
-      value, 
+      title,
+      items,
+      value,
       currency,
       status,
       notes,
@@ -116,7 +116,7 @@ const create = async (req, res, next) => {
       const names = contactName.trim().split(/\s+/);
       const firstName = names[0];
       const lastName = names.length > 1 ? names.slice(1).join(' ') : '';
-      
+
       const existingContact = await db.query(
         'SELECT id FROM public.contacts WHERE first_name = $1 AND last_name = $2 AND org_id = $3 LIMIT 1',
         [firstName, lastName, req.user.orgId]
@@ -147,7 +147,7 @@ const create = async (req, res, next) => {
       'SELECT invoice_number FROM public.invoices WHERE org_id = $1 ORDER BY created_at DESC LIMIT 1',
       [req.user.orgId]
     );
-    
+
     let nextNum = 1;
     if (lastInvoiceResult.rows.length > 0) {
       const lastInv = lastInvoiceResult.rows[0].invoice_number;
@@ -169,10 +169,10 @@ const create = async (req, res, next) => {
        VALUES ($1, $2, $3, $4, $5, CURRENT_DATE, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
       [
-        req.user.orgId, 
-        req.user.id, 
-        customerId || null, 
-        contactId || null, 
+        req.user.orgId,
+        req.user.id,
+        customerId || null,
+        contactId || null,
         invoiceNumber,
         dueDate || null,
         status || 'draft',
@@ -194,9 +194,9 @@ const create = async (req, res, next) => {
           `INSERT INTO public.invoice_items (invoice_id, product_id, quantity, unit_price, description)
            VALUES ($1, $2, $3, $4, $5)`,
           [
-            orderId, 
-            item.productId || null, 
-            item.quantity, 
+            orderId,
+            item.productId || null,
+            item.quantity,
             item.unitPrice || item.unit_price || 0,
             item.description || item.name || null
           ]

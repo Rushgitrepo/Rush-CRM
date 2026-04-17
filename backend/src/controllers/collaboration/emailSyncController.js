@@ -273,15 +273,49 @@ const getAttachments = async (req, res, next) => {
 };
 
 const getCrmLinks = async (req, res, next) => {
-  res.json([]);
+  try {
+    const { email_id } = req.query;
+    if (!email_id) return res.json([]);
+
+    const { rows } = await db.query(
+      'SELECT * FROM email_crm_links WHERE email_id = $1 AND org_id = $2',
+      [email_id, req.user.orgId]
+    );
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
 };
 
 const createCrmLink = async (req, res, next) => {
-  res.json({ success: true });
+  try {
+    const { email_id, entity_type, entity_id, link_type } = req.body;
+    
+    const { rows } = await db.query(
+      `INSERT INTO email_crm_links (org_id, email_id, entity_type, entity_id, link_type)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (email_id, entity_type, entity_id) DO NOTHING
+       RETURNING *`,
+      [req.user.orgId, email_id, entity_type, entity_id, link_type || 'converted']
+    );
+    
+    res.json({ success: true, data: rows[0] });
+  } catch (err) {
+    next(err);
+  }
 };
 
 const deleteCrmLink = async (req, res, next) => {
-  res.json({ success: true });
+  try {
+    const { id } = req.params;
+    await db.query(
+      'DELETE FROM email_crm_links WHERE id = $1 AND org_id = $2',
+      [id, req.user.orgId]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
 };
 
 async function processGmailCallback(req) {
