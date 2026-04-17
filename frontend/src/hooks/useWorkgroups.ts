@@ -31,6 +31,7 @@ export interface Workgroup {
   user_role?: 'owner' | 'admin' | 'member' | 'guest';
   settings?: Record<string, any>;
   manage_member_user_id?: string | null;
+  avatar_url?: string | null;
 }
 
 export interface WorkgroupMember {
@@ -112,10 +113,9 @@ export function useCreateWorkgroup() {
     mutationFn: (data: Partial<Workgroup>) => workgroupsApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['workgroups'] });
-      toast.success('Workgroup created successfully!');
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Failed to create workgroup');
+      toast.error(error?.message || error?.response?.data?.error || 'Failed to create workgroup');
     },
   });
 }
@@ -128,7 +128,6 @@ export function useUpdateWorkgroup() {
     mutationFn: ({ id, ...data }: { id: string } & Partial<Workgroup>) => 
       workgroupsApi.update(id, data),
     onSuccess: (updatedWorkgroup, variables) => {
-      // Apply instantly so permission/UI changes are visible without waiting.
       queryClient.setQueryData(['workgroup', variables.id], updatedWorkgroup);
       queryClient.setQueriesData({ queryKey: ['workgroups'] }, (prev: Workgroup[] | undefined) => {
         if (!Array.isArray(prev)) return prev;
@@ -138,10 +137,9 @@ export function useUpdateWorkgroup() {
       });
       queryClient.invalidateQueries({ queryKey: ['workgroups'] });
       queryClient.invalidateQueries({ queryKey: ['workgroup', variables.id] });
-      toast.success('Workgroup updated successfully!');
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Failed to update workgroup');
+      toast.error(error?.message || error?.response?.data?.error || 'Failed to update workgroup');
     },
   });
 }

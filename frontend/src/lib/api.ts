@@ -542,6 +542,11 @@ export const workgroupsApi = {
     formData.append('file', file);
     return api.post<any>(`/workgroups/${id}/files`, formData);
   },
+  uploadAvatar: (id: string, file: File) => {
+    const formData = new FormData();
+    formData.append('avatar', file);
+    return api.post<{ avatar_url: string }>(`/workgroups/${id}/avatar`, formData);
+  },
   deleteFile: (id: string, fileId: string) => api.delete(`/workgroups/${id}/files/${fileId}`),
 
   // Wiki

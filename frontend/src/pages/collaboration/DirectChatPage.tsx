@@ -326,7 +326,6 @@ export default function DirectChatPage() {
                     <div className="flex items-center gap-2">
                       <div className="relative">
                         <Avatar className="h-7 w-7">
-                          <AvatarImage src={getAvatarUrl(chat.direct_peer_avatar_url)} />
                           <AvatarFallback
                             className={`${chat.avatar_color} text-white text-xs`}
                           >

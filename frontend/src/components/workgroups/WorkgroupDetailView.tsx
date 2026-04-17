@@ -258,6 +258,9 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   const messageInputRef = useRef<HTMLInputElement>(null);
   const mentionStartRef = useRef<number | null>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isSendingFile, setIsSendingFile] = useState(false);
+  const dragCounterRef = useRef(0);
 
   // Auto-scroll to bottom on new posts
   useEffect(() => {
@@ -646,7 +649,13 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   ) => {
     const file = event.target.files?.[0];
     if (!file || !canStartConversation) return;
+    await sendFile(file);
+    if (attachmentInputRef.current) attachmentInputRef.current.value = "";
+  };
 
+  const sendFile = async (file: File) => {
+    if (!canStartConversation) return;
+    setIsSendingFile(true);
     try {
       const uploadedFile = await workgroupsApi.uploadFile(workgroupId, file);
       await createPost.mutateAsync({
@@ -672,11 +681,36 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
       setShowMentionSuggestions(false);
       toast.success("File sent successfully");
     } catch (error: any) {
-      toast.error(error?.response?.data?.error || "Failed to send file");
+      toast.error(error?.response?.data?.error || error?.message || "Failed to send file");
     } finally {
-      if (attachmentInputRef.current) {
-        attachmentInputRef.current.value = "";
-      }
+      setIsSendingFile(false);
+    }
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current++;
+    if (e.dataTransfer.types.includes("Files")) setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) setIsDragging(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current = 0;
+    setIsDragging(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (!files.length || !canStartConversation) return;
+    for (const file of files) {
+      await sendFile(file);
     }
   };
 
@@ -871,7 +905,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   }
 
   return (
-    <div className="h-screen bg-gray-50 dark:bg-gray-900 flex overflow-hidden">
+    <div className="h-screen  flex overflow-hidden">
       {/* Left Sidebar - Team Info & Members */}
       <div className="w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col">
         {/* Header */}
@@ -1282,12 +1316,24 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                   <div
                     ref={scrollRef}
                     onScroll={handleScroll}
+                    onDragEnter={handleDragEnter}
+                    onDragLeave={handleDragLeave}
+                    onDragOver={handleDragOver}
+                    onDrop={handleDrop}
                     className="flex-1 overflow-y-auto p-4 space-y-2 relative"
                     style={{
                       backgroundImage:
                         "url(\"data:image/svg+xml,%3Csvg width='200' height='200' viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%239C92AC' fill-opacity='0.03'%3E%3Cpath d='M100 0L200 100L100 200L0 100Z'/%3E%3C/g%3E%3C/svg%3E\")",
                     }}
                   >
+                    {/* Drag overlay */}
+                    {isDragging && (
+                      <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-primary/10 border-4 border-dashed border-primary rounded-xl backdrop-blur-sm pointer-events-none">
+                        <Paperclip className="h-12 w-12 text-primary mb-3" />
+                        <p className="text-lg font-bold text-primary">Drop files to send</p>
+                        <p className="text-sm text-primary/70 mt-1">Release to upload and send</p>
+                      </div>
+                    )}
                     {postsLoading ? (
                       <div className="text-center py-8">
                         <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
@@ -1436,6 +1482,13 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                   {isMember && canStartConversation && (
                     <div className="flex-shrink-0 border-t border-gray-100 dark:border-gray-800 p-3 bg-white dark:bg-gray-900">
                       <div className="max-w-5xl mx-auto w-full flex flex-col gap-2">
+                        {/* File uploading indicator */}
+                        {isSendingFile && (
+                          <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 rounded-lg border border-primary/20 animate-in slide-in-from-bottom-2 duration-200">
+                            <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin shrink-0" />
+                            <span className="text-xs font-medium text-primary">Uploading file...</span>
+                          </div>
+                        )}
                         {/* Reply Preview (WhatsApp style) */}
                         {replyTo && (
                           <div className="flex animate-in slide-in-from-bottom-2 duration-200">
@@ -1534,9 +1587,14 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8 text-gray-400 hover:text-blue-500 hover:bg-transparent"
+                                disabled={isSendingFile}
                                 onClick={() => attachmentInputRef.current?.click()}
                               >
-                                <Paperclip className="h-5 w-5" />
+                                {isSendingFile ? (
+                                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                  <Paperclip className="h-5 w-5" />
+                                )}
                               </Button>
                               <button
                                 onClick={handlePost}
