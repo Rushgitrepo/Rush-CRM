@@ -267,7 +267,11 @@ export default function WorkgroupsPage() {
   const getTypeIcon = (type: string) => WORKGROUP_TYPES.find((t) => t.value === type)?.icon ?? Users;
 
   if (selectedId) {
-    return <WorkgroupDetailView workgroupId={selectedId} onBack={closeWorkgroup} />;
+    return (
+      <div className="-mx-6 -my-6 h-[calc(100vh-4rem)]">
+        <WorkgroupDetailView workgroupId={selectedId} onBack={closeWorkgroup} />
+      </div>
+    );
   }
 
   return (

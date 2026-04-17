@@ -229,23 +229,26 @@ export default function DirectChatPage() {
   }, [directChats, subscribeToWorkgroup, unsubscribeFromWorkgroup]);
 
   if (selectedId) {
-    return <WorkgroupDetailView workgroupId={selectedId} onBack={closeChat} />;
+    return (
+      <div className="-mx-6 -my-6 h-[calc(100vh-4rem)]">
+        <WorkgroupDetailView workgroupId={selectedId} onBack={closeChat} />
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-5 mb-6">
+    <div className="space-y-6">
+        <div className="bg-card rounded-lg shadow-sm border border-border p-5">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
                 <MessageCircle className="h-5 w-5 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+                <h1 className="text-xl font-semibold text-foreground">
                   Direct Chats
                 </h1>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-sm text-muted-foreground">
                   Select a person and start one-to-one conversation
                 </p>
               </div>
@@ -260,12 +263,12 @@ export default function DirectChatPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-5">
-          <aside className="rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-3">
-            <p className="text-sm font-semibold mb-2 text-gray-900 dark:text-white">
+          <aside className="rounded-lg bg-card border border-border p-3">
+            <p className="text-sm font-semibold mb-2 text-foreground">
               Friends
             </p>
             <div className="relative mb-4" ref={searchBoxRef}>
-              <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={friendSearch}
                 onChange={(e) => setFriendSearch(e.target.value)}
@@ -274,7 +277,7 @@ export default function DirectChatPage() {
                 className="pl-9"
               />
               {showSearchDropdown && (
-                <div className="absolute top-11 left-0 z-30 w-full rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg max-h-64 overflow-y-auto">
+                <div className="absolute top-11 left-0 z-30 w-full rounded-md border border-border bg-card shadow-lg max-h-64 overflow-y-auto">
                   {dropdownUsers.map((friend) => (
                     <button
                       key={`dropdown-user-${friend.id}`}
@@ -282,15 +285,15 @@ export default function DirectChatPage() {
                         openDirectChatWithUser(friend.id);
                         setShowSearchDropdown(false);
                       }}
-                      className="w-full px-2 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700"
+                      className="w-full px-2 py-2 text-left hover:bg-muted/50"
                     >
-                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                      <p className="text-sm font-medium text-foreground truncate">
                         {friend.full_name || "Unknown"}
                       </p>
                     </button>
                   ))}
                   {dropdownUsers.length === 0 && (
-                    <p className="px-2 py-2 text-xs text-gray-500 dark:text-gray-400">
+                    <p className="px-2 py-2 text-xs text-muted-foreground">
                       No users found.
                     </p>
                   )}
@@ -298,7 +301,7 @@ export default function DirectChatPage() {
               )}
             </div>
 
-            <p className="text-[11px] uppercase tracking-wide text-gray-500 mb-2">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">
               Recent chats
             </p>
             <div className="space-y-1 max-h-[320px] overflow-y-auto">
@@ -320,7 +323,7 @@ export default function DirectChatPage() {
                     className={`w-full rounded-md px-2 py-2 text-left transition-colors ${
                       isActive
                         ? "bg-primary text-white"
-                        : "hover:bg-gray-100 dark:hover:bg-gray-700"
+                        : "hover:bg-muted/50"
                     }`}
                   >
                     <div className="flex items-center gap-2">
@@ -333,8 +336,8 @@ export default function DirectChatPage() {
                           </AvatarFallback>
                         </Avatar>
                         <span
-                          className={`absolute -right-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full border border-white dark:border-gray-800 ${
-                            isOnline ? "bg-green-500" : "bg-gray-400"
+                          className={`absolute -right-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full border-2 border-card ${
+                            isOnline ? "bg-green-500" : "bg-muted-foreground/40"
                           }`}
                           title={isOnline ? "Online" : "Offline"}
                         />
@@ -342,65 +345,37 @@ export default function DirectChatPage() {
                       <div className="min-w-0">
                         <p
                           className={`text-sm font-medium truncate ${
-                            isActive
-                              ? "text-white"
-                              : "text-gray-900 dark:text-white"
+                            isActive ? "text-white" : "text-foreground"
                           }`}
                         >
                           {chatDisplayName}
                         </p>
                         <p
                           className={`text-[11px] ${
-                            isActive ? "text-white/90" : "text-gray-500 dark:text-gray-400"
+                            isActive ? "text-white/90" : "text-muted-foreground"
                           }`}
                         >
-                          <span>member </span>
                           <span
                             className={
                               isOnline
-                                ? isActive
-                                  ? "text-white"
-                                  : "text-primary"
-                                : "text-red-500"
+                                ? isActive ? "text-white" : "text-primary"
+                                : isActive ? "text-white/70" : "text-red-500"
                             }
                           >
-                            {isOnline ? "Online" : "Offline"}
+                            {isOnline ? "● Online" : "○ Offline"}
                           </span>
                         </p>
                         {lastSeenLabel && (
-                          <p
-                            className={`text-[11px] ${
-                              isActive ? "text-white/90" : "text-gray-500 dark:text-gray-400"
-                            }`}
-                          >
+                          <p className={`text-[11px] ${ isActive ? "text-white/70" : "text-muted-foreground" }`}>
                             Last seen {lastSeenLabel}
                           </p>
                         )}
-                        {/* {unreadCount > 0 ? (
-                          <p
-                            className={`text-xs ${
-                              isActive ? "text-white/90" : "text-primary"
-                            }`}
-                          >
-                            {unreadCount} unread message{unreadCount > 1 ? "s" : ""}
-                          </p>
-                        ) : (
-                          <p
-                            className={`text-xs ${
-                              isActive ? "text-white/90" : "text-gray-500 dark:text-gray-400"
-                            }`}
-                          >
-                            No unread messages
-                          </p>
-                        )} */}
                       </div>
                       {unreadCount > 0 && (
                         <div className="ml-auto self-start">
                           <span
                             className={`inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[11px] font-semibold ${
-                              isActive
-                                ? "bg-white/20 text-white"
-                                : "bg-primary text-white"
+                              isActive ? "bg-white/20 text-white" : "bg-primary text-white"
                             }`}
                           >
                             {unreadCount}
@@ -412,29 +387,29 @@ export default function DirectChatPage() {
                 );
               })}
               {directChats.length === 0 && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 px-2 py-2">
+                <p className="text-xs text-muted-foreground px-2 py-2">
                   No chats yet. Search a user and send first message.
                 </p>
               )}
             </div>
           </aside>
 
-          <section className="rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 min-h-[520px] flex items-center justify-center">
+          <section className="rounded-lg bg-card border border-border min-h-[520px] flex items-center justify-center">
             {isLoading ? (
-              <div className="text-center text-gray-500">
+              <div className="text-center text-muted-foreground">
                 <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
                 <p>Loading direct chats...</p>
               </div>
             ) : (
               <div className="text-center px-6">
-                <UserRound className="h-12 w-12 mx-auto mb-3 text-gray-400" />
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                <UserRound className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
+                <h3 className="text-lg font-semibold text-foreground mb-2">
                   Choose a chat
                 </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Sidebar se friend ya recent chat select karein.
+                <p className="text-sm text-muted-foreground">
+                  Select a friend or recent chat from the sidebar.
                 </p>
-                <div className="mt-4 text-xs text-gray-500 dark:text-gray-400 inline-flex items-center gap-2">
+                <div className="mt-4 text-xs text-muted-foreground inline-flex items-center gap-2">
                   <Users className="h-3.5 w-3.5" />
                   {directChats.length} active direct chats
                 </div>
@@ -442,7 +417,6 @@ export default function DirectChatPage() {
             )}
           </section>
         </div>
-      </div>
     </div>
   );
 }

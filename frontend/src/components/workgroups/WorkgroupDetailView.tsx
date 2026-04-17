@@ -262,12 +262,32 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   const [isSendingFile, setIsSendingFile] = useState(false);
   const dragCounterRef = useRef(0);
 
+const flatPosts = useMemo(() => {
+    const all: WorkgroupPost[] = [];
+    posts.forEach((p) => {
+      all.push(p);
+      if (p.replies) {
+        p.replies.forEach((r) => {
+          all.push({ ...r, parent_id: r.parent_id || p.id });
+        });
+      }
+    });
+    // Sort chronologically (oldest to newest)
+    return all.sort(
+      (a, b) =>
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+    );
+  }, [posts]);
+
   // Auto-scroll to bottom on new posts
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [posts]);
+    if (!scrollRef.current || !flatPosts.length) return;
+    requestAnimationFrame(() => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }
+    });
+  }, [flatPosts]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -276,11 +296,15 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
     return () => window.clearInterval(interval);
   }, []);
 
-  // Refresh teams list unread badge after opening/reading messages.
+  // Scroll to bottom when entering a chat
   useEffect(() => {
-    if (!workgroupId) return;
-    queryClient.invalidateQueries({ queryKey: ["workgroups"] });
-  }, [workgroupId, posts.length, queryClient]);
+    if (!scrollRef.current || postsLoading) return;
+    requestAnimationFrame(() => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }
+    });
+  }, [workgroupId, postsLoading]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget;
@@ -321,22 +345,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   const unreadCount = notificationsData?.unread_count || 0;
 
   // Flatten posts for WhatsApp-style stream
-  const flatPosts = useMemo(() => {
-    const all: WorkgroupPost[] = [];
-    posts.forEach((p) => {
-      all.push(p);
-      if (p.replies) {
-        p.replies.forEach((r) => {
-          all.push({ ...r, parent_id: r.parent_id || p.id });
-        });
-      }
-    });
-    // Sort chronologically (oldest to newest)
-    return all.sort(
-      (a, b) =>
-        new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-    );
-  }, [posts]);
+  
 
   const forwardTargetWorkgroups = useMemo(
     () =>
@@ -749,7 +758,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
 
   const handleStartCall = () => {
     // In a real app, this would start an audio call
-    toast.success(`Starting audio call for ${workgroupDisplayName}...`);
+    toast.success(`Coming Soon`);
     // Simulate starting call
     console.log("Starting audio call...");
   };
@@ -895,7 +904,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
 
   if (!workgroup) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+      <div className="min-h-full bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600 dark:text-gray-400">Loading team...</p>
@@ -905,9 +914,9 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   }
 
   return (
-    <div className="h-screen  flex overflow-hidden">
+    <div className="h-full bg-background flex overflow-hidden">
       {/* Left Sidebar - Team Info & Members */}
-      <div className="w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+      <div className="w-80 bg-card border-r border-border flex flex-col">
         {/* Header */}
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-3 mb-4">
@@ -1044,7 +1053,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
             <div
               className={`flex items-center gap-2 px-3  py-2 rounded-lg cursor-pointer transition-colors ${activeTab === "posts"
                 ? "bg-blue-50 dark:bg-blue-900/20 text-primary dark:text-blue-300"
-                : "hover:bg-primary hover:text-white dark:hover:bg-gray-700"
+                : "hover:bg-primary hover:text-white"
                 }`}
               onClick={() => setActiveTab("posts")}
             >
@@ -1124,11 +1133,11 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
             {members.map((member) => (
               <div
                 key={member.id}
-                className="group flex items-start gap-2 p-2.5 rounded-xl border border-gray-200/70 dark:border-gray-700 bg-white/60 dark:bg-gray-800/50 hover:border-primary/30 hover:bg-primary/5 transition-colors"
+                className="group flex items-start gap-2 p-2.5 rounded-xl border border-border bg-background/60 hover:border-primary/30 hover:bg-primary/5 transition-colors"
               >
                 <Avatar className="h-8 w-8 shrink-0">
                   <AvatarImage src={getAvatarUrl(member.avatar_url)} />
-                  <AvatarFallback className="bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 text-xs">
+                  <AvatarFallback className="bg-muted text-muted-foreground text-xs">
                     {(member.full_name || "?").slice(0, 2).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
@@ -1242,7 +1251,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Bar */}
-        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4">
+        <div className="bg-card border-b border-border p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Hash className="h-5 w-5 text-gray-600 dark:text-gray-400" />
@@ -1268,7 +1277,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
                   placeholder="Search in this channel..."
-                  className="pl-10 w-64 bg-gray-50 dark:bg-gray-700"
+                  className="pl-10 w-64 bg-muted/40"
                 />
               </div>
               <Button variant="ghost" size="icon">
@@ -1402,7 +1411,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                           <div key={post.id}>
                             {showDateSeparator && (
                               <div className="flex justify-center my-6">
-                                <span className="px-3 py-1 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-lg text-[11px] font-bold text-gray-500 shadow-sm border border-gray-100 dark:border-gray-700 uppercase tracking-wider">
+                                <span className="px-3 py-1 bg-card/80 backdrop-blur-sm rounded-lg text-[11px] font-bold text-muted-foreground shadow-sm border border-border uppercase tracking-wider">
                                   {dateLabel()}
                                 </span>
                               </div>
@@ -1471,7 +1480,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                     {showScrollBottom && (
                       <button
                         onClick={scrollToBottom}
-                        className="fixed bottom-24 right-8 z-50 bg-white dark:bg-gray-800 p-2.5 rounded-full shadow-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-blue-600 transition-all hover:scale-110 active:scale-95 animate-in fade-in zoom-in duration-200"
+                        className="fixed bottom-24 right-8 z-50 bg-card p-2.5 rounded-full shadow-lg border border-border text-muted-foreground hover:text-primary transition-all hover:scale-110 active:scale-95 animate-in fade-in zoom-in duration-200"
                       >
                         <ChevronDown className="h-5 w-5" />
                       </button>
@@ -1480,7 +1489,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
 
                   {/* Message Input - Fixed at Bottom */}
                   {isMember && canStartConversation && (
-                    <div className="flex-shrink-0 border-t border-gray-100 dark:border-gray-800 p-3 bg-white dark:bg-gray-900">
+                    <div className="flex-shrink-0 border-t border-border p-3 bg-card">
                       <div className="max-w-5xl mx-auto w-full flex flex-col gap-2">
                         {/* File uploading indicator */}
                         {isSendingFile && (
@@ -1492,7 +1501,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                         {/* Reply Preview (WhatsApp style) */}
                         {replyTo && (
                           <div className="flex animate-in slide-in-from-bottom-2 duration-200">
-                            <div className="flex-1 flex gap-3 p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg border-l-4 border-blue-500 shadow-sm">
+                            <div className="flex-1 flex gap-3 p-2 bg-muted/50 rounded-lg border-l-4 border-primary shadow-sm">
                               <div className="flex-1 min-w-0">
                                 <p className="text-[11px] font-bold text-primary uppercase tracking-tight">
                                   Replying to{" "}
@@ -1504,7 +1513,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                               </div>
                               <button
                                 onClick={() => setReplyTo(null)}
-                                className="h-6 w-6 flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                                className="h-6 w-6 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
                               >
                                 <span className="text-gray-400 text-sm">✕</span>
                               </button>
@@ -1532,7 +1541,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                               placeholder={
                                 replyTo ? "Type a reply..." : "Type a message..."
                               }
-                              className="w-full pl-4 pr-32 bg-gray-100 dark:bg-gray-800 border-none rounded-full h-11 focus-visible:ring-1 focus-visible:ring-blue-500 shadow-inner"
+                              className="w-full pl-4 pr-32 bg-muted border-none rounded-full h-11 focus-visible:ring-1 focus-visible:ring-primary shadow-inner"
                               onKeyDown={(e) => {
                                 if (e.key === "Enter" && !e.shiftKey) {
                                   e.preventDefault();
@@ -1542,13 +1551,13 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                             />
                             {showMentionSuggestions &&
                               filteredMentionMembers.length > 0 && (
-                                <div className="absolute bottom-12 left-0 z-30 w-[60%] max-w-[92vw] rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900 max-h-56 overflow-y-auto">
+                                <div className="absolute bottom-12 left-0 z-30 w-[60%] max-w-[92vw] rounded-xl border border-border bg-card shadow-lg max-h-56 overflow-y-auto">
                                   {filteredMentionMembers.map((member) => (
                                     <button
                                       key={member.user_id}
                                       type="button"
                                       onClick={() => insertMention(member)}
-                                      className="w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2"
+                                      className="w-full px-3 py-2 text-left hover:bg-muted/50 flex items-center gap-2"
                                     >
                                       <Checkbox
                                         checked={selectedMentions.some(
@@ -1601,7 +1610,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                                 disabled={!newPost.trim() || createPost.isPending}
                                 className={`h-8 w-8 flex items-center justify-center rounded-full transition-all ${newPost.trim()
                                   ? "bg-blue-600 text-white shadow-md hover:scale-105 active:scale-95"
-                                  : "bg-gray-200 text-gray-400 dark:bg-gray-700 pointer-events-none"
+                                  : "bg-muted text-muted-foreground pointer-events-none"
                                   }`}
                               >
                                 <Send className="h-4 w-4" />
@@ -1623,9 +1632,9 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                     </div>
                   )}
                   {isForwardSelectMode && (
-                    <div className="flex-shrink-0 border-t border-gray-200 dark:border-gray-800 p-3 bg-white dark:bg-gray-900">
+                    <div className="flex-shrink-0 border-t border-border p-3 bg-card">
                       <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
-                        <p className="text-sm text-gray-700 dark:text-gray-300">
+                        <p className="text-sm text-foreground">
                           {selectedForwardPostIds.length} message(s) selected
                         </p>
                         <div className="flex items-center gap-2">
@@ -1649,9 +1658,9 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                     </div>
                   )}
                   {isDeleteSelectMode && (
-                    <div className="flex-shrink-0 border-t border-gray-200 dark:border-gray-800 p-3 bg-white dark:bg-gray-900">
+                    <div className="flex-shrink-0 border-t border-border p-3 bg-card">
                       <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
-                        <p className="text-sm text-gray-700 dark:text-gray-300">
+                        <p className="text-sm text-foreground">
                           {selectedDeletePostIds.length} message(s) selected
                         </p>
                         <div className="flex items-center gap-2">
@@ -1716,7 +1725,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                     {files.map((file) => (
                       <div
                         key={file.id}
-                        className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-sm transition-shadow"
+                        className="flex items-center gap-3 p-3 bg-card rounded-lg border border-border hover:shadow-sm transition-shadow"
                       >
                         <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center">
                           <Files className="h-5 w-5 text-blue-600 dark:text-blue-400" />
@@ -1829,7 +1838,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                     {wikiPages.map((page) => (
                       <div
                         key={page.id}
-                        className="p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-sm transition-shadow cursor-pointer"
+                        className="p-4 bg-card rounded-lg border border-border hover:shadow-sm transition-shadow cursor-pointer"
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
@@ -1970,7 +1979,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                   return (
                     <label
                       key={target.id}
-                      className="flex items-center gap-3 p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
+                      className="flex items-center gap-3 p-2 rounded hover:bg-muted/50 cursor-pointer"
                     >
                       <Checkbox
                         checked={checked}
@@ -2278,11 +2287,11 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
               members.map((member) => (
                 <div
                   key={member.id}
-                  className="group flex items-start gap-3 p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/40 hover:border-primary/30 hover:bg-primary/5 transition-colors"
+                  className="group flex items-start gap-3 p-3 rounded-xl border border-border bg-card/70 hover:border-primary/30 hover:bg-primary/5 transition-colors"
                 >
                   <Avatar className="h-10 w-10 shrink-0">
                     <AvatarImage src={getAvatarUrl(member.avatar_url)} />
-                    <AvatarFallback className="bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300">
+                    <AvatarFallback className="bg-muted text-muted-foreground">
                       {(member.full_name || "?").slice(0, 2).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
@@ -2422,7 +2431,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                 <div
                   key={notification.id}
                   className={`p-3 rounded-lg border cursor-pointer transition-colors ${notification.is_read
-                    ? "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+                    ? "border-border bg-card"
                     : "border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20"
                     }`}
                   onClick={() => markNotificationAsRead(notification.id)}
@@ -2477,6 +2486,24 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
 // ─── Quick Emojis ────────────────────────────────────────────────────────────────────
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "🙏"];
 
+// Distinct bubble colors for group chat members (light bg + dark text + dark mode variant)
+const MEMBER_BUBBLE_COLORS = [
+  { bg: "bg-emerald-100 dark:bg-emerald-900/40", text: "text-emerald-900 dark:text-emerald-100", name: "text-emerald-600 dark:text-emerald-400" },
+  { bg: "bg-violet-100 dark:bg-violet-900/40", text: "text-violet-900 dark:text-violet-100", name: "text-violet-600 dark:text-violet-400" },
+  { bg: "bg-amber-100 dark:bg-amber-900/40", text: "text-amber-900 dark:text-amber-100", name: "text-amber-600 dark:text-amber-400" },
+  { bg: "bg-sky-100 dark:bg-sky-900/40", text: "text-sky-900 dark:text-sky-100", name: "text-sky-600 dark:text-sky-400" },
+  { bg: "bg-rose-100 dark:bg-rose-900/40", text: "text-rose-900 dark:text-rose-100", name: "text-rose-600 dark:text-rose-400" },
+  { bg: "bg-teal-100 dark:bg-teal-900/40", text: "text-teal-900 dark:text-teal-100", name: "text-teal-600 dark:text-teal-400" },
+  { bg: "bg-orange-100 dark:bg-orange-900/40", text: "text-orange-900 dark:text-orange-100", name: "text-orange-600 dark:text-orange-400" },
+  { bg: "bg-pink-100 dark:bg-pink-900/40", text: "text-pink-900 dark:text-pink-100", name: "text-pink-600 dark:text-pink-400" },
+];
+
+function getMemberColor(userId: string) {
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) hash = userId.charCodeAt(i) + ((hash << 5) - hash);
+  return MEMBER_BUBBLE_COLORS[Math.abs(hash) % MEMBER_BUBBLE_COLORS.length];
+}
+
 interface PostCardProps {
   post: WorkgroupPost;
   allPosts: WorkgroupPost[];
@@ -2530,7 +2557,7 @@ function PostCard({
   if ((post.content || "").startsWith("[SYSTEM] ")) {
     return (
       <div className="flex justify-center my-3">
-        <span className="px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-[11px] font-medium text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
+        <span className="px-3 py-1 rounded-full bg-muted text-[11px] font-medium text-muted-foreground border border-border">
           {post.content.replace("[SYSTEM] ", "")}
         </span>
       </div>
@@ -2538,6 +2565,7 @@ function PostCard({
   }
 
   const isAuthor = post.user_id === currentUserId;
+  const memberColor = isAuthor ? null : getMemberColor(post.user_id);
   const deletedForUsers = Array.isArray((post as any).deleted_for_users)
     ? ((post as any).deleted_for_users as string[])
     : [];
@@ -2727,10 +2755,11 @@ function PostCard({
 
           {/* The Actual Bubble */}
           <div
-            className={`relative min-w-[120px] order-1 ${isAuthor
-              ? "bg-white text-gray-800 dark:bg-blue-600/10 dark:text-blue-600 rounded-2xl rounded-tr-sm shadow-sm"
-              : "bg-[#d9fdd3] text-gray-800 dark:bg-[#005c4b] dark:text-white/95 rounded-2xl rounded-tl-sm"
-              } px-3 py-2 shadow-sm group/bubble border border-black/5`}
+            className={`relative min-w-[120px] order-1 ${
+              isAuthor
+                ? "bg-primary/10 text-foreground dark:bg-primary/20 rounded-2xl rounded-tr-sm"
+                : `${memberColor!.bg} ${memberColor!.text} rounded-2xl rounded-tl-sm`
+            } px-3 py-2 shadow-sm group/bubble border border-black/5`}
           >
             {/* Dropdown Chevron - Inside Bubble top-right */}
             <div
@@ -2841,11 +2870,11 @@ function PostCard({
                 <div
                   ref={emojiPickerRef}
                   className={`fixed z-[999] ${isAuthor ? "right-20" : "left-4"
-                    } top-20 shadow-xl bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-white/20 rounded-xl shadow-2xl`}
+                    } top-20 shadow-xl bg-card/80 backdrop-blur-md border border-border rounded-xl shadow-2xl`}
                 >
                   <button
                     onClick={() => setShowEmojiPicker(false)}
-                    className="absolute top-1 right-2 h-4 w-4 bg-primary dark:bg-gray-800 rounded-full shadow-lg flex items-center justify-center text-white hover:text-white border border-gray-200 dark:border-gray-700 z-[1000] transition-all hover:scale-110 active:scale-95"
+                    className="absolute top-1 right-2 h-4 w-4 bg-primary rounded-full shadow-lg flex items-center justify-center text-white hover:text-white border border-border z-[1000] transition-all hover:scale-110 active:scale-95"
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -2871,7 +2900,7 @@ function PostCard({
 
             {/* Author name for received */}
             {!isAuthor && (
-              <p className="text-[11px] font-bold text-primary mb-0.5">
+              <p className={`text-[11px] font-bold mb-0.5 ${memberColor!.name}`}>
                 {post.author_name || "Unknown"}
               </p>
             )}
@@ -3001,7 +3030,7 @@ function PostCard({
         >
           <button
             onClick={() => setShowReactionsDialog(true)}
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 border border-gray-300 text-gray-700 hover:bg-gray-200 transition-colors"
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-muted border border-border text-muted-foreground hover:bg-muted/80 transition-colors"
             title="Open reactions"
           >
             <Smile className="h-3 w-3" />
@@ -3015,7 +3044,7 @@ function PostCard({
                 onClick={() => setShowReactionsDialog(true)}
                 className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] font-medium shadow-sm transition-all ${isActive
                   ? "bg-blue-100 border border-blue-300 text-blue-700"
-                  : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50"
+                  : "bg-card border border-border text-foreground hover:bg-muted/50"
                   }`}
               >
                 <span>{emoji}</span>
@@ -3029,14 +3058,14 @@ function PostCard({
       {/* Small reactions dialog for this message */}
       {!isDeletedMessage && showReactionsDialog && (
         <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/25 px-4">
-          <div className="w-full max-w-xs rounded-xl border border-gray-200 bg-white p-3 shadow-2xl dark:border-gray-700 dark:bg-gray-900">
+          <div className="w-full max-w-xs rounded-xl border border-border bg-card p-3 shadow-2xl">
             <div className="mb-2 flex items-center justify-between">
               <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">
                 Message Reactions ({totalReactionCount})
               </p>
               <button
                 onClick={() => setShowReactionsDialog(false)}
-                className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -3051,7 +3080,7 @@ function PostCard({
                     onClick={() => handleEmojiClick(emoji)}
                     className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium transition-colors ${isActive
                       ? "border-blue-300 bg-blue-100 text-blue-700"
-                      : "border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                      : "border-border bg-muted/50 text-foreground hover:bg-muted"
                       }`}
                     title={
                       isActive
@@ -3068,7 +3097,7 @@ function PostCard({
 
             <div className="mt-2 max-h-44 space-y-2 overflow-y-auto border-t border-gray-100 pt-2 dark:border-gray-700">
               {reactionEntries.map(([emoji, users]) => (
-                <div key={`names-${post.id}-${emoji}`} className="rounded-md bg-gray-50 px-2 py-1.5 dark:bg-gray-800">
+                <div key={`names-${post.id}-${emoji}`} className="rounded-md bg-muted/50 px-2 py-1.5">
                   <p className="mb-1 text-xs font-semibold text-gray-700 dark:text-gray-200">
                     {emoji} {users.length}
                   </p>
@@ -3088,7 +3117,7 @@ function PostCard({
                   <button
                     key={`dialog-quick-${post.id}-${emoji}`}
                     onClick={() => handleEmojiClick(emoji)}
-                    className="rounded-full border border-gray-200 bg-white px-2 py-1 text-sm hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700"
+                    className="rounded-full border border-border bg-card px-2 py-1 text-sm hover:bg-muted"
                   >
                     {emoji}
                   </button>
