@@ -42,9 +42,26 @@ const sync = async (req, res, next) => {
         if (rows.length > 0) verifyConfig = rows[0];
       }
 
-      const result = await imapSyncService.verifyConnection(verifyConfig);
-      return res.json(result);
+      if (!verifyConfig) return res.status(400).json({ error: 'Config required for verification' });
+
+      // 1. Verify IMAP
+      const imapResult = await imapSyncService.verifyConnection(verifyConfig);
+      if (!imapResult.verified) {
+        return res.json({ verified: false, error: `IMAP: ${imapResult.error}` });
+      }
+
+      // 2. Verify SMTP (if provided)
+      if (verifyConfig.smtp_host) {
+        const emailService = require('../../services/emailService');
+        const smtpResult = await emailService.verifySMTP(verifyConfig);
+        if (!smtpResult.verified) {
+          return res.json({ verified: false, error: `SMTP: ${smtpResult.error}` });
+        }
+      }
+
+      return res.json({ verified: true });
     }
+
     res.json({ error: 'Unknown action' });
   } catch (error) {
     console.error('Sync error:', error);

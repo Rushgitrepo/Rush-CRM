@@ -27,7 +27,7 @@ class EmailService {
 
     // 2. Refresh token if needed
     let accessToken = mailbox.access_token;
-    if (mailbox.provider === 'gmail') {
+    if (mailbox.provider === 'gmail' && accessToken) {
       if (mailbox.token_expires_at && new Date(mailbox.token_expires_at) <= new Date()) {
         const tokens = await gmailOAuth.refreshAccessToken(mailbox.refresh_token);
         accessToken = tokens.access_token;
@@ -59,35 +59,61 @@ class EmailService {
       }
 
       return { success: true, messageId: sentData.id };
-    } else if (mailbox.provider === 'icloud' || mailbox.provider === 'custom_imap') {
+    } else {
+      // SMTP Sending for other providers or custom SMTP
       const nodemailer = require('nodemailer');
       
-      const config = mailbox.provider === 'icloud' ? {
-        host: mailbox.smtp_host && mailbox.smtp_host !== 'smtp.mail.me.com' ? mailbox.smtp_host : 'smtp.icloud.com',
-        port: mailbox.smtp_port === 587 ? 465 : (mailbox.smtp_port || 465),
-        secure: true, // Use implicit TLS on port 465 to bypass firewall blocks
-        pool: true,
-        connectionTimeout: 30000,
-        greetingTimeout: 30000,
-        socketTimeout: 60000,
-        auth: {
-          user: mailbox.smtp_username || mailbox.email_address || process.env.SMTP_USERNAME,
-          pass: mailbox.encrypted_password || process.env.EMAIL_PASSWORD
-        }
-      } : {
-        host: mailbox.smtp_host || process.env.SMTP_HOST,
-        port: mailbox.smtp_port || parseInt(process.env.SMTP_PORT) || 587,
-        secure: (mailbox.smtp_port || parseInt(process.env.SMTP_PORT) || 587) === 465,
-        auth: {
-          user: mailbox.smtp_username || mailbox.email_address || process.env.SMTP_USERNAME,
-          pass: mailbox.encrypted_password || process.env.EMAIL_PASSWORD
-        }
-      };
+      let config = {};
+      
+      if (mailbox.provider === 'icloud') {
+        config = {
+          host: mailbox.smtp_host || 'smtp.mail.me.com',
+          port: mailbox.smtp_port || 587,
+          secure: (mailbox.smtp_port === 465),
+          auth: {
+            user: mailbox.smtp_username || mailbox.email_address,
+            pass: mailbox.encrypted_password
+          }
+        };
+      } else if (['outlook', 'office365', 'microsoft'].includes(mailbox.provider) && !mailbox.access_token) {
+        // If no OAuth token, use SMTP
+        config = {
+          host: mailbox.smtp_host || 'smtp.office365.com',
+          port: mailbox.smtp_port || 587,
+          secure: false,
+          tls: { ciphers: 'SSLv3' },
+          auth: {
+            user: mailbox.smtp_username || mailbox.email_address,
+            pass: mailbox.encrypted_password
+          }
+        };
+      } else if (mailbox.provider === 'yahoo') {
+        config = {
+          host: mailbox.smtp_host || 'smtp.mail.yahoo.com',
+          port: mailbox.smtp_port || 465,
+          secure: true,
+          auth: {
+            user: mailbox.smtp_username || mailbox.email_address,
+            pass: mailbox.encrypted_password
+          }
+        };
+      } else {
+        // Custom SMTP or Fallback
+        config = {
+          host: mailbox.smtp_host || process.env.SMTP_HOST,
+          port: mailbox.smtp_port || parseInt(process.env.SMTP_PORT) || 587,
+          secure: (mailbox.smtp_port === 465 || process.env.SMTP_PORT === '465'),
+          auth: {
+            user: mailbox.smtp_username || mailbox.email_address || process.env.SMTP_USERNAME,
+            pass: mailbox.encrypted_password || process.env.EMAIL_PASSWORD
+          }
+        };
+      }
 
       const transporter = nodemailer.createTransport(config);
       
       const info = await transporter.sendMail({
-        from: mailbox.email_address,
+        from: `"${mailbox.display_name || ''}" <${mailbox.email_address}>`,
         to,
         cc,
         bcc,
@@ -102,13 +128,37 @@ class EmailService {
       });
 
       return { success: true, messageId: info.messageId };
-    } else if (mailbox.provider === 'outlook' || mailbox.provider === 'microsoft') {
-      // Placeholder for Microsoft Graph API
-      throw new Error('Outlook email sending not yet implemented. Please use Gmail for now.');
-    } else {
-      throw new Error(`Unsupported email provider: ${mailbox.provider}`);
     }
   }
+
+  /**
+   * Verify SMTP Connection
+   */
+  async verifySMTP(config) {
+    const nodemailer = require('nodemailer');
+    
+    const smtpConfig = {
+      host: config.smtp_host,
+      port: config.smtp_port || 587,
+      secure: config.smtp_port === 465,
+      auth: {
+        user: config.smtp_username || config.email_address,
+        pass: config.encrypted_password
+      },
+      connectionTimeout: 10000 // 10s timeout
+    };
+
+    const transporter = nodemailer.createTransport(smtpConfig);
+    
+    try {
+      await transporter.verify();
+      return { verified: true };
+    } catch (err) {
+      console.error('SMTP Verification Error:', err);
+      return { verified: false, error: err.message };
+    }
+  }
+
 }
 
 

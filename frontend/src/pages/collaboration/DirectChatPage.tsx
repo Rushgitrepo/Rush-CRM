@@ -5,7 +5,8 @@ import { formatDistanceToNow } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getAvatarUrl } from "@/lib/utils";
 import WorkgroupDetailView from "@/components/workgroups/WorkgroupDetailView";
 import { useWorkgroups } from "@/hooks/useWorkgroups";
 import { useAdminUsers } from "@/hooks/useAdminUsers";
@@ -191,12 +192,14 @@ export default function DirectChatPage() {
   useEffect(() => {
     const handleWorkgroupPost = (payload: { workgroup_id?: string; user_id?: string }) => {
       if (!payload?.workgroup_id) return;
+      let found = false;
       queryClient.setQueriesData(
         { queryKey: ["workgroups"] },
         (prev: any[] | undefined) => {
           if (!Array.isArray(prev)) return prev;
           return prev.map((wg) => {
             if (wg?.id !== payload.workgroup_id) return wg;
+            found = true;
             if (payload.user_id === user?.id || selectedId === payload.workgroup_id) {
               return { ...wg, unread_count: 0 };
             }
@@ -207,6 +210,9 @@ export default function DirectChatPage() {
           });
         },
       );
+      if (!found) {
+        queryClient.invalidateQueries({ queryKey: ["workgroups"] });
+      }
     };
     onRealtime("workgroup_post:new", handleWorkgroupPost);
     return () => {
@@ -320,6 +326,7 @@ export default function DirectChatPage() {
                     <div className="flex items-center gap-2">
                       <div className="relative">
                         <Avatar className="h-7 w-7">
+                          <AvatarImage src={getAvatarUrl(chat.direct_peer_avatar_url)} />
                           <AvatarFallback
                             className={`${chat.avatar_color} text-white text-xs`}
                           >

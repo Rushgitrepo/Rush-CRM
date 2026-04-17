@@ -34,6 +34,7 @@ import UniboxPage from "./pages/crm/UniboxPage";
 import WorkgroupsPage from "./pages/collaboration/WorkgroupsPage";
 import DirectChatPage from "./pages/collaboration/DirectChatPage";
 import { NotificationsProvider } from "./contexts/NotificationsContext";
+import { usePushNotifications } from "./hooks/usePushNotifications";
 // CRM
 import LeadsPage from "./pages/crm/LeadsPage";
 import CreateLeadPage from "./pages/crm/CreateLeadPage";
@@ -129,6 +130,12 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+// Mounts inside AuthProvider so useAuth() is available
+const PushNotificationsSetup = () => {
+  usePushNotifications();
+  return null;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider defaultTheme="system" storageKey="rush-crm-theme">
@@ -137,6 +144,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
+            <PushNotificationsSetup />
             <NotificationsProvider>
             <OrganizationProvider>
               <DialogProvider>

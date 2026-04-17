@@ -85,7 +85,7 @@ class ImapIdleService {
       const client = new ImapFlow({
         host: mailbox.imap_host || 'imap.mail.me.com',
         port: mailbox.imap_port || 993,
-        secure: true,
+        secure: (mailbox.imap_port || 993) === 993,
         auth: {
           user: mailbox.imap_username || mailbox.email_address,
           pass: mailbox.encrypted_password,

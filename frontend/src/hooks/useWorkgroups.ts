@@ -24,6 +24,7 @@ export interface Workgroup {
   last_message_sender_name?: string;
   unread_count?: number;
   last_seen_at?: string | null;
+  direct_peer_avatar_url?: string | null;
   is_member: boolean;
   has_recent_activity?: boolean;
   is_online?: boolean;

@@ -16,7 +16,7 @@ class ImapSyncService {
     const client = new ImapFlow({
       host: config.imap_host || process.env.IMAP_HOST || 'imap.mail.me.com',
       port: config.imap_port || parseInt(process.env.IMAP_PORT) || 993,
-      secure: true,
+      secure: (config.imap_port || parseInt(process.env.IMAP_PORT) || 993) === 993,
       auth: { user: username, pass: password },
       tls: { rejectUnauthorized: false },
       logger: false
@@ -39,8 +39,8 @@ class ImapSyncService {
 
     const client = new ImapFlow({
       host: mailbox.imap_host || process.env.IMAP_HOST || 'imap.mail.me.com',
-      port: mailbox.imap_port || parseInt(process.env.IMAP_PORT) || 993,
-      secure: true,
+      port: mailbox.imap_port || parseInt(mailbox.imap_port) || 993,
+      secure: (mailbox.imap_port || parseInt(mailbox.imap_port) || 993) === 993,
       auth: {
         user: mailbox.imap_username || mailbox.email_address || process.env.IMAP_USERNAME,
         pass: mailbox.encrypted_password || process.env.EMAIL_PASSWORD

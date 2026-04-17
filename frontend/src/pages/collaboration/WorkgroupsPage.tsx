@@ -278,12 +278,14 @@ export default function WorkgroupsPage() {
   useEffect(() => {
     const handleWorkgroupPost = (payload: { workgroup_id?: string; user_id?: string }) => {
       if (!payload?.workgroup_id) return;
+      let found = false;
       queryClient.setQueriesData(
         { queryKey: ["workgroups"] },
         (prev: any[] | undefined) => {
           if (!Array.isArray(prev)) return prev;
           return prev.map((wg) => {
             if (wg?.id !== payload.workgroup_id) return wg;
+            found = true;
             // Do not increase count for own message or currently opened room.
             if (payload.user_id === user?.id || selectedId === payload.workgroup_id) {
               return { ...wg, unread_count: 0 };
@@ -295,6 +297,9 @@ export default function WorkgroupsPage() {
           });
         },
       );
+      if (!found) {
+        queryClient.invalidateQueries({ queryKey: ["workgroups"] });
+      }
     };
 
     onRealtime("workgroup_post:new", handleWorkgroupPost);
