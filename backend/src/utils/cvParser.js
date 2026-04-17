@@ -17,29 +17,29 @@ const extractPhone = (text) => {
 const extractName = (text) => {
   // Try to extract name from first few lines
   const lines = text.split('\n').filter(line => line.trim().length > 0);
-  
+
   // Usually name is in first 3 lines
   for (let i = 0; i < Math.min(3, lines.length); i++) {
     const line = lines[i].trim();
-    
+
     // Skip if line contains email or phone
     if (line.includes('@') || /\d{10}/.test(line)) continue;
-    
+
     // Check if line looks like a name (2-4 words, each capitalized)
     const words = line.split(/\s+/);
     if (words.length >= 2 && words.length <= 4) {
-      const isName = words.every(word => 
-        word.length > 1 && 
+      const isName = words.every(word =>
+        word.length > 1 &&
         word[0] === word[0].toUpperCase() &&
         /^[a-zA-Z]+$/.test(word)
       );
-      
+
       if (isName) {
         return line;
       }
     }
   }
-  
+
   return null;
 };
 
@@ -54,10 +54,10 @@ const extractSkills = (text) => {
     'Machine Learning', 'AI', 'Data Science', 'TensorFlow', 'PyTorch',
     'Excel', 'PowerPoint', 'Word', 'Photoshop', 'Illustrator', 'Figma', 'Sketch'
   ];
-  
+
   const foundSkills = [];
   const lowerText = text.toLowerCase();
-  
+
   commonSkills.forEach(skill => {
     const skillLower = skill.toLowerCase();
     // Check for whole word match
@@ -66,7 +66,7 @@ const extractSkills = (text) => {
       foundSkills.push(skill);
     }
   });
-  
+
   return foundSkills;
 };
 
@@ -74,14 +74,14 @@ const extractExperience = (text) => {
   // Look for patterns like "5 years", "3+ years", "2-3 years"
   const expRegex = /(\d+)[\s]*(?:\+|-)?\s*(?:to\s+\d+\s+)?years?\s+(?:of\s+)?experience/gi;
   const matches = text.match(expRegex);
-  
+
   if (matches && matches.length > 0) {
     const numbers = matches[0].match(/\d+/g);
     if (numbers && numbers.length > 0) {
       return parseInt(numbers[0]);
     }
   }
-  
+
   // Alternative: Look for "Experience: X years" format
   const altRegex = /experience[:\s]+(\d+)/gi;
   const altMatches = text.match(altRegex);
@@ -91,7 +91,7 @@ const extractExperience = (text) => {
       return parseInt(numbers[0]);
     }
   }
-  
+
   return null;
 };
 
@@ -102,9 +102,9 @@ const extractEducation = (text) => {
     'Bachelor', 'Bachelors', 'BS', 'B.S', 'BA', 'B.A', 'BE', 'B.E', 'BTech', 'B.Tech',
     'Diploma', 'Associate'
   ];
-  
+
   const lowerText = text.toLowerCase();
-  
+
   for (const keyword of educationKeywords) {
     const regex = new RegExp(`\\b${keyword.toLowerCase()}\\b`, 'i');
     if (regex.test(lowerText)) {
@@ -118,7 +118,7 @@ const extractEducation = (text) => {
       return keyword;
     }
   }
-  
+
   return null;
 };
 
@@ -126,12 +126,12 @@ const extractCurrentCompany = (text) => {
   // Look for patterns like "Currently working at", "Present at", etc.
   const companyRegex = /(?:currently|present|working)\s+(?:at|with|for)\s+([A-Z][a-zA-Z\s&.]+?)(?:\n|,|\.|\s{2,})/gi;
   const matches = text.match(companyRegex);
-  
+
   if (matches && matches.length > 0) {
     const company = matches[0].replace(/(?:currently|present|working)\s+(?:at|with|for)\s+/gi, '').trim();
     return company.split(/\n|,|\./)[0].trim();
   }
-  
+
   return null;
 };
 
@@ -147,7 +147,7 @@ const parseCV = (text) => {
       currentCompany: null
     };
   }
-  
+
   return {
     fullName: extractName(text),
     email: extractEmail(text),

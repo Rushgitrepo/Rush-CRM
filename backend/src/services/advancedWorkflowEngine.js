@@ -93,7 +93,7 @@ class AdvancedWorkflowEngine {
     if (!config || !config.conditions) return true;
 
     const { conditions, match_type = 'all' } = config;
-    
+
     const results = conditions.map(condition => {
       const { field, operator, value } = condition;
       const entityValue = this.getNestedValue(entity, field);
@@ -120,8 +120,8 @@ class AdvancedWorkflowEngine {
       }
     });
 
-    return match_type === 'all' 
-      ? results.every(r => r) 
+    return match_type === 'all'
+      ? results.every(r => r)
       : results.some(r => r);
   }
 
@@ -159,7 +159,7 @@ class AdvancedWorkflowEngine {
         try {
           // Execute action with context
           const result = await this.executeAction(action, context, orgId);
-          
+
           // Update context with action result
           if (result && result.variable) {
             context.variables[result.variable] = result.value;
@@ -221,11 +221,11 @@ class AdvancedWorkflowEngine {
     switch (action.action_type) {
 
       // ==================== BASIC ACTIONS ====================
-      
+
       case 'create_task': {
         const title = this.interpolate(config.title || 'New Task', context);
         const description = this.interpolate(config.description || '', context);
-        
+
         const { rows: [task] } = await db.query(
           `INSERT INTO tasks
              (org_id, title, description, priority, status, due_date, assigned_to, created_by)
@@ -241,7 +241,7 @@ class AdvancedWorkflowEngine {
             entity.user_id || null,
           ]
         );
-        
+
         console.log(`[Action] Created task: "${title}"`);
         return { variable: 'task_id', value: task.id };
       }
@@ -279,7 +279,7 @@ class AdvancedWorkflowEngine {
         const table = this.guessTable(entity);
         const field = config.field?.replace(/[^a-z0-9_]/gi, '');
         const value = this.interpolate(String(config.value || ''), context);
-        
+
         if (table && field) {
           await db.query(
             `UPDATE ${table} 
@@ -295,7 +295,7 @@ class AdvancedWorkflowEngine {
       case 'add_tag': {
         const table = this.guessTable(entity);
         const tag = this.interpolate(config.tag, context);
-        
+
         if (table && tag) {
           await db.query(
             `UPDATE ${table}
@@ -360,10 +360,10 @@ class AdvancedWorkflowEngine {
         };
 
         const lib = urlObj.protocol === 'https:' ? https : http;
-        
+
         await new Promise((resolve, reject) => {
           const req = lib.request(options, (res) => {
-            res.on('data', () => {});
+            res.on('data', () => { });
             res.on('end', resolve);
           });
           req.on('error', reject);
@@ -410,13 +410,13 @@ class AdvancedWorkflowEngine {
         // Loop through related records
         const relatedTable = config.related_table;
         const relatedField = config.related_field;
-        
+
         if (relatedTable && relatedField) {
           const { rows: records } = await db.query(
             `SELECT * FROM ${relatedTable} WHERE ${relatedField} = $1 LIMIT 100`,
             [entity.id]
           );
-          
+
           console.log(`[Action] Loop through ${records.length} records`);
           // Store in context for next actions
           return { variable: 'loop_records', value: records };
@@ -427,7 +427,7 @@ class AdvancedWorkflowEngine {
       case 'http_request': {
         const url = config.url;
         const method = config.method || 'GET';
-        
+
         if (!url) break;
 
         const https = require('https');
@@ -443,7 +443,7 @@ class AdvancedWorkflowEngine {
         };
 
         const lib = urlObj.protocol === 'https:' ? https : http;
-        
+
         const response = await new Promise((resolve, reject) => {
           const req = lib.request(options, (res) => {
             let data = '';
@@ -463,7 +463,7 @@ class AdvancedWorkflowEngine {
         // Perform calculations
         const formula = config.formula; // e.g., "{{value}} * 1.1"
         const result = eval(this.interpolate(formula, context));
-        
+
         console.log(`[Action] Calculated: ${result}`);
         return { variable: config.result_variable || 'calculation_result', value: result };
       }
@@ -496,7 +496,7 @@ class AdvancedWorkflowEngine {
    */
   interpolate(template, context) {
     if (!template) return '';
-    
+
     return String(template).replace(/\{\{([^}]+)\}\}/g, (match, path) => {
       // Support entity.field and variables.name
       const value = this.getNestedValue(context, path.trim());
@@ -527,7 +527,7 @@ class AdvancedWorkflowEngine {
 const engine = new AdvancedWorkflowEngine();
 
 module.exports = {
-  fireWorkflows: (orgId, triggerType, entity, triggeredBy) => 
+  fireWorkflows: (orgId, triggerType, entity, triggeredBy) =>
     engine.fireWorkflows(orgId, triggerType, entity, triggeredBy),
   runExecution: (executionId, workflowId, orgId, entity) =>
     engine.runExecution(executionId, workflowId, orgId, entity),

@@ -88,13 +88,13 @@ export function EmailCrmPanel({ email }: EmailCrmPanelProps) {
 
   // Auto-match contacts by email address
   const { data: matchedContacts = [] } = useQuery({
-    queryKey: ["email-contact-match", email.from_address],
+    queryKey: ["email-contact-match", email?.from_email],
     queryFn: async () => {
-      if (!email.from_address || !organization) return [];
-      const data = await api.get<any[]>('/contacts', { search: email.from_address, limit: '5' });
+      if (!email?.from_email || !organization) return [];
+      const data = await api.get<any[]>('/contacts', { search: email.from_email, limit: '5' });
       return (data as any)?.data || data || [];
     },
-    enabled: !!email.from_address && !!organization,
+    enabled: !!email?.from_email && !!organization,
   });
 
   // Activity log
@@ -114,7 +114,12 @@ export function EmailCrmPanel({ email }: EmailCrmPanelProps) {
       let entityId: string | null = null;
 
       if (entityType === 'contact') {
-        const data = await api.post<any>('/contacts', { first_name: email.from_name || email.from_address.split('@')[0], email: email.from_address });
+        const fromEmail = email?.from_email || '';
+        const defaultName = fromEmail ? fromEmail.split('@')[0] : 'Unknown';
+        const data = await api.post<any>('/contacts', { 
+          first_name: email.from_name || defaultName, 
+          email: fromEmail 
+        });
         entityId = data.id;
       } else if (entityType === 'lead') {
         const data = await api.post<any>('/leads', { title: convertForm.title || email.subject || 'New Lead from Email', source: 'email' });
@@ -285,9 +290,10 @@ export function EmailCrmPanel({ email }: EmailCrmPanelProps) {
               />
             </div>
             <div className="text-xs text-muted-foreground p-2 rounded bg-muted/50">
-              From: {email.from_name || email.from_address}
+              From: {email.from_name || email.from_email || 'Unknown'}
+              {email.from_email && ` <${email.from_email}>`}
               <br />
-              Subject: {email.subject}
+              Subject: {email.subject || '(No Subject)'}
             </div>
           </div>
           <DialogFooter>
