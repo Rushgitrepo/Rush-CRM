@@ -9012,7 +9012,7 @@ CREATE TRIGGER trg_prune_notifications
   FOR EACH ROW EXECUTE FUNCTION prune_old_notifications();
 
 
- CREATE TABLE IF NOT EXISTS push_subscriptions (
+CREATE TABLE IF NOT EXISTS push_subscriptions (
       id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
       user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       org_id uuid NOT NULL,
@@ -9021,7 +9021,7 @@ CREATE TRIGGER trg_prune_notifications
       auth text NOT NULL,
       created_at timestamptz DEFAULT CURRENT_TIMESTAMP,
       updated_at timestamptz DEFAULT CURRENT_TIMESTAMP
-    )
+)
 
 CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id ON push_subscriptions(user_id)
 

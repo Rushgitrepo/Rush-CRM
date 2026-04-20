@@ -106,6 +106,122 @@ class RealtimeService {
         }
       });
 
+      // ─── WebRTC Call Signaling ───────────────────────────────
+      socket.on('call:initiate', (payload) => {
+        // payload: { callId, targetUserId, callerName, callerAvatar, callType: 'video'|'audio' }
+        console.log(`[WebRTC] Call initiated: ${socket.userId} -> ${payload.targetUserId} (${payload.callType})`);
+        this.io.to(`user:${payload.targetUserId}`).emit('call:incoming', {
+          callId: payload.callId,
+          callerId: socket.userId,
+          callerName: payload.callerName,
+          callerAvatar: payload.callerAvatar,
+          callType: payload.callType,
+        });
+      });
+
+      socket.on('call:accept', (payload) => {
+        // payload: { callId, callerId, accepterName, accepterAvatar }
+        console.log(`[WebRTC] Call accepted: ${socket.userId} accepted call ${payload.callId}`);
+        this.io.to(`user:${payload.callerId}`).emit('call:accepted', {
+          callId: payload.callId,
+          accepterId: socket.userId,
+          accepterName: payload.accepterName,
+          accepterAvatar: payload.accepterAvatar,
+        });
+      });
+
+      socket.on('call:reject', (payload) => {
+        // payload: { callId, callerId, reason }
+        console.log(`[WebRTC] Call rejected: ${socket.userId} rejected call ${payload.callId}`);
+        this.io.to(`user:${payload.callerId}`).emit('call:rejected', {
+          callId: payload.callId,
+          rejectedBy: socket.userId,
+          reason: payload.reason || 'declined',
+        });
+      });
+
+      socket.on('call:join-room', (payload) => {
+        // payload: { roomId, userId, name, avatar }
+        const roomName = `call_room:${payload.roomId}`;
+        socket.join(roomName);
+        console.log(`[WebRTC] User ${payload.userId} joined room ${payload.roomId}`);
+        
+        // Notify others in the room
+        socket.to(roomName).emit('call:user-joined', {
+          userId: payload.userId,
+          name: payload.name,
+          avatar: payload.avatar,
+        });
+      });
+
+      socket.on('call:offer', (payload) => {
+        // payload: { callId, targetUserId, sdp }
+        this.io.to(`user:${payload.targetUserId}`).emit('call:offer', {
+          callId: payload.callId,
+          fromUserId: socket.userId,
+          sdp: payload.sdp,
+        });
+      });
+
+      socket.on('call:answer', (payload) => {
+        // payload: { callId, targetUserId, sdp }
+        this.io.to(`user:${payload.targetUserId}`).emit('call:answer', {
+          callId: payload.callId,
+          fromUserId: socket.userId,
+          sdp: payload.sdp,
+        });
+      });
+
+      socket.on('call:ice-candidate', (payload) => {
+        // payload: { callId, targetUserId, candidate }
+        this.io.to(`user:${payload.targetUserId}`).emit('call:ice-candidate', {
+          callId: payload.callId,
+          fromUserId: socket.userId,
+          candidate: payload.candidate,
+        });
+      });
+
+      socket.on('call:reaction', (payload) => {
+        // payload: { callId, reaction: { id, userId, emoji, userName } }
+        if (payload.callId) {
+          const roomName = `call_room:${payload.callId}`;
+          this.io.to(roomName).emit('call:reaction', payload);
+        }
+      });
+
+      socket.on('call:end', (payload) => {
+        // payload: { callId, targetUserId, reason }
+        if (payload.targetUserId) {
+          this.io.to(`user:${payload.targetUserId}`).emit('call:end', {
+            callId: payload.callId,
+            fromUserId: socket.userId,
+            reason: payload.reason || 'hangup',
+          });
+        }
+        
+        if (payload.callId) {
+          const roomName = `call_room:${payload.callId}`;
+          socket.leave(roomName);
+          this.io.to(roomName).emit('call:user-left', {
+            userId: socket.userId,
+            callId: payload.callId,
+          });
+        }
+      });
+
+      socket.on('call:toggle-media', (payload) => {
+        // payload: { callId, targetUserId, mediaType: 'audio'|'video', enabled }
+        if (payload.callId) {
+          const roomName = `call_room:${payload.callId}`;
+          socket.to(roomName).emit('call:toggle-media', {
+            callId: payload.callId,
+            fromUserId: socket.userId,
+            mediaType: payload.mediaType,
+            enabled: payload.enabled,
+          });
+        }
+      });
+
       // Disconnect handling
       socket.on('disconnect', () => {
         console.log(`User disconnected: ${socket.userId}`);

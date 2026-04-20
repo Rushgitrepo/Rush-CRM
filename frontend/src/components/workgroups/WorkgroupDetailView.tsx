@@ -87,6 +87,7 @@ import { toast } from "sonner";
 import { useCustomDialog } from "@/contexts/DialogContext";
 import { useRealtime, useWorkgroupRealtime } from "@/hooks/useRealtime";
 import { useQueryClient } from "@tanstack/react-query";
+import { useVideoCall } from "@/contexts/VideoCallContext";
 
 interface Props {
   workgroupId: string;
@@ -96,6 +97,7 @@ interface Props {
 export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   const { user, profile } = useAuth();
   const { prompt, confirm } = useCustomDialog();
+  const { startCall: startVideoCall, callState } = useVideoCall();
   const { data: workgroup } = useWorkgroup(workgroupId);
   const { data: allWorkgroups = [] } = useWorkgroups();
   const navigate = useNavigate();
@@ -750,17 +752,40 @@ const flatPosts = useMemo(() => {
   };
 
   const handleStartMeeting = () => {
-    // In a real app, this would integrate with Teams/Zoom/Google Meet
-    toast.success(`Starting video meeting for ${workgroupDisplayName}...`);
-    // Simulate opening meeting
-    window.open(`https://meet.google.com/new`, "_blank");
+    const otherMember = members.find(m => m.user_id !== user?.id);
+    if (!otherMember) {
+      toast.error('No other member to call');
+      return;
+    }
+    if (callState !== 'idle') {
+      toast.error('You are already in a call');
+      return;
+    }
+    startVideoCall(
+      otherMember.user_id,
+      otherMember.full_name || otherMember.email || 'Unknown',
+      otherMember.avatar_url || null,
+      'video',
+      true
+    );
   };
 
   const handleStartCall = () => {
-    // In a real app, this would start an audio call
-    toast.success(`Coming Soon`);
-    // Simulate starting call
-    console.log("Starting audio call...");
+    const otherMember = members.find(m => m.user_id !== user?.id);
+    if (!otherMember) {
+      toast.error('No other member to call');
+      return;
+    }
+    if (callState !== 'idle') {
+      toast.error('You are already in a call');
+      return;
+    }
+    startVideoCall(
+      otherMember.user_id,
+      otherMember.full_name || otherMember.email || 'Unknown',
+      otherMember.avatar_url || null,
+      'audio'
+    );
   };
 
   const handleUploadFile = () => {
@@ -929,7 +954,7 @@ const flatPosts = useMemo(() => {
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <Avatar className="h-10 w-10">
-              <AvatarImage src={getAvatarUrl((workgroup as any).direct_peer_avatar_url)} />
+              <AvatarImage src={getAvatarUrl((workgroup as any).avatar_url || (workgroup as any).direct_peer_avatar_url)} />
               <AvatarFallback
                 className={`${workgroup.avatar_color} text-white font-semibold`}
               >

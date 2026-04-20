@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, MessageCircle, Search, UserRound, Users } from "lucide-react";
+import { ArrowLeft, MessageCircle, Phone, Search, UserRound, Users, Video } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useRealtime } from "@/hooks/useRealtime";
 import { workgroupsApi } from "@/lib/api";
 import { toast } from "sonner";
+import { useVideoCall } from "@/contexts/VideoCallContext";
 
 export default function DirectChatPage() {
   const navigate = useNavigate();
@@ -33,6 +34,7 @@ export default function DirectChatPage() {
   const [, setLastSeenTick] = useState(0);
   const selectedId = searchParams.get("chat");
   const searchBoxRef = useRef<HTMLDivElement>(null);
+  const { startCall: startVideoCall, callState } = useVideoCall();
 
   const directChats = useMemo(
     () =>
@@ -371,8 +373,50 @@ export default function DirectChatPage() {
                           </p>
                         )}
                       </div>
-                      {unreadCount > 0 && (
-                        <div className="ml-auto self-start">
+                      <div className="ml-auto flex items-center gap-1 shrink-0">
+                        {isOnline && (
+                          <>
+                            <span
+                              role="button"
+                              title="Voice call"
+                              className={`inline-flex h-6 w-6 items-center justify-center rounded-full transition-colors ${
+                                isActive ? 'hover:bg-white/20' : 'hover:bg-muted'
+                              }`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (callState !== 'idle') { toast.error('Already in a call'); return; }
+                                startVideoCall(
+                                  chat.direct_peer_user_id,
+                                  chatDisplayName,
+                                  null,
+                                  'audio'
+                                );
+                              }}
+                            >
+                              <Phone className={`h-3 w-3 ${isActive ? 'text-white/80' : 'text-muted-foreground'}`} />
+                            </span>
+                            <span
+                              role="button"
+                              title="Video call"
+                              className={`inline-flex h-6 w-6 items-center justify-center rounded-full transition-colors ${
+                                isActive ? 'hover:bg-white/20' : 'hover:bg-muted'
+                              }`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (callState !== 'idle') { toast.error('Already in a call'); return; }
+                                startVideoCall(
+                                  chat.direct_peer_user_id,
+                                  chatDisplayName,
+                                  null,
+                                  'video'
+                                );
+                              }}
+                            >
+                              <Video className={`h-3 w-3 ${isActive ? 'text-white/80' : 'text-muted-foreground'}`} />
+                            </span>
+                          </>
+                        )}
+                        {unreadCount > 0 && (
                           <span
                             className={`inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[11px] font-semibold ${
                               isActive ? "bg-white/20 text-white" : "bg-primary text-white"
@@ -380,8 +424,8 @@ export default function DirectChatPage() {
                           >
                             {unreadCount}
                           </span>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   </button>
                 );
