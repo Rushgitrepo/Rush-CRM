@@ -64,6 +64,15 @@ const createInvite = async (req, res, next) => {
   try {
     const { email, role } = req.body;
 
+    // Check if user already exists
+    const userCheck = await db.query('SELECT id FROM public.users WHERE email = $1', [email]);
+    if (userCheck.rows.length > 0) {
+      return res.status(409).json({ error: 'Email already registered' });
+    }
+
+    // Remove any existing invitation for this email to allow re-inviting
+    await db.query('DELETE FROM public.organization_invites WHERE email = $1', [email]);
+
     const result = await db.query(
       `INSERT INTO public.organization_invites (org_id, email, role, invited_by)
        VALUES ($1, $2, $3, $4)
