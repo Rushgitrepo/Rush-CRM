@@ -181,9 +181,7 @@ router.post('/ringout', async (req, res) => {
  * POST /api/ringcentral/setup-webhooks
  * Manual trigger to setup or refresh webhooks.
  */
-router.post('/setup-webhooks', async (req, res) => {
-  res.json({ success: false, message: 'Webhooks are currently disabled' });
-  /*
+router.post('/setup-webhooks', auth, requireOrg, async (req, res) => {
   try {
     const result = await rcService.setupWebhook(req.user.orgId, req.user.id);
     res.json({ success: true, data: result });
@@ -191,7 +189,6 @@ router.post('/setup-webhooks', async (req, res) => {
     console.error('[RC] manual setup-webhooks error:', err);
     res.status(500).json({ error: err.message });
   }
-  */
 });
 
 /**
