@@ -22,7 +22,7 @@ class RealtimeService {
     // Authentication middleware
     this.io.use((socket, next) => {
       const token = socket.handshake.auth.token;
-      
+
       if (!token) {
         return next(new Error('Authentication error'));
       }
@@ -74,7 +74,7 @@ class RealtimeService {
       socket.on('subscribe:workgroup', (workgroupId) => {
         socket.join(`workgroup:${workgroupId}`);
       });
-      
+
       socket.on('unsubscribe:workgroup', (workgroupId) => {
         socket.leave(`workgroup:${workgroupId}`);
       });
@@ -145,7 +145,7 @@ class RealtimeService {
         const roomName = `call_room:${payload.roomId}`;
         socket.join(roomName);
         console.log(`[WebRTC] User ${payload.userId} joined room ${payload.roomId}`);
-        
+
         // Notify others in the room
         socket.to(roomName).emit('call:user-joined', {
           userId: payload.userId,
@@ -198,7 +198,7 @@ class RealtimeService {
             reason: payload.reason || 'hangup',
           });
         }
-        
+
         if (payload.callId) {
           const roomName = `call_room:${payload.callId}`;
           socket.leave(roomName);
@@ -349,7 +349,7 @@ class RealtimeService {
   emitWorkgroupMemberRemoved(workgroupId, memberId) {
     this.io.to(`workgroup:${workgroupId}`).emit('workgroup:member_removed', { memberId });
   }
-  
+
   emitReactionAdded(roomName, data) {
     this.io.to(roomName).emit('reaction:added', data);
   }
@@ -397,10 +397,6 @@ class RealtimeService {
     } catch (error) {
       console.error('Failed to persist last_seen_at:', error?.message || error);
     }
-  }
-
-  sendToUser(userId, event, data) {
-    this.io.to(`user:${userId}`).emit(event, data);
   }
 }
 
