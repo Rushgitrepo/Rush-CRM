@@ -223,16 +223,31 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
         remoteMs.addTrack(event.track);
       }
 
-      setState(prev => ({
-        ...prev,
-        peers: {
-          ...prev.peers,
-          [targetUserId]: {
-            ...prev.peers[targetUserId],
-            stream: new MediaStream(remoteMs!.getTracks()),
+      setState(prev => {
+        const newState = {
+          ...prev,
+          peers: {
+            ...prev.peers,
+            [targetUserId]: {
+              ...prev.peers[targetUserId],
+              stream: new MediaStream(remoteMs!.getTracks()),
+            }
           }
+        };
+
+        // Fallback: If we receive tracks, we are effectively connected
+        if (callStateRef.current === 'connecting' || callStateRef.current === 'outgoing') {
+          newState.callState = 'connected';
+          newState.callStatus = null;
         }
-      }));
+
+        return newState;
+      });
+
+      // Start timer if transitioning to connected
+      if (callStateRef.current === 'connecting' || callStateRef.current === 'outgoing') {
+        startCallTimer();
+      }
     };
 
     pc.onicecandidate = (event) => {
@@ -247,8 +262,10 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
 
     pc.oniceconnectionstatechange = () => {
       if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
-        setState(prev => ({ ...prev, callState: 'connected' }));
-        startCallTimer();
+        if (callStateRef.current !== 'connected') {
+          setState(prev => ({ ...prev, callState: 'connected', callStatus: null }));
+          startCallTimer();
+        }
       }
     };
 
@@ -321,6 +338,7 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
       isMuted: false,
       isVideoOff: false,
       isGroupCall: true,
+      callStatus: null,
     }));
 
     try {
@@ -359,6 +377,7 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
       callType,
       callId,
       isGroupCall: forceGroupCall,
+      callStatus: null,
       peers: {
         [targetUserId]: { userId: targetUserId, name: targetName, avatar: targetAvatar, isMuted: false, isVideoOff: false, isScreenSharing: false, stream: null }
       }
@@ -379,7 +398,7 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
     if (!socket || !callerId || !profile) return;
 
     stopRingtone();
-    setState(prev => ({ ...prev, callState: 'connecting' }));
+    setState(prev => ({ ...prev, callState: 'connecting', callStatus: null }));
     try {
       await getUserMedia(state.callType);
       socket.emit('call:accept', { callId: state.callId, callerId, accepterName: profile.full_name, accepterAvatar: profile.avatar_url });
@@ -444,6 +463,7 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
         callType: p.callType,
         callId: p.callId,
         isGroupCall: p.isGroupCall || false,
+        callStatus: null,
         peers: { [p.callerId]: { userId: p.callerId, name: p.callerName, avatar: p.callerAvatar, isMuted: false, isVideoOff: false, isScreenSharing: false, stream: null } }
       }));
       playRingtone('incoming');
@@ -456,13 +476,27 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
       setState(prev => ({ ...prev, peers: { ...prev.peers, [p.userId]: { userId: p.userId, name: p.name, avatar: p.avatar, isMuted: false, isVideoOff: false, isScreenSharing: false, stream: null } } }));
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-      socket.emit('call:offer', { callId: state.callId, targetUserId: p.userId, sdp: offer });
+    };
+
+    const flushIceCandidates = async (userId: string, pc: RTCPeerConnection) => {
+      const pending = pendingCandidatesRef.current.get(userId);
+      if (pending && pending.length > 0) {
+        console.log(`[WebRTC] Flushing ${pending.length} pending ICE candidates for ${userId}`);
+        for (const candidate of pending) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch (e) {
+            console.error('[WebRTC] Error adding pending ICE:', e);
+          }
+        }
+        pendingCandidatesRef.current.delete(userId);
+      }
     };
 
     const handleAccepted = async (p: any) => {
       if (p.callId !== state.callId) return;
       stopRingtone();
-      setState(prev => ({ ...prev, callState: 'connecting' }));
+      setState(prev => ({ ...prev, callState: 'connecting', callStatus: null }));
       const pc = createPeerConnection(p.accepterId);
       if (!pc) return;
       const offer = await pc.createOffer();
@@ -478,6 +512,7 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
       try {
         if (pc.signalingState === 'stable') {
           await pc.setRemoteDescription(new RTCSessionDescription(p.sdp));
+          await flushIceCandidates(p.fromUserId, pc);
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
           socket.emit('call:answer', { callId: p.callId, targetUserId: p.fromUserId, sdp: answer });
@@ -492,6 +527,7 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
       if (pc && pc.signalingState === 'have-local-offer') {
         try {
           await pc.setRemoteDescription(new RTCSessionDescription(p.sdp));
+          await flushIceCandidates(p.fromUserId, pc);
         } catch (err) {
           console.error('[WebRTC] handleAnswer error:', err);
         }
@@ -500,8 +536,13 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
 
     const handleIce = async (p: any) => {
       const pc = peerConnectionsRef.current.get(p.fromUserId);
-      if (pc && pc.remoteDescription) await pc.addIceCandidate(new RTCIceCandidate(p.candidate));
-      else {
+      if (pc && pc.remoteDescription && pc.signalingState !== 'closed') {
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(p.candidate));
+        } catch (e) {
+          console.error('[WebRTC] Error adding ICE candidate:', e);
+        }
+      } else {
         const pending = pendingCandidatesRef.current.get(p.fromUserId) || [];
         pending.push(p.candidate);
         pendingCandidatesRef.current.set(p.fromUserId, pending);
