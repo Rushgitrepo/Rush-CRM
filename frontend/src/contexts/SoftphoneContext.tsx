@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
+import { getSocket } from '@/hooks/useRealtime';
 import type { TelephonyProviderName } from '@/services/telephonyService';
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -307,6 +308,29 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
   }, [state.activeProvider, profile?.org_id, user?.id]);
+
+  // Listen for real-time telephony updates from backend (Webhooks -> Socket.io)
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket || !user?.id) return;
+
+    const handleTelephonyUpdate = (data: any) => {
+      console.log('[Softphone] Real-time telephony update:', data);
+      
+      // Update isConnecting status based on real-time feedback
+      if (data.status === 'CallConnected' || data.status === 'Answered') {
+        setState(prev => ({ ...prev, isConnecting: false }));
+        toast.success('Call connected');
+      } else if (data.status === 'Disconnected') {
+        setState(prev => ({ ...prev, isConnecting: false }));
+      }
+    };
+
+    socket.on('telephony:update', handleTelephonyUpdate);
+    return () => {
+      socket.off('telephony:update', handleTelephonyUpdate);
+    };
+  }, [user?.id]);
 
   const openSoftphone = useCallback(() => {
     setState(prev => ({ ...prev, isOpen: true, isPanelMinimized: false }));

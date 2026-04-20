@@ -398,6 +398,10 @@ class RealtimeService {
       console.error('Failed to persist last_seen_at:', error?.message || error);
     }
   }
+
+  sendToUser(userId, event, data) {
+    this.io.to(`user:${userId}`).emit(event, data);
+  }
 }
 
 module.exports = new RealtimeService();

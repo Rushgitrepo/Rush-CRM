@@ -474,7 +474,9 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
       let pc = peerConnectionsRef.current.get(p.fromUserId);
       if (!pc) pc = createPeerConnection(p.fromUserId)!;
       if (!pc) return;
-      await pc.setRemoteDescription(new RTCSessionDescription(p.sdp));
+      if (pc.signalingState !== 'stable') {
+        await pc.setRemoteDescription(new RTCSessionDescription(p.sdp));
+      }
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       socket.emit('call:answer', { callId: p.callId, targetUserId: p.fromUserId, sdp: answer });
@@ -482,7 +484,9 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
 
     const handleAnswer = async (p: any) => {
       const pc = peerConnectionsRef.current.get(p.fromUserId);
-      if (pc) await pc.setRemoteDescription(new RTCSessionDescription(p.sdp));
+      if (pc && pc.signalingState !== 'stable') {
+        await pc.setRemoteDescription(new RTCSessionDescription(p.sdp));
+      }
     };
 
     const handleIce = async (p: any) => {

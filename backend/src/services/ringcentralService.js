@@ -669,16 +669,33 @@ async function handleWebhookEvent(event) {
   if (body.telephonySessionId) {
     const session = body;
     const parties = session.parties || [];
-    
-    // We only care about completed or recording-available states for logs
-    // but often we want to log when it starts or ends.
-    // Let's filter for 'Disconnected' to create the final log.
     const isDisconnected = parties.some(p => p.status?.code === 'Disconnected');
+    const isAnswered = parties.some(p => p.status?.code === 'Answered' || p.status?.code === 'Connected');
+    
+    // Get session ID and other details if available
+    const sessionId = session.telephonySessionId;
     
     if (isDisconnected) {
+      console.log(`[RC Webhook] Call disconnected: ${sessionId}`);
       // Trigger a sync for this session specifically or just sync all recent 
-      // To be safe and reuse logic:
       await syncCallLogs(org_id, user_id, { perPage: 10 });
+      
+      // Emit to frontend
+      const realtimeService = require('./realtimeService');
+      realtimeService.sendToUser(user_id, 'telephony:update', {
+        status: 'Disconnected',
+        sessionId,
+        timestamp: new Date().toISOString()
+      });
+    } else if (isAnswered) {
+      console.log(`[RC Webhook] Call answered/connected: ${sessionId}`);
+      // Emit to frontend to fix the "stuck in calling" issue
+      const realtimeService = require('./realtimeService');
+      realtimeService.sendToUser(user_id, 'telephony:update', {
+        status: 'CallConnected',
+        sessionId,
+        timestamp: new Date().toISOString()
+      });
     }
   }
 
@@ -738,6 +755,6 @@ module.exports = {
   getConnectionStatus,
   disconnect,
   setupWebhook,
-  // handleWebhookEvent,
-  // renewAllWebhooks,
+  handleWebhookEvent,
+  renewAllWebhooks,
 };
