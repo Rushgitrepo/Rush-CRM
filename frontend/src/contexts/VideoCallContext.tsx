@@ -474,18 +474,27 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
       let pc = peerConnectionsRef.current.get(p.fromUserId);
       if (!pc) pc = createPeerConnection(p.fromUserId)!;
       if (!pc) return;
-      if (pc.signalingState !== 'stable') {
-        await pc.setRemoteDescription(new RTCSessionDescription(p.sdp));
+      
+      try {
+        if (pc.signalingState === 'stable') {
+          await pc.setRemoteDescription(new RTCSessionDescription(p.sdp));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          socket.emit('call:answer', { callId: p.callId, targetUserId: p.fromUserId, sdp: answer });
+        }
+      } catch (err) {
+        console.error('[WebRTC] handleOffer error:', err);
       }
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      socket.emit('call:answer', { callId: p.callId, targetUserId: p.fromUserId, sdp: answer });
     };
 
     const handleAnswer = async (p: any) => {
       const pc = peerConnectionsRef.current.get(p.fromUserId);
-      if (pc && pc.signalingState !== 'stable') {
-        await pc.setRemoteDescription(new RTCSessionDescription(p.sdp));
+      if (pc && pc.signalingState === 'have-local-offer') {
+        try {
+          await pc.setRemoteDescription(new RTCSessionDescription(p.sdp));
+        } catch (err) {
+          console.error('[WebRTC] handleAnswer error:', err);
+        }
       }
     };
 
