@@ -113,6 +113,9 @@ const create = async (req, res, next) => {
 
     await client.query('BEGIN');
 
+    // Remove any existing invitation for this email to allow re-inviting
+    await client.query('DELETE FROM public.invites WHERE email = $1', [email]);
+
     const inviteToken = uuidv4();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
     const orgId = req.user.orgId;
