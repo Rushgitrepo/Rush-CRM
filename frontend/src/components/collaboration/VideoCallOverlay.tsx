@@ -150,14 +150,14 @@ function OutgoingCallView({ peer, callType, status, endCall }: any) {
         </div>
       </div>
 
-      <div className="relative z-10 pt-12">
+      <div className="relative z-10 pt-8">
         <button 
           onClick={endCall} 
-          className="h-24 w-24 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center shadow-[0_0_50px_rgba(239,68,68,0.5)] transition-all hover:scale-110 active:scale-95 border-b-4 border-red-700"
+          className="h-20 w-20 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center shadow-[0_0_40px_rgba(239,68,68,0.4)] transition-all hover:scale-105 active:scale-95 border-b-4 border-red-700"
         >
-          <PhoneOff className="w-12 h-12 text-white" />
+          <PhoneOff className="w-10 h-10 text-white" />
         </button>
-        <p className="text-red-500/60 uppercase font-bold tracking-widest text-[10px] text-center mt-4">End Call</p>
+        <p className="text-red-500/60 uppercase font-black tracking-widest text-[9px] text-center mt-4">End Call</p>
       </div>
     </div>
   );
@@ -174,8 +174,8 @@ function AudioCallView({ peer, duration, isMuted, toggleMute, endCall, renderInv
   }, [peer.stream]);
   
   return (
-    <div className="w-full h-full bg-zinc-950 flex flex-col items-center justify-between py-16 px-6 animate-in fade-in duration-700">
-      {/* Invisible audio element to play remote stream (opacity-0 instead of hidden to prevent some browser silence policies) */}
+    <div className="w-full h-full bg-zinc-950 flex flex-col items-center justify-between py-14 px-6 animate-in fade-in duration-700 relative overflow-hidden">
+      {/* Invisible audio element */}
       <audio 
         ref={audioRef} 
         autoPlay 
@@ -183,65 +183,75 @@ function AudioCallView({ peer, duration, isMuted, toggleMute, endCall, renderInv
         className="opacity-0 pointer-events-none absolute"
       />
 
-      <div className="absolute inset-0 z-0 overflow-hidden opacity-30">
-        <img src={avatarUrl} className="w-full h-full object-cover blur-[80px] scale-150" alt="" />
+      {/* Decorative Blur Background */}
+      <div className="absolute inset-x-0 top-0 h-2/3 z-0 overflow-hidden opacity-30">
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-zinc-950 to-zinc-950 z-10" />
+        <img src={avatarUrl} className="w-full h-full object-cover blur-[50px] scale-125" alt="" />
       </div>
 
-      <div className="relative z-10 text-center flex flex-col items-center pt-8">
-        <h2 className="text-2xl font-semibold text-white tracking-tight mb-2">{peer.name}</h2>
-        <p className="text-zinc-500 font-bold tracking-widest uppercase text-[10px]">
-          {formatDuration(duration)}
-        </p>
+      <div className="relative z-10 text-center flex flex-col items-center pt-2">
+        <div className="mb-3 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full backdrop-blur-md">
+          <p className="text-emerald-400 font-bold tracking-[0.2em] uppercase text-[8px]">Secure</p>
+        </div>
+        <h2 className="text-2xl font-bold text-white tracking-tight leading-tight mb-1">{peer.name}</h2>
+        <div className="flex items-center gap-2">
+          <div className="w-1 h-1 rounded-full bg-white/20" />
+          <p className="text-zinc-500 font-mono text-[11px] font-medium tracking-wider">
+            {formatDuration(duration)}
+          </p>
+        </div>
       </div>
 
-      <div className="relative z-10 w-32 h-32">
-         <div className="absolute inset-0 bg-white/5 rounded-full scale-125 animate-pulse" />
-         <Avatar className="h-full w-full border-2 border-white/5 shadow-2xl">
-           <AvatarImage src={avatarUrl} />
-           <AvatarFallback className="bg-zinc-800 text-4xl font-bold text-zinc-400">
-             {peer.name?.charAt(0)}
-           </AvatarFallback>
-         </Avatar>
+      <div className="relative z-10 my-4">
+         <div className="relative group">
+            <div className="absolute inset-0 bg-indigo-500/20 rounded-full scale-125 blur-xl animate-pulse" />
+            <Avatar className="h-32 w-32 border-4 border-white/5 shadow-2xl relative z-10 transition-transform duration-500">
+              <AvatarImage src={avatarUrl} />
+              <AvatarFallback className="bg-zinc-900 text-5xl font-bold text-zinc-500">
+                {peer.name?.charAt(0)}
+              </AvatarFallback>
+            </Avatar>
+         </div>
       </div>
 
-      <div className="relative z-10 w-full grid grid-cols-3 gap-6 mb-12">
-        <div className="flex flex-col items-center gap-2">
-          <button onClick={toggleMute} className={cn("h-14 w-14 rounded-full flex items-center justify-center transition-all", isMuted ? "bg-white text-zinc-950" : "bg-white/10 text-white hover:bg-white/20")}>
+      <div className="relative z-10 w-full grid grid-cols-3 gap-y-6 gap-x-4 mb-4">
+        <div className="flex flex-col items-center gap-1.5">
+          <button onClick={toggleMute} className={cn("h-14 w-14 rounded-full flex items-center justify-center transition-all", isMuted ? "bg-white text-zinc-950" : "bg-white/5 text-white hover:bg-white/10 border border-white/5")}>
             {isMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
           </button>
-          <span className="text-[10px] text-white/40 uppercase font-bold">mute</span>
+          <span className="text-[9px] text-white/40 uppercase font-black tracking-tighter">Mute</span>
         </div>
-        <div className="flex flex-col items-center gap-2">
-          <button className="h-14 w-14 rounded-full bg-white/10 text-white/30 flex items-center justify-center cursor-not-allowed">
+        <div className="flex flex-col items-center gap-1.5 text-white/20">
+          <button className="h-14 w-14 rounded-full bg-white/5 flex items-center justify-center border border-white/5 cursor-not-allowed">
             <User className="w-6 h-6" />
           </button>
-          <span className="text-[10px] text-white/20 uppercase font-bold">keypad</span>
+          <span className="text-[9px] uppercase font-black tracking-tighter">Keypad</span>
         </div>
-        <div className="flex flex-col items-center gap-2 text-white">
-          <button className="h-14 w-14 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20">
+        <div className="flex flex-col items-center gap-1.5 text-white">
+          <button className="h-14 w-14 rounded-full bg-white/5 text-white flex items-center justify-center hover:bg-white/10 border border-white/5">
             <Smile className="w-6 h-6" />
           </button>
-          <span className="text-[10px] text-white/40 uppercase font-bold">audio</span>
+          <span className="text-[9px] text-white/40 uppercase font-black tracking-tighter">Audio</span>
         </div>
-        <div className="flex flex-col items-center gap-2">
+        <div className="flex flex-col items-center gap-1.5">
           {renderInvitePopover(
-            <button className="h-14 w-14 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20 border border-indigo-500/30">
-              <UserPlus className="w-6 h-6 text-indigo-400" />
+            <button className="h-14 w-14 rounded-full bg-indigo-500/10 text-indigo-400 flex items-center justify-center hover:bg-indigo-500/20 border border-indigo-500/20 shadow-lg shadow-indigo-500/5">
+              <UserPlus className="w-6 h-6" />
             </button>
           )}
-          <span className="text-[10px] text-indigo-400/60 uppercase font-bold">invite</span>
+          <span className="text-[9px] text-indigo-400/60 uppercase font-black tracking-tighter">Invite</span>
         </div>
-        <div className="flex flex-col items-center gap-2">
-          <button className="h-14 w-14 rounded-full bg-white/10 text-white/30 flex items-center justify-center cursor-not-allowed">
+        <div className="flex flex-col items-center gap-1.5 text-white/20">
+          <button className="h-14 w-14 rounded-full bg-white/5 flex items-center justify-center border border-white/5 cursor-not-allowed">
             <Video className="w-6 h-6" />
           </button>
-          <span className="text-[10px] text-white/20 uppercase font-bold">video</span>
+          <span className="text-[9px] uppercase font-black tracking-tighter">Video</span>
         </div>
-        <div className="flex flex-col items-center gap-2">
+        <div className="flex flex-col items-center gap-1.5">
           <button onClick={endCall} className="h-14 w-14 rounded-full bg-red-500 flex items-center justify-center hover:bg-red-600 transition-all shadow-lg active:scale-95">
             <PhoneOff className="w-7 h-7 text-white" />
           </button>
-          <span className="text-[10px] text-red-500/60 uppercase font-bold">end</span>
+          <span className="text-[9px] text-red-500/60 uppercase font-black tracking-tighter">End</span>
         </div>
       </div>
     </div>
@@ -330,13 +340,17 @@ export default function VideoCallOverlay() {
   const firstPeer = peerList[0];
 
   const renderInMobileFrame = (content: React.ReactNode) => (
-    <div className="fixed top-12 bottom-12 right-12 z-[9999] animate-in slide-in-from-right-20 fade-in duration-700">
-      <div className="relative w-[360px] h-full bg-zinc-950 rounded-[48px] border-[10px] border-zinc-900 shadow-[0_40px_100px_rgba(0,0,0,0.8)] overflow-hidden">
+    <div className="fixed top-12 bottom-12 right-12 z-[9999] animate-in slide-in-from-right-20 fade-in duration-700 hidden lg:block">
+      <div className="relative w-[320px] h-full bg-zinc-950 rounded-[48px] border-[10px] border-zinc-900 shadow-[0_80px_160px_rgba(0,0,0,1)] overflow-hidden ring-1 ring-white/10 ring-inset">
         {/* Dynamic Island style Notch */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-7 bg-zinc-900 rounded-b-2xl z-50 flex items-center justify-center">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-7 bg-zinc-900 rounded-b-[20px] z-50 flex items-center justify-center">
           <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse mr-2" />
-          <div className="w-10 h-1 bg-white/10 rounded-full" />
+          <div className="w-10 h-1.5 bg-white/10 rounded-full" />
         </div>
+        
+        {/* Screen Gloss Effect */}
+        <div className="absolute inset-0 pointer-events-none z-40 bg-gradient-to-tr from-transparent via-white/[0.02] to-white/[0.04]" />
+        
         {content}
       </div>
     </div>
