@@ -476,6 +476,7 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
       setState(prev => ({ ...prev, peers: { ...prev.peers, [p.userId]: { userId: p.userId, name: p.name, avatar: p.avatar, isMuted: false, isVideoOff: false, isScreenSharing: false, stream: null } } }));
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
+      socket.emit('call:offer', { callId: state.callId, targetUserId: p.userId, sdp: offer });
     };
 
     const flushIceCandidates = async (userId: string, pc: RTCPeerConnection) => {
@@ -523,6 +524,7 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
     };
 
     const handleAnswer = async (p: any) => {
+      if (p.callId !== state.callId) return;
       const pc = peerConnectionsRef.current.get(p.fromUserId);
       if (pc && pc.signalingState === 'have-local-offer') {
         try {
@@ -535,6 +537,7 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
     };
 
     const handleIce = async (p: any) => {
+      if (p.callId !== state.callId) return;
       const pc = peerConnectionsRef.current.get(p.fromUserId);
       if (pc && pc.remoteDescription && pc.signalingState !== 'closed') {
         try {
