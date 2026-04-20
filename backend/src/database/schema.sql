@@ -6,6 +6,63 @@ COMMENT ON EXTENSION pgcrypto IS 'cryptographic functions';
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
 COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UUIDs)';
 
+-- ============================================================
+-- CORE TABLES (Moved to top for dependency resolution)
+-- ============================================================
+
+-- Name: organizations; Type: TABLE; Schema: public
+CREATE TABLE IF NOT EXISTS organizations (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL PRIMARY KEY,
+    name character varying(255) NOT NULL,
+    domain character varying(255),
+    settings jsonb DEFAULT '{}'::jsonb,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Name: user_role; Type: TYPE; Schema: public
+CREATE TYPE user_role AS ENUM (
+    'super_admin',
+    'admin',
+    'manager',
+    'team_lead',
+    'employee'
+);
+
+-- Name: users; Type: TABLE; Schema: public
+CREATE TABLE IF NOT EXISTS users (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL PRIMARY KEY,
+    organization_id uuid REFERENCES organizations(id),
+    org_id uuid REFERENCES organizations(id),
+    full_name character varying(255) NOT NULL,
+    email character varying(255) NOT NULL,
+    password_hash character varying(255) NOT NULL,
+    phone character varying(50),
+    role user_role DEFAULT 'employee'::user_role,
+    department character varying(100),
+    bio text,
+    avatar_url character varying(500),
+    password_change_required BOOLEAN DEFAULT FALSE,
+    module_permissions JSONB DEFAULT '{}'::jsonb,
+    invite_token TEXT UNIQUE,
+    invite_expires_at TIMESTAMP WITH TIME ZONE,
+    is_active boolean DEFAULT true,
+    last_login timestamp without time zone,
+    last_seen_at timestamp with time zone,
+    "position" character varying(100),
+    timezone character varying(100),
+    language character varying(10) DEFAULT 'en'::character varying,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users (email);
+CREATE INDEX IF NOT EXISTS idx_users_organization ON users (organization_id);
+CREATE INDEX IF NOT EXISTS idx_users_last_seen_at ON users (last_seen_at);
+
+-- ============================================================
+
+
 CREATE FUNCTION add_creator_as_owner() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -595,7 +652,7 @@ CREATE TABLE IF NOT EXISTS deals (
     id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     title character varying(255) NOT NULL,
-    lead_id uuid REFERENCES leads(id) ON DELETE SET NULL;
+    lead_id uuid, -- Reference added via ALTER TABLE later
     description text,
     value numeric(15,2),
     currency character varying(10) DEFAULT 'USD'::character varying,
@@ -1874,21 +1931,18 @@ CREATE TABLE IF NOT EXISTS notification_templates (
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS notifications (
-    id uuid DEFAULT uuid_generate_v4() NOT NULL,
-    org_id SET NOT NULL,
-    title SET NOT NULL,
-    target_user_id SET NOT NULL,
-    type SET NOT NULL,
-    category SET NOT NULL,
-    message SET NOT NULL,
-    metadata SET NOT NULL,
-    category VARCHAR(40) DEFAULT 'general';
-    is_read SET NOT NULL,
-    action_url VARCHAR(500),
-    actor_user_id UUID,
-    created_at SET NOT NULL,
-    link character varying(500),
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    org_id uuid NOT NULL,
+    target_user_id uuid NOT NULL,
+    actor_user_id uuid,
+    title character varying(255) NOT NULL,
+    message text NOT NULL,
+    type character varying(50) NOT NULL,
+    category character varying(50) DEFAULT 'general',
     is_read boolean DEFAULT false,
+    action_url text,
+    link character varying(500),
+    metadata jsonb DEFAULT '{}'::jsonb,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
 );
@@ -1900,18 +1954,7 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user_unread
 CREATE INDEX IF NOT EXISTS idx_notifications_user_org
     ON notifications (target_user_id, org_id);
 
---
--- Name: organizations; Type: TABLE; Schema: public
---
-
-CREATE TABLE IF NOT EXISTS organizations (
-    id uuid DEFAULT uuid_generate_v4() NOT NULL,
-    name character varying(255) NOT NULL,
-    domain character varying(255),
-    settings jsonb DEFAULT '{}'::jsonb,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
-);
+-- (organizations table moved to top)
 
 
 --
@@ -2658,46 +2701,7 @@ CREATE TABLE IF NOT EXISTS user_roles (
 
 
 
---
--- Name: users; Type: TABLE; Schema: public
---
-CREATE TYPE user_role AS ENUM (
-    'super_admin',
-    'admin',
-    'manager',
-    'team_lead',
-    'employee'
-);
-
-CREATE TABLE IF NOT EXISTS users (
-    id uuid DEFAULT uuid_generate_v4() NOT NULL,
-    organization_id uuid REFERENCES organizations(id),
-    org_id uuid REFERENCES organizations(id),
-    full_name character varying(255) NOT NULL,
-    email character varying(255) NOT NULL,
-    password_hash character varying(255) NOT NULL,
-    phone character varying(50),
-    role user_role DEFAULT 'employee'::user_role,
-    department character varying(100),
-    bio text,
-    avatar_url character varying(500),
-    password_change_required BOOLEAN DEFAULT FALSE,
-    module_permissions JSONB DEFAULT '{}'::jsonb,
-    invite_token TEXT UNIQUE,
-    invite_expires_at TIMESTAMP WITH TIME ZONE,
-    is_active boolean DEFAULT true,
-    last_login timestamp without time zone,
-    last_seen_at timestamp with time zone,
-    "position" character varying(100),
-    timezone character varying(100),
-    language character varying(10) DEFAULT 'en'::character varying,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users (email);
-CREATE INDEX IF NOT EXISTS idx_users_organization ON users (organization_id);
-CREATE INDEX IF NOT EXISTS idx_users_last_seen_at ON users (last_seen_at);
+-- (users table and types moved to top)
 
 CREATE TABLE IF NOT EXISTS invites (
     id UUID PRIMARY KEY,
@@ -3783,12 +3787,7 @@ ALTER TABLE ONLY notifications
     ADD CONSTRAINT notifications_pkey PRIMARY KEY (id);
 
 
---
--- Name: organizations organizations_pkey; Type: CONSTRAINT; Schema: public
---
-
-ALTER TABLE ONLY organizations
-    ADD CONSTRAINT organizations_pkey PRIMARY KEY (id);
+-- (organizations pkey moved to top)
 
 
 --
@@ -4095,12 +4094,7 @@ ALTER TABLE ONLY users
     ADD CONSTRAINT users_email_key UNIQUE (email);
 
 
---
--- Name: users users_pkey; Type: CONSTRAINT; Schema: public
---
-
-ALTER TABLE ONLY users
-    ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+-- (users pkey moved to top)
 
 
 --
@@ -9021,9 +9015,9 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
       auth text NOT NULL,
       created_at timestamptz DEFAULT CURRENT_TIMESTAMP,
       updated_at timestamptz DEFAULT CURRENT_TIMESTAMP
-)
+    );
 
-CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id ON push_subscriptions(user_id)
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id ON push_subscriptions(user_id);
 
 
 -- Create email_crm_links table to track connections between emails and CRM entities
