@@ -4,12 +4,17 @@ const db = require('../../config/database');
 const handleWebhook = async (req, res, next) => {
   try {
     const payload = req.body;
-    // In Instantly, we might need to identify the org by a secret in the URL
-    // e.g., /api/webhooks/instantly/:orgId
     const { orgId } = req.params;
 
     if (!orgId) {
       return res.status(400).json({ error: 'Organization ID is required' });
+    }
+
+    // Verify org exists — if not, return 200 so Instantly stops retrying
+    const orgCheck = await db.query('SELECT id FROM organizations WHERE id = $1', [orgId]);
+    if (orgCheck.rows.length === 0) {
+      console.warn(`[Instantly Webhook] Unknown org_id ${orgId} — ignoring`);
+      return res.status(200).json({ success: true, ignored: true });
     }
 
     console.log(`[Instantly Webhook] Received event for org ${orgId}:`, payload.event_type);
@@ -19,7 +24,8 @@ const handleWebhook = async (req, res, next) => {
     res.status(200).json({ success: true });
   } catch (error) {
     console.error('[Instantly Webhook] Error:', error);
-    res.status(500).json({ error: error.message });
+    // Return 200 to prevent Instantly from retrying on application errors
+    res.status(200).json({ success: false, error: error.message });
   }
 };
 
