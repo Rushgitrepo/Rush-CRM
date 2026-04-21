@@ -226,17 +226,21 @@ const getAll = async (req, res, next) => {
       paramIndex++;
     }
 
+    const isAdmin = req.user.role === 'super_admin' || req.user.role === 'admin';
+
     // Workspace filtering
     if (workspaceId) {
       query += ` AND l.workspace_id = $${paramIndex}`;
       params.push(workspaceId);
       paramIndex++;
+    } else if (isAdmin) {
+      // Admins see all leads in the org — no extra filter
     } else {
-      // Only show leads user has access to via workspace membership or shared access
+      // Regular users: must own/be assigned, or have workspace access
       query += ` AND (
-        l.workspace_id IS NULL OR
+        l.assigned_to = $${paramIndex} OR l.owner_id = $${paramIndex} OR l.user_id = $${paramIndex} OR l.created_by = $${paramIndex} OR
         EXISTS (
-          SELECT 1 FROM workgroup_members wm 
+          SELECT 1 FROM workgroup_members wm
           WHERE wm.workgroup_id = l.workspace_id AND wm.user_id = $${paramIndex}
         ) OR
         EXISTS (
@@ -307,10 +311,13 @@ const getAll = async (req, res, next) => {
       }
     }
 
-    const countResult = await db.query(
-      'SELECT COUNT(*) FROM public.leads WHERE org_id = $1',
-      [req.user.orgId]
-    );
+    const countParams = [req.user.orgId];
+    let countQuery = 'SELECT COUNT(*) FROM public.leads WHERE org_id = $1';
+    if (!isAdmin) {
+      countQuery += ` AND (assigned_to = $2 OR owner_id = $2 OR user_id = $2 OR created_by = $2)`;
+      countParams.push(req.user.id);
+    }
+    const countResult = await db.query(countQuery, countParams);
 
     res.json({
       data: result.rows.map(lead => ({

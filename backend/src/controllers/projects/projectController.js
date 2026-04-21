@@ -5,9 +5,17 @@ const getAll = async (req, res, next) => {
     const { page = 1, limit = 50, status } = req.query;
     const offset = (page - 1) * limit;
 
+    const isAdmin = req.user.role === 'super_admin' || req.user.role === 'admin';
+
     let query = `SELECT * FROM public.projects WHERE org_id = $1`;
     const params = [req.user.orgId];
     let paramIndex = 2;
+
+    if (!isAdmin) {
+      query += ` AND (manager_id = $${paramIndex} OR created_by = $${paramIndex} OR owner_id = $${paramIndex} OR $${paramIndex} = ANY(team_members))`;
+      params.push(req.user.id);
+      paramIndex++;
+    }
 
     if (status) {
       query += ` AND status = $${paramIndex}`;
