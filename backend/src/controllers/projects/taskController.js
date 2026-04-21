@@ -6,9 +6,17 @@ const getAll = async (req, res, next) => {
     const { page = 1, limit = 50, projectId, status, assignedTo } = req.query;
     const offset = (page - 1) * limit;
 
+    const isAdmin = req.user.role === 'super_admin' || req.user.role === 'admin';
+
     let query = `SELECT * FROM public.tasks WHERE org_id = $1`;
     const params = [req.user.orgId];
     let paramIndex = 2;
+
+    if (!isAdmin) {
+      query += ` AND (assigned_to = $${paramIndex} OR created_by = $${paramIndex})`;
+      params.push(req.user.id);
+      paramIndex++;
+    }
 
     // Only add filters if they have actual values (not undefined or 'undefined' strings)
     if (projectId && projectId !== 'undefined') {

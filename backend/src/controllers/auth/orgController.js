@@ -46,11 +46,11 @@ const update = async (req, res, next) => {
 const getInvites = async (req, res, next) => {
   try {
     const result = await db.query(
-      `SELECT oi.*, p.full_name as inviter_name
-       FROM public.organization_invites oi
-       LEFT JOIN public.profiles p ON p.id = oi.invited_by
-       WHERE oi.org_id = $1
-       ORDER BY oi.created_at DESC`,
+      `SELECT id, email, role, full_name, expires_at, created_at,
+              NULL::uuid AS invited_by, NULL::text AS inviter_name, NULL::timestamp AS accepted_at
+       FROM public.invites
+       WHERE org_id = $1
+       ORDER BY created_at DESC`,
       [req.user.orgId]
     );
 
