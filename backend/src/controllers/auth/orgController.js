@@ -1,4 +1,6 @@
 const db = require('../../config/database');
+const { v4: uuidv4 } = require('uuid');
+const systemEmailService = require('../../services/systemEmailService');
 
 const getCurrent = async (req, res, next) => {
   try {
@@ -50,6 +52,9 @@ const getInvites = async (req, res, next) => {
               NULL::uuid AS invited_by, NULL::text AS inviter_name, NULL::timestamp AS accepted_at
        FROM public.invites
        WHERE org_id = $1
+         AND NOT EXISTS (
+           SELECT 1 FROM public.users u WHERE u.email = invites.email AND u.is_active = true
+         )
        ORDER BY created_at DESC`,
       [req.user.orgId]
     );
@@ -62,23 +67,30 @@ const getInvites = async (req, res, next) => {
 
 const createInvite = async (req, res, next) => {
   try {
-    const { email, role } = req.body;
-
-    // Check if user already exists
+    const { email, role, fullName } = req.body;
     const userCheck = await db.query('SELECT id FROM public.users WHERE email = $1', [email]);
     if (userCheck.rows.length > 0) {
       return res.status(409).json({ error: 'Email already registered' });
     }
 
-    // Remove any existing invitation for this email to allow re-inviting
-    await db.query('DELETE FROM public.organization_invites WHERE email = $1', [email]);
+    await db.query('DELETE FROM public.invites WHERE email = $1', [email]);
+
+    const inviteId = uuidv4();
+    const inviteToken = uuidv4();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     const result = await db.query(
-      `INSERT INTO public.organization_invites (org_id, email, role, invited_by)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO public.invites (id, email, full_name, role, org_id, invite_token, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [req.user.orgId, email, role || 'employee', req.user.id]
+      [inviteId, email, fullName || null, role || 'employee', req.user.orgId, inviteToken, expiresAt]
     );
+
+    try {
+      await systemEmailService.sendInvite(email, fullName || email, inviteToken);
+    } catch (emailErr) {
+      console.error('Failed to send invite email:', emailErr.message);
+    }
 
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -91,7 +103,7 @@ const deleteInvite = async (req, res, next) => {
     const { id } = req.params;
 
     const result = await db.query(
-      'DELETE FROM public.organization_invites WHERE id = $1 AND org_id = $2 RETURNING id',
+      'DELETE FROM public.invites WHERE id = $1 AND org_id = $2 RETURNING id',
       [id, req.user.orgId]
     );
 
