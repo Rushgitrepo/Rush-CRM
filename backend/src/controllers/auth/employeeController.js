@@ -8,10 +8,6 @@ const getAll = async (req, res, next) => {
     const { page = 1, limit = 50, search } = req.query;
     const offset = (page - 1) * limit;
 
-    // Fetch requester's role
-    const requesterResult = await db.query('SELECT role FROM public.users WHERE id = $1', [req.user.id]);
-    const requesterRole = requesterResult.rows[0]?.role;
-
     let query = `
       SELECT u.id, u.email, u.full_name, u.role, u.department, u.phone, u.position, u.is_active, 
              u.avatar_url, u.created_at, u.updated_at, u.module_permissions, u.password_change_required
@@ -27,10 +23,10 @@ const getAll = async (req, res, next) => {
     // Filter by active status
     conditions.push(`u.is_active = true`);
 
-    // Security: Non-super_admins cannot see super_admins
-    if (requesterRole !== 'super_admin') {
-      conditions.push(`u.role != 'super_admin'`);
-    }
+    // Never show super_admins in the employees list, and never show the requester themselves
+    conditions.push(`u.role != 'super_admin'`);
+    conditions.push(`u.id != $${params.length + 1}`);
+    params.push(req.user.id);
 
     if (search) {
       const searchNum = params.length + 1;
