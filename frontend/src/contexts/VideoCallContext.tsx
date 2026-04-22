@@ -60,12 +60,17 @@ interface VideoCallContextType extends VideoCallState {
 const VideoCallContext = createContext<VideoCallContextType | undefined>(undefined);
 
 // STUN/TURN servers for NAT traversal
+// TURN is required for production behind NAT/reverse proxy — STUN alone only works on local networks
 const ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' },
-  { urls: 'stun:stun2.l.google.com:19302' },
-  { urls: 'stun:stun3.l.google.com:19302' },
-  { urls: 'stun:stun4.l.google.com:19302' },
+  {
+    urls: [
+      'turn:rms.rushcorporation.com:3478',
+      'turn:rms.rushcorporation.com:3478?transport=tcp',
+    ],
+    username: import.meta.env.VITE_TURN_USERNAME || '',
+    credential: import.meta.env.VITE_TURN_CREDENTIAL || '',
+  },
 ];
 
 export function VideoCallProvider({ children }: { children: React.ReactNode }) {
