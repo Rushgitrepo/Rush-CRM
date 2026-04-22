@@ -24,7 +24,12 @@ export default function ProjectReportPage() {
     queryFn: async () => {
       if (!token) throw new Error("No token");
 
-      const data = await api.get<any>(`/projects/report/${token}`).catch((e) => { throw new Error(e.message || 'Invalid or expired share link'); });
+      const data = await api.get<any>(`/projects/report/${token}`).catch((e) => { 
+        if (e.response?.status === 403) {
+          throw new Error('Access denied. This share link has been disabled.');
+        }
+        throw new Error(e.message || 'Invalid or expired share link'); 
+      });
       return data;
     },
     enabled: !!token,

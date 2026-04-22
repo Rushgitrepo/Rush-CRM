@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,10 +9,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { User, Building2, Bell, Palette, Shield, Globe, Mail, Phone, Camera, Save, KeyRound, Eye, EyeOff } from "lucide-react";
+import { User, Building2, Bell, Palette, Shield, Globe, Mail, Phone, Camera, Save, KeyRound, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { api } from "@/lib/api";
+import { getAvatarUrl } from "@/lib/utils";
 import { toast } from "sonner";
 
 export default function SettingsPage() {
@@ -71,6 +72,8 @@ function ProfileSettings() {
   const [phone, setPhone] = useState((profile as any)?.phone || "");
   const [jobTitle, setJobTitle] = useState((profile as any)?.position || (profile as any)?.job_title || "");
   const [department, setDepartment] = useState((profile as any)?.department || "");
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -132,6 +135,31 @@ function ProfileSettings() {
     setChangingPassword(false);
   };
 
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image size must be less than 5MB");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("avatar", file);
+
+    setUploadingAvatar(true);
+    try {
+      await api.post("/auth/upload-avatar", formData);
+      toast.success("Profile photo updated");
+      await refreshProfile();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || "Failed to upload photo");
+    } finally {
+      setUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   const initials = profile?.full_name
     ?.split(" ")
     .map((n) => n[0])
@@ -151,18 +179,45 @@ function ProfileSettings() {
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="flex items-center gap-6">
-            <Avatar className="h-20 w-20">
-              <AvatarImage src={profile?.avatar_url || undefined} />
-              <AvatarFallback className="text-xl bg-primary text-primary-foreground">{initials}</AvatarFallback>
-            </Avatar>
+            <div className="relative group">
+              <Avatar className="h-24 w-24 border-2 border-primary/20">
+                <AvatarImage src={getAvatarUrl(profile?.avatar_url)} />
+                <AvatarFallback className="text-2xl bg-primary text-primary-foreground">{initials}</AvatarFallback>
+              </Avatar>
+              <button 
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingAvatar}
+                className="absolute inset-0 flex items-center justify-center bg-black/40 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity disabled:cursor-not-allowed"
+              >
+                {uploadingAvatar ? <Loader2 className="h-6 w-6 animate-spin" /> : <Camera className="h-6 w-6" />}
+              </button>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleAvatarChange} 
+                className="hidden" 
+                accept="image/*" 
+              />
+            </div>
             <div>
-              <p className="font-medium text-foreground">{profile?.full_name}</p>
+              <p className="font-bold text-xl text-foreground">{profile?.full_name}</p>
               <p className="text-sm text-muted-foreground">{user?.email}</p>
-              {currentRole && (
-                <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
-                  {currentRole.name}
-                </span>
-              )}
+              <div className="flex flex-wrap gap-2 mt-2">
+                {currentRole && (
+                  <span className="inline-block text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+                    {currentRole.name}
+                  </span>
+                )}
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-7 text-xs" 
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingAvatar}
+                >
+                  Change Photo
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -349,28 +404,49 @@ function OrganizationSettings() {
 }
 
 function NotificationSettings() {
-  const [emailNotifs, setEmailNotifs] = useState(true);
-  const [dealUpdates, setDealUpdates] = useState(true);
-  const [leadAssignment, setLeadAssignment] = useState(true);
-  const [taskReminders, setTaskReminders] = useState(true);
-  const [calendarReminders, setCalendarReminders] = useState(true);
-  const [weeklyDigest, setWeeklyDigest] = useState(false);
-  const [mentionAlerts, setMentionAlerts] = useState(true);
-  const [systemAlerts, setSystemAlerts] = useState(true);
+  const { profile, refreshProfile } = useAuth();
+  const [saving, setSaving] = useState(false);
+  const [settings, setSettings] = useState<any>({
+    crm: true,
+    tasks: true,
+    hrms: true,
+    recruitment: true,
+    collaboration: true,
+    general: true
+  });
 
-  const saveNotifications = () => {
-    toast.success("Notification preferences saved");
+  useEffect(() => {
+    if (profile?.notification_settings) {
+      setSettings(profile.notification_settings);
+    }
+  }, [profile]);
+
+  const toggleSetting = (key: string) => {
+    setSettings((prev: any) => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  const saveNotifications = async () => {
+    setSaving(true);
+    try {
+      await api.patch("/auth/notification-settings", { settings });
+      toast.success("Notification preferences saved");
+      await refreshProfile();
+    } catch (err) {
+      toast.error("Failed to save preferences");
+    }
+    setSaving(false);
   };
 
   const notifItems = [
-    { label: "Email Notifications", desc: "Receive notifications via email", icon: Mail, value: emailNotifs, setter: setEmailNotifs },
-    { label: "Deal Updates", desc: "Get notified when deals change stages", icon: Globe, value: dealUpdates, setter: setDealUpdates },
-    { label: "Lead Assignments", desc: "Notify when a lead is assigned to you", icon: User, value: leadAssignment, setter: setLeadAssignment },
-    { label: "Task Reminders", desc: "Reminders for upcoming and overdue tasks", icon: Bell, value: taskReminders, setter: setTaskReminders },
-    { label: "Calendar Reminders", desc: "Event and meeting reminders", icon: Bell, value: calendarReminders, setter: setCalendarReminders },
-    { label: "Weekly Digest", desc: "Weekly summary of your activity", icon: Mail, value: weeklyDigest, setter: setWeeklyDigest },
-    { label: "Mention Alerts", desc: "When someone mentions you in comments", icon: User, value: mentionAlerts, setter: setMentionAlerts },
-    { label: "System Alerts", desc: "Important system notifications", icon: Shield, value: systemAlerts, setter: setSystemAlerts },
+    { id: "crm", label: "CRM & Deals", desc: "Leads, deals, and assignment updates", icon: Globe, value: settings.crm },
+    { id: "tasks", label: "Projects & Tasks", desc: "Task assignments and status changes", icon: Bell, value: settings.tasks },
+    { id: "hrms", label: "HR & Leave", desc: "Leave requests and attendance alerts", icon: User, value: settings.hrms },
+    { id: "recruitment", label: "Recruitment", desc: "Candidate status and interview updates", icon: Building2, value: settings.recruitment },
+    { id: "collaboration", label: "Collaboration", desc: "Direct messages and mentions", icon: Mail, value: settings.collaboration },
+    { id: "general", label: "System Alerts", desc: "Important general system notifications", icon: Shield, value: settings.general },
   ];
 
   return (
@@ -380,11 +456,11 @@ function NotificationSettings() {
           <Bell className="h-5 w-5 text-primary" />
           Notification Preferences
         </CardTitle>
-        <CardDescription>Choose which notifications you'd like to receive</CardDescription>
+        <CardDescription>Choose which real-time notifications you'd like to receive</CardDescription>
       </CardHeader>
       <CardContent className="space-y-1">
-        {notifItems.map((item, i) => (
-          <div key={i} className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/50 transition-colors">
+        {notifItems.map((item) => (
+          <div key={item.id} className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/50 transition-colors">
             <div className="flex items-center gap-3">
               <item.icon className="h-4 w-4 text-muted-foreground" />
               <div>
@@ -392,14 +468,14 @@ function NotificationSettings() {
                 <p className="text-xs text-muted-foreground">{item.desc}</p>
               </div>
             </div>
-            <Switch checked={item.value} onCheckedChange={item.setter} />
+            <Switch checked={item.value} onCheckedChange={() => toggleSetting(item.id)} />
           </div>
         ))}
         <Separator className="my-4" />
         <div className="flex justify-end">
-          <Button onClick={saveNotifications}>
+          <Button onClick={saveNotifications} disabled={saving}>
             <Save className="h-4 w-4 mr-2" />
-            Save Preferences
+            {saving ? "Saving..." : "Save Preferences"}
           </Button>
         </div>
       </CardContent>

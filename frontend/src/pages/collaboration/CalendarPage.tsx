@@ -419,7 +419,7 @@ export default function CalendarPage() {
                         </div>
                       ))}
                       <Button 
-                        className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white shadow-lg shadow-green-500/25" 
+                        className="w-full bg-primary hover:from-green-700 hover:to-green-800 text-white shadow-lg shadow-green-500/25" 
                         onClick={() => setConnectDialogOpen(true)}
                       >
                         <Check className="h-4 w-4 mr-2" />

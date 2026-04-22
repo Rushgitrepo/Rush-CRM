@@ -315,8 +315,8 @@ export default function CreateDealPage() {
             </CardContent>
           </Card>
 
-          <Card className="border border-slate-200 bg-white shadow-sm rounded-xl">
-            <CardHeader className="border-b border-slate-200 bg-slate-50/80">
+          <Card className="border   shadow-sm rounded-xl">
+            <CardHeader className="border-b  ">
               <CardTitle>About Deal</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-2 p-6">
@@ -344,8 +344,8 @@ export default function CreateDealPage() {
             </CardContent>
           </Card>
 
-          <Card className="border border-slate-200 bg-white shadow-sm rounded-xl">
-            <CardHeader className="border-b border-slate-200 bg-slate-50/80">
+          <Card className="border   shadow-sm rounded-xl">
+            <CardHeader className="border-b ">
               <CardTitle>More</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-2 p-6">
@@ -383,8 +383,8 @@ export default function CreateDealPage() {
             </CardContent>
           </Card>
 
-          <Card className="border border-slate-200 bg-white shadow-sm rounded-xl">
-            <CardHeader className="border-b border-slate-200 bg-slate-50/80">
+          <Card className="border   shadow-sm rounded-xl">
+            <CardHeader className="border-b  ">
               <CardTitle>Budget & Payment</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-2 p-6">

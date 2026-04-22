@@ -8,8 +8,8 @@ const smsLogController = require('../../controllers/crm/smsLogController');
 router.use(auth, requireOrg);
 
 // Provider management
-router.get('/providers', telephonyController.getProviders);
-router.patch('/providers/:id', telephonyController.updateProvider);
+// router.get('/providers', telephonyController.getProviders);
+// router.patch('/providers/:id', telephonyController.updateProvider);
 
 // Call logs
 router.post('/call-logs', callLogController.createCallLog);

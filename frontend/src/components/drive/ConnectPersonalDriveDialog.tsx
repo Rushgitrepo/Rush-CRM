@@ -24,20 +24,20 @@ const personalDriveTypes = [
     color: "text-red-500",
     bgColor: "bg-red-500/10",
   },
-  {
-    id: "onedrive",
-    name: "OneDrive",
-    icon: Cloud,
-    color: "text-blue-500",
-    bgColor: "bg-blue-500/10",
-  },
-  {
-    id: "icloud",
-    name: "iCloud",
-    icon: Cloud,
-    color: "text-sky-400",
-    bgColor: "bg-sky-400/10",
-  },
+  // {
+  //   id: "onedrive",
+  //   name: "OneDrive",
+  //   icon: Cloud,
+  //   color: "text-blue-500",
+  //   bgColor: "bg-blue-500/10",
+  // },
+  // {
+  //   id: "icloud",
+  //   name: "iCloud",
+  //   icon: Cloud,
+  //   color: "text-sky-400",
+  //   bgColor: "bg-sky-400/10",
+  // },
 ];
 
 interface ConnectPersonalDriveDialogProps {

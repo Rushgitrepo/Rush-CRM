@@ -7,10 +7,10 @@
 const SDK = require('@ringcentral/sdk').SDK;
 const db = require('../config/database');
 
-const RC_CLIENT_ID     = process.env.RC_CLIENT_ID;
+const RC_CLIENT_ID = process.env.RC_CLIENT_ID;
 const RC_CLIENT_SECRET = process.env.RC_CLIENT_SECRET;
-const RC_SERVER_URL    = process.env.RC_SERVER_URL || 'https://platform.ringcentral.com';
-const RC_REDIRECT_URI  = process.env.RC_REDIRECT_URI || 'http://localhost:4000/api/ringcentral/callback';
+const RC_SERVER_URL = process.env.RC_SERVER_URL || 'https://platform.ringcentral.com';
+const RC_REDIRECT_URI = process.env.RC_REDIRECT_URI || 'http://localhost:4000/api/ringcentral/callback';
 
 // ---------------------------------------------------------------------------
 // SDK helpers
@@ -49,7 +49,7 @@ async function exchangeCodeForTokens(code, orgId, userId, redirectUri) {
   // Get raw JSON from response as the SDK's auth().data() can sometimes be empty 
   // depending on the exact SDK state/version behavior.
   const tokenData = await resp.json();
-  
+
   if (!tokenData || (!tokenData.access_token && !tokenData.accessToken)) {
     throw new Error('Invalid token response from RingCentral');
   }
@@ -99,7 +99,7 @@ async function getAuthenticatedPlatform(orgId, userId) {
 
   // Persist refreshed tokens
   const freshData = platform.auth().data();
-  
+
   // Only upsert if we actually have data, to avoid the sticky NULL error if data() is empty
   if (freshData && (freshData.access_token || freshData.accessToken)) {
     await upsertTokens(orgId, userId, freshData);
@@ -111,14 +111,14 @@ async function getAuthenticatedPlatform(orgId, userId) {
 /** Upsert tokens into the DB */
 async function upsertTokens(orgId, userId, tokenData) {
   if (!tokenData) return;
-  
-  const access_token  = tokenData.access_token  || tokenData.accessToken;
+
+  const access_token = tokenData.access_token || tokenData.accessToken;
   const refresh_token = tokenData.refresh_token || tokenData.refreshToken;
-  const token_type    = tokenData.token_type    || tokenData.tokenType || 'bearer';
-  const expires_in    = tokenData.expires_in    || tokenData.expiresIn;
-  const scope         = tokenData.scope;
-  const owner_id      = tokenData.owner_id      || tokenData.ownerId;
-  const endpoint_id   = tokenData.endpoint_id   || tokenData.endpointId;
+  const token_type = tokenData.token_type || tokenData.tokenType || 'bearer';
+  const expires_in = tokenData.expires_in || tokenData.expiresIn;
+  const scope = tokenData.scope;
+  const owner_id = tokenData.owner_id || tokenData.ownerId;
+  const endpoint_id = tokenData.endpoint_id || tokenData.endpointId;
 
   if (!access_token) {
     console.error('[RC] Attempted to upsert NULL access token. tokenData keys:', Object.keys(tokenData));
@@ -467,14 +467,14 @@ async function sendSMS(orgId, userId, { to, text, from }) {
     try {
       const phoneResp = await platform.get('/restapi/v1.0/account/~/extension/~/phone-number');
       const phoneData = await phoneResp.json();
-      
+
       // Find a suitable SMS-capable number
-      const smsCapableNumber = phoneData.records?.find(r => 
-        r.features?.includes('SMS-Capable') || 
-        r.usageType === 'DirectNumber' || 
+      const smsCapableNumber = phoneData.records?.find(r =>
+        r.features?.includes('SMS-Capable') ||
+        r.usageType === 'DirectNumber' ||
         r.usageType === 'MainCompanyNumber'
       );
-      
+
       if (smsCapableNumber) {
         fromNumber = smsCapableNumber.phoneNumber;
       } else {
@@ -558,7 +558,7 @@ async function getConnectionStatus(orgId, userId) {
       platform.get('/restapi/v1.0/account/~/extension/~'),
       platform.get('/restapi/v1.0/account/~/extension/~/phone-number')
     ]);
-    
+
     const ext = await extResp.json();
     const phoneData = await phoneResp.json();
 
@@ -669,12 +669,12 @@ async function handleWebhookEvent(event) {
   if (body.telephonySessionId) {
     const session = body;
     const parties = session.parties || [];
-    
+
     // We only care about completed or recording-available states for logs
     // but often we want to log when it starts or ends.
     // Let's filter for 'Disconnected' to create the final log.
     const isDisconnected = parties.some(p => p.status?.code === 'Disconnected');
-    
+
     if (isDisconnected) {
       // Trigger a sync for this session specifically or just sync all recent 
       // To be safe and reuse logic:
@@ -703,7 +703,7 @@ async function renewAllWebhooks() {
     try {
       const platform = await getAuthenticatedPlatform(wh.org_id, wh.user_id);
       console.log(`[RC] Renewing webhook ${wh.subscription_id} for user ${wh.user_id}`);
-      
+
       const resp = await platform.post(`/restapi/v1.0/subscription/${wh.subscription_id}/renew`);
       const data = await resp.json();
 

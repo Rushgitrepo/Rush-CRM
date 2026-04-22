@@ -71,7 +71,7 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
     const saved = localStorage.getItem('active_telephony_provider');
     if (saved) {
       setState(prev => ({ ...prev, activeProvider: saved as TelephonyProviderName }));
-      
+
       // If active provider is RingCentral, refresh status to get numbers
       if (saved === 'ringcentral') {
         const refreshStatus = async () => {
@@ -80,18 +80,18 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
             if (status?.connected && !status?.expired) {
               if (status.allNumbers) {
                 const currentFrom = localStorage.getItem('rc_from_number') || status.extensionNumber || '';
-                setState(prev => ({ 
-                  ...prev, 
+                setState(prev => ({
+                  ...prev,
                   availableNumbers: status.allNumbers,
                   fromNumber: currentFrom
                 }));
                 localStorage.setItem('rc_available_numbers', JSON.stringify(status.allNumbers));
                 if (!localStorage.getItem('rc_from_number') && status.extensionNumber) {
-                   localStorage.setItem('rc_from_number', status.extensionNumber);
+                  localStorage.setItem('rc_from_number', status.extensionNumber);
                 }
               }
             }
-          } catch (e) {}
+          } catch (e) { }
         };
         refreshStatus();
       }
@@ -104,8 +104,8 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
             setState(prev => ({ ...prev, activeProvider: 'ringcentral' }));
             localStorage.setItem('active_telephony_provider', 'ringcentral');
             if (status.allNumbers) {
-              setState(prev => ({ 
-                ...prev, 
+              setState(prev => ({
+                ...prev,
                 availableNumbers: status.allNumbers,
                 fromNumber: status.extensionNumber || ''
               }));
@@ -150,7 +150,7 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
       // ========================================
       if (type === 'rc-post-message-request' && path === '/callLogger') {
         console.log('[RC CallLogger] Received call log event:', body);
-        
+
         // Respond to widget immediately so it doesn't hang
         if (iframeRef.current?.contentWindow && requestId) {
           iframeRef.current.contentWindow.postMessage({
@@ -166,10 +166,10 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
 
         // Only process completed/ended calls
         const callResult = callData.result || callData.telephonyStatus;
-        const isCompleted = callResult === 'Call connected' || 
-                            callResult === 'Disconnected' || 
-                            callResult === 'NoCall' ||
-                            callData.duration > 0;
+        const isCompleted = callResult === 'Call connected' ||
+          callResult === 'Disconnected' ||
+          callResult === 'NoCall' ||
+          callData.duration > 0;
 
         if (!isCompleted && callData.telephonyStatus !== 'NoCall') return;
 
@@ -366,15 +366,15 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
         try {
           const status = await api.get<any>('/ringcentral/status');
           if (status?.connected && status.allNumbers) {
-            setState(prev => ({ 
-              ...prev, 
+            setState(prev => ({
+              ...prev,
               availableNumbers: status.allNumbers,
               fromNumber: status.extensionNumber || ''
             }));
             localStorage.setItem('rc_available_numbers', JSON.stringify(status.allNumbers));
             localStorage.setItem('rc_from_number', status.extensionNumber || '');
           }
-        } catch (e) {}
+        } catch (e) { }
       }
     } else {
       localStorage.removeItem('active_telephony_provider');
@@ -398,7 +398,7 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
       clean = '+' + clean;
     }
     console.log('[Softphone] Dialing:', { phoneNumber, clean, activeProvider: state.activeProvider, entity });
-    
+
     // Store entity context for the upcoming call
     pendingEntityRef.current = entity || null;
     activeCallLogIdRef.current = null;
@@ -406,13 +406,13 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
     // USE EMBEDDABLE WIDGET FOR REAL-TIME VOICE/RINGING/UI
     // This is what provides the actual softphone experience
     toast.info('Opening RingCentral dialpad...');
-    setState(prev => ({ 
-      ...prev, 
-      isOpen: true, 
+    setState(prev => ({
+      ...prev,
+      isOpen: true,
       isPanelMinimized: false,
       rcCurrentTab: 'widget' // Force to widget tab for real-time UI
     }));
-    
+
     // Send number to RingCentral widget with multiple methods for better compatibility
     if (iframeRef.current?.contentWindow) {
       // Method 1: Standard new call adapter
@@ -420,7 +420,7 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
         type: 'rc-adapter-new-call',
         phoneNumber: clean,
       }, '*');
-      
+
       // Method 2: Set dialpad number directly
       setTimeout(() => {
         if (iframeRef.current?.contentWindow) {
@@ -431,7 +431,7 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
           }, '*');
         }
       }, 300);
-      
+
       // Method 3: Direct dialpad manipulation via postMessage request
       setTimeout(() => {
         if (iframeRef.current?.contentWindow) {
@@ -446,7 +446,7 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
           }, '*');
         }
       }, 600);
-      
+
       // Method 4: Try to trigger dialpad focus and input
       setTimeout(() => {
         if (iframeRef.current?.contentWindow) {
@@ -460,7 +460,7 @@ export function SoftphoneProvider({ children }: { children: React.ReactNode }) {
           }, '*');
         }
       }, 900);
-      
+
       console.log('[Softphone] Number sent to RingCentral widget:', clean);
     }
   }, [state.activeProvider, iframeRef]);
@@ -493,17 +493,17 @@ const defaultSoftphoneContext: SoftphoneContextType = {
   isConnecting: false,
   fromNumber: '',
   availableNumbers: [],
-  openSoftphone: () => {},
-  closeSoftphone: () => {},
-  toggleSoftphone: () => {},
-  minimizePanel: () => {},
-  expandPanel: () => {},
-  setActiveProvider: async () => {},
-  dialNumber: () => {},
-  sendSMS: async () => {},
-  ringOut: async () => {},
-  setFromNumber: () => {},
-  setRcCurrentTab: () => {},
+  openSoftphone: () => { },
+  closeSoftphone: () => { },
+  toggleSoftphone: () => { },
+  minimizePanel: () => { },
+  expandPanel: () => { },
+  setActiveProvider: async () => { },
+  dialNumber: () => { },
+  sendSMS: async () => { },
+  ringOut: async () => { },
+  setFromNumber: () => { },
+  setRcCurrentTab: () => { },
   iframeRef: { current: null },
 };
 

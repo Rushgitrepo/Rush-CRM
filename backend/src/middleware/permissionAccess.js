@@ -38,8 +38,10 @@ const checkPermission = (module, action) => {
         return next();
       }
 
-      // 3. Fallback for common permissions based on legacy roles if needed
-      // (Optional: Implement role-based defaults here)
+      // 3. Fallback: all authenticated org users can view members (needed for collaboration features)
+      if (module === 'members' && action === 'view') {
+        return next();
+      }
 
       res.status(403).json({
         error: 'Permission Denied',

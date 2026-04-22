@@ -401,7 +401,7 @@ export default function CustomerDetailPage() {
                       </DropdownMenuItem>
                       <DropdownMenuItem onSelect={() => handleScrollToActivity("activity", "booking")} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
                         <div className="p-2 bg-orange-50 rounded-md">
-                          <Calendar className="h-4 w-4 text-orange-600" />
+                          <Calendar className="h-4 w-4 text-primary" />
                         </div>
                         <p className="font-semibold text-sm text-slate-900">Schedule Review</p>
                       </DropdownMenuItem>

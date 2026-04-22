@@ -17,7 +17,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { leadsApi, contactsApi, companiesApi, dealsApi, attendanceApi, leaveApi, employeesApi } from "@/lib/api";
+import { getAvatarUrl } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { NotificationsPopover } from "@/components/notifications/NotificationsPopover";
 
 export function TopBar() {
   const navigate = useNavigate();
@@ -66,27 +69,6 @@ export function TopBar() {
       };
     },
   });
-
-  const { data: notifData } = useQuery({
-    queryKey: ["topbar", "notifications"],
-    queryFn: async () => {
-      const [leaves, attendance, employees] = await Promise.all([
-        leaveApi.getAll({ status: "pending", limit: 5 }),
-        attendanceApi.getAll({ date: new Date().toISOString().split("T")[0], limit: 10 }),
-        employeesApi.getAll({ limit: 5 }),
-      ]);
-      const toArray = (res: any) => (Array.isArray(res) ? res : res?.data ?? []);
-      const leaveItems = toArray(leaves);
-      const lateItems = toArray(attendance).filter((a: any) => (a.status || "").toLowerCase() === "late");
-      const employeeItems = toArray(employees);
-      return { leaveItems, lateItems, employeeItems };
-    },
-  });
-
-  const unreadCount = useMemo(() => {
-    if (!notifData) return 0;
-    return notifData.leaveItems.length + notifData.lateItems.length + notifData.employeeItems.length;
-  }, [notifData]);
 
   const markAllRead = () => setReadIds(new Set(searchResults ? Object.values(searchResults).flat().map((r: any) => String(r.id)) : []));
 
@@ -222,20 +204,18 @@ export function TopBar() {
         {/* Softphone Toggle */}
         <SoftphoneToggleButton />
 
+        {/* Theme Toggle */}
+        <ThemeToggle />
+
         {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative" onClick={() => navigate('/hrms/notifications')}>
-          <Bell className="h-5 w-5" />
-          <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-medium text-destructive-foreground">
-            {unreadCount}
-          </span>
-        </Button>
+        <NotificationsPopover />
 
         {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="gap-2 pl-2">
               <Avatar className="h-8 w-8 hover:cursor-pointer hover:bg-primary/80 hover:text-black">
-                <AvatarImage src={profile?.avatar_url || undefined} />
+                <AvatarImage src={getAvatarUrl(profile?.avatar_url)} />
                 <AvatarFallback>{getInitials(profile?.full_name || 'User')}</AvatarFallback>
               </Avatar>
               <div className="hidden md:flex flex-col items-start">

@@ -110,10 +110,10 @@ export function EntityTable<T extends { id?: string | number }>({
               {columns.map((col) => (
                 <TableHead
                   key={String(col.key)}
-                  className={cn("text-xs uppercase tracking-wide text-muted-foreground", col.className, col.sortable && "cursor-pointer select-none")}
+                  className={cn("text-xs uppercase tracking-wide text-muted-foreground", col.className, col.align === "right" && "text-right", col.sortable && "cursor-pointer select-none")}
                   onClick={() => handleSort(String(col.key), col.sortable)}
                 >
-                  <div className="flex items-center gap-1">
+                  <div className={cn("flex items-center gap-1", col.align === "right" && "justify-end")}>
                     {col.header}
                     {sortKey === col.key && (direction === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
                   </div>

@@ -39,13 +39,21 @@ export default function CompanyDetailPage() {
       if (val !== (company as Record<string, unknown>)[key]) changes[key] = val;
     });
     if (Object.keys(changes).length === 0) { setEditing(false); return; }
-    updateCompany.mutate({ id: company.id, ...changes }, {
+    
+    // Filter out undefined values
+    const filteredChanges = Object.fromEntries(
+      Object.entries(changes).filter(([_, val]) => val !== undefined)
+    );
+    
+    if (Object.keys(filteredChanges).length === 0) { setEditing(false); return; }
+    
+    updateCompany.mutate({ id: company.id, ...filteredChanges }, {
       onSuccess: () => {
         setEditing(false);
         createActivity.mutate({
           entity_type: 'company', entity_id: company.id,
           activity_type: 'update', title: 'Updated company fields',
-          description: `Changed: ${Object.keys(changes).join(', ')}`,
+          description: `Changed: ${Object.keys(filteredChanges).join(', ')}`,
         });
       }
     });
@@ -91,20 +99,6 @@ export default function CompanyDetailPage() {
               <CollapsibleContent>
                 <div className="p-4 pt-0 space-y-3">
                   <Field label="Company Name" value={form.name as string} onChange={(v) => set("name", v)} editing={editing} />
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Company Type</Label>
-                    {editing ? (
-                      <Select value={form.company_type as string || ""} onValueChange={(v) => set("company_type", v)}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="client">Client</SelectItem>
-                          <SelectItem value="supplier">Supplier</SelectItem>
-                          <SelectItem value="partner">Partner</SelectItem>
-                          <SelectItem value="prospect">Prospect</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    ) : <p className="text-sm capitalize">{(form.company_type as string) || "—"}</p>}
-                  </div>
                   <Field label="Industry" value={form.industry as string} onChange={(v) => set("industry", v)} editing={editing} />
                   <Field label="Revenue" value={form.revenue as string} onChange={(v) => set("revenue", v)} editing={editing} />
                   {editing ? (
@@ -121,7 +115,6 @@ export default function CompanyDetailPage() {
                   )}
                   <Field label="Email" value={form.email as string} onChange={(v) => set("email", v)} editing={editing} />
                   <Field label="Website" value={form.website as string} onChange={(v) => set("website", v)} editing={editing} />
-                  <Field label="Messenger" value={form.messenger as string} onChange={(v) => set("messenger", v)} editing={editing} />
                   <Field label="Address" value={form.address as string} onChange={(v) => set("address", v)} editing={editing} />
                   <Field label="Employee Count" value={form.employee_count as string} onChange={(v) => set("employee_count", v)} editing={editing} />
                 </div>

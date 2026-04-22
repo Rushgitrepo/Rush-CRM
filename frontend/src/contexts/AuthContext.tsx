@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { api, authApi } from '@/lib/api';
+import { LoadingScreen } from '@/components/ui/loading-screen';
 
 interface Profile {
   id: string;
@@ -9,6 +10,7 @@ interface Profile {
   avatar_url: string | null;
   password_change_required?: boolean;
   module_permissions?: Record<string, string[]>;
+  notification_settings?: Record<string, boolean>;
 }
 
 interface UserRole {
@@ -46,7 +48,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // normalize camelCase from backend to snake_case
       const normalized = {
         ...profileData,
-        org_id: profileData.org_id ?? profileData.orgId ?? null,
+        org_id: profileData.org_id ?? profileData.orgId ?? profileData.organization_id ?? null,
         full_name: profileData.full_name ?? profileData.fullName ?? '',
       };
       setProfile(normalized);
@@ -194,7 +196,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         hasPermission,
       }}
     >
-      {children}
+      {loading ? <LoadingScreen /> : children}
     </AuthContext.Provider>
   );
 }

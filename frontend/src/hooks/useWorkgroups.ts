@@ -6,6 +6,8 @@ export interface Workgroup {
   id: string;
   org_id: string;
   name: string;
+  display_name?: string;
+  direct_peer_user_id?: string | null;
   description?: string;
   avatar_color: string;
   type: 'team' | 'project' | 'private' | 'department';
@@ -17,11 +19,19 @@ export interface Workgroup {
   created_by_name: string;
   member_count: number;
   message_count: number;
+  today_message_count?: number;
   last_message_at?: string;
+  last_message_sender_name?: string;
+  unread_count?: number;
+  last_seen_at?: string | null;
+  direct_peer_avatar_url?: string | null;
   is_member: boolean;
   has_recent_activity?: boolean;
   is_online?: boolean;
   user_role?: 'owner' | 'admin' | 'member' | 'guest';
+  settings?: Record<string, any>;
+  manage_member_user_id?: string | null;
+  avatar_url?: string | null;
 }
 
 export interface WorkgroupMember {
@@ -36,6 +46,9 @@ export interface WorkgroupMember {
   email: string;
   avatar_url?: string;
   invited_by_name?: string;
+  user_role?: string;
+  is_online?: boolean;
+  last_seen_at?: string | null;
 }
 
 export interface WorkgroupPost {
@@ -49,10 +62,12 @@ export interface WorkgroupPost {
   is_pinned: boolean;
   is_edited: boolean;
   is_deleted: boolean;
+  deleted_for_users?: string[];
   reactions: Record<string, any>;
   mention_users: string[];
   created_at: string;
   updated_at: string;
+  seen_count?: number;
   author_name: string;
   author_avatar?: string;
   attachments?: Array<Record<string, any>>;
@@ -85,6 +100,8 @@ export function useWorkgroup(id: string) {
     queryKey: ['workgroup', id],
     queryFn: () => workgroupsApi.getById(id),
     enabled: !!id,
+    staleTime: 60000,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -96,10 +113,9 @@ export function useCreateWorkgroup() {
     mutationFn: (data: Partial<Workgroup>) => workgroupsApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['workgroups'] });
-      toast.success('Workgroup created successfully!');
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Failed to create workgroup');
+      toast.error(error?.message || error?.response?.data?.error || 'Failed to create workgroup');
     },
   });
 }
@@ -111,13 +127,19 @@ export function useUpdateWorkgroup() {
   return useMutation({
     mutationFn: ({ id, ...data }: { id: string } & Partial<Workgroup>) => 
       workgroupsApi.update(id, data),
-    onSuccess: (_, variables) => {
+    onSuccess: (updatedWorkgroup, variables) => {
+      queryClient.setQueryData(['workgroup', variables.id], updatedWorkgroup);
+      queryClient.setQueriesData({ queryKey: ['workgroups'] }, (prev: Workgroup[] | undefined) => {
+        if (!Array.isArray(prev)) return prev;
+        return prev.map((wg) =>
+          wg.id === variables.id ? { ...wg, ...updatedWorkgroup } : wg,
+        );
+      });
       queryClient.invalidateQueries({ queryKey: ['workgroups'] });
       queryClient.invalidateQueries({ queryKey: ['workgroup', variables.id] });
-      toast.success('Workgroup updated successfully!');
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Failed to update workgroup');
+      toast.error(error?.message || error?.response?.data?.error || 'Failed to update workgroup');
     },
   });
 }
@@ -144,6 +166,8 @@ export function useWorkgroupMembers(workgroupId: string) {
     queryKey: ['workgroup-members', workgroupId],
     queryFn: () => workgroupsApi.getMembers(workgroupId),
     enabled: !!workgroupId,
+    staleTime: 60000,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -201,17 +225,19 @@ export function useCreatePost() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: ({ workgroupId, content, channelId, parentId, files }: {
+    mutationFn: ({ workgroupId, content, channelId, parentId, files, mentions }: {
       workgroupId: string;
       content: string;
       channelId?: string;
       parentId?: string;
       files?: any[];
+      mentions?: string[];
     }) => workgroupsApi.createPost(workgroupId, {
       content,
       channel_id: channelId,
       parent_id: parentId,
       files,
+      mentions,
     }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['workgroup-posts', variables.workgroupId] });
@@ -284,6 +310,23 @@ export function useDeletePost() {
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.error || 'Failed to delete message');
+    },
+  });
+}
+
+export function useDeletePostForMe() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ postId, workgroupId }: { postId: string; workgroupId: string }) => {
+      return workgroupsApi.deletePostForMe(workgroupId, postId);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['workgroup-posts', variables.workgroupId] });
+      toast.success('Message deleted for you');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to delete message for you');
     },
   });
 }

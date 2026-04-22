@@ -55,7 +55,7 @@ const runExecution = async (executionId, workflowId, orgId, entity) => {
          (execution_id, action_id, status, started_at)
        VALUES ($1, $2, 'running', now())`,
       [executionId, action.id]
-    ).catch(() => {});
+    ).catch(() => { });
 
     try {
       await executeAction(action, entity, orgId);
@@ -65,7 +65,7 @@ const runExecution = async (executionId, workflowId, orgId, entity) => {
          SET status = 'completed', completed_at = now()
          WHERE execution_id = $1 AND action_id = $2`,
         [executionId, action.id]
-      ).catch(() => {});
+      ).catch(() => { });
     } catch (err) {
       success = false;
       errorMsg = `Action "${action.action_type}" failed: ${err.message}`;
@@ -75,7 +75,7 @@ const runExecution = async (executionId, workflowId, orgId, entity) => {
          SET status = 'failed', completed_at = now(), error_message = $3
          WHERE execution_id = $1 AND action_id = $2`,
         [executionId, action.id, err.message]
-      ).catch(() => {});
+      ).catch(() => { });
       break;
     }
   }
@@ -85,7 +85,7 @@ const runExecution = async (executionId, workflowId, orgId, entity) => {
      SET status = $2, completed_at = now(), error_message = $3
      WHERE id = $1`,
     [executionId, success ? 'completed' : 'failed', errorMsg]
-  ).catch(() => {});
+  ).catch(() => { });
 };
 
 const executeAction = async (action, entity, orgId) => {

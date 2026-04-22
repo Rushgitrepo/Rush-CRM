@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../../config/database');
 const Joi = require('joi');
+const emailService = require('../../services/emailService');
 
 const registerSchema = Joi.object({
   email: Joi.string().email().required(),
@@ -121,7 +122,7 @@ const login = async (req, res, next) => {
 const getProfile = async (req, res, next) => {
   try {
     const userResult = await db.query(
-      `SELECT u.id, u.email, u.full_name, u.organization_id, u.org_id, u.avatar_url, u.role, u.phone, u.position, u.department, u.bio, u.timezone, u.language, u.module_permissions
+      `SELECT u.id, u.email, u.full_name, u.organization_id, u.org_id, u.avatar_url, u.role, u.phone, u.position, u.department, u.bio, u.timezone, u.language, u.module_permissions, u.notification_settings
        FROM users u 
        WHERE u.id = $1`,
       [req.user.id]
@@ -162,6 +163,29 @@ const updateProfile = async (req, res, next) => {
   }
 };
 
+const updateNotificationSettings = async (req, res, next) => {
+  try {
+    const { settings } = req.body;
+
+    if (!settings || typeof settings !== 'object') {
+      return res.status(400).json({ error: 'Settings object is required' });
+    }
+
+    const result = await db.query(
+      `UPDATE users 
+       SET notification_settings = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING notification_settings`,
+      [JSON.stringify(settings), req.user.id]
+    );
+
+    res.json(result.rows[0].notification_settings);
+  } catch (err) {
+    next(err);
+  }
+};
+
 const changePassword = async (req, res, next) => {
   try {
     const { currentPassword, newPassword } = req.body;
@@ -188,13 +212,115 @@ const changePassword = async (req, res, next) => {
   }
 };
 
+const uploadAvatar = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    // Path where the file is accessible (assuming /uploads is statically served)
+    const avatarUrl = `/uploads/profiles/${req.file.filename}`;
+
+    await db.query(
+      'UPDATE users SET avatar_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [avatarUrl, req.user.id]
+    );
+
+    res.json({ avatarUrl });
+  } catch (err) {
+    next(err);
+  }
+};
+
 const forgotPassword = async (req, res, next) => {
-  res.status(501).json({ message: 'Not implemented' });
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    // Check if user exists
+    const userResult = await db.query(
+      'SELECT id, email, full_name FROM users WHERE email = $1 AND is_active = true',
+      [email]
+    );
+
+    // Always return success to prevent email enumeration
+    if (userResult.rows.length === 0) {
+      return res.json({ message: 'If an account with that email exists, a password reset link has been sent.' });
+    }
+
+    const user = userResult.rows[0];
+    const resetToken = uuidv4();
+    const expiresAt = new Date(Date.now() + 3600000); // 1 hour from now
+
+    // Store reset token in database
+    await db.query(
+      'INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES ($1, $2, $3) ON CONFLICT (user_id) DO UPDATE SET token = $2, expires_at = $3, created_at = CURRENT_TIMESTAMP',
+      [user.id, resetToken, expiresAt]
+    );
+
+    // Send password reset email
+    try {
+      await emailService.sendPasswordResetEmail(email, resetToken, user.full_name);
+      console.log(`✅ Password reset email sent to ${email}`);
+    } catch (emailError) {
+      console.error(`❌ Failed to send password reset email to ${email}:`, emailError.message);
+      // Don't fail the request if email fails, but log it
+      // In production, you might want to queue this for retry
+    }
+
+    res.json({ message: 'If an account with that email exists, a password reset link has been sent.' });
+  } catch (err) {
+    next(err);
+  }
 };
 
 const resetPassword = async (req, res, next) => {
-  res.status(501).json({ message: 'Not implemented' });
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({ error: 'Token and password are required' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+    }
+
+    // Find valid reset token
+    const tokenResult = await db.query(
+      'SELECT user_id FROM password_reset_tokens WHERE token = $1 AND expires_at > CURRENT_TIMESTAMP',
+      [token]
+    );
+
+    if (tokenResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Invalid or expired reset token' });
+    }
+
+    const userId = tokenResult.rows[0].user_id;
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Update user password
+    await db.query(
+      'UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [hashedPassword, userId]
+    );
+
+    // Delete used reset token
+    await db.query(
+      'DELETE FROM password_reset_tokens WHERE user_id = $1',
+      [userId]
+    );
+
+    res.json({ message: 'Password has been reset successfully. You can now log in with your new password.' });
+  } catch (err) {
+    next(err);
+  }
 };
+
+
 
 const verifyInvite = async (req, res, next) => {
   try {
@@ -285,4 +411,6 @@ module.exports = {
   changePassword,
   acceptInvite,
   verifyInvite,
+  updateNotificationSettings,
+  uploadAvatar,
 };

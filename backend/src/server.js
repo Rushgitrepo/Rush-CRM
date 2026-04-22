@@ -29,14 +29,14 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 
 
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // Increased from 100 to 1000 requests per window
-  message: { error: 'Too many requests, please try again later.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use('/api', limiter);
+// const limiter = rateLimit({
+//   windowMs: 15 * 60 * 1000, // 15 minutes
+//   max: 1000, // Increased from 100 to 1000 requests per window
+//   message: { error: 'Too many requests, please try again later.' },
+//   standardHeaders: true,
+//   legacyHeaders: false,
+// });
+// app.use('/api', limiter);
 
 app.use(appRoutes);
 
@@ -51,7 +51,7 @@ async function bootstrap() {
     // Eagerly verify database connection on startup
     await db.query('SELECT 1');
     console.log('Database connected successfully.');
-    
+
 
     const server = app.listen(PORT, () => {
       console.log(`Server running successfully on port ${PORT}`);

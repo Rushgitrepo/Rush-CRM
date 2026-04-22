@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { usersApi, rolesApi } from '@/lib/api';
+import { usersApi, rolesApi, organizationApi } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
@@ -50,6 +50,16 @@ export function useAdminUsers() {
       if (!orgId) return [];
       const roles = await rolesApi.getAll();
       return roles as any[];
+    },
+    enabled: !!orgId,
+  });
+
+  const invitesQuery = useQuery({
+    queryKey: ['admin-invites', orgId],
+    queryFn: async () => {
+      if (!orgId) return [];
+      const invites = await organizationApi.getInvites();
+      return invites as Invite[];
     },
     enabled: !!orgId,
   });
@@ -119,7 +129,7 @@ export function useAdminUsers() {
 
   return {
     users: usersQuery.data || [],
-    invites: [] as Invite[],
+    invites: invitesQuery.data || [],
     roles: rolesQuery.data || [],
     isLoading: usersQuery.isLoading,
     sendInvite,

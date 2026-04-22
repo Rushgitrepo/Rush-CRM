@@ -72,7 +72,7 @@ export function useUniboxEmails(filters: {
     console.log('📬 New email received in real-time:', email);
     queryClient.invalidateQueries({ queryKey: ["unibox-emails"] });
     queryClient.invalidateQueries({ queryKey: ["unibox-stats"] });
-    
+
     // Optionally show a toast for new emails if user is not on unibox page? 
     // Or just a general notification.
     toast(`New email from ${email.sender_name || email.sender_email}`, {
@@ -95,7 +95,7 @@ export function useUniboxEmails(filters: {
       if (filters.starred) params.starred = 'true';
       if (filters.unread) params.unread = 'true';
       if (filters.priority && filters.priority !== 'all') params.priority = filters.priority;
-      
+
       return api.get("/unibox/emails", params);
     },
     select: (data: any) => {
@@ -142,65 +142,149 @@ export function useUniboxEmails(filters: {
   });
 
   const updateStatus = useMutation({
-    mutationFn: async ({ 
-      emailId, 
-      status, 
-      interaction_notes, 
-      priority, 
-      tags 
-    }: { 
-      emailId: string; 
-      status: string; 
+    mutationFn: async ({
+      emailId,
+      status,
+      interaction_notes,
+      priority,
+      tags
+    }: {
+      emailId: string;
+      status: string;
       interaction_notes?: string;
       priority?: string;
       tags?: string[];
     }) => {
-      return api.patch(`/unibox/emails/${emailId}/status`, { 
-        status, 
-        interaction_notes, 
-        priority, 
-        tags 
+      return api.patch(`/unibox/emails/${emailId}/status`, {
+        status,
+        interaction_notes,
+        priority,
+        tags
       });
+    },
+    onMutate: async ({ emailId, status }) => {
+      await queryClient.cancelQueries({ queryKey: ["unibox-emails"] });
+      const previousData = queryClient.getQueryData(["unibox-emails", filters]);
+
+      queryClient.setQueryData(["unibox-emails", filters], (old: any) => {
+        if (!old?.emails) return old;
+        return {
+          ...old,
+          emails: old.emails.map((email: UniboxEmail) =>
+            email.id === emailId ? { ...email, status } : email
+          ),
+        };
+      });
+
+      return { previousData };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["unibox-emails"] });
       queryClient.invalidateQueries({ queryKey: ["unibox-stats"] });
       toast.success('Status updated');
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error, variables, context: any) => {
+      if (context?.previousData) {
+        queryClient.setQueryData(["unibox-emails", filters], context.previousData);
+      }
+      toast.error(err.message);
+    },
   });
 
   const toggleStarred = useMutation({
     mutationFn: async ({ emailId, is_starred }: { emailId: string; is_starred: boolean }) => {
       return api.patch(`/unibox/emails/${emailId}/starred`, { is_starred });
     },
+    onMutate: async ({ emailId, is_starred }) => {
+      await queryClient.cancelQueries({ queryKey: ["unibox-emails"] });
+      const previousData = queryClient.getQueryData(["unibox-emails", filters]);
+
+      queryClient.setQueryData(["unibox-emails", filters], (old: any) => {
+        if (!old?.emails) return old;
+        return {
+          ...old,
+          emails: old.emails.map((email: UniboxEmail) =>
+            email.id === emailId ? { ...email, is_starred } : email
+          ),
+        };
+      });
+
+      return { previousData };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["unibox-emails"] });
       toast.success('Email starred status updated');
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error, variables, context: any) => {
+      if (context?.previousData) {
+        queryClient.setQueryData(["unibox-emails", filters], context.previousData);
+      }
+      toast.error(err.message);
+    },
   });
 
   const markAsRead = useMutation({
     mutationFn: async ({ emailId, is_read }: { emailId: string; is_read: boolean }) => {
       return api.patch(`/unibox/emails/${emailId}/read`, { is_read });
     },
+    onMutate: async ({ emailId, is_read }) => {
+      await queryClient.cancelQueries({ queryKey: ["unibox-emails"] });
+      const previousData = queryClient.getQueryData(["unibox-emails", filters]);
+
+      queryClient.setQueryData(["unibox-emails", filters], (old: any) => {
+        if (!old?.emails) return old;
+        return {
+          ...old,
+          emails: old.emails.map((email: UniboxEmail) =>
+            email.id === emailId ? { ...email, is_read } : email
+          ),
+        };
+      });
+
+      return { previousData };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["unibox-emails"] });
       queryClient.invalidateQueries({ queryKey: ["unibox-stats"] });
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error, variables, context: any) => {
+      if (context?.previousData) {
+        queryClient.setQueryData(["unibox-emails", filters], context.previousData);
+      }
+      toast.error(err.message);
+    },
   });
 
   const toggleArchive = useMutation({
     mutationFn: async ({ emailId, is_archived }: { emailId: string; is_archived: boolean }) => {
       return api.patch(`/unibox/emails/${emailId}/archive`, { is_archived });
     },
+    onMutate: async ({ emailId, is_archived }) => {
+      await queryClient.cancelQueries({ queryKey: ["unibox-emails"] });
+      const previousData = queryClient.getQueryData(["unibox-emails", filters]);
+
+      queryClient.setQueryData(["unibox-emails", filters], (old: any) => {
+        if (!old?.emails) return old;
+        return {
+          ...old,
+          emails: old.emails.map((email: UniboxEmail) =>
+            email.id === emailId ? { ...email, is_archived } : email
+          ),
+        };
+      });
+
+      return { previousData };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["unibox-emails"] });
       toast.success('Email archived status updated');
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error, variables, context: any) => {
+      if (context?.previousData) {
+        queryClient.setQueryData(["unibox-emails", filters], context.previousData);
+      }
+      toast.error(err.message);
+    },
   });
 
   const convertToLead = useMutation({

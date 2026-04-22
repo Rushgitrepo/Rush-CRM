@@ -42,9 +42,26 @@ const sync = async (req, res, next) => {
         if (rows.length > 0) verifyConfig = rows[0];
       }
 
-      const result = await imapSyncService.verifyConnection(verifyConfig);
-      return res.json(result);
+      if (!verifyConfig) return res.status(400).json({ error: 'Config required for verification' });
+
+      // 1. Verify IMAP
+      const imapResult = await imapSyncService.verifyConnection(verifyConfig);
+      if (!imapResult.verified) {
+        return res.json({ verified: false, error: `IMAP: ${imapResult.error}` });
+      }
+
+      // 2. Verify SMTP (if provided)
+      if (verifyConfig.smtp_host) {
+        const emailService = require('../../services/emailService');
+        const smtpResult = await emailService.verifySMTP(verifyConfig);
+        if (!smtpResult.verified) {
+          return res.json({ verified: false, error: `SMTP: ${smtpResult.error}` });
+        }
+      }
+
+      return res.json({ verified: true });
     }
+
     res.json({ error: 'Unknown action' });
   } catch (error) {
     console.error('Sync error:', error);
@@ -256,15 +273,49 @@ const getAttachments = async (req, res, next) => {
 };
 
 const getCrmLinks = async (req, res, next) => {
-  res.json([]);
+  try {
+    const { email_id } = req.query;
+    if (!email_id) return res.json([]);
+
+    const { rows } = await db.query(
+      'SELECT * FROM email_crm_links WHERE email_id = $1 AND org_id = $2',
+      [email_id, req.user.orgId]
+    );
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
 };
 
 const createCrmLink = async (req, res, next) => {
-  res.json({ success: true });
+  try {
+    const { email_id, entity_type, entity_id, link_type } = req.body;
+    
+    const { rows } = await db.query(
+      `INSERT INTO email_crm_links (org_id, email_id, entity_type, entity_id, link_type)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (email_id, entity_type, entity_id) DO NOTHING
+       RETURNING *`,
+      [req.user.orgId, email_id, entity_type, entity_id, link_type || 'converted']
+    );
+    
+    res.json({ success: true, data: rows[0] });
+  } catch (err) {
+    next(err);
+  }
 };
 
 const deleteCrmLink = async (req, res, next) => {
-  res.json({ success: true });
+  try {
+    const { id } = req.params;
+    await db.query(
+      'DELETE FROM email_crm_links WHERE id = $1 AND org_id = $2',
+      [id, req.user.orgId]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
 };
 
 async function processGmailCallback(req) {

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, AlertCircle, CheckCircle2, LayoutGrid, ChevronRight } from 'lucide-react';
+import { Loader2, AlertCircle, CheckCircle2, LayoutGrid, Eye, EyeOff } from 'lucide-react';
 
 export default function ResetPasswordPage() {
   const navigate = useNavigate();
@@ -14,6 +14,8 @@ export default function ResetPasswordPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -27,7 +29,7 @@ export default function ResetPasswordPage() {
 
     setIsLoading(true);
     try {
-      await (authApi as any).resetPassword({ token, password });
+      await authApi.resetPassword({ token, password });
       setSuccess(true);
       setTimeout(() => navigate('/auth'), 2000);
     } catch (err: any) {
@@ -64,57 +66,8 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2 bg-white dark:bg-slate-950 font-sans selection:bg-slate-900 selection:text-white">
-      {/* Left Pane: Brand & Visual */}
-      <div className="hidden lg:flex relative overflow-hidden bg-slate-900 border-r border-slate-800">
-        <div className="absolute inset-0 z-0">
-          <img 
-            src="https://images.unsplash.com/photo-1554224155-16974fa9f2c5?auto=format&fit=crop&q=80&w=2000" 
-            alt="Security background" 
-            className="w-full h-full object-cover opacity-20 scale-105"
-          />
-          <div className="absolute inset-0 bg-gradient-to-tr from-slate-950 via-slate-900/40 to-transparent" />
-        </div>
-        
-        <div className="relative z-10 p-16 flex flex-col justify-between w-full h-full">
-          <div>
-            <div className="flex items-center gap-3 mb-12">
-              <div className="w-12 h-12 bg-white flex items-center justify-center rounded-xl shadow-2xl">
-                <LayoutGrid className="w-6 h-6 text-slate-950" />
-              </div>
-              <span className="text-2xl font-bold tracking-tighter text-white uppercase">Rush RMS</span>
-            </div>
-            
-            <h2 className="text-6xl font-extralight text-white leading-[1.1] mb-8 tracking-tighter">
-              Password <br />
-              <span className="text-slate-400">Modification.</span>
-            </h2>
-            
-            <div className="space-y-6">
-              {[
-                { title: 'Security Protocol', desc: 'Securely update your access credentials.' },
-                { title: 'Identity Verified', desc: 'Authorized session for password reset.' },
-                { title: 'System Compliance', desc: 'Adhering to enterprise security standards.' }
-              ].map((item, idx) => (
-                <div key={idx} className="flex gap-4 items-start group">
-                  <div className="mt-1 w-5 h-5 rounded-full border border-slate-700 flex items-center justify-center group-hover:border-white transition-colors">
-                    <ChevronRight className="w-3 h-3 text-slate-500 group-hover:text-white" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-200 uppercase tracking-widest mb-1">{item.title}</h4>
-                    <p className="text-sm text-slate-500 leading-relaxed max-w-sm">{item.desc}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          
-          <div className="text-slate-500 text-[10px] font-black uppercase tracking-[0.4em]">
-            Rush Resource Management System v2.0
-          </div>
-        </div>
-      </div>
-
+    <div className="min-h-screen bg-white dark:bg-slate-950 font-sans selection:bg-slate-900 selection:text-white">
+     
       {/* Right Pane: Form */}
       <div className="flex flex-col justify-center items-center p-8 lg:p-24 bg-white dark:bg-slate-950">
         <div className="w-full max-w-[400px]">
@@ -134,7 +87,7 @@ export default function ResetPasswordPage() {
             <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-relaxed">
               {success 
                 ? "Password updated successfully" 
-                : "Initialize your new system credentials"}
+                : "Set your new system credentials"}
             </p>
           </div>
 
@@ -152,7 +105,7 @@ export default function ResetPasswordPage() {
                   <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
                 </div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white uppercase mb-2">Updated</h3>
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Master key synchronized. Redirecting...</p>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Password updated successfully. Redirecting...</p>
               </div>
             </div>
           ) : (
@@ -161,30 +114,40 @@ export default function ResetPasswordPage() {
                 <Label htmlFor="password" className="font-bold text-slate-400 dark:text-slate-500 text-[10px] uppercase tracking-widest pl-1">
                   New Password
                 </Label>
-                <Input
-                  id="password"
-                  name="password"
-                  type="password"
-                  placeholder="••••••••"
-                  required
-                  disabled={isLoading}
-                  className="h-12 border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-sm rounded-xl focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-white/5 transition-all"
-                />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    name="password"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="••••••••"
+                    required
+                    disabled={isLoading}
+                    className="h-12 border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-sm rounded-xl focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-white/5 transition-all pr-12"
+                  />
+                  <button type="button" onClick={() => setShowPassword(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword" className="font-bold text-slate-400 dark:text-slate-500 text-[10px] uppercase tracking-widest pl-1">
                   Verify Password
                 </Label>
-                <Input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type="password"
-                  placeholder="••••••••"
-                  required
-                  disabled={isLoading}
-                  className="h-12 border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-sm rounded-xl focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-white/5 transition-all"
-                />
+                <div className="relative">
+                  <Input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type={showConfirm ? 'text' : 'password'}
+                    placeholder="••••••••"
+                    required
+                    disabled={isLoading}
+                    className="h-12 border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-sm rounded-xl focus:ring-4 focus:ring-slate-900/5 dark:focus:ring-white/5 transition-all pr-12"
+                  />
+                  <button type="button" onClick={() => setShowConfirm(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+                    {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               <Button
@@ -201,12 +164,6 @@ export default function ResetPasswordPage() {
             </form>
           )}
 
-          <div className="mt-12 pt-8 border-t border-slate-100 dark:border-slate-900">
-             <p className="text-center text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest leading-relaxed">
-              Protected by Enterprise Shield <br />
-              <a href="#" className="text-primary hover:underline">Compliance Protocol</a>
-            </p>
-          </div>
         </div>
       </div>
     </div>
