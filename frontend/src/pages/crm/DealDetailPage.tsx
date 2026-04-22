@@ -8,7 +8,7 @@ import {
   TrendingUp, Users, Target, Award, Briefcase, Calendar as CalendarIcon,
   History, Plus, Edit3, Send, PhoneCall, Video, MessageCircle,
   BarChart3, PieChart, TrendingDown, Eye, Filter, Search, Settings, X,
-  ArrowUp, Check, Printer, Download, Share2
+  Check, Printer, Download, Share2
 } from "lucide-react";
 import { ClickToCall } from "@/components/telephony/ClickToCall";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,7 @@ import { ChangeResponsibleDialog } from "@/components/crm/deals/ChangeResponsibl
 import { useDeal } from "@/hooks/useCrmInteractions";
 import { useUpdateDeal, useDeleteDeal, useLinkDealContact, useUnlinkDealContact, useLinkSigningParty, useUnlinkSigningParty, useConvertDealToCustomer } from "@/hooks/useCrmMutations";
 import { useCreateActivity } from "@/hooks/useCrmInteractions";
-import { useContacts, useCompanies, useSigningParties } from "@/hooks/useCrmData";
+import { useContacts, useCompanies, useSigningParties, useDealStats } from "@/hooks/useCrmData";
 import { usePipelineStages, useCreatePipelineStage } from "@/hooks/usePipelineStages";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
@@ -143,9 +143,9 @@ const fallbackStages = [
     id: "close_deal",
     label: "Closed",
     description: "Deal finalized",
-    color: "bg-slate-500",
-    bgColor: "bg-slate-50",
-    textColor: "text-slate-700",
+    color: "bg-muted/400",
+    bgColor: "bg-muted/40",
+    textColor: "text-foreground",
     borderColor: "",
     icon: Award
   },
@@ -213,13 +213,13 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
   if (!editing && !value) {
     return (
       <div className="space-y-2">
-        <Label className="text-sm font-medium text-gray-700 flex items-center gap-1">
+        <Label className="text-sm font-medium text-foreground flex items-center gap-1">
           {icon}
           {label}
           {required && <span className="text-red-500">*</span>}
         </Label>
-        <div className="min-h-[2.5rem] px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 flex items-center">
-          <span className="text-gray-400 italic">Not specified</span>
+        <div className="min-h-[2.5rem] px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-center">
+          <span className="text-muted-foreground italic">Not specified</span>
         </div>
       </div>
     );
@@ -227,7 +227,7 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
 
   return (
     <div className="space-y-2">
-      <Label className="text-sm font-medium text-gray-700 flex items-center gap-1">
+      <Label className="text-sm font-medium text-foreground flex items-center gap-1">
         {icon}
         {label}
         {required && <span className="text-red-500">*</span>}
@@ -238,7 +238,7 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
             value={value || ""}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
-            className="min-h-[100px] resize-none border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+            className="min-h-[100px] resize-none border-border"
           />
         ) : (
           <Input
@@ -246,11 +246,11 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
             value={value || ""}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
-            className="h-10 border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+            className="h-10 border-border"
           />
         )
       ) : (
-        <div className="min-h-[2.5rem] px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 flex items-center">
+        <div className="min-h-[2.5rem] px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-center">
           {type === "tel" ? (
             <ClickToCall
               phoneNumber={value || ""}
@@ -259,7 +259,7 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
               className="font-medium break-words w-full text-left"
             />
           ) : (
-            <span className="text-gray-900 font-medium break-words w-full">{value}</span>
+            <span className="text-foreground font-medium break-words w-full">{value}</span>
           )}
         </div>
       )}
@@ -286,7 +286,7 @@ function displayJsonValue(value: unknown): string {
 
 const getStatusColor = (status: string) => {
   const stage = fallbackStages.find(s => s.id === status);
-  return stage ? `${stage.bgColor} ${stage.textColor} ${stage.borderColor}` : 'bg-slate-50 text-slate-700 ';
+  return stage ? `${stage.bgColor} ${stage.textColor} ${stage.borderColor}` : 'bg-muted/40 text-foreground ';
 };
 
 const getStatusIcon = (status: string) => {
@@ -311,6 +311,7 @@ export default function DealDetailPage() {
   const { data: contacts } = useContacts();
   const { data: companies } = useCompanies();
   const { data: signingParties } = useSigningParties();
+  const { data: dealStats } = useDealStats();
   const { data: dbStages } = usePipelineStages();
   const createStage = useCreatePipelineStage();
 
@@ -373,9 +374,9 @@ export default function DealDetailPage() {
       id: s.stage_key,
       label: s.stage_label,
       description: "Stage description",
-      color: "bg-slate-500",
-      bgColor: "bg-slate-50",
-      textColor: "text-slate-700",
+      color: "bg-muted/400",
+      bgColor: "bg-muted/40",
+      textColor: "text-foreground",
       borderColor: "",
       icon: Clock
     }));
@@ -399,11 +400,11 @@ export default function DealDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-muted/30 to-background flex items-center justify-center">
         <div className="text-center  p-8 rounded-2xl shadow-xl border ">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <h3 className="text-lg font-semibold text-slate-900 mb-2">Loading Deal Details</h3>
-          <p className="text-slate-600">Please wait while we fetch the information...</p>
+          <h3 className="text-lg font-semibold text-foreground mb-2">Loading Deal Details</h3>
+          <p className="text-muted-foreground">Please wait while we fetch the information...</p>
         </div>
       </div>
     );
@@ -411,13 +412,13 @@ export default function DealDetailPage() {
 
   if (!deal) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-muted/30 to-background flex items-center justify-center">
         <div className="text-center  p-8 rounded-2xl shadow-xl border  max-w-md">
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <AlertCircle className="h-8 w-8 text-red-600" />
           </div>
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">Deal Not Found</h2>
-          <p className="text-slate-600 mb-6">The deal you're looking for doesn't exist or may have been removed.</p>
+          <h2 className="text-2xl font-bold text-foreground mb-2">Deal Not Found</h2>
+          <p className="text-muted-foreground mb-6">The deal you're looking for doesn't exist or may have been removed.</p>
           <Button onClick={() => navigate('/crm/deals')} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Deals
@@ -548,12 +549,12 @@ export default function DealDetailPage() {
       <div className=" border-b  shadow-sm">
         <div className="px-4 md:px-6 py-4">
           {/* Professional Breadcrumb */}
-          <nav className="flex flex-wrap items-center gap-2 text-sm text-slate-500 mb-6">
-            <span className="hover:text-slate-700 cursor-pointer">CRM</span>
+          <nav className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground mb-6">
+            <span className="hover:text-foreground cursor-pointer">CRM</span>
             <ChevronRight className="h-4 w-4 shrink-0" />
-            <span className="hover:text-slate-700 cursor-pointer" onClick={() => navigate('/crm/deals')}>Deals</span>
+            <span className="hover:text-foreground cursor-pointer" onClick={() => navigate('/crm/deals')}>Deals</span>
             <ChevronRight className="h-4 w-4 shrink-0" />
-            <span className="text-slate-900 font-medium truncate">{deal.title}</span>
+            <span className="text-foreground font-medium truncate">{deal.title}</span>
           </nav>
 
           {/* Header Content */}
@@ -563,7 +564,7 @@ export default function DealDetailPage() {
                 variant="ghost"
                 size="sm"
                 onClick={() => navigate("/crm/deals")}
-                className="gap-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 self-start md:self-auto"
+                className="gap-2 text-muted-foreground hover:text-foreground hover:bg-muted self-start md:self-auto"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back to Deals
@@ -614,7 +615,7 @@ export default function DealDetailPage() {
                   <Button
                     variant="outline"
                     onClick={() => { setEditing(false); setForm({ ...deal }); }}
-                    className="gap-2  text-slate-700"
+                    className="gap-2  text-foreground"
                   >
                     Cancel
                   </Button>
@@ -685,7 +686,7 @@ export default function DealDetailPage() {
                             <Users className="h-5 w-5 text-emerald-600" />
                             Convert Deal to Customer
                           </AlertDialogTitle>
-                          <AlertDialogDescription className="text-slate-600">
+                          <AlertDialogDescription className="text-muted-foreground">
                             This will create a new customer from this deal's information and move it to your customers section. This action cannot be undone.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
@@ -710,15 +711,15 @@ export default function DealDetailPage() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-72 p-2 rounded-xl shadow-xl  z-[100] pointer-events-auto  max-h-[450px] overflow-y-auto">
-                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Communication</DropdownMenuLabel>
+                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-muted-foreground uppercase tracking-wider">Communication</DropdownMenuLabel>
                       {linkedContact?.email && (
-                        <DropdownMenuItem onSelect={() => copyToClipboard(linkedContact.email, 'Email')} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                        <DropdownMenuItem onSelect={() => copyToClipboard(linkedContact.email, 'Email')} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-muted/40 transition-colors">
                           <div className="p-2 bg-blue-50 rounded-md">
                             <Mail className="h-4 w-4 text-blue-600" />
                           </div>
                           <div className="min-w-0">
-                            <p className="font-semibold text-sm text-slate-900">Copy Contact Email</p>
-                            <p className="text-xs text-slate-500 truncate">{linkedContact.email}</p>
+                            <p className="font-semibold text-sm text-foreground">Copy Contact Email</p>
+                            <p className="text-xs text-muted-foreground truncate">{linkedContact.email}</p>
                           </div>
                         </DropdownMenuItem>
                       )}
@@ -729,60 +730,60 @@ export default function DealDetailPage() {
                               <PhoneCall className="h-4 w-4 text-emerald-600" />
                             </div>
                             <div className="min-w-0">
-                              <p className="font-semibold text-sm text-slate-900">Call Contact</p>
-                              <p className="text-xs text-slate-500">{linkedContact.phone}</p>
+                              <p className="font-semibold text-sm text-foreground">Call Contact</p>
+                              <p className="text-xs text-muted-foreground">{linkedContact.phone}</p>
                             </div>
                           </DropdownMenuItem>
-                          <DropdownMenuItem onSelect={() => copyToClipboard(linkedContact.phone!, 'Phone')} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
-                            <div className="p-2 bg-slate-50 rounded-md">
-                              <Phone className="h-4 w-4 text-slate-600" />
+                          <DropdownMenuItem onSelect={() => copyToClipboard(linkedContact.phone!, 'Phone')} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-muted/40 transition-colors">
+                            <div className="p-2 bg-muted/40 rounded-md">
+                              <Phone className="h-4 w-4 text-muted-foreground" />
                             </div>
                             <div className="min-w-0">
-                              <p className="font-semibold text-sm text-slate-900">Copy Contact Phone</p>
+                              <p className="font-semibold text-sm text-foreground">Copy Contact Phone</p>
                             </div>
                           </DropdownMenuItem>
                         </>
                       )}
 
-                      <DropdownMenuSeparator className="my-2 bg-slate-100" />
+                      <DropdownMenuSeparator className="my-2 bg-muted" />
 
-                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Quick Jump</DropdownMenuLabel>
-                      <DropdownMenuItem onSelect={() => handleScrollToActivity("activity")} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-muted-foreground uppercase tracking-wider">Quick Jump</DropdownMenuLabel>
+                      <DropdownMenuItem onSelect={() => handleScrollToActivity("activity")} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-muted/40 transition-colors">
                         <div className="p-2 bg-purple-50 rounded-md">
                           <Activity className="h-4 w-4 text-purple-600" />
                         </div>
-                        <p className="font-semibold text-sm text-slate-900">View Activity Timeline</p>
+                        <p className="font-semibold text-sm text-foreground">View Activity Timeline</p>
                       </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => handleScrollToActivity("activity", "booking")} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                      <DropdownMenuItem onSelect={() => handleScrollToActivity("activity", "booking")} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-muted/40 transition-colors">
                         <div className="p-2 bg-orange-50 rounded-md">
                           <Calendar className="h-4 w-4 text-primary" />
                         </div>
-                        <p className="font-semibold text-sm text-slate-900">Schedule Meeting</p>
+                        <p className="font-semibold text-sm text-foreground">Schedule Meeting</p>
                       </DropdownMenuItem>
-                      <DropdownMenuItem className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                      <DropdownMenuItem className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-muted/40 transition-colors">
                         <div className="p-2 bg-indigo-50 rounded-md">
                           <MessageSquare className="h-4 w-4 text-indigo-600" />
                         </div>
-                        <p className="font-semibold text-sm text-slate-900">Send Message</p>
+                        <p className="font-semibold text-sm text-foreground">Send Message</p>
                       </DropdownMenuItem>
 
-                      <DropdownMenuSeparator className="my-2 bg-slate-100" />
+                      <DropdownMenuSeparator className="my-2 bg-muted" />
 
-                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Reports & Data</DropdownMenuLabel>
-                      <DropdownMenuItem onSelect={handlePrint} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-muted-foreground uppercase tracking-wider">Reports & Data</DropdownMenuLabel>
+                      <DropdownMenuItem onSelect={handlePrint} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-muted/40 transition-colors">
                         <div className="p-2 bg-orange-50 rounded-md">
                           <Printer className="h-4 w-4 text-orange-600" />
                         </div>
-                        <p className="font-semibold text-sm text-slate-900">Print Deal Details</p>
+                        <p className="font-semibold text-sm text-foreground">Print Deal Details</p>
                       </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={handleExport} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                      <DropdownMenuItem onSelect={handleExport} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-muted/40 transition-colors">
                         <div className="p-2 bg-emerald-50 rounded-md">
                           <Download className="h-4 w-4 text-emerald-600" />
                         </div>
-                        <p className="font-semibold text-sm text-slate-900">Export as JSON</p>
+                        <p className="font-semibold text-sm text-foreground">Export as JSON</p>
                       </DropdownMenuItem>
 
-                      <DropdownMenuSeparator className="my-2 bg-slate-100" />
+                      <DropdownMenuSeparator className="my-2 bg-muted" />
 
                       {canDelete && (
                         <DropdownMenuItem onSelect={() => setForm(prev => ({ ...prev, showDeleteDialog: true }))} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-red-50 group transition-colors">
@@ -793,7 +794,7 @@ export default function DealDetailPage() {
                         </DropdownMenuItem>
                       )}
 
-                      <DropdownMenuSeparator className="my-2 bg-slate-100" />
+                      <DropdownMenuSeparator className="my-2 bg-muted" />
                       <DropdownMenuItem
                         className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-orange-50 group transition-colors"
                         onSelect={() => {
@@ -826,85 +827,81 @@ export default function DealDetailPage() {
       </div>
 
       {/* Enterprise Metrics Dashboard */}
-      <div className="px-4 md:px-6 py-6  border-b ">
+      <div className="px-4 md:px-6 py-6 border-b">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
+          <div className="rounded-xl p-6 border border-blue-100">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <div className="p-2 bg-blue-100 rounded-lg">
                   <TrendingUp className="h-5 w-5 text-blue-600" />
                 </div>
-                <span className="text-sm font-medium text-slate-600">Deal Score</span>
+                <span className="text-sm font-medium text-muted-foreground">Total Deals</span>
               </div>
-              <Badge className="bg-blue-100 text-blue-700 border-blue-200">Hot</Badge>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-slate-900">92</span>
-              <span className="text-lg text-slate-500">/100</span>
+              <span className="text-3xl font-bold text-foreground">{dealStats?.overview?.total_deals ?? '—'}</span>
             </div>
-            <div className="flex items-center gap-1 mt-2 text-sm text-emerald-600">
-              <ArrowUp className="h-4 w-4" />
-              <span>+8 this week</span>
+            <div className="flex items-center gap-1 mt-2 text-sm text-muted-foreground">
+              <span>{dealStats?.overview?.open_deals ?? 0} open</span>
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-xl p-6 border border-emerald-100">
+          <div className="rounded-xl p-6 border border-emerald-100">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <div className="p-2 bg-emerald-100 rounded-lg">
                   <DollarSign className="h-5 w-5 text-emerald-600" />
                 </div>
-                <span className="text-sm font-medium text-slate-600">Deal Value</span>
+                <span className="text-sm font-medium text-muted-foreground">Deal Value</span>
               </div>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-slate-900">
+              <span className="text-3xl font-bold text-foreground">
                 ${deal.value ? Number(deal.value).toLocaleString() : '0'}
               </span>
             </div>
-            <div className="flex items-center gap-1 mt-2 text-sm text-slate-500">
+            <div className="flex items-center gap-1 mt-2 text-sm text-muted-foreground">
               <Calendar className="h-4 w-4" />
-              <span>Expected close: {deal.expected_close_date ? format(new Date(deal.expected_close_date), 'MMM d') : 'Not set'}</span>
+              <span>Close: {deal.expected_close_date ? format(new Date(deal.expected_close_date), 'MMM d') : 'Not set'}</span>
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-xl p-6 border border-purple-100">
+          <div className="rounded-xl p-6 border border-purple-100">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <div className="p-2 bg-purple-100 rounded-lg">
                   <Clock className="h-5 w-5 text-purple-600" />
                 </div>
-                <span className="text-sm font-medium text-slate-600">Days in Pipeline</span>
+                <span className="text-sm font-medium text-muted-foreground">Days in Pipeline</span>
               </div>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-slate-900">
+              <span className="text-3xl font-bold text-foreground">
                 {deal.created_at ? Math.floor((new Date().getTime() - new Date(deal.created_at).getTime()) / (1000 * 60 * 60 * 24)) : 0}
               </span>
-              <span className="text-lg text-slate-500">days</span>
+              <span className="text-lg text-muted-foreground">days</span>
             </div>
-            <div className="flex items-center gap-1 mt-2 text-sm text-slate-500">
+            <div className="flex items-center gap-1 mt-2 text-sm text-muted-foreground">
               <Target className="h-4 w-4" />
-              <span>Avg: 45 days</span>
+              <span>Since created</span>
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl p-6 border border-orange-100">
+          <div className="rounded-xl p-6 border border-orange-100">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <div className="p-2 bg-orange-100 rounded-lg">
                   <Users className="h-5 w-5 text-orange-600" />
                 </div>
-                <span className="text-sm font-medium text-slate-600">Win Rate</span>
+                <span className="text-sm font-medium text-muted-foreground">Won Deals</span>
               </div>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-slate-900">73</span>
-              <span className="text-lg text-slate-500">%</span>
+              <span className="text-3xl font-bold text-foreground">{dealStats?.overview?.won_deals ?? '—'}</span>
             </div>
             <div className="flex items-center gap-1 mt-2 text-sm text-emerald-600">
               <TrendingUp className="h-4 w-4" />
-              <span>Above average</span>
+              <span>${dealStats?.overview?.total_won_value ? Number(dealStats.overview.total_won_value).toLocaleString() : '0'} won</span>
             </div>
           </div>
         </div>
@@ -913,8 +910,8 @@ export default function DealDetailPage() {
       {/* Interactive Pipeline Progress */}
       <div className="px-4 md:px-6 py-6  border-b ">
         <div className="mb-4">
-          <h3 className="text-lg font-semibold text-slate-900 mb-2">Deal Pipeline Progress</h3>
-          <p className="text-sm text-slate-600">Track your deal through each stage of the sales process</p>
+          <h3 className="text-lg font-semibold text-foreground mb-2">Deal Pipeline Progress</h3>
+          <p className="text-sm text-muted-foreground">Track your deal through each stage of the sales process</p>
         </div>
         <div className="relative overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-200">
           <div className="flex items-center justify-between mb-4 min-w-[1000px] lg:min-w-0 px-4">
@@ -949,7 +946,7 @@ export default function DealDetailPage() {
                   <div className="mt-3 text-center">
                     <div className={cn(
                       "text-sm font-medium mb-1",
-                      isActive ? "text-blue-600" : isPassed ? "text-emerald-600" : "text-slate-500"
+                      isActive ? "text-blue-600" : isPassed ? "text-emerald-600" : "text-muted-foreground"
                     )}>
                       {stage.label}
                     </div>
@@ -960,7 +957,7 @@ export default function DealDetailPage() {
                   {index < pipelineStages.length - 1 && (
                     <div className={cn(
                       "absolute top-6 left-1/2 w-full h-0.5 -translate-y-1/2 transition-colors duration-300",
-                      isPassed ? "bg-emerald-500" : "bg-slate-200"
+                      isPassed ? "bg-emerald-500" : "bg-muted"
                     )} style={{ left: `${((index + 1) / pipelineStages.length) * 100}%`, width: `${100 / pipelineStages.length}%` }} />
                   )}
                 </div>
@@ -981,8 +978,8 @@ export default function DealDetailPage() {
                 <div className="flex items-center gap-3">
 
                   <div>
-                    <CardTitle className="text-lg text-slate-900">Deal Information</CardTitle>
-                    <CardDescription className="text-slate-600">Core details about this deal</CardDescription>
+                    <CardTitle className="text-lg text-foreground">Deal Information</CardTitle>
+                    <CardDescription className="text-muted-foreground">Core details about this deal</CardDescription>
                   </div>
                 </div>
               </CardHeader>
@@ -1050,21 +1047,21 @@ export default function DealDetailPage() {
                 <div className="flex items-center gap-3">
 
                   <div>
-                    <CardTitle className="text-lg text-slate-900">Contact Information</CardTitle>
-                    <CardDescription className="text-slate-600">Details of the primary contact</CardDescription>
+                    <CardTitle className="text-lg text-foreground">Contact Information</CardTitle>
+                    <CardDescription className="text-muted-foreground">Details of the primary contact</CardDescription>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                    <label className="text-sm font-medium text-foreground flex items-center gap-2">
                       <User className="h-4 w-4" />
                       Linked Contact Profile
                     </label>
                     {editing ? (
                       <Select value={form.contact_id as string} onValueChange={(val) => set("contact_id", val)}>
-                        <SelectTrigger className=" focus:border-blue-500 focus:ring-blue-500">
+                        <SelectTrigger className=" ">
                           <SelectValue placeholder="Select contact..." />
                         </SelectTrigger>
                         <SelectContent>
@@ -1072,15 +1069,15 @@ export default function DealDetailPage() {
                             <SelectItem key={option.id} value={option.id}>
                               <div>
                                 <div className="font-medium">{option.label}</div>
-                                {option.sublabel && <div className="text-xs text-slate-500">{option.sublabel}</div>}
+                                {option.sublabel && <div className="text-xs text-muted-foreground">{option.sublabel}</div>}
                               </div>
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     ) : (
-                      <div className="h-10 px-3 py-2 border  rounded-lg bg-slate-50 flex items-center">
-                        <span className="text-slate-900 font-medium">
+                      <div className="h-10 px-3 py-2 border  rounded-lg bg-muted/40 flex items-center">
+                        <span className="text-foreground font-medium">
                           {linkedContact ? `${linkedContact.first_name} ${linkedContact.last_name || ''}`.trim() : 'No contact selected'}
                         </span>
                       </div>
@@ -1139,21 +1136,21 @@ export default function DealDetailPage() {
                 <div className="flex items-center gap-3">
 
                   <div>
-                    <CardTitle className="text-lg text-slate-900">Company Information</CardTitle>
-                    <CardDescription className="text-slate-600">Organizational details</CardDescription>
+                    <CardTitle className="text-lg text-foreground">Company Information</CardTitle>
+                    <CardDescription className="text-muted-foreground">Organizational details</CardDescription>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                    <label className="text-sm font-medium text-foreground flex items-center gap-2">
                       <Building2 className="h-4 w-4" />
                       Linked Company Profile
                     </label>
                     {editing ? (
                       <Select value={form.company_id as string} onValueChange={(val) => set("company_id", val)}>
-                        <SelectTrigger className=" focus:border-blue-500 focus:ring-blue-500">
+                        <SelectTrigger className=" ">
                           <SelectValue placeholder="Select company..." />
                         </SelectTrigger>
                         <SelectContent>
@@ -1161,15 +1158,15 @@ export default function DealDetailPage() {
                             <SelectItem key={option.id} value={option.id}>
                               <div>
                                 <div className="font-medium">{option.label}</div>
-                                {option.sublabel && <div className="text-xs text-slate-500">{option.sublabel}</div>}
+                                {option.sublabel && <div className="text-xs text-muted-foreground">{option.sublabel}</div>}
                               </div>
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     ) : (
-                      <div className="h-10 px-3 py-2 border  rounded-lg bg-slate-50 flex items-center">
-                        <span className="text-slate-900 font-medium">{linkedCompany?.name || 'No company selected'}</span>
+                      <div className="h-10 px-3 py-2 border  rounded-lg bg-muted/40 flex items-center">
+                        <span className="text-foreground font-medium">{linkedCompany?.name || 'No company selected'}</span>
                       </div>
                     )}
                   </div>
@@ -1218,13 +1215,13 @@ export default function DealDetailPage() {
             </Card>
 
             <Card className="border   shadow-sm rounded-xl">
-              <CardHeader className="border-b  bg-slate-50/80">
-                <CardTitle className="text-base text-slate-900">About Deal</CardTitle>
-                <CardDescription className="text-slate-500">Client and project basics</CardDescription>
+              <CardHeader className="border-b  bg-muted/40/80">
+                <CardTitle className="text-base text-foreground">About Deal</CardTitle>
+                <CardDescription className="text-muted-foreground">Client and project basics</CardDescription>
               </CardHeader>
               <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 p-6">
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Client Type</Label>
+                  <Label className="text-sm font-medium text-foreground">Client Type</Label>
                   {editing ? (
                     <Select value={(form.client_type as string) || ""} onValueChange={(val) => set("client_type", val)}>
                       <SelectTrigger className=" ">
@@ -1235,13 +1232,13 @@ export default function DealDetailPage() {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <div className="h-10 px-3 py-2 border  rounded-lg bg-slate-50 flex items-center">
-                      <span className="text-slate-900 font-medium">{(form.client_type as string) || 'Not selected'}</span>
+                    <div className="h-10 px-3 py-2 border  rounded-lg bg-muted/40 flex items-center">
+                      <span className="text-foreground font-medium">{(form.client_type as string) || 'Not selected'}</span>
                     </div>
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Project Type</Label>
+                  <Label className="text-sm font-medium text-foreground">Project Type</Label>
                   {editing ? (
                     <Select value={(form.project_type as string) || ""} onValueChange={(val) => set("project_type", val)}>
                       <SelectTrigger className=" ">
@@ -1252,13 +1249,13 @@ export default function DealDetailPage() {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <div className="h-10 px-3 py-2 border  rounded-lg bg-slate-50 flex items-center">
-                      <span className="text-slate-900 font-medium">{(form.project_type as string) || 'Not selected'}</span>
+                    <div className="h-10 px-3 py-2 border  rounded-lg bg-muted/40 flex items-center">
+                      <span className="text-foreground font-medium">{(form.project_type as string) || 'Not selected'}</span>
                     </div>
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Available to everyone</Label>
+                  <Label className="text-sm font-medium text-foreground">Available to everyone</Label>
                   {editing ? (
                     <Select value={form.available_to_everyone === true ? "yes" : form.available_to_everyone === false ? "no" : "yes"} onValueChange={(val) => set("available_to_everyone", val === "yes")}>
                       <SelectTrigger className=" ">
@@ -1269,8 +1266,8 @@ export default function DealDetailPage() {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <div className="h-10 px-3 py-2 border  rounded-lg bg-slate-50 flex items-center">
-                      <span className="text-slate-900 font-medium">
+                    <div className="h-10 px-3 py-2 border  rounded-lg bg-muted/40 flex items-center">
+                      <span className="text-foreground font-medium">
                         {form.available_to_everyone === true ? "Yes" : form.available_to_everyone === false ? "No" : "Not selected"}
                       </span>
                     </div>
@@ -1280,13 +1277,13 @@ export default function DealDetailPage() {
             </Card>
 
             <Card className="border   shadow-sm rounded-xl">
-              <CardHeader className="border-b  bg-slate-50/80">
-                <CardTitle className="text-base text-slate-900">More</CardTitle>
-                <CardDescription className="text-slate-500">Source, deadline, and feedback</CardDescription>
+              <CardHeader className="border-b  bg-muted/40/80">
+                <CardTitle className="text-base text-foreground">More</CardTitle>
+                <CardDescription className="text-muted-foreground">Source, deadline, and feedback</CardDescription>
               </CardHeader>
               <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 p-6">
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Source</Label>
+                  <Label className="text-sm font-medium text-foreground">Source</Label>
                   {editing ? (
                     <Select value={(form.source as string) || ""} onValueChange={(val) => set("source", val)}>
                       <SelectTrigger className=" ">
@@ -1304,8 +1301,8 @@ export default function DealDetailPage() {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <div className="h-10 px-3 py-2 border  rounded-lg bg-slate-50 flex items-center">
-                      <span className="text-slate-900 font-medium">{(form.source as string) || 'Not selected'}</span>
+                    <div className="h-10 px-3 py-2 border  rounded-lg bg-muted/40 flex items-center">
+                      <span className="text-foreground font-medium">{(form.source as string) || 'Not selected'}</span>
                     </div>
                   )}
                 </div>
@@ -1325,7 +1322,7 @@ export default function DealDetailPage() {
                   placeholder="Quotation Received"
                 />
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">QA Status</Label>
+                  <Label className="text-sm font-medium text-foreground">QA Status</Label>
                   {editing ? (
                     <Select value={(form.qa_status as string) || ""} onValueChange={(val) => set("qa_status", val)}>
                       <SelectTrigger className=" ">
@@ -1336,8 +1333,8 @@ export default function DealDetailPage() {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <div className="h-10 px-3 py-2 border  rounded-lg bg-slate-50 flex items-center">
-                      <span className="text-slate-900 font-medium">{(form.qa_status as string) || 'Not selected'}</span>
+                    <div className="h-10 px-3 py-2 border  rounded-lg bg-muted/40 flex items-center">
+                      <span className="text-foreground font-medium">{(form.qa_status as string) || 'Not selected'}</span>
                     </div>
                   )}
                 </div>
@@ -1372,13 +1369,13 @@ export default function DealDetailPage() {
 
 
             <Card className="border   shadow-sm rounded-xl">
-              <CardHeader className="border-b  bg-slate-50/80">
-                <CardTitle className="text-base text-slate-900">Budget & Payment</CardTitle>
-                <CardDescription className="text-slate-500">Proposal, invoice, and hourly pricing</CardDescription>
+              <CardHeader className="border-b  bg-muted/40/80">
+                <CardTitle className="text-base text-foreground">Budget & Payment</CardTitle>
+                <CardDescription className="text-muted-foreground">Proposal, invoice, and hourly pricing</CardDescription>
               </CardHeader>
               <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 p-6">
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Payment Method</Label>
+                  <Label className="text-sm font-medium text-foreground">Payment Method</Label>
                   {editing ? (
                     <Select value={(form.payment_method as string) || ""} onValueChange={(val) => set("payment_method", val)}>
                       <SelectTrigger className=" ">
@@ -1389,8 +1386,8 @@ export default function DealDetailPage() {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <div className="h-10 px-3 py-2 border  rounded-lg bg-slate-50 flex items-center">
-                      <span className="text-slate-900 font-medium">{(form.payment_method as string) || 'Not selected'}</span>
+                    <div className="h-10 px-3 py-2 border  rounded-lg bg-muted/40 flex items-center">
+                      <span className="text-foreground font-medium">{(form.payment_method as string) || 'Not selected'}</span>
                     </div>
                   )}
                 </div>
@@ -1402,7 +1399,7 @@ export default function DealDetailPage() {
                   placeholder="Invoice link"
                 />
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Hourly Rate</Label>
+                  <Label className="text-sm font-medium text-foreground">Hourly Rate</Label>
                   <div className="flex items-stretch gap-2">
                     <Input
                       type="number"
@@ -1425,7 +1422,7 @@ export default function DealDetailPage() {
                   placeholder="Hours of work"
                 />
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Proposal Amount</Label>
+                  <Label className="text-sm font-medium text-foreground">Proposal Amount</Label>
                   <div className="flex items-stretch gap-2">
                     <Input
                       type="number"
@@ -1441,7 +1438,7 @@ export default function DealDetailPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Invoice Amount</Label>
+                  <Label className="text-sm font-medium text-foreground">Invoice Amount</Label>
                   <div className="flex items-stretch gap-2">
                     <Input
                       type="number"
@@ -1460,9 +1457,9 @@ export default function DealDetailPage() {
             </Card>
 
             <Card className="border   shadow-sm rounded-xl">
-              <CardHeader className="border-b  bg-slate-50/80">
-                <CardTitle className="text-base text-slate-900">Project Details</CardTitle>
-                <CardDescription className="text-slate-500">Scope and blueprint files</CardDescription>
+              <CardHeader className="border-b  bg-muted/40/80">
+                <CardTitle className="text-base text-foreground">Project Details</CardTitle>
+                <CardDescription className="text-muted-foreground">Scope and blueprint files</CardDescription>
               </CardHeader>
               <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 p-6">
                 <div className="md:col-span-2">
@@ -1496,14 +1493,14 @@ export default function DealDetailPage() {
                     <Target className="h-5 w-5 text-amber-600" />
                   </div>
                   <div>
-                    <CardTitle className="text-lg text-slate-900">Lead Qualification & Sales Info</CardTitle>
-                    <CardDescription className="text-slate-600">Marketing and qualification metadata</CardDescription>
+                    <CardTitle className="text-lg text-foreground">Lead Qualification & Sales Info</CardTitle>
+                    <CardDescription className="text-muted-foreground">Marketing and qualification metadata</CardDescription>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                  <label className="text-sm font-medium text-foreground flex items-center gap-2">
                     <Star className="h-4 w-4" />
                     Priority
                   </label>
@@ -1520,12 +1517,12 @@ export default function DealDetailPage() {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <div className="h-10 px-3 py-2 border  rounded-lg bg-slate-50 flex items-center">
+                    <div className="h-10 px-3 py-2 border  rounded-lg bg-muted/40 flex items-center">
                       <Badge className={cn(
                         form.priority === 'urgent' ? 'bg-red-100 text-red-700 border-red-200' :
                           form.priority === 'high' ? 'bg-orange-100 text-orange-700 border-orange-200' :
                             form.priority === 'medium' ? 'bg-blue-100 text-blue-700 border-blue-200' :
-                              'bg-slate-100 text-slate-700 '
+                              'bg-muted text-foreground '
                       )}>
                         {(form.priority as string || 'Medium').toUpperCase()}
                       </Badge>
@@ -1583,8 +1580,8 @@ export default function DealDetailPage() {
                     <History className="h-5 w-5 text-purple-600" />
                   </div>
                   <div>
-                    <CardTitle className="text-lg text-slate-900">Interaction Notes & History</CardTitle>
-                    <CardDescription className="text-slate-600">Timeline and communication summaries</CardDescription>
+                    <CardTitle className="text-lg text-foreground">Interaction Notes & History</CardTitle>
+                    <CardDescription className="text-muted-foreground">Timeline and communication summaries</CardDescription>
                   </div>
                 </div>
               </CardHeader>
@@ -1633,19 +1630,19 @@ export default function DealDetailPage() {
         {/* Activity & Documents Section - Standardized Full Width */}
         <div className="mt-12">
           <Card ref={activitySectionRef} className="shadow-2xl border-0  overflow-hidden rounded-3xl scroll-mt-24 border-t-4 border-t-primary/20">
-            <CardHeader className="pb-4 border-b  bg-gradient-to-r from-slate-50 to-white px-8 py-6">
+            <CardHeader className="pb-4 border-b  bg-gradient-to-r from-muted/30 to-background px-8 py-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <div className="p-3 bg-primary/10 rounded-2xl">
                     <Activity className="h-6 w-6 text-primary" />
                   </div>
                   <div>
-                    <CardTitle className="text-xl text-slate-900 font-bold">Activity, Timeline & Documents</CardTitle>
-                    <CardDescription className="text-slate-500 text-sm">Interaction history and shared resources for <strong>{deal.title}</strong></CardDescription>
+                    <CardTitle className="text-xl text-foreground font-bold">Activity, Timeline & Documents</CardTitle>
+                    <CardDescription className="text-muted-foreground text-sm">Interaction history and shared resources for <strong>{deal.title}</strong></CardDescription>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="bg-slate-50 text-slate-600 ">
+                  <Badge variant="outline" className="bg-muted/40 text-muted-foreground ">
                     {sidebarTab === 'activity' ? 'Timeline View' : 'Files View'}
                   </Badge>
                 </div>
@@ -1653,7 +1650,7 @@ export default function DealDetailPage() {
             </CardHeader>
             <CardContent className="p-0">
               <Tabs value={sidebarTab} onValueChange={setSidebarTab} className="w-full">
-                <TabsList className="flex w-full justify-start gap-10 px-8 border-b  bg-slate-50/50 h-16 rounded-none">
+                <TabsList className="flex w-full justify-start gap-10 px-8 border-b  bg-muted/40/50 h-16 rounded-none">
                   <TabsTrigger
                     value="activity"
                     className="relative px-4 h-full bg-transparent border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none rounded-none gap-2 text-base font-semibold transition-all hover:text-primary/70"

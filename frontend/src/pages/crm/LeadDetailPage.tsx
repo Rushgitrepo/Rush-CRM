@@ -26,6 +26,7 @@ import { WorkspaceShareModal } from "@/components/crm/leads/WorkspaceShareModal"
 import { useLead } from "@/hooks/useCrmInteractions";
 import { useUpdateLead, useDeleteLead, useConvertLeadToDeal } from "@/hooks/useCrmMutations";
 import { useCreateActivity } from "@/hooks/useCrmInteractions";
+import { useLeadStats } from "@/hooks/useCrmData";
 import { useSoftphone } from "@/contexts/SoftphoneContext";
 import { ClickToCall } from "@/components/telephony/ClickToCall";
 import { toast } from "sonner";
@@ -131,13 +132,13 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
   if (!editing && !value) {
     return (
       <div className="space-y-2">
-        <Label className="text-sm font-medium text-gray-700 flex items-center gap-1">
+        <Label className="text-sm font-medium text-foreground flex items-center gap-1">
           {icon}
           {label}
           {required && <span className="text-red-500">*</span>}
         </Label>
-        <div className="min-h-[2.5rem] px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 flex items-center">
-          <span className="text-gray-400 italic">Not specified</span>
+        <div className="min-h-[2.5rem] px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-center">
+          <span className="text-muted-foreground italic">Not specified</span>
         </div>
       </div>
     );
@@ -145,7 +146,7 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
 
   return (
     <div className="space-y-2">
-      <Label className="text-sm font-medium text-gray-700 flex items-center gap-1">
+      <Label className="text-sm font-medium text-foreground flex items-center gap-1">
         {icon}
         {label}
         {required && <span className="text-red-500">*</span>}
@@ -156,7 +157,7 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
             value={value || ""}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
-            className="min-h-[100px] resize-none border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+            className="min-h-[100px] resize-none"
           />
         ) : (
           <Input
@@ -164,11 +165,11 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
             value={value || ""}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
-            className="h-10 border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+            className="h-10"
           />
         )
       ) : (
-        <div className="min-h-[2.5rem] px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 flex items-center overflow-hidden">
+        <div className="min-h-[2.5rem] px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-center overflow-hidden">
           {type === "tel" ? (
             <ClickToCall
               phoneNumber={value || ""}
@@ -179,7 +180,7 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
           ) : type === "email" ? (
             <a href={`mailto:${value}`} className="text-primary hover:underline font-medium break-words w-full">{value}</a>
           ) : (
-            <span className="text-gray-900 font-medium break-words w-full">{value}</span>
+            <span className="text-foreground font-medium break-words w-full">{value}</span>
           )}
         </div>
       )}
@@ -275,7 +276,7 @@ const getStatusColor = (status: string) => {
     case 'new': return 'bg-amber-50 text-amber-700 border-amber-200';
     case 'proposal': return 'bg-purple-50 text-purple-700 border-purple-200';
     case 'negotiation': return 'bg-orange-50 text-orange-700 border-orange-200';
-    default: return ' text-slate-700 ';
+    default: return ' text-muted-foreground ';
   }
 };
 
@@ -299,6 +300,7 @@ export default function LeadDetailPage() {
   const convertLeadToDeal = useConvertLeadToDeal();
   const createActivity = useCreateActivity();
   const { dialNumber } = useSoftphone();
+  const { data: leadStats } = useLeadStats();
 
   const [editing, setEditing] = useState(() => window.location.pathname.endsWith('/edit'));
   const [form, setForm] = useState<Record<string, unknown>>({});
@@ -459,8 +461,8 @@ export default function LeadDetailPage() {
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary/5 flex items-center justify-center">
         <div className="text-center  p-8 rounded-2xl shadow-xl border ">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <h3 className="text-lg font-semibold text-slate-900 mb-2">Loading Lead Details</h3>
-          <p className="text-slate-600">Please wait while we fetch the information...</p>
+          <h3 className="text-lg font-semibold text-foreground mb-2">Loading Lead Details</h3>
+          <p className="text-muted-foreground">Please wait while we fetch the information...</p>
         </div>
       </div>
     );
@@ -473,8 +475,8 @@ export default function LeadDetailPage() {
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <AlertCircle className="h-8 w-8 text-red-600" />
           </div>
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">Lead Not Found</h2>
-          <p className="text-slate-600 mb-6">The lead you're looking for doesn't exist or may have been removed.</p>
+          <h2 className="text-2xl font-bold text-foreground mb-2">Lead Not Found</h2>
+          <p className="text-muted-foreground mb-6">The lead you're looking for doesn't exist or may have been removed.</p>
           <Button onClick={() => navigate('/crm/leads')} className="bg-primary hover:bg-primary/90 text-white px-6 py-2">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Leads
@@ -491,11 +493,11 @@ export default function LeadDetailPage() {
         <div className="px-6 py-4">
           {/* Professional Breadcrumb */}
           <nav className="flex items-center gap-2 text-sm  mb-6">
-            <span className="hover:text-slate-700 cursor-pointer">CRM</span>
+            <span className="hover:text-muted-foreground cursor-pointer">CRM</span>
             <ChevronRight className="h-4 w-4" />
-            <span className="hover:text-slate-700 cursor-pointer" onClick={() => navigate('/crm/leads')}>Leads</span>
+            <span className="hover:text-muted-foreground cursor-pointer" onClick={() => navigate('/crm/leads')}>Leads</span>
             <ChevronRight className="h-4 w-4" />
-            <span className="text-slate-900 font-medium">{lead.title}</span>
+            <span className="text-foreground font-medium">{lead.title}</span>
           </nav>
 
           {/* Header Content */}
@@ -505,7 +507,7 @@ export default function LeadDetailPage() {
                 variant="ghost"
                 size="sm"
                 onClick={() => navigate("/crm/leads")}
-                className="gap-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 self-start md:self-auto"
+                className="gap-2 text-muted-foreground hover:text-foreground hover:bg-muted self-start md:self-auto"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back to Leads
@@ -514,7 +516,7 @@ export default function LeadDetailPage() {
                 <div className="relative">
                   <Avatar className="h-14 w-14 ring-4 ring-white shadow-lg">
                     <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${lead.title}`} />
-                    <AvatarFallback className="bg-slate-800 text-white font-bold text-lg">
+                    <AvatarFallback className="bg-foreground text-white font-bold text-lg">
                       {lead.title?.split(' ').map(n => n[0]).join('').toUpperCase() || 'L'}
                     </AvatarFallback>
                   </Avatar>
@@ -556,7 +558,7 @@ export default function LeadDetailPage() {
                   <Button
                     variant="outline"
                     onClick={() => { setEditing(false); setForm({ ...lead }); }}
-                    className="gap-2  text-slate-700"
+                    className="gap-2  text-muted-foreground"
                   >
                     Cancel
                   </Button>
@@ -604,7 +606,7 @@ export default function LeadDetailPage() {
 
                   {lead.status === 'converted' || lead.converted_to_deal_id ? (
                     <Button
-                      className="gap-2 bg-slate-100 text-slate-700 hover:bg-slate-200 border  shadow-sm"
+                      className="gap-2 bg-muted text-muted-foreground hover:bg-muted border  shadow-sm"
                       onClick={() => navigate(`/crm/deals/${lead.converted_to_deal_id || ''}`)}
                     >
                       <Target className="h-4 w-4 text-emerald-600" />
@@ -623,11 +625,11 @@ export default function LeadDetailPage() {
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="outline" size="icon" className="h-10 w-10   hover: hover:border-primary transition-all shadow-sm group">
-                        <MoreHorizontal className="h-5 w-5  group-hover:text-slate-900 transition-colors" />
+                        <MoreHorizontal className="h-5 w-5  group-hover:text-foreground transition-colors" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-80 max-h-[450px] overflow-y-auto p-1.5 shadow-[0_20px_50px_rgba(0,0,0,0.2)]  z-[100]  rounded-xl animate-in fade-in-0 transform-gpu zoom-in-95">
-                      <DropdownMenuLabel className="px-2.5 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">Communication</DropdownMenuLabel>
+                      <DropdownMenuLabel className="px-2.5 py-2 text-[10px] font-bold text-muted-foreground uppercase tracking-[0.15em]">Communication</DropdownMenuLabel>
                       {lead.email && (
                         <DropdownMenuItem
                           className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover: transition-all group"
@@ -637,7 +639,7 @@ export default function LeadDetailPage() {
                             <Mail className="h-4 w-4 text-blue-600" />
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="font-semibold text-sm text-slate-900">Copy Email Address</p>
+                            <p className="font-semibold text-sm text-foreground">Copy Email Address</p>
                             <p className="text-xs  truncate">{lead.email}</p>
                           </div>
                         </DropdownMenuItem>
@@ -651,15 +653,15 @@ export default function LeadDetailPage() {
                             <Phone className="h-4 w-4 text-emerald-600" />
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="font-semibold text-sm text-slate-900">Copy Phone Number</p>
+                            <p className="font-semibold text-sm text-foreground">Copy Phone Number</p>
                             <p className="text-xs ">{lead.phone}</p>
                           </div>
                         </DropdownMenuItem>
                       )}
 
-                      <DropdownMenuSeparator className="my-1.5 bg-slate-100" />
+                      <DropdownMenuSeparator className="my-1.5 bg-muted" />
 
-                      <DropdownMenuLabel className="px-2.5 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">Quick Jump</DropdownMenuLabel>
+                      <DropdownMenuLabel className="px-2.5 py-2 text-[10px] font-bold text-muted-foreground uppercase tracking-[0.15em]">Quick Jump</DropdownMenuLabel>
                       <DropdownMenuItem
                         className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover: transition-all group"
                         onSelect={() => handleScrollToActivity("activity")}
@@ -667,7 +669,7 @@ export default function LeadDetailPage() {
                         <div className="p-2 bg-purple-50 rounded-md group-hover:bg-purple-100 transition-colors">
                           <Eye className="h-4 w-4 text-purple-600" />
                         </div>
-                        <p className="font-semibold text-sm text-slate-900 flex-1">View Activity Timeline</p>
+                        <p className="font-semibold text-sm text-foreground flex-1">View Activity Timeline</p>
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-orange-50/50 transition-all group"
@@ -676,7 +678,7 @@ export default function LeadDetailPage() {
                         <div className="p-2 bg-orange-50 rounded-md group-hover:bg-orange-100 transition-colors">
                           <Calendar className="h-4 w-4 text-orange-600" />
                         </div>
-                        <p className="font-semibold text-sm text-slate-900 flex-1">Schedule Meeting</p>
+                        <p className="font-semibold text-sm text-foreground flex-1">Schedule Meeting</p>
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-indigo-50/50 transition-all group"
@@ -685,12 +687,12 @@ export default function LeadDetailPage() {
                         <div className="p-2 bg-indigo-50 rounded-md group-hover:bg-indigo-100 transition-colors">
                           <MessageSquare className="h-4 w-4 text-indigo-600" />
                         </div>
-                        <p className="font-semibold text-sm text-slate-900 flex-1">Send Message</p>
+                        <p className="font-semibold text-sm text-foreground flex-1">Send Message</p>
                       </DropdownMenuItem>
 
-                      <DropdownMenuSeparator className="my-1.5 bg-slate-100" />
+                      <DropdownMenuSeparator className="my-1.5 bg-muted" />
 
-                      <DropdownMenuLabel className="px-2.5 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">Reports & Data</DropdownMenuLabel>
+                      <DropdownMenuLabel className="px-2.5 py-2 text-[10px] font-bold text-muted-foreground uppercase tracking-[0.15em]">Reports & Data</DropdownMenuLabel>
                       <DropdownMenuItem
                         className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover: transition-all group"
                         onSelect={handlePrint}
@@ -698,7 +700,7 @@ export default function LeadDetailPage() {
                         <div className="p-2 bg-orange-50 rounded-md group-hover:bg-orange-100 transition-colors">
                           <Printer className="h-4 w-4 text-orange-600" />
                         </div>
-                        <p className="font-semibold text-sm text-slate-900 flex-1">Print Lead Details</p>
+                        <p className="font-semibold text-sm text-foreground flex-1">Print Lead Details</p>
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover: transition-all group"
@@ -707,20 +709,20 @@ export default function LeadDetailPage() {
                         <div className="p-2 bg-emerald-50 rounded-md group-hover:bg-emerald-100 transition-colors">
                           <Download className="h-4 w-4 text-emerald-600" />
                         </div>
-                        <p className="font-semibold text-sm text-slate-900 flex-1">Export as JSON</p>
+                        <p className="font-semibold text-sm text-foreground flex-1">Export as JSON</p>
                       </DropdownMenuItem>
 
-                      <DropdownMenuSeparator className="my-1.5 bg-slate-100" />
+                      <DropdownMenuSeparator className="my-1.5 bg-muted" />
 
-                      <DropdownMenuLabel className="px-2.5 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">Access & Admin</DropdownMenuLabel>
+                      <DropdownMenuLabel className="px-2.5 py-2 text-[10px] font-bold text-muted-foreground uppercase tracking-[0.15em]">Access & Admin</DropdownMenuLabel>
                       <DropdownMenuItem
                         className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover: transition-all group"
                         onSelect={() => setShowWorkspaceModal(true)}
                       >
-                        <div className="p-2 bg-slate-100 rounded-md group-hover:bg-slate-200 transition-colors">
-                          <Share2 className="h-4 w-4 text-slate-600" />
+                        <div className="p-2 bg-muted rounded-md group-hover:bg-muted transition-colors">
+                          <Share2 className="h-4 w-4 text-muted-foreground" />
                         </div>
-                        <p className="font-semibold text-sm text-slate-900 flex-1">Manage Workspace Access</p>
+                        <p className="font-semibold text-sm text-foreground flex-1">Manage Workspace Access</p>
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-orange-50 group transition-all"
@@ -807,7 +809,7 @@ export default function LeadDetailPage() {
                             ? "bg-red-500 text-white shadow-md"
                             : isPassed && !isUnqualified
                               ? "bg-emerald-500 text-white shadow-md"
-                              : "bg-slate-300 text-slate-600 group-hover:bg-slate-400"
+                              : "bg-muted text-muted-foreground group-hover:bg-muted-foreground"
                       )}>
                         {isPassed && !isUnqualified ? (
                           <CheckCircle className="h-5 w-5" />
@@ -839,48 +841,50 @@ export default function LeadDetailPage() {
           <div className="lg:col-span-8 space-y-8">
             {/* Enterprise Metrics Dashboard */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card className="border   shadow-sm">
+              <Card className="border shadow-sm">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-slate-100 rounded-lg">
-                      <TrendingUp className="h-5 w-5 text-slate-700" />
+                    <div className="p-2 bg-muted rounded-lg">
+                      <TrendingUp className="h-5 w-5 text-muted-foreground" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs text-primary font-medium uppercase tracking-wide truncate">Lead Score</p>
-                      <p className="text-2xl font-bold text-slate-900">85<span className="text-sm">/100</span></p>
-                      <p className="text-xs text-primary truncate">High Quality</p>
+                      <p className="text-xs text-primary font-medium uppercase tracking-wide truncate">Total Leads</p>
+                      <p className="text-2xl font-bold text-foreground">{leadStats?.overview?.total_leads ?? '—'}</p>
+                      <p className="text-xs text-muted-foreground truncate">{leadStats?.overview?.qualified_leads ?? 0} qualified</p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="border   shadow-sm">
+              <Card className="border shadow-sm">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-slate-100 rounded-lg">
-                      <Target className="h-5 w-5 text-slate-700" />
+                    <div className="p-2 bg-muted rounded-lg">
+                      <Target className="h-5 w-5 text-muted-foreground" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs text-primary font-medium uppercase tracking-wide truncate">Conversion</p>
-                      <p className="text-2xl font-bold text-primary">67<span className="text-sm">%</span></p>
-                      <p className="text-xs text-emerald-700 truncate">Above Avg</p>
+                      <p className="text-xs text-primary font-medium uppercase tracking-wide truncate">Pipeline Value</p>
+                      <p className="text-2xl font-bold text-primary">
+                        ${leadStats?.overview?.total_value ? Number(leadStats.overview.total_value).toLocaleString() : '0'}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">Active leads</p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="border   shadow-sm">
+              <Card className="border shadow-sm">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-slate-100 rounded-lg">
-                      <Clock className="h-5 w-5 text-slate-700" />
+                    <div className="p-2 bg-muted rounded-lg">
+                      <Clock className="h-5 w-5 text-muted-foreground" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs text-primary font-medium uppercase tracking-wide truncate">Days</p>
+                      <p className="text-xs text-primary font-medium uppercase tracking-wide truncate">Days Active</p>
                       <p className="text-2xl font-bold text-primary">
                         {lead.created_at ? Math.floor((new Date().getTime() - new Date(lead.created_at).getTime()) / (1000 * 60 * 60 * 24)) : 0}
                       </p>
-                      <p className="text-xs text-primary truncate">Active Lead</p>
+                      <p className="text-xs text-muted-foreground truncate">Since created</p>
                     </div>
                   </div>
                 </CardContent>
@@ -900,9 +904,9 @@ export default function LeadDetailPage() {
                 <CardContent className="p-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-2">
-                      <Label className="text-sm font-medium text-gray-700">Stage</Label>
+                      <Label className="text-sm font-medium text-foreground">Stage</Label>
                       <Select value={(form.stage as string) || ""} onValueChange={(v) => set("stage", v)} disabled={!editing}>
-                        <SelectTrigger className="h-10 border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20">
+                        <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
                           <SelectValue placeholder="Select stage" />
                         </SelectTrigger>
                         <SelectContent>
@@ -914,9 +918,9 @@ export default function LeadDetailPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-sm font-medium text-gray-700">Customer Type</Label>
+                      <Label className="text-sm font-medium text-foreground">Customer Type</Label>
                       <Select value={(form.customer_type as string) || ""} onValueChange={(v) => set("customer_type", v)} disabled={!editing}>
-                        <SelectTrigger className="h-10 border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20">
+                        <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
                           <SelectValue placeholder="not selected" />
                         </SelectTrigger>
                         <SelectContent>
@@ -962,31 +966,31 @@ export default function LeadDetailPage() {
                       entityId={id}
                     />
                     <div className="space-y-2">
-                      <Label className="text-sm font-medium text-gray-700">Personal Number</Label>
+                      <Label className="text-sm font-medium text-foreground">Personal Number</Label>
                       <div className="flex items-stretch gap-2">
                         {editing ? (
                           <Input
                             value={(form.phone as string) || ""}
                             onChange={(e) => set("phone", e.target.value)}
                             placeholder="+1 (555) 123-4567"
-                            className="h-10 border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1"
+                            className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1"
                           />
                         ) : (
-                          <div className="h-10 px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 flex items-center flex-1">
+                          <div className="h-10 px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-center flex-1">
                             {(form.phone as string) ? (
                               <ClickToCall
                                 phoneNumber={form.phone as string}
                                 entityType="lead"
                                 entityId={id}
-                                className="text-sm font-medium text-gray-900"
+                                className="text-sm font-medium text-foreground"
                               />
                             ) : (
-                              <span className="text-gray-400 italic">Not specified</span>
+                              <span className="text-muted-foreground italic">Not specified</span>
                             )}
                           </div>
                         )}
                         <Select value={(form.phone_type as string) || ""} onValueChange={(v) => set("phone_type", v)} disabled={!editing}>
-                          <SelectTrigger className="h-10 w-[160px] border-gray-300">
+                          <SelectTrigger className="h-10 w-[160px] border-border">
                             <SelectValue placeholder="Work Phone" />
                           </SelectTrigger>
                           <SelectContent>
@@ -999,7 +1003,7 @@ export default function LeadDetailPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-sm font-medium text-gray-700">Personal E-mail</Label>
+                      <Label className="text-sm font-medium text-foreground">Personal E-mail</Label>
                       <div className="flex items-stretch gap-2">
                         {editing ? (
                           <Input
@@ -1007,19 +1011,19 @@ export default function LeadDetailPage() {
                             value={(form.email as string) || ""}
                             onChange={(e) => set("email", e.target.value)}
                             placeholder="john@example.com"
-                            className="h-10 border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1"
+                            className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1"
                           />
                         ) : (
-                          <div className="h-10 px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 flex items-center flex-1 overflow-hidden">
+                          <div className="h-10 px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-center flex-1 overflow-hidden">
                             {(form.email as string) ? (
                               <a href={`mailto:${form.email}`} className="text-primary hover:underline font-medium break-words w-full">{form.email as string}</a>
                             ) : (
-                              <span className="text-gray-400 italic">Not specified</span>
+                              <span className="text-muted-foreground italic">Not specified</span>
                             )}
                           </div>
                         )}
                         <Select value={(form.email_type as string) || ""} onValueChange={(v) => set("email_type", v)} disabled={!editing}>
-                          <SelectTrigger className="h-10 w-[140px] border-gray-300">
+                          <SelectTrigger className="h-10 w-[140px] border-border">
                             <SelectValue placeholder="Work" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1032,26 +1036,26 @@ export default function LeadDetailPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-sm font-medium text-gray-700">Website</Label>
+                      <Label className="text-sm font-medium text-foreground">Website</Label>
                       <div className="flex items-stretch gap-2">
                         {editing ? (
                           <Input
                             value={(form.website as string) || ""}
                             onChange={(e) => set("website", e.target.value)}
                             placeholder="https://example.com"
-                            className="h-10 border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1"
+                            className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1"
                           />
                         ) : (
-                          <div className="h-10 px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 flex items-center flex-1 overflow-hidden">
+                          <div className="h-10 px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-center flex-1 overflow-hidden">
                             {(form.website as string) ? (
                               <a href={String(form.website)} target="_blank" rel="noreferrer" className="text-primary hover:underline font-medium break-words w-full">{form.website as string}</a>
                             ) : (
-                              <span className="text-gray-400 italic">Not specified</span>
+                              <span className="text-muted-foreground italic">Not specified</span>
                             )}
                           </div>
                         )}
                         <Select value={(form.website_type as string) || ""} onValueChange={(v) => set("website_type", v)} disabled={!editing}>
-                          <SelectTrigger className="h-10 w-[160px] border-gray-300">
+                          <SelectTrigger className="h-10 w-[160px] border-border">
                             <SelectValue placeholder="Corporate" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1065,7 +1069,7 @@ export default function LeadDetailPage() {
 
                     <div className="md:col-span-2 space-y-2">
                       <div className="flex items-center justify-between">
-                        <Label className="text-sm font-medium text-gray-700 flex items-center gap-1">
+                        <Label className="text-sm font-medium text-foreground flex items-center gap-1">
                           <MapPin className="h-4 w-4" />
                           Address
                         </Label>
@@ -1075,13 +1079,13 @@ export default function LeadDetailPage() {
                         <Textarea
                           value={(form.address as string) || ""}
                           onChange={(e) => set("address", e.target.value)}
-                          className="min-h-[84px] resize-none border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                          className="min-h-[84px] resize-none border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
                           placeholder="Address"
                         />
                       ) : (
-                        <div className="min-h-[84px] px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 flex items-start overflow-hidden">
-                          <span className="whitespace-pre-wrap break-words text-gray-900 font-medium w-full">
-                            {(form.address as string) || <span className="text-gray-400 italic">Not specified</span>}
+                        <div className="min-h-[84px] px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-start overflow-hidden">
+                          <span className="whitespace-pre-wrap break-words text-foreground font-medium w-full">
+                            {(form.address as string) || <span className="text-muted-foreground italic">Not specified</span>}
                           </span>
                         </div>
                       )}
@@ -1163,7 +1167,7 @@ export default function LeadDetailPage() {
                 <CardContent className="p-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-2">
-                      <Label className="text-sm font-medium text-gray-700 flex items-center gap-1">
+                      <Label className="text-sm font-medium text-foreground flex items-center gap-1">
                         <Star className="h-4 w-4" />
                         Service Interested
                       </Label>
@@ -1177,9 +1181,9 @@ export default function LeadDetailPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-sm font-medium text-gray-700">Company Size</Label>
+                      <Label className="text-sm font-medium text-foreground">Company Size</Label>
                       <Select value={(form.company_size as string) || ""} onValueChange={(v) => set("company_size", v)} disabled={!editing}>
-                        <SelectTrigger className="h-10 border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20">
+                        <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
                           <SelectValue placeholder="Company Size" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1191,7 +1195,7 @@ export default function LeadDetailPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-sm font-medium text-gray-700">Estimated Opportunity Value</Label>
+                      <Label className="text-sm font-medium text-foreground">Estimated Opportunity Value</Label>
                       <div className="flex items-stretch gap-2">
                         <Input
                           type="number"
@@ -1199,10 +1203,10 @@ export default function LeadDetailPage() {
                           onChange={(e) => set("value", e.target.value ? Number(e.target.value) : null)}
                           disabled={!editing}
                           placeholder="0"
-                          className="h-10 border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1"
+                          className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1"
                         />
                         <Select value={(form.currency as string) || ""} onValueChange={(v) => set("currency", v)} disabled={!editing}>
-                          <SelectTrigger className="h-10 w-[170px] border-gray-300">
+                          <SelectTrigger className="h-10 w-[170px] border-border">
                             <SelectValue placeholder="US Dollar" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1215,9 +1219,9 @@ export default function LeadDetailPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-sm font-medium text-gray-700">Decision Maker Identified</Label>
+                      <Label className="text-sm font-medium text-foreground">Decision Maker Identified</Label>
                       <Select value={(form.decision_maker as string) || ""} onValueChange={(v) => set("decision_maker", v)} disabled={!editing}>
-                        <SelectTrigger className="h-10 border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20">
+                        <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
                           <SelectValue placeholder="not selected" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1251,16 +1255,16 @@ export default function LeadDetailPage() {
                 <CardContent className="p-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-2">
-                      <Label className="text-sm font-medium text-gray-700">Created on</Label>
-                      <div className="h-10 px-3 py-2 border border-dashed border-gray-200 rounded-lg bg-gray-50 flex items-center text-gray-500">
+                      <Label className="text-sm font-medium text-foreground">Created on</Label>
+                      <div className="h-10 px-3 py-2 border border-dashed border-border rounded-lg bg-muted/40 flex items-center text-muted-foreground">
                         {lead.created_at ? format(new Date(lead.created_at), "MMM d, yyyy") : "Will be set automatically"}
                       </div>
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-sm font-medium text-gray-700">Source</Label>
+                      <Label className="text-sm font-medium text-foreground">Source</Label>
                       <Select value={(form.source as string) || ""} onValueChange={(v) => set("source", v)} disabled={!editing}>
-                        <SelectTrigger className="h-10 border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20">
+                        <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
                           <SelectValue placeholder="Call" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1272,17 +1276,17 @@ export default function LeadDetailPage() {
                     </div>
 
                     <div className="md:col-span-2 space-y-2">
-                      <Label className="text-sm font-medium text-gray-700">Source Information</Label>
+                      <Label className="text-sm font-medium text-foreground">Source Information</Label>
                       {editing ? (
                         <Textarea
                           value={displayJsonValue(form.source_info)}
                           onChange={(e) => set("source_info", e.target.value)}
                           placeholder="Source Information"
-                          className="min-h-[110px] resize-none border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                          className="min-h-[110px] resize-none border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
                         />
                       ) : (
-                        <div className="min-h-[110px] px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 whitespace-pre-wrap text-gray-900">
-                          {displayJsonValue(form.source_info) || <span className="text-gray-400 italic">Not specified</span>}
+                        <div className="min-h-[110px] px-3 py-2 border border-border rounded-lg bg-muted/40 whitespace-pre-wrap text-foreground">
+                          {displayJsonValue(form.source_info) || <span className="text-muted-foreground italic">Not specified</span>}
                         </div>
                       )}
                     </div>
@@ -1304,8 +1308,8 @@ export default function LeadDetailPage() {
             <Card className="border   shadow-sm">
               <CardHeader className="pb-4 border-b  /80">
                 <CardTitle className="text-2xl flex items-center gap-3">
-                  <div className="p-2 bg-slate-100 rounded-lg">
-                    <Award className="h-6 w-6 text-slate-700" />
+                  <div className="p-2 bg-muted rounded-lg">
+                    <Award className="h-6 w-6 text-muted-foreground" />
                   </div>
                   Lead Overview
                 </CardTitle>
@@ -1314,35 +1318,35 @@ export default function LeadDetailPage() {
                 <div className="text-center pb-6 border-b ">
                   <Avatar className="h-20 w-20 mx-auto mb-4 ring-2 ring-white shadow-sm">
                     <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${lead.title}`} />
-                    <AvatarFallback className="bg-slate-800 text-white text-2xl font-bold">
+                    <AvatarFallback className="bg-foreground text-white text-2xl font-bold">
                       {lead.title?.split(' ').map(n => n[0]).join('').toUpperCase() || 'L'}
                     </AvatarFallback>
                   </Avatar>
-                  <h3 className="font-bold text-xl text-slate-900 mb-1 break-words">{lead.title}</h3>
-                  <p className="text-slate-600 font-medium break-words">{lead.company_name}</p>
+                  <h3 className="font-bold text-xl text-foreground mb-1 break-words">{lead.title}</h3>
+                  <p className="text-muted-foreground font-medium break-words">{lead.company_name}</p>
                   <p className="text-sm  break-words">{lead.designation}</p>
                 </div>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between p-4  rounded-lg border ">
-                    <span className="text-sm font-semibold text-slate-600">Current Status</span>
+                    <span className="text-sm font-semibold text-muted-foreground">Current Status</span>
                     <Badge className={cn("gap-1 px-3 py-1", getStatusColor(lead.status))}>
                       {getStatusIcon(lead.status)}
                       {lead.status || 'New Lead'}
                     </Badge>
                   </div>
                   <div className="flex items-center justify-between p-4  rounded-lg border ">
-                    <span className="text-sm font-semibold text-slate-600">Potential Value</span>
+                    <span className="text-sm font-semibold text-muted-foreground">Potential Value</span>
                     <span className="font-bold text-lg text-emerald-600">
                       {lead.value ? `$${Number(lead.value).toLocaleString()}` : 'Not specified'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between p-4  rounded-lg border ">
-                    <span className="text-sm font-semibold text-slate-600">Source</span>
-                    <span className="text-sm font-semibold text-slate-900">{lead.source || 'Unknown'}</span>
+                    <span className="text-sm font-semibold text-muted-foreground">Source</span>
+                    <span className="text-sm font-semibold text-foreground">{lead.source || 'Unknown'}</span>
                   </div>
                   <div className="flex items-center justify-between p-4  rounded-lg border ">
-                    <span className="text-sm font-semibold text-slate-600">Date Created</span>
-                    <span className="text-sm font-medium text-slate-700">
+                    <span className="text-sm font-semibold text-muted-foreground">Date Created</span>
+                    <span className="text-sm font-medium text-muted-foreground">
                       {lead.created_at ? format(new Date(lead.created_at), 'MMM d, yyyy') : 'Unknown'}
                     </span>
                   </div>
@@ -1354,8 +1358,8 @@ export default function LeadDetailPage() {
             <Card className="border   shadow-sm">
               <CardHeader className="border-b  /80">
                 <CardTitle className="text-xl flex items-center gap-3">
-                  <div className="p-2 bg-slate-100 rounded-lg">
-                    <Zap className="h-5 w-5 text-slate-700" />
+                  <div className="p-2 bg-muted rounded-lg">
+                    <Zap className="h-5 w-5 text-muted-foreground" />
                   </div>
                   Quick Actions
                 </CardTitle>
@@ -1370,11 +1374,11 @@ export default function LeadDetailPage() {
                       className="w-full justify-start p-0 h-14 text-left border  hover: transition-all rounded-md overflow-hidden "
                       customTrigger={
                         <div className="flex items-center gap-4 w-full h-full px-4">
-                          <div className="p-3 bg-slate-100 rounded-lg">
-                            <Phone className="h-5 w-5 text-slate-700" />
+                          <div className="p-3 bg-muted rounded-lg">
+                            <Phone className="h-5 w-5 text-muted-foreground" />
                           </div>
                           <div>
-                            <p className="font-semibold text-slate-900">Call Lead</p>
+                            <p className="font-semibold text-foreground">Call Lead</p>
                             <p className="text-sm ">{lead.phone}</p>
                           </div>
                         </div>
@@ -1389,11 +1393,11 @@ export default function LeadDetailPage() {
                     className="w-full justify-start gap-4 h-14 text-left border  hover: transition-all"
                     onClick={() => window.open(`mailto:${lead.email}`, '_blank')}
                   >
-                    <div className="p-3 bg-slate-100 rounded-lg">
-                      <Mail className="h-5 w-5 text-slate-700" />
+                    <div className="p-3 bg-muted rounded-lg">
+                      <Mail className="h-5 w-5 text-muted-foreground" />
                     </div>
                     <div>
-                      <p className="font-semibold text-slate-900">Send Email</p>
+                      <p className="font-semibold text-foreground">Send Email</p>
                       <p className="text-sm ">{lead.email}</p>
                     </div>
                   </Button>
@@ -1405,11 +1409,11 @@ export default function LeadDetailPage() {
                     className="w-full justify-start gap-4 h-14 text-left border  hover: transition-all"
                     onClick={() => window.open(lead.website, '_blank')}
                   >
-                    <div className="p-3 bg-slate-100 rounded-lg">
-                      <Globe className="h-5 w-5 text-slate-700" />
+                    <div className="p-3 bg-muted rounded-lg">
+                      <Globe className="h-5 w-5 text-muted-foreground" />
                     </div>
                     <div>
-                      <p className="font-semibold text-slate-900">Visit Website</p>
+                      <p className="font-semibold text-foreground">Visit Website</p>
                       <p className="text-sm ">Open in new tab</p>
                     </div>
                   </Button>
@@ -1420,11 +1424,11 @@ export default function LeadDetailPage() {
                   className="w-full justify-start gap-4 h-14 text-left border  hover: transition-all"
                   onClick={() => handleScrollToActivity("activity", "booking")}
                 >
-                  <div className="p-3 bg-slate-100 rounded-lg">
-                    <Calendar className="h-5 w-5 text-slate-700" />
+                  <div className="p-3 bg-muted rounded-lg">
+                    <Calendar className="h-5 w-5 text-muted-foreground" />
                   </div>
                   <div>
-                    <p className="font-semibold text-slate-900">Schedule Meeting</p>
+                    <p className="font-semibold text-foreground">Schedule Meeting</p>
                     <p className="text-sm ">Book a call or demo</p>
                   </div>
                 </Button>
@@ -1448,7 +1452,7 @@ export default function LeadDetailPage() {
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className=" text-slate-600 ">
+                  <Badge variant="outline" className=" text-muted-foreground ">
                     {sidebarTab === 'activity' ? 'Timeline View' : 'Files View'}
                   </Badge>
                 </div>
@@ -1516,7 +1520,7 @@ export default function LeadDetailPage() {
               <Target className="h-6 w-6 text-primary" />
               Convert Lead to Deal
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-600 py-2">
+            <AlertDialogDescription className="text-muted-foreground py-2">
               This will create a new deal from this lead's information and move it to your deals pipeline. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -1541,7 +1545,7 @@ export default function LeadDetailPage() {
               <AlertCircle className="h-6 w-6" />
               Delete Lead
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-600 py-2">
+            <AlertDialogDescription className="text-muted-foreground py-2">
               Are you sure you want to delete this lead? This action cannot be undone and will remove all associated data including activities, notes, and files.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -1566,7 +1570,7 @@ export default function LeadDetailPage() {
               <Share2 className="h-6 w-6 text-primary" />
               Workspace Access Control
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-600 py-2">
+            <AlertDialogDescription className="text-muted-foreground py-2">
               Manage who has access to this lead and its associated files. You can invite team members, set permissions, and track who is currently viewing this record.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -1583,7 +1587,7 @@ export default function LeadDetailPage() {
               </div>
               <Badge variant="outline" className=" ">Owner</Badge>
             </div>
-            <p className="text-xs text-center text-slate-400 italic">Collaborative workspace features are coming soon to Rush CRM.</p>
+            <p className="text-xs text-center text-muted-foreground italic">Collaborative workspace features are coming soon to Rush CRM.</p>
           </div>
           <AlertDialogFooter>
             <AlertDialogAction onClick={() => setShowWorkspaceModal(false)} className="bg-primary hover:bg-primary/90 h-10 px-8 font-semibold">
