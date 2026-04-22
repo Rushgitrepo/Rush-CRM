@@ -17,7 +17,8 @@ router.delete('/:id', projectController.remove);
 router.get('/:id/members', projectController.getMembers);
 router.post('/:id/members', projectController.addMember);
 router.delete('/:id/members/:memberId', projectController.removeMember);
-
-module.exports = router;
+router.get('/:id/shares', projectController.getShares);
+router.post('/:id/shares', projectController.createShare);
+router.put('/shares/:shareId', projectController.updateShare);
 
 module.exports = router;

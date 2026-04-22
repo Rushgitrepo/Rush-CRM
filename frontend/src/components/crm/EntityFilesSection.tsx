@@ -38,8 +38,13 @@ export function EntityFilesSection({ entityType, entityId }: EntityFilesSectionP
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = e.target.files;
     if (!selectedFiles || selectedFiles.length === 0) return;
-    if (!profile?.org_id || !user?.id) {
-      toast.error("You must be authenticated to upload files");
+    if (!user?.id) {
+      toast.error(`You must be logged in. (user: ${JSON.stringify(user)})`);
+      return;
+    }
+
+    if (!profile?.org_id) {
+      toast.error(`Org missing. Profile: ${JSON.stringify(profile)}`);
       return;
     }
 

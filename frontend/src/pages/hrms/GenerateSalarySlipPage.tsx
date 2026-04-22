@@ -304,7 +304,7 @@ export default function GenerateSalarySlipPage() {
               <CardTitle>Salary Slip Preview</CardTitle>
             </CardHeader>
             <CardContent>
-              <div ref={slipRef} className="bg-white p-8 border-2 border-gray-300 rounded-lg" style={{ fontFamily: 'Arial, sans-serif' }}>
+              <div ref={slipRef} className="p-8 border-2 rounded-lg" style={{ fontFamily: 'Arial, sans-serif' }}>
                 {/* Header */}
                 <div className="text-center mb-6 pb-4 border-b-2 border-gray-800">
                   <h1 className="text-3xl font-bold text-gray-800 mb-1">SALARY SLIP</h1>

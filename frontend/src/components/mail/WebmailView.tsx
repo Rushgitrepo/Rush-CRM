@@ -132,8 +132,6 @@ export function WebmailView({ mailboxes, onBackToIntegration, initialOpenCompose
     enabled: !!user,
   });
 
-  // Realtime subscription removed (no Supabase)
-
   const handleMarkRead = async (id: string) => {
     await api.patch(`/email/messages/${id}`, { is_read: true });
     queryClient.invalidateQueries({ queryKey: ["emails"] });

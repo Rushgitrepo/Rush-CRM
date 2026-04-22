@@ -1,4 +1,3 @@
-
 export const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
 
 class ApiClient {
@@ -42,8 +41,9 @@ class ApiClient {
     });
 
     if (response.status === 401) {
+      const hadToken = !!this.token;
       this.setToken(null);
-      window.location.href = '/auth';
+      if (hadToken) window.location.href = '/auth';
       throw new Error('Unauthorized');
     }
 
@@ -113,6 +113,7 @@ export const authApi = {
   updateProfile: (data: any) => api.put('/auth/profile', data),
   logout: () => api.post('/auth/logout'),
   forgotPassword: (email: string) => api.post('/auth/forgot-password', { email }),
+  resetPassword: (data: { token: string; password: string }) => api.post('/auth/reset-password', data),
   changePassword: (data: { currentPassword: string; newPassword: string }) => api.post('/auth/change-password', data),
   acceptInvite: (data: { token: string; password: string }) => api.post('/auth/accept-invite', data),
   verifyInvite: (token: string) => api.get<any>(`/auth/verify-invite/${token}`),
@@ -502,6 +503,8 @@ export const workgroupsApi = {
   getAll: (params = {}) => api.get<any[]>('/workgroups', params),
   getById: (id: string) => api.get<any>(`/workgroups/${id}`),
   create: (data: any) => api.post<any>('/workgroups', data),
+  openDirectChat: (contactUserId: string) =>
+    api.post<any>('/workgroups/direct-chat', { contact_user_id: contactUserId }),
   update: (id: string, data: any) => api.put<any>(`/workgroups/${id}`, data),
   delete: (id: string) => api.delete(`/workgroups/${id}`),
 
@@ -521,11 +524,14 @@ export const workgroupsApi = {
       channel_id?: string;
       parent_id?: string;
       files?: any[];
+      mentions?: string[];
     },
   ) =>
     api.post<any>(`/workgroups/${id}/posts`, data),
   deletePost: (id: string, postId: string) => api.delete(`/workgroups/${id}/posts/${postId}`),
-  togglePinPost: (id: string, postId: string, isPinned: boolean) =>
+  deletePostForMe: (id: string, postId: string) =>
+    api.delete(`/workgroups/${id}/posts/${postId}/me`),
+  togglePinPost: (id: string, postId: string, isPinned: boolean) => 
     api.put<any>(`/workgroups/${id}/posts/${postId}/pin`, { is_pinned: !isPinned }),
 
   // Activities
@@ -537,6 +543,11 @@ export const workgroupsApi = {
     const formData = new FormData();
     formData.append('file', file);
     return api.post<any>(`/workgroups/${id}/files`, formData);
+  },
+  uploadAvatar: (id: string, file: File) => {
+    const formData = new FormData();
+    formData.append('avatar', file);
+    return api.post<{ avatar_url: string }>(`/workgroups/${id}/avatar`, formData);
   },
   deleteFile: (id: string, fileId: string) => api.delete(`/workgroups/${id}/files/${fileId}`),
 

@@ -64,6 +64,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import { ModulePermissionEditor } from "@/components/admin/ModulePermissionEditor";
+import { getAvatarUrl } from "@/lib/utils";
 
 const ROLE_OPTIONS = [
   { value: "admin", label: "Admin" },
@@ -125,7 +126,7 @@ export default function AdminDashboardPage() {
   const { data: users, isLoading } = useQuery({
     queryKey: ["admin-users"],
     queryFn: () => usersApi.getAll(),
-    refetchInterval: pendingInvites.length > 0 ? 5000 : false,
+    refetchInterval: 3000, // Refetch every 3 seconds to catch new users
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
@@ -319,7 +320,13 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     if (!users?.length) return;
     const activeEmails = new Set(users.map((u: any) => String(u.email || "").toLowerCase()));
-    setPendingInvites((prev) => prev.filter((p) => !activeEmails.has(p.email.toLowerCase())));
+    console.log('Active emails:', Array.from(activeEmails));
+    console.log('Pending invites before filter:', pendingInvites);
+    setPendingInvites((prev) => {
+      const filtered = prev.filter((p) => !activeEmails.has(p.email.toLowerCase()));
+      console.log('Pending invites after filter:', filtered);
+      return filtered;
+    });
   }, [users]);
 
   return (
@@ -443,7 +450,7 @@ export default function AdminDashboardPage() {
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
                               <Avatar className="h-9 w-9 border border-border/50">
-                                <AvatarImage src={u.avatar_url} />
+                                <AvatarImage src={getAvatarUrl(u.avatar_url)} />
                                 <AvatarFallback className="bg-primary/10 text-primary font-bold">
                                   {u.full_name
                                     ?.split(" ")

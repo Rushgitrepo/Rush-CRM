@@ -8,10 +8,6 @@ const getAll = async (req, res, next) => {
     const { page = 1, limit = 50, search } = req.query;
     const offset = (page - 1) * limit;
 
-    // Fetch requester's role
-    const requesterResult = await db.query('SELECT role FROM public.users WHERE id = $1', [req.user.id]);
-    const requesterRole = requesterResult.rows[0]?.role;
-
     let query = `
       SELECT u.id, u.email, u.full_name, u.role, u.department, u.phone, u.position, u.is_active, 
              u.avatar_url, u.created_at, u.updated_at, u.module_permissions, u.password_change_required
@@ -27,10 +23,10 @@ const getAll = async (req, res, next) => {
     // Filter by active status
     conditions.push(`u.is_active = true`);
 
-    // Security: Non-super_admins cannot see super_admins
-    if (requesterRole !== 'super_admin') {
-      conditions.push(`u.role != 'super_admin'`);
-    }
+    // Never show super_admins in the employees list, and never show the requester themselves
+    conditions.push(`u.role != 'super_admin'`);
+    conditions.push(`u.id != $${params.length + 1}`);
+    params.push(req.user.id);
 
     if (search) {
       const searchNum = params.length + 1;
@@ -113,16 +109,20 @@ const create = async (req, res, next) => {
 
     await client.query('BEGIN');
 
+    // Remove any existing invitation for this email to allow re-inviting
+    await client.query('DELETE FROM public.invites WHERE email = $1', [email]);
+
     const inviteToken = uuidv4();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
     const orgId = req.user.orgId;
 
     // Save to invites table instead of users
+    const inviteId = uuidv4();
     await client.query(
       `INSERT INTO public.invites 
-       (email, full_name, role, phone, position, department, module_permissions, invite_token, expires_at, org_id) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-      [email, fullName, role || 'employee', phone, position, department, JSON.stringify(module_permissions || {}), inviteToken, expiresAt, orgId]
+       (id, email, full_name, role, phone, position, department, module_permissions, invite_token, expires_at, org_id) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      [inviteId, email, fullName, role || 'employee', phone, position, department, JSON.stringify(module_permissions || {}), inviteToken, expiresAt, orgId]
     );
 
     // Send Invite Email

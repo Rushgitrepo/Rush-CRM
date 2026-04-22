@@ -231,6 +231,8 @@ const getAll = async (req, res, next) => {
     const { page = 1, limit = 50, stage, status, search } = req.query;
     const offset = (page - 1) * limit;
 
+    const isAdmin = req.user.role === 'super_admin' || req.user.role === 'admin';
+
     let query = `
       SELECT d.*,
              c.first_name as contact_first_name, c.last_name as contact_last_name, c.email as contact_email, c.phone as contact_phone,
@@ -242,6 +244,12 @@ const getAll = async (req, res, next) => {
     `;
     const params = [req.user.orgId];
     let paramIndex = 2;
+
+    if (!isAdmin) {
+      query += ` AND (d.assigned_to = $${paramIndex} OR d.owner_id = $${paramIndex} OR d.responsible_person = $${paramIndex} OR d.user_id = $${paramIndex})`;
+      params.push(req.user.id);
+      paramIndex++;
+    }
 
     if (stage) {
       query += ` AND d.stage = $${paramIndex}`;
@@ -266,10 +274,13 @@ const getAll = async (req, res, next) => {
 
     const result = await db.query(query, params);
 
-    const countResult = await db.query(
-      'SELECT COUNT(*) FROM public.deals WHERE org_id = $1',
-      [req.user.orgId]
-    );
+    const countParams = [req.user.orgId];
+    let countQuery = 'SELECT COUNT(*) FROM public.deals WHERE org_id = $1';
+    if (!isAdmin) {
+      countQuery += ' AND (assigned_to = $2 OR owner_id = $2 OR responsible_person = $2 OR user_id = $2)';
+      countParams.push(req.user.id);
+    }
+    const countResult = await db.query(countQuery, countParams);
 
     res.json({
       data: result.rows.map(deal => ({

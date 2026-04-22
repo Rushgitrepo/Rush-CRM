@@ -69,6 +69,8 @@ export default function OffersPage() {
   const [candidates, setCandidates] = useState<any[]>([]);
   const [requisitions, setRequisitions] = useState<any[]>([]);
   const [creating, setCreating] = useState(false);
+  const [loadingCandidates, setLoadingCandidates] = useState(false);
+  const [loadingRequisitions, setLoadingRequisitions] = useState(false);
 
   // Create Offer Form State
   const [offerForm, setOfferForm] = useState({
@@ -96,26 +98,37 @@ export default function OffersPage() {
 
   const fetchCandidates = async () => {
     try {
-      // Fetch candidates who have completed interviews or are in final stages
-      const data = await recruitmentApi.getCandidates({ 
-        status: 'interviewed,final_round,selected' 
-      });
-      console.log('Fetched candidates for offers:', data);
-      setCandidates(data);
+      setLoadingCandidates(true);
+      // Fetch all candidates and filter on frontend
+      const data = await recruitmentApi.getCandidates();
+      console.log('Fetched all candidates:', data);
+      // Filter for candidates eligible for offers
+      const eligible = data.filter((c: any) => 
+        ['interviewed', 'final_round', 'selected'].includes(c.status)
+      );
+      console.log('Eligible candidates for offers:', eligible);
+      setCandidates(eligible);
     } catch (error) {
       console.error('Error fetching candidates:', error);
       toast.error('Failed to load candidates');
+      setCandidates([]);
+    } finally {
+      setLoadingCandidates(false);
     }
   };
 
   const fetchRequisitions = async () => {
     try {
+      setLoadingRequisitions(true);
       const data = await recruitmentApi.getRequisitions({ status: 'approved' });
       console.log('Fetched requisitions:', data);
       setRequisitions(data);
     } catch (error) {
       console.error('Error fetching requisitions:', error);
       toast.error('Failed to load requisitions');
+      setRequisitions([]);
+    } finally {
+      setLoadingRequisitions(false);
     }
   };
 
@@ -586,15 +599,15 @@ export default function OffersPage() {
           
           <div className="space-y-6 py-4">
             {/* Loading State */}
-            {(candidates.length === 0 || requisitions.length === 0) && (
+            {(loadingCandidates || loadingRequisitions) && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
                 <div className="flex items-start space-x-3">
-                  <Clock className="h-5 w-5 text-blue-600 mt-0.5" />
+                  <Clock className="h-5 w-5 text-blue-600 mt-0.5 animate-spin" />
                   <div>
                     <p className="text-sm font-medium text-blue-900">Loading candidates and requisitions...</p>
                     <p className="text-xs text-blue-700 mt-1">
-                      {candidates.length === 0 && 'Fetching eligible candidates... '}
-                      {requisitions.length === 0 && 'Fetching approved requisitions...'}
+                      {loadingCandidates && 'Fetching eligible candidates... '}
+                      {loadingRequisitions && 'Fetching approved requisitions...'}
                     </p>
                   </div>
                 </div>

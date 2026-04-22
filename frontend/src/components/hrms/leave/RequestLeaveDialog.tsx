@@ -102,16 +102,23 @@ export default function RequestLeaveDialog({ open, onOpenChange, balances }: Req
                 <SelectValue placeholder="Select leave type" />
               </SelectTrigger>
               <SelectContent>
-                {balances.map((balance) => (
-                  <SelectItem key={balance.leave_type_id} value={balance.leave_type_id}>
-                    <div className="flex items-center justify-between w-full">
-                      <span>{balance.leave_type_name}</span>
-                      <span className="text-xs text-gray-500 ml-4">
-                        {balance.available} / {balance.total_allocated} days
-                      </span>
-                    </div>
-                  </SelectItem>
-                ))}
+                {balances.length === 0 ? (
+                  <div className="p-4 text-center text-sm text-muted-foreground">
+                    <p className="font-medium mb-1">No leave types available</p>
+                    <p className="text-xs">Please contact HR to initialize your leave balance</p>
+                  </div>
+                ) : (
+                  balances.map((balance) => (
+                    <SelectItem key={balance.leave_type_id} value={balance.leave_type_id}>
+                      <div className="flex items-center justify-between w-full">
+                        <span>{balance.leave_type_name}</span>
+                        <span className="text-xs text-gray-500 ml-4">
+                          {balance.available} / {balance.total_allocated} days
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
             {selectedBalance && (
@@ -209,7 +216,10 @@ export default function RequestLeaveDialog({ open, onOpenChange, balances }: Req
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={createMutation.isPending}>
+          <Button 
+            onClick={handleSubmit} 
+            disabled={createMutation.isPending || balances.length === 0}
+          >
             {createMutation.isPending ? "Submitting..." : "Submit Request"}
           </Button>
         </DialogFooter>

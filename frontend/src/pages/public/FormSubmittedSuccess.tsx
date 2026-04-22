@@ -3,7 +3,7 @@ import { CheckCircle } from 'lucide-react';
 
 export default function FormSubmittedSuccess() {
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+    <div className="min-h-screen dark:bg-gray-900 flex items-center justify-center p-6">
       <Card className="max-w-2xl w-full shadow-lg">
         <CardContent className="pt-12 pb-12 text-center">
           <div className="flex justify-center mb-6">
@@ -12,16 +12,16 @@ export default function FormSubmittedSuccess() {
             </div>
           </div>
           
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">
+          <h1 className="text-3xl dark:text-white font-bold text-gray-900 mb-4">
             Application Submitted Successfully!
           </h1>
           
-          <p className="text-lg text-gray-600 mb-6">
+          <p className="text-lg text-gray-600 dark:text-white mb-6">
             Thank you for completing the application form.
           </p>
           
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
-            <p className="text-blue-800 font-medium mb-2">
+          <div className="bg-blue-50 dark:bg-gray-900 border border-blue-200 dark:border-blue-800 rounded-lg p-6 mb-6">
+            <p className="text-blue-800 dark:text-blue-200 font-medium mb-2">
               What happens next?
             </p>
             <ul className="text-left text-blue-700 space-y-2">

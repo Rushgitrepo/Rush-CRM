@@ -7,7 +7,7 @@ const fs = require('fs');
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '../../uploads/workgroups');
+    const uploadDir = path.join(__dirname, '../../../public/uploads');
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
@@ -315,10 +315,42 @@ const createNotification = async (workgroupId, userId, type, message, data = {})
   }
 };
 
+// Upload workgroup avatar
+const uploadWorkgroupAvatar = async (req, res, next) => {
+  try {
+    const { workgroupId } = req.params;
+
+    // Only owner/admin can change avatar
+    const memberResult = await db.query(
+      `SELECT role FROM workgroup_members WHERE workgroup_id = $1 AND user_id = $2`,
+      [workgroupId, req.user.id]
+    );
+    if (memberResult.rows.length === 0 || !['owner', 'admin'].includes(memberResult.rows[0].role)) {
+      return res.status(403).json({ error: 'Only owners and admins can change the group avatar' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const avatarUrl = `/uploads/${req.file.filename}`;
+
+    await db.query(
+      `UPDATE workgroups SET avatar_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND org_id = $3`,
+      [avatarUrl, workgroupId, req.user.orgId]
+    );
+
+    res.json({ avatar_url: avatarUrl });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getWorkgroupFiles,
   uploadWorkgroupFile: [upload.single('file'), uploadWorkgroupFile],
   deleteWorkgroupFile,
   downloadWorkgroupFile,
   viewWorkgroupFile,
+  uploadWorkgroupAvatar: [upload.single('avatar'), uploadWorkgroupAvatar],
 };

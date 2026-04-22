@@ -211,10 +211,20 @@ export function useMarkNotificationRead() {
   });
 }
 
+export interface ProjectShare {
+  id: string;
+  project_id: string;
+  share_token: string;
+  client_name?: string;
+  client_email?: string;
+  is_active: boolean;
+  created_at: string;
+}
+
 export function useProjectShares(projectId: string) {
   return useQuery({
     queryKey: ['project_shares', projectId],
-    queryFn: async () => [],
+    queryFn: () => api.get(`/projects/${projectId}/shares`),
     enabled: !!projectId,
   });
 }
@@ -222,7 +232,9 @@ export function useProjectShares(projectId: string) {
 export function useCreateShare() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (s: { project_id: string }) => s,
+    mutationFn: async (s: { project_id: string; client_name?: string; client_email?: string }) => {
+      return api.post(`/projects/${s.project_id}/shares`, s);
+    },
     onSuccess: (_, v) => {
       qc.invalidateQueries({ queryKey: ['project_shares', v.project_id] });
       toast.success('Share link created');
@@ -234,8 +246,13 @@ export function useCreateShare() {
 export function useToggleShare() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ project_id }: { id: string; is_active: boolean; project_id: string }) => project_id,
-    onSuccess: (pid) => qc.invalidateQueries({ queryKey: ['project_shares', pid] }),
+    mutationFn: async ({ id, is_active, project_id }: { id: string; is_active: boolean; project_id: string }) => {
+      return api.put(`/projects/shares/${id}`, { is_active });
+    },
+    onSuccess: (_, { project_id }) => {
+      qc.invalidateQueries({ queryKey: ['project_shares', project_id] });
+      toast.success('Share link updated');
+    },
     onError: (e: Error) => toast.error('Failed: ' + e.message),
   });
 }

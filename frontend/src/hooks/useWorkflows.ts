@@ -128,8 +128,9 @@ export function useAddWorkflowAction() {
   return useMutation({
     mutationFn: (action: { workflow_id: string; action_type: string; action_config?: Record<string, unknown>; condition_config?: Record<string, unknown> | null; sort_order?: number }) => 
       workflowsApi.createAction(action),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['workflows'] });
+      queryClient.invalidateQueries({ queryKey: ['workflow_actions', variables.workflow_id] });
       toast.success('Workflow action added');
     },
     onError: (err: Error) => toast.error('Failed to add workflow action: ' + err.message),
@@ -140,10 +141,11 @@ export function useAddWorkflowAction() {
 export function useUpdateWorkflowAction() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...updates }: Partial<WorkflowAction> & { id: string }) => 
+    mutationFn: ({ id, workflow_id, ...updates }: Partial<WorkflowAction> & { id: string; workflow_id?: string }) => 
       workflowsApi.updateAction(id, updates),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['workflows'] });
+      if (variables.workflow_id) queryClient.invalidateQueries({ queryKey: ['workflow_actions', variables.workflow_id] });
       toast.success('Workflow action updated');
     },
     onError: (err: Error) => toast.error('Failed to update workflow action: ' + err.message),
@@ -154,9 +156,10 @@ export function useUpdateWorkflowAction() {
 export function useDeleteWorkflowAction() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => workflowsApi.deleteAction(id),
-    onSuccess: () => {
+    mutationFn: ({ id, workflow_id }: { id: string; workflow_id: string }) => workflowsApi.deleteAction(id),
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['workflows'] });
+      queryClient.invalidateQueries({ queryKey: ['workflow_actions', variables.workflow_id] });
       toast.success('Workflow action deleted');
     },
     onError: (err: Error) => toast.error('Failed to delete workflow action: ' + err.message),

@@ -128,6 +128,12 @@ export default function CreateEmployeePage() {
   };
 
   const handleSubmit = async () => {
+    // Prevent double submission
+    if (loading) {
+      console.log('Already processing, ignoring duplicate click');
+      return;
+    }
+    
     // Only first_name, last_name, and email are required
     if (!formData.first_name || !formData.last_name || !formData.email) {
       toast.error('Please fill in required fields', {
@@ -137,6 +143,8 @@ export default function CreateEmployeePage() {
     }
 
     setLoading(true);
+    console.log('Starting employee creation process...');
+    
     try {
       // Clean up formData - remove empty strings and convert types
       const cleanedData = Object.entries(formData).reduce((acc, [key, value]) => {
@@ -165,19 +173,108 @@ export default function CreateEmployeePage() {
         cleanedData.languages = cleanedData.languages.split(',').map((s: string) => s.trim()).filter(Boolean);
       }
 
-      await api.post('/employees', cleanedData);
+      // Create employee first
+      const employeeData = await api.post('/employees', cleanedData);
+      console.log('Employee data received:', employeeData); // Debug log
+      
+      // The API client returns the data directly, not wrapped in a response object
+      const newEmployee = employeeData;
+      
+      console.log('Parsed employee:', newEmployee);
+      console.log('Employee ID:', newEmployee?.id);
+
+      // Check if employee was created successfully
+      if (!newEmployee || !newEmployee.id) {
+        console.error('Employee creation failed - no ID in response:', newEmployee);
+        console.error('Full response for debugging:', JSON.stringify(employeeData, null, 2));
+        throw new Error('Failed to create employee - no ID returned');
+      }
+
+      console.log(`Employee created successfully with ID: ${newEmployee.id}`);
+      console.log('Employee name:', newEmployee.name || `${newEmployee.first_name} ${newEmployee.last_name}`);
+
+      // Upload documents if any
+      const documentUploads = [];
+      
+      // Upload single files
+      if (uploadedFiles.cnic_picture) {
+        documentUploads.push(uploadDocument(newEmployee.id, uploadedFiles.cnic_picture, 'cnic', 'CNIC Picture'));
+      }
+      if (uploadedFiles.profile_picture) {
+        documentUploads.push(uploadDocument(newEmployee.id, uploadedFiles.profile_picture, 'profile', 'Profile Picture'));
+      }
+      if (uploadedFiles.resume) {
+        documentUploads.push(uploadDocument(newEmployee.id, uploadedFiles.resume, 'resume', 'Resume/CV'));
+      }
+
+      // Upload multiple files
+      uploadedFiles.educational_docs.forEach((file, index) => {
+        documentUploads.push(uploadDocument(newEmployee.id, file, 'education', `Educational Document ${index + 1}`));
+      });
+      
+      uploadedFiles.experience_letters.forEach((file, index) => {
+        documentUploads.push(uploadDocument(newEmployee.id, file, 'experience', `Experience Letter ${index + 1}`));
+      });
+      
+      uploadedFiles.other_docs.forEach((file, index) => {
+        documentUploads.push(uploadDocument(newEmployee.id, file, 'other', `Other Document ${index + 1}`));
+      });
+
+      // Wait for all document uploads to complete
+      if (documentUploads.length > 0) {
+        try {
+          await Promise.all(documentUploads);
+          console.log(`✅ Uploaded ${documentUploads.length} documents for employee ${newEmployee.id}`);
+        } catch (uploadError) {
+          console.error('Some documents failed to upload:', uploadError);
+          toast.error('Employee created but some documents failed to upload', {
+            description: 'You can upload documents later from the employee profile'
+          });
+        }
+      }
       
       toast.success('Employee created successfully!', {
-        description: 'You can edit and add documents anytime'
+        description: documentUploads.length > 0 
+          ? `Employee and ${documentUploads.length} documents uploaded`
+          : 'You can add documents anytime from the employee profile'
       });
       navigate('/hrms/employees');
     } catch (error: any) {
-      console.error('Error creating employee:', error);
+      console.error('Full error object:', error);
+      console.error('Error response:', error.response);
+      console.error('Error response data:', error.response?.data);
+      console.error('Error response status:', error.response?.status);
+      
+      let errorMessage = 'Please try again';
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast.error('Failed to create employee', {
-        description: error?.message || 'Please try again'
+        description: errorMessage
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const uploadDocument = async (employeeId: string, file: File, documentType: string, documentName: string) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('document_type', documentType);
+      formData.append('document_name', documentName);
+      
+      return await api.post(`/employees/${employeeId}/documents`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+    } catch (error) {
+      console.error(`Failed to upload ${documentName}:`, error);
+      throw error;
     }
   };
 
@@ -189,9 +286,9 @@ export default function CreateEmployeePage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+    <div className="min-h-screen">
       {/* Header */}
-      <div className="bg-white border-b border-slate-200 shadow-sm">
+      <div className="border-b border-border bg-background shadow-sm">
         <div className="max-w-6xl mx-auto px-6 py-6">
           <Button
             variant="ghost"
@@ -204,11 +301,11 @@ export default function CreateEmployeePage() {
           
           <div className="flex items-center gap-4">
             <div className="p-3 bg-primary rounded-2xl shadow-lg">
-              <User className="h-8 w-8 text-white" />
+              <User className="h-8 w-8 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Add New Employee</h1>
-              <p className="text-gray-600 mt-1">Complete employee information and documentation</p>
+              <h1 className="text-3xl font-bold text-foreground">Add New Employee</h1>
+              <p className="text-muted-foreground mt-1">Complete employee information and documentation</p>
             </div>
           </div>
 
@@ -219,20 +316,20 @@ export default function CreateEmployeePage() {
                 <div className="flex items-center">
                   <div className={`flex items-center justify-center w-10 h-10 rounded-full ${
                     currentStep >= step.id
-                      ? 'bg-primary text-white'
-                      : 'bg-gray-200 text-gray-600'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground'
                   }`}>
                     {currentStep > step.id ? '✓' : step.id}
                   </div>
                   <span className={`ml-2 text-sm font-medium ${
-                    currentStep >= step.id ? 'text-blue-600' : 'text-gray-500'
+                    currentStep >= step.id ? 'text-primary' : 'text-muted-foreground'
                   }`}>
                     {step.title}
                   </span>
                 </div>
                 {index < steps.length - 1 && (
                   <div className={`flex-1 h-1 mx-4 ${
-                    currentStep > step.id ? 'bg-blue-600' : 'bg-gray-200'
+                    currentStep > step.id ? 'bg-primary' : 'bg-muted'
                   }`} />
                 )}
               </React.Fragment>
@@ -243,14 +340,14 @@ export default function CreateEmployeePage() {
 
       {/* Form Content */}
       <div className="max-w-6xl mx-auto px-6 py-8">
-        <Card className="shadow-xl border-0">
+        <Card className="shadow-xl">
           <CardContent className="p-8">
             {/* Step 1: Basic Info */}
             {currentStep === 1 && (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Basic Information</h2>
-                  <p className="text-gray-600">Enter employee's basic contact details</p>
+                  <h2 className="text-2xl font-bold text-foreground mb-2">Basic Information</h2>
+                  <p className="text-muted-foreground">Enter employee's basic contact details</p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -334,8 +431,8 @@ export default function CreateEmployeePage() {
             {currentStep === 2 && (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Personal Details</h2>
-                  <p className="text-gray-600">Personal information and address</p>
+                  <h2 className="text-2xl font-bold text-foreground mb-2">Personal Details</h2>
+                  <p className="text-muted-foreground">Personal information and address</p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -477,7 +574,7 @@ export default function CreateEmployeePage() {
                   </div>
 
                   <div className="md:col-span-2">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4 mt-6">Emergency Contact</h3>
+                    <h3 className="text-lg font-semibold text-foreground mb-4 mt-6">Emergency Contact</h3>
                   </div>
 
                   <div>
@@ -517,8 +614,8 @@ export default function CreateEmployeePage() {
             {currentStep === 3 && (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Employment Details</h2>
-                  <p className="text-gray-600">Job position and salary information</p>
+                  <h2 className="text-2xl font-bold text-foreground mb-2">Employment Details</h2>
+                  <p className="text-muted-foreground">Job position and salary information</p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -634,7 +731,7 @@ export default function CreateEmployeePage() {
                   </div>
 
                   <div className="md:col-span-2">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4 mt-6">Banking Information</h3>
+                    <h3 className="text-lg font-semibold text-foreground mb-4 mt-6">Banking Information</h3>
                   </div>
 
                   <div>
@@ -684,8 +781,8 @@ export default function CreateEmployeePage() {
             {currentStep === 4 && (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Employee Documents</h2>
-                  <p className="text-gray-600">Upload important documents and certificates (Optional - can be added later)</p>
+                  <h2 className="text-2xl font-bold dark:text-white text-gray-900 mb-2">Employee Documents</h2>
+                  <p className="text-gray-600 dark:text-gray-400">Upload important documents and certificates (Optional - can be added later)</p>
                 </div>
 
                 <div className="grid grid-cols-1 gap-6">
@@ -697,10 +794,10 @@ export default function CreateEmployeePage() {
                           <FileText className="h-6 w-6 text-blue-600" />
                         </div>
                         <div className="flex-1">
-                          <h3 className="font-semibold text-gray-900">CNIC Picture</h3>
-                          <p className="text-sm text-gray-600">Upload front and back of CNIC</p>
+                          <h3 className="font-semibold text-gray-900 dark:text-white">CNIC Picture</h3>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">Upload front and back of CNIC</p>
                           {uploadedFiles.cnic_picture && (
-                            <p className="text-sm text-green-600 mt-1">✓ {uploadedFiles.cnic_picture.name}</p>
+                            <p className="text-sm text-green-600 dark:text-green-400 mt-1">✓ {uploadedFiles.cnic_picture.name}</p>
                           )}
                         </div>
                         <input
@@ -730,10 +827,10 @@ export default function CreateEmployeePage() {
                           <User className="h-6 w-6 text-green-600" />
                         </div>
                         <div className="flex-1">
-                          <h3 className="font-semibold text-gray-900">Profile Picture</h3>
-                          <p className="text-sm text-gray-600">Upload employee photo</p>
+                          <h3 className="font-semibold text-gray-900 dark:text-white">Profile Picture</h3>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">Upload employee photo</p>
                           {uploadedFiles.profile_picture && (
-                            <p className="text-sm text-green-600 mt-1">✓ {uploadedFiles.profile_picture.name}</p>
+                            <p className="text-sm text-green-600 dark:text-green-400 mt-1">✓ {uploadedFiles.profile_picture.name}</p>
                           )}
                         </div>
                         <input
@@ -763,10 +860,10 @@ export default function CreateEmployeePage() {
                           <FileText className="h-6 w-6 text-purple-600" />
                         </div>
                         <div className="flex-1">
-                          <h3 className="font-semibold text-gray-900">Educational Documents</h3>
-                          <p className="text-sm text-gray-600">Degrees, certificates, transcripts</p>
+                          <h3 className="font-semibold text-gray-900 dark:text-white">Educational Documents</h3>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">Degrees, certificates, transcripts</p>
                           {uploadedFiles.educational_docs.length > 0 && (
-                            <p className="text-sm text-green-600 mt-1">✓ {uploadedFiles.educational_docs.length} file(s) selected</p>
+                            <p className="text-sm text-green-600 dark:text-green-400 mt-1">✓ {uploadedFiles.educational_docs.length} file(s) selected</p>
                           )}
                         </div>
                         <input
@@ -797,10 +894,10 @@ export default function CreateEmployeePage() {
                           <Building2 className="h-6 w-6 text-orange-600" />
                         </div>
                         <div className="flex-1">
-                          <h3 className="font-semibold text-gray-900">Experience Letters</h3>
-                          <p className="text-sm text-gray-600">Previous employment letters</p>
+                          <h3 className="font-semibold text-gray-900 dark:text-white">Experience Letters</h3>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">Previous employment letters</p>
                           {uploadedFiles.experience_letters.length > 0 && (
-                            <p className="text-sm text-green-600 mt-1">✓ {uploadedFiles.experience_letters.length} file(s) selected</p>
+                            <p className="text-sm text-green-600 dark:text-green-400 mt-1">✓ {uploadedFiles.experience_letters.length} file(s) selected</p>
                           )}
                         </div>
                         <input
@@ -831,10 +928,10 @@ export default function CreateEmployeePage() {
                           <FileText className="h-6 w-6 text-indigo-600" />
                         </div>
                         <div className="flex-1">
-                          <h3 className="font-semibold text-gray-900">Resume / CV</h3>
-                          <p className="text-sm text-gray-600">Upload latest resume</p>
+                          <h3 className="font-semibold text-gray-900 dark:text-white">Resume / CV</h3>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">Upload latest resume</p>
                           {uploadedFiles.resume && (
-                            <p className="text-sm text-green-600 mt-1">✓ {uploadedFiles.resume.name}</p>
+                            <p className="text-sm text-green-600 dark:text-green-400 mt-1">✓ {uploadedFiles.resume.name}</p>
                           )}
                         </div>
                         <input
@@ -864,10 +961,10 @@ export default function CreateEmployeePage() {
                           <FileText className="h-6 w-6 text-gray-600" />
                         </div>
                         <div className="flex-1">
-                          <h3 className="font-semibold text-gray-900">Other Documents</h3>
-                          <p className="text-sm text-gray-600">Contracts, NDA, medical certificates, etc.</p>
+                          <h3 className="font-semibold text-gray-900 dark:text-white">Other Documents</h3>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">Contracts, NDA, medical certificates, etc.</p>
                           {uploadedFiles.other_docs.length > 0 && (
-                            <p className="text-sm text-green-600 mt-1">✓ {uploadedFiles.other_docs.length} file(s) selected</p>
+                            <p className="text-sm text-green-600 dark:text-green-400 mt-1">✓ {uploadedFiles.other_docs.length} file(s) selected</p>
                           )}
                         </div>
                         <input
@@ -886,27 +983,6 @@ export default function CreateEmployeePage() {
                           <Upload className="h-4 w-4" />
                           Upload Files
                         </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Info Box */}
-                  <Card className="bg-blue-50 border-blue-200">
-                    <CardContent className="p-6">
-                      <div className="flex gap-3">
-                        <div className="p-2 bg-blue-500 rounded-lg h-fit">
-                          <FileText className="h-5 w-5 text-white" />
-                        </div>
-                        <div>
-                          <h4 className="font-semibold text-blue-900 mb-2">Document Upload Guidelines</h4>
-                          <ul className="text-sm text-blue-800 space-y-1">
-                            <li>• Supported formats: PDF, JPG, PNG, DOCX</li>
-                            <li>• Maximum file size: 10MB per document</li>
-                            <li>• <strong>Documents are optional</strong> - you can skip and add later</li>
-                            <li>• You can edit employee details and upload documents anytime</li>
-                            <li>• All documents are securely stored and encrypted</li>
-                          </ul>
-                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -940,7 +1016,7 @@ export default function CreateEmployeePage() {
                   className="gap-2 bg-primary hover:bg-primary/90"
                 >
                   <Save className="h-4 w-4" />
-                  {loading ? 'Creating...' : 'Create Employee'}
+                  {loading ? 'Creating Employee & Uploading Documents...' : 'Create Employee'}
                 </Button>
               )}
             </div>

@@ -1,6 +1,7 @@
 const db = require('../../config/database');
 const Joi = require('joi');
 const { fireWorkflows } = require('../../services/workflowEngine');
+const notificationService = require('../../services/notificationService');
 
 // Map database status/stage values to frontend expected values
 const mapStatusToFrontend = (status) => {
@@ -225,17 +226,21 @@ const getAll = async (req, res, next) => {
       paramIndex++;
     }
 
+    const isAdmin = req.user.role === 'super_admin' || req.user.role === 'admin';
+
     // Workspace filtering
     if (workspaceId) {
       query += ` AND l.workspace_id = $${paramIndex}`;
       params.push(workspaceId);
       paramIndex++;
+    } else if (isAdmin) {
+      // Admins see all leads in the org — no extra filter
     } else {
-      // Only show leads user has access to via workspace membership or shared access
+      // Regular users: must own/be assigned, or have workspace access
       query += ` AND (
-        l.workspace_id IS NULL OR
+        l.assigned_to = $${paramIndex} OR l.owner_id = $${paramIndex} OR l.user_id = $${paramIndex} OR l.created_by = $${paramIndex} OR
         EXISTS (
-          SELECT 1 FROM workgroup_members wm 
+          SELECT 1 FROM workgroup_members wm
           WHERE wm.workgroup_id = l.workspace_id AND wm.user_id = $${paramIndex}
         ) OR
         EXISTS (
@@ -306,10 +311,13 @@ const getAll = async (req, res, next) => {
       }
     }
 
-    const countResult = await db.query(
-      'SELECT COUNT(*) FROM public.leads WHERE org_id = $1',
-      [req.user.orgId]
-    );
+    const countParams = [req.user.orgId];
+    let countQuery = 'SELECT COUNT(*) FROM public.leads WHERE org_id = $1';
+    if (!isAdmin) {
+      countQuery += ` AND (assigned_to = $2 OR owner_id = $2 OR user_id = $2 OR created_by = $2)`;
+      countParams.push(req.user.id);
+    }
+    const countResult = await db.query(countQuery, countParams);
 
     res.json({
       data: result.rows.map(lead => ({
@@ -474,6 +482,20 @@ const create = async (req, res, next) => {
     const lead = result.rows[0];
     fireWorkflows(req.user.orgId, 'lead_created', lead, req.user.id);
 
+    // Notify assignee if different from creator
+    if (lead.assigned_to && lead.assigned_to !== req.user.id) {
+      notificationService.notify(
+        req.user.orgId,
+        lead.assigned_to,
+        'lead_assigned',
+        'New Lead Assigned',
+        `${req.user.full_name || req.user.email} assigned you the lead "${lead.title || lead.name}"`,
+        `/crm/leads/${lead.id}`,
+        req.user.id,
+        { leadId: lead.id, leadTitle: lead.title || lead.name }
+      );
+    }
+
     res.status(201).json({
       ...lead,
       company: lead.linked_company_name || lead.company_name || lead.company,
@@ -616,6 +638,36 @@ const update = async (req, res, next) => {
     }
 
     const lead = result.rows[0];
+    const oldLead = existingLead.rows[0];
+
+    // Notify on assignment change
+    if (value.assignedTo && value.assignedTo !== oldLead.assigned_to && value.assignedTo !== req.user.id) {
+      notificationService.notify(
+        req.user.orgId,
+        value.assignedTo,
+        'lead_assigned',
+        'Lead Assigned to You',
+        `${req.user.full_name || req.user.email} assigned you the lead "${lead.title || lead.name}"`,
+        `/crm/leads/${lead.id}`,
+        req.user.id,
+        { leadId: lead.id, leadTitle: lead.title || lead.name }
+      );
+    }
+
+    // Notify on stage change
+    if (value.stage && value.stage !== oldLead.stage && lead.assigned_to) {
+      notificationService.notify(
+        req.user.orgId,
+        lead.assigned_to,
+        'lead_stage_changed',
+        'Lead Stage Updated',
+        `Lead "${lead.title || lead.name}" moved to ${value.stage}`,
+        `/crm/leads/${lead.id}`,
+        req.user.id,
+        { leadId: lead.id, leadTitle: lead.title || lead.name, stage: value.stage }
+      );
+    }
+
     res.json({
       ...lead,
       company: lead.linked_company_name || lead.company_name || lead.company,
@@ -702,6 +754,9 @@ const convertToDeal = async (req, res, next) => {
     const stage = lead.stage || 'qualification';
     const status = 'open';
 
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const validateUuid = (val) => val && uuidRegex.test(val) ? val : null;
+
     const { rows: dealRows } = await db.query(
       `INSERT INTO public.deals 
        (
@@ -726,8 +781,8 @@ const convertToDeal = async (req, res, next) => {
         req.user.orgId,
         req.user.id,
         lead.title || lead.name || 'Converted Lead',
-        lead.contact_id,
-        lead.company_id,
+        validateUuid(lead.contact_id),
+        validateUuid(lead.company_id),
         stage,
         status,
         lead.value,
@@ -756,7 +811,7 @@ const convertToDeal = async (req, res, next) => {
         lead.interaction_notes,
         lead.first_message,
         lead.last_touch,
-        lead.workspace_id,
+        validateUuid(lead.workspace_id),
         lead.source_info,
         lead.phone_type || 'work',
         lead.email_type || 'work',
@@ -764,7 +819,7 @@ const convertToDeal = async (req, res, next) => {
         lead.customer_type,
         lead.last_contacted_date,
         lead.next_follow_up_date,
-        lead.responsible_person || lead.assigned_to,
+        validateUuid(lead.responsible_person || lead.assigned_to),
         JSON.stringify(lead.custom_fields || {})
       ]
     );
@@ -781,6 +836,20 @@ const convertToDeal = async (req, res, next) => {
        VALUES ($1, $2, 'lead', $3, 'converted', 'Lead converted to deal', $4)`,
       [req.user.orgId, req.user.id, id, `Deal ${deal.title}`]
     );
+
+    // Notify lead owner if different from converter
+    if (lead.assigned_to && lead.assigned_to !== req.user.id) {
+      notificationService.notify(
+        req.user.orgId,
+        lead.assigned_to,
+        'lead_converted',
+        'Lead Converted to Deal',
+        `Lead "${lead.title || lead.name}" has been converted to a deal`,
+        `/crm/deals/${deal.id}`,
+        req.user.id,
+        { leadId: id, dealId: deal.id }
+      );
+    }
 
     res.status(201).json({
       ...deal,

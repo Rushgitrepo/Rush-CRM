@@ -223,6 +223,34 @@ export default function CandidateDetailPage() {
     }
   };
 
+  const handleDownloadCV = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+      const response = await fetch(`${API_BASE_URL}/recruitment/candidates/${candidate.id}/cv`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to download CV');
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${candidate.full_name}_CV.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      toast.error('Failed to download CV');
+    }
+  };
+
   return (
     <div className="container mx-auto p-6 max-w-6xl">
       <Button
@@ -295,7 +323,7 @@ export default function CandidateDetailPage() {
                 <Button 
                   variant="outline" 
                   className="w-full" 
-                  onClick={() => candidate.cv_url && window.open(candidate.cv_url)}
+                  onClick={handleDownloadCV}
                   disabled={!candidate.cv_url}
                 >
                   <Download className="mr-2 h-4 w-4" />

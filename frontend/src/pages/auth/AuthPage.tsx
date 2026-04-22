@@ -175,7 +175,7 @@ export default function AuthPage() {
               {activeTab === 'signin' ? 'RMS Login' : 'Create Account'}
             </h3>
             <p className="text-sm text-slate-500">
-              Sign in to your account or create a new one.
+              Sign in to your account.
             </p>
           </div>
 
@@ -194,7 +194,7 @@ export default function AuthPage() {
           )}
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="flex w-full bg-white border border-slate-200 rounded-lg h-auto p-1 mb-8 overflow-hidden shadow-sm">
+            {/* <TabsList className="flex w-full bg-white border border-slate-200 rounded-lg h-auto p-1 mb-8 overflow-hidden shadow-sm">
               <TabsTrigger
                 value="signin"
                 className="flex-1 font-medium text-sm py-2.5 data-[state=active]:bg-primary data-[state=active]:text-white rounded-md transition-all"
@@ -207,7 +207,7 @@ export default function AuthPage() {
               >
                 Sign Up
               </TabsTrigger>
-            </TabsList>
+            </TabsList> */}
 
             <TabsContent value="signin" className="space-y-6">
               <form onSubmit={handleSignIn} className="space-y-5">
@@ -221,14 +221,14 @@ export default function AuthPage() {
                     type="email"
                     required
                     disabled={isLoading}
-                    className="h-11 border-slate-200 bg-white text-sm rounded-lg focus:ring-2 focus:ring-slate-900/10 transition-all"
+                    className="h-11 border-slate-200 bg-white text-black text-sm rounded-lg focus:ring-2 focus:ring-slate-900/10 transition-all"
                   />
                 </div>
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between pl-1">
                     <Label htmlFor="signin-password" className="text-sm font-medium text-slate-700">
-                      Session Password
+                      Password
                     </Label>
                     <Link to="/forgot-password" size="sm" className="text-xs font-medium text-slate-500 hover:text-slate-900 transition-colors">
                       Forgot Password?
@@ -241,14 +241,14 @@ export default function AuthPage() {
                       type={showSignInPassword ? "text" : "password"}
                       required
                       disabled={isLoading}
-                      className="h-11 border-slate-200 bg-white text-sm rounded-lg focus:ring-2 focus:ring-slate-900/10 transition-all pr-12"
+                      className="h-11 border-slate-200 bg-white text-black text-sm rounded-lg focus:ring-2 focus:ring-slate-900/10 transition-all pr-12"
                     />
                     <a
                       type="button"
-                      className="absolute right-0 top-0 h-11 w-11 text-slate-400 hover:text-slate-600 flex items-center justify-center cursor-pointer"
+                      className="absolute right-0 top-0 h-11 w-11 text-black-400 hover:text-slate-600 flex items-center justify-center cursor-pointer"
                       onClick={() => setShowSignInPassword(!showSignInPassword)}
                     >
-                      {showSignInPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {showSignInPassword ? <EyeOff color='black' className="h-4 w-4" /> : <Eye color='black' className="h-4 w-4" />}
                     </a>
                   </div>
                 </div>
@@ -271,7 +271,7 @@ export default function AuthPage() {
               <form onSubmit={handleSignUp} className="space-y-5">
                 <div className="space-y-2">
                   <Label htmlFor="signup-name" className="text-sm font-medium text-slate-700 pl-1">
-                    Complete Name
+                    Full Name
                   </Label>
                   <Input
                     id="signup-name"
@@ -285,7 +285,7 @@ export default function AuthPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="signup-email" className="text-sm font-medium text-slate-700 pl-1">
-                    System Email
+                    Email
                   </Label>
                   <Input
                     id="signup-email"
@@ -299,7 +299,7 @@ export default function AuthPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="signup-password" className="text-sm font-medium text-slate-700 pl-1">
-                    Secure Password
+                    Password
                   </Label>
                   <div className="relative">
                     <Input

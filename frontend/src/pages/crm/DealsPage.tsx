@@ -6,13 +6,11 @@ import { useUpdateDeal } from "@/hooks/useCrmMutations";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { PageHeader } from "@/components/crm/ui/PageHeader";
 import { DataToolbar } from "@/components/crm/ui/DataToolbar";
 import { EntityTable, EntityColumn } from "@/components/crm/ui/EntityTable";
 import { EmptyState } from "@/components/crm/ui/EmptyState";
-import { AdvancedSearch } from "@/components/crm/ui/AdvancedSearch";
 import { useCustomDialog } from "@/contexts/DialogContext";
 import { DealsKanbanView } from "@/components/crm/deals/DealsKanbanView";
 import { DealsActivitiesView } from "@/components/crm/deals/DealsActivitiesView";
@@ -205,7 +203,6 @@ export default function DealsPage() {
       header: "Contact",
       render: (deal) => (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Phone className="h-4 w-4" />
           {deal.phone || deal.contact ? (
             <ClickToCall 
               phoneNumber={deal.phone || deal.contact} 
@@ -250,16 +247,7 @@ export default function DealsPage() {
       header: "",
       render: (deal) => (
         <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1">
-          {deal.phone && (
-            <ClickToCall 
-              phoneNumber={deal.phone} 
-              entityType="deal" 
-              entityId={deal.id} 
-              className="h-8 w-8 p-0" 
-              variant="ghost"
-              showText={false}
-            />
-          )}
+  
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm">

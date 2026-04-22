@@ -96,7 +96,7 @@ export default function AttendancePage() {
   };
 
   const ACTIONS: { type: ClockType; label: string; icon: React.ElementType; cls: string }[] = [
-    { type: "clock_in",    label: "Clock In",    icon: Play,        cls: "bg-emerald-500 hover:bg-emerald-600 text-white border-0" },
+    { type: "clock_in",    label: "Clock In",    icon: Play,        cls: "bg-primary hover:bg-primary/80 text-white border-0" },
     { type: "clock_out",   label: "Clock Out",   icon: Square,      cls: "bg-red-500 hover:bg-red-600 text-white border-0" },
     { type: "break_start", label: "Start Break", icon: Coffee,      cls: "bg-orange-500 hover:bg-orange-600 text-white border-0" },
     { type: "break_end",   label: "End Break",   icon: CheckCircle, cls: "bg-blue-500 hover:bg-blue-600 text-white border-0" },

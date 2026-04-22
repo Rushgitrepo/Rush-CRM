@@ -626,7 +626,7 @@ export default function DrivePage() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
-              className="bg-emerald-600 hover:bg-emerald-700 text-primary-foreground"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
               disabled={isRecycleBin}
             >
               <Plus className="h-4 w-4 mr-1" />
@@ -842,7 +842,7 @@ export default function DrivePage() {
                       bulkRestoreItems.mutate(selectedFiles);
                       setSelectedFiles([]);
                     }}
-                    className="h-8 gap-2 bg-emerald-600 hover:bg-emerald-700"
+                    className="h-8 gap-2 bg-primary hover:bg-primary/90"
                   >
                     <RefreshCw className="h-3.5 w-3.5" />
                     Restore

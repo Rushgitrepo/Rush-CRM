@@ -1,3 +1,4 @@
+
 import { useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
@@ -75,7 +76,7 @@ export default function ViewSalarySlipPage() {
 
       <Card>
         <CardContent className="p-8">
-          <div ref={slipRef} className="bg-white" style={{ fontFamily: 'Arial, sans-serif' }}>
+          <div ref={slipRef} className="bg-white dark:bg-black/20" style={{ fontFamily: 'Arial, sans-serif' }}>
 
             {/* Header */}
             <div className="text-center mb-6 pb-4 border-b-2 border-gray-800">

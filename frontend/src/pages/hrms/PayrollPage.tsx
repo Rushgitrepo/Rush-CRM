@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Download, Eye, Trash2, DollarSign, Calendar, User } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Plus, Download, Eye, Trash2, DollarSign, Calendar, User, AlertTriangle } from "lucide-react";
 import { payrollApi } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -24,6 +25,8 @@ export default function PayrollPage() {
   const { toast } = useToast();
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, slip: null as any });
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const { data: slipsData, isLoading, refetch } = useQuery({
     queryKey: ['salary-slips', selectedMonth, selectedYear],
@@ -32,14 +35,27 @@ export default function PayrollPage() {
 
   const slips = slipsData?.data || [];
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this salary slip?')) return;
+  const openDeleteDialog = (slip: any) => {
+    setDeleteDialog({ open: true, slip });
+  };
+
+  const closeDeleteDialog = () => {
+    setDeleteDialog({ open: false, slip: null });
+  };
+
+  const handleDelete = async () => {
+    if (!deleteDialog.slip) return;
+    
+    setIsDeleting(true);
     try {
-      await payrollApi.deleteSalarySlip(id);
-      toast({ title: "Salary slip deleted" });
+      await payrollApi.deleteSalarySlip(deleteDialog.slip.id);
+      toast({ title: "Salary slip deleted successfully" });
       refetch();
+      closeDeleteDialog();
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -129,7 +145,7 @@ export default function PayrollPage() {
                       <Button size="sm" variant="ghost" onClick={() => navigate(`/hrms/payroll/view/${slip.id}`)}>
                         <Eye className="h-4 w-4" />
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => handleDelete(slip.id)}>
+                      <Button size="sm" variant="ghost" onClick={() => openDeleteDialog(slip)}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
@@ -140,6 +156,48 @@ export default function PayrollPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialog.open} onOpenChange={closeDeleteDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Delete Salary Slip
+            </DialogTitle>
+            <DialogDescription className="space-y-2">
+              <p>Are you sure you want to delete this salary slip? This action cannot be undone.</p>
+              {deleteDialog.slip && (
+                <div className="mt-3 p-3 bg-muted rounded-lg">
+                  <p className="font-medium">{deleteDialog.slip.employee_name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {MONTHS.find(m => m.value === deleteDialog.slip.month)?.label} {deleteDialog.slip.year} • 
+                    Net Salary: ₨ {Number(deleteDialog.slip.net_salary).toLocaleString()}
+                  </p>
+                </div>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={closeDeleteDialog} disabled={isDeleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
+              {isDeleting ? (
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent mr-2" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Slip
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -129,12 +129,12 @@ export default function ContactImportPage() {
 
       {/* Step 1: Upload */}
       {step === 'upload' && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10">
-          <div className="border-2 border-dashed border-gray-200 rounded-xl p-12 text-center hover:border-primary/50 transition-colors">
+        <div className="rounded-2xl shadow-sm border p-10">
+          <div className="border-2 border-dashed rounded-xl p-12 text-center hover:border-primary/50 transition-colors">
             <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
               <Upload className="h-8 w-8 text-primary" />
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-1">Upload your contacts file</h3>
+            <h3 className="text-lg font-semibold text-primary/80 mb-1">Upload your contacts file</h3>
             <p className="text-gray-500 text-sm mb-6">Supports CSV, XLSX, and XLS files up to 10 MB</p>
             <label className="inline-flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-lg cursor-pointer hover:bg-primary/90 transition-all shadow-md active:scale-95 font-medium">
               <FileSpreadsheet className="h-4 w-4" />

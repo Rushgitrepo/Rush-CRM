@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Upload, Eye, FileCheck, CheckCircle, RefreshCw, UserCheck, X } from 'lucide-react';
+import { Search, Upload, Eye, FileCheck, CheckCircle, RefreshCw, UserCheck, X, Copy, ExternalLink } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -21,7 +21,9 @@ export default function CandidatesPage() {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [screeningDialogOpen, setScreeningDialogOpen] = useState(false);
   const [interviewDialogOpen, setInterviewDialogOpen] = useState(false);
+  const [formLinkDialogOpen, setFormLinkDialogOpen] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<any>(null);
+  const [generatedFormData, setGeneratedFormData] = useState<any>(null);
   const [requisitions, setRequisitions] = useState<any[]>([]);
   const [uploadData, setUploadData] = useState({
     requisitionId: '',
@@ -222,21 +224,35 @@ export default function CandidatesPage() {
       const result = await recruitmentApi.generateApplicationForm(candidateId);
       console.log('Success result:', result);
       
-      // Show form link in a dialog or copy to clipboard
-      navigator.clipboard.writeText(result.formUrl);
+      // Find the candidate for display
+      const candidate = candidates.find(c => c.id === candidateId);
       
-      toast.success('Form link copied to clipboard!', {
-        description: 'Share this link with the candidate to fill the application form.'
+      // Set the form data and open modal
+      setGeneratedFormData({
+        ...result,
+        candidateName: candidate?.full_name || 'Unknown',
+        candidatePosition: candidate?.applied_position || 'Unknown'
       });
-      
-      // Also show the link in an alert for easy access
-      alert(`Application Form Link:\n\n${result.formUrl}\n\nLink expires on: ${new Date(result.expiresAt).toLocaleDateString()}\n\nLink has been copied to clipboard!`);
+      setFormLinkDialogOpen(true);
       
       fetchCandidates();
     } catch (error: any) {
       console.error('=== Frontend Error ===');
       console.error('Error:', error);
       toast.error(error.message || 'Failed to generate form link');
+    }
+  };
+
+  const copyFormLink = () => {
+    if (generatedFormData?.formUrl) {
+      navigator.clipboard.writeText(generatedFormData.formUrl);
+      toast.success('Form link copied to clipboard!');
+    }
+  };
+
+  const openFormLink = () => {
+    if (generatedFormData?.formUrl) {
+      window.open(generatedFormData.formUrl, '_blank');
     }
   };
 
@@ -573,6 +589,64 @@ export default function CandidatesPage() {
             >
               Schedule Interview
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Form Link Dialog */}
+      <Dialog open={formLinkDialogOpen} onOpenChange={setFormLinkDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Application Form Generated</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <FileCheck className="h-5 w-5 text-green-600" />
+                <span className="font-semibold text-green-800">Form Successfully Generated!</span>
+              </div>
+              <p className="text-sm text-green-700">
+                Application form has been created for <strong>{generatedFormData?.candidateName}</strong> 
+                applying for <strong>{generatedFormData?.candidatePosition}</strong>
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <Label>Form Link</Label>
+              <div className="flex gap-2">
+                <Input 
+                  value={generatedFormData?.formUrl || ''} 
+                  readOnly 
+                  className="font-mono text-sm"
+                />
+                <Button variant="outline" size="sm" onClick={copyFormLink}>
+                  <Copy className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="sm" onClick={openFormLink}>
+                  <ExternalLink className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <p className="text-sm text-blue-800">
+                <strong>Expires:</strong> {generatedFormData?.expiresAt ? new Date(generatedFormData.expiresAt).toLocaleDateString() : 'N/A'}
+              </p>
+              <p className="text-xs text-blue-600 mt-1">
+                Share this link with the candidate to complete their application form.
+              </p>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <Button onClick={copyFormLink} className="flex-1">
+                <Copy className="mr-2 h-4 w-4" />
+                Copy Link
+              </Button>
+              <Button variant="outline" onClick={openFormLink} className="flex-1">
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Open Form
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

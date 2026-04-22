@@ -4,42 +4,57 @@ const Joi = require('joi');
 const createCompanySchema = Joi.object({
   name: Joi.string().required(),
   industry: Joi.string().optional().allow('', null),
-  website: Joi.string().uri().optional().allow('', null),
+  website: Joi.string().optional().allow('', null),
   phone: Joi.string().optional().allow('', null),
-  email: Joi.string().email().optional().allow('', null),
+  email: Joi.string().optional().allow('', null),
   address: Joi.string().optional().allow('', null),
   revenue: Joi.alternatives().try(Joi.number(), Joi.string()).optional().allow(null, ''),
-  logoUrl: Joi.string().uri().optional().allow('', null),
+  logoUrl: Joi.string().optional().allow('', null),
   notes: Joi.string().optional().allow('', null),
 });
 
 const updateCompanySchema = Joi.object({
   name: Joi.string().optional(),
   industry: Joi.string().optional().allow('', null),
-  website: Joi.string().uri().optional().allow('', null),
+  website: Joi.string().optional().allow('', null),
   phone: Joi.string().optional().allow('', null),
-  email: Joi.string().email().optional().allow('', null),
+  email: Joi.string().optional().allow('', null),
   address: Joi.string().optional().allow('', null),
   revenue: Joi.alternatives().try(Joi.number(), Joi.string()).optional().allow(null, ''),
-  logoUrl: Joi.string().uri().optional().allow('', null),
+  employee_count: Joi.alternatives().try(Joi.number(), Joi.string()).optional().allow(null, ''),
+  logoUrl: Joi.string().optional().allow('', null),
   notes: Joi.string().optional().allow('', null),
-}).min(1);
+}).min(1).options({ stripUnknown: true });
 
 const normalizeCompanyInput = (body = {}) => {
   const revenueRaw = body.revenue ?? body.annual_revenue;
-  const revenue = revenueRaw === '' || revenueRaw === null || revenueRaw === undefined
-    ? null
-    : revenueRaw;
+  let revenue = null;
+  if (revenueRaw !== '' && revenueRaw !== null && revenueRaw !== undefined) {
+    const parsed = parseFloat(revenueRaw);
+    revenue = !isNaN(parsed) ? parsed : null;
+  }
+
+  const employeeCountRaw = body.employee_count;
+  let employeeCount = null;
+  if (employeeCountRaw !== '' && employeeCountRaw !== null && employeeCountRaw !== undefined) {
+    const parsed = parseInt(employeeCountRaw);
+    employeeCount = !isNaN(parsed) ? parsed : null;
+  }
+
+  const website = body.website?.trim();
+  const email = body.email?.trim();
+  const logoUrl = body.logoUrl ?? body.logo_url;
 
   return {
     name: body.name ?? body.company_name,
     industry: body.industry ?? body.company_type ?? null,
-    website: body.website ?? null,
+    website: website && website !== '' ? website : null,
     phone: body.phone ?? null,
-    email: body.email ?? null,
+    email: email && email !== '' ? email : null,
     address: body.address ?? null,
     revenue,
-    logoUrl: body.logoUrl ?? body.logo_url ?? null,
+    employee_count: employeeCount,
+    logoUrl: logoUrl?.trim() && logoUrl.trim() !== '' ? logoUrl.trim() : null,
     notes: body.notes ?? body.comment ?? null,
   };
 };
@@ -161,8 +176,10 @@ const create = async (req, res, next) => {
 const update = async (req, res, next) => {
   try {
     const normalized = normalizeCompanyInput(req.body);
-    const { error, value } = updateCompanySchema.validate(normalized, { stripUnknown: true, allowUnknown: true });
-    if (error) throw error;
+    const { error, value } = updateCompanySchema.validate(normalized, { stripUnknown: true, allowUnknown: true, convert: false });
+    if (error) {
+      return res.status(400).json({ error: error.details[0].message });
+    }
 
     const { id } = req.params;
 
@@ -181,12 +198,15 @@ const update = async (req, res, next) => {
     const fieldMapping = {
       name: 'name', industry: 'industry', website: 'website',
       phone: 'phone', email: 'email', address: 'address',
-      revenue: 'revenue', logoUrl: 'logo_url', notes: 'notes',
+      revenue: 'revenue', employee_count: 'employee_count',
+      logoUrl: 'logo_url', notes: 'notes',
     };
 
     for (const [key, val] of Object.entries(value)) {
       const dbField = fieldMapping[key];
       if (dbField) {
+        // Skip name if it's null/undefined to prevent NOT NULL violation
+        if (key === 'name' && (val === null || val === undefined)) continue;
         fields.push(`${dbField} = $${paramIndex}`);
         values.push(val);
         paramIndex++;

@@ -215,7 +215,7 @@ export default function WorkflowsPage() {
                   workflow={selectedWf}
                   actions={actions}
                   onAddAction={() => setAddActionDialog(true)}
-                  onDeleteAction={(id) => delAction.mutate(id)}
+                  onDeleteAction={(id) => delAction.mutate({ id, workflow_id: selectedWf.id })}
                   onToggle={() => toggleActive(selectedWf.id, selectedWf.is_active)}
                 />
               ) : (

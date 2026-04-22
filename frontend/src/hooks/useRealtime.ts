@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { toast } from 'sonner';
 
@@ -8,6 +8,57 @@ const SOCKET_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || "http://
 let socketInstance: Socket | null = null;
 let connectionCount = 0;
 let workgroupToastListenerAttached = false;
+let workgroupNotificationListenerAttached = false;
+let presenceWindowListenersAttached = false;
+let presenceHeartbeatId: number | null = null;
+
+function getCurrentUserId(): string | null {
+  try {
+    const raw = localStorage.getItem('user');
+    return raw ? JSON.parse(raw)?.id ?? null : null;
+  } catch {
+    return null;
+  }
+}
+
+function isViewingWorkgroup(workgroupId: string): boolean {
+  const params = new URLSearchParams(window.location.search);
+  const activeId = params.get('team') || params.get('chat');
+  return activeId === workgroupId;
+}
+
+function showDesktopNotification(title: string, body: string, workgroupId: string, isDirectChat: boolean) {
+  if (Notification.permission !== 'granted') return;
+  const url = isDirectChat
+    ? `/collaboration/direct-chats?chat=${workgroupId}`
+    : `/collaboration/workgroups?team=${workgroupId}`;
+  const n = new Notification(title, {
+    body,
+    icon: '/crm.png',
+    tag: `workgroup-${workgroupId}`,
+    renotify: true,
+  });
+  n.onclick = () => {
+    window.focus();
+    window.location.href = url;
+    n.close();
+  };
+}
+
+const emitPresenceFromWindowState = () => {
+  if (!socketInstance || !socketInstance.connected) return;
+  const isVisible = document.visibilityState === 'visible';
+  if (isVisible) {
+    socketInstance.emit('presence:active');
+  } else {
+    socketInstance.emit('presence:inactive');
+  }
+};
+
+const handleBeforeUnload = () => {
+  if (!socketInstance || !socketInstance.connected) return;
+  socketInstance.emit('presence:inactive');
+};
 
 export const getSocket = (): Socket | null => {
   if (socketInstance) return socketInstance;
@@ -32,23 +83,58 @@ export const getSocket = (): Socket | null => {
     console.error('WebSocket connection error:', error);
   });
 
+  // Legacy room-based toast — kept for workgroup rooms the user is subscribed to,
+  // but suppressed in favour of the per-user workgroup:notification handler below.
   if (!workgroupToastListenerAttached) {
-    socketInstance.on('workgroup_post:new', (message: any) => {
-      const path = window.location.pathname;
-      const isOnWorkgroupsScreen = path.startsWith('/collaboration/workgroups');
-      if (isOnWorkgroupsScreen) return;
-
-      const author = message?.author_name || 'Team member';
-      const content = String(message?.content || '').replace('[SYSTEM] ', '');
-      if (!content.trim()) return;
-
-      toast(`${author}: ${content}`, {
-        duration: 3500,
-        position: 'bottom-right',
-      });
-    });
     workgroupToastListenerAttached = true;
   }
+
+  // Per-user notification handler — fires regardless of which page the user is on.
+  if (!workgroupNotificationListenerAttached) {
+    socketInstance.on('workgroup:notification', (msg: any) => {
+      const workgroupId: string = msg?.workgroup_id;
+      if (!workgroupId) return;
+
+      // Suppress own messages
+      const currentUserId = getCurrentUserId();
+      if (currentUserId && msg?.user_id === currentUserId) return;
+
+      // Suppress if user is actively viewing this exact chat (WhatsApp behaviour)
+      if (isViewingWorkgroup(workgroupId) && document.visibilityState === 'visible') return;
+
+      const title: string = msg?.title || msg?.author_name || 'Rush CRM';
+      const body: string = String(msg?.body || msg?.content || '').replace('[SYSTEM] ', '');
+      if (!body.trim()) return;
+      const isDirectChat: boolean = Boolean(msg?.is_direct_chat);
+
+      if (document.visibilityState === 'hidden') {
+        // Tab minimized or in background — prefer desktop notification
+        showDesktopNotification(title, body, workgroupId, isDirectChat);
+      } else {
+        // Tab visible but user is on a different page or different chat
+        toast(`${title}: ${body}`, { duration: 4000, position: 'bottom-right' });
+      }
+    });
+    workgroupNotificationListenerAttached = true;
+  }
+
+  if (!socketInstance.connected) {
+    socketInstance.connect();
+  }
+
+  emitPresenceFromWindowState();
+  if (!presenceWindowListenersAttached) {
+    window.addEventListener('focus', emitPresenceFromWindowState);
+    window.addEventListener('blur', emitPresenceFromWindowState);
+    document.addEventListener('visibilitychange', emitPresenceFromWindowState);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    presenceWindowListenersAttached = true;
+  }
+  if (presenceHeartbeatId === null) {
+    presenceHeartbeatId = window.setInterval(emitPresenceFromWindowState, 10000);
+  }
+  socketInstance.off('connect', emitPresenceFromWindowState);
+  socketInstance.on('connect', emitPresenceFromWindowState);
 
   return socketInstance;
 };
@@ -57,6 +143,10 @@ export const closeSocket = () => {
   if (socketInstance && connectionCount <= 0) {
     socketInstance.disconnect();
     socketInstance = null;
+  }
+  if (!socketInstance && presenceHeartbeatId !== null) {
+    window.clearInterval(presenceHeartbeatId);
+    presenceHeartbeatId = null;
   }
 };
 
@@ -204,33 +294,55 @@ export function useAnalyticsRealtime() {
 
 // Hook for direct messaging real-time updates
 export function useDirectMessageRealtime(onMessage: (message: any) => void) {
-  const { on, off } = useRealtime();
+  const onMessageRef = useRef(onMessage);
+  onMessageRef.current = onMessage;
 
   useEffect(() => {
-    on('direct_message:new', onMessage);
+    const socket = getSocket();
+    if (!socket) return;
+
+    const handleMessage = (msg: any) => onMessageRef.current(msg);
+    socket.on('direct_message:new', handleMessage);
+
     return () => {
-      off('direct_message:new', onMessage);
+      socket.off('direct_message:new', handleMessage);
     };
-  }, [onMessage]);
+  }, []);
 }
 
 // Hook for workgroup real-time updates
 export function useWorkgroupRealtime(workgroupId: string, onMessage: (message: any) => void, onReaction?: (data: any) => void) {
-  const { subscribeToWorkgroup, unsubscribeFromWorkgroup, on, off } = useRealtime();
+  const onMessageRef = useRef(onMessage);
+  const onReactionRef = useRef(onReaction);
+  // Always keep refs current without triggering re-subscription
+  onMessageRef.current = onMessage;
+  onReactionRef.current = onReaction;
 
   useEffect(() => {
     if (!workgroupId) return;
 
-    subscribeToWorkgroup(workgroupId);
-    on('workgroup_post:new', onMessage);
-    if(onReaction) on('reaction:added', onReaction);
+    const socket = getSocket();
+    if (!socket) return;
+
+    const handleMessage = (msg: any) => onMessageRef.current(msg);
+    const handleReaction = (data: any) => onReactionRef.current?.(data);
+
+    const subscribe = () => socket.emit('subscribe:workgroup', workgroupId);
+
+    // Subscribe now and re-subscribe automatically after any reconnect
+    // (Socket.IO rooms are per-connection — they're lost on disconnect)
+    subscribe();
+    socket.on('workgroup_post:new', handleMessage);
+    socket.on('reaction:added', handleReaction);
+    socket.on('connect', subscribe);
 
     return () => {
-      unsubscribeFromWorkgroup(workgroupId);
-      off('workgroup_post:new', onMessage);
-      if(onReaction) off('reaction:added', onReaction);
+      socket.emit('unsubscribe:workgroup', workgroupId);
+      socket.off('workgroup_post:new', handleMessage);
+      socket.off('reaction:added', handleReaction);
+      socket.off('connect', subscribe);
     };
-  }, [workgroupId, onMessage, onReaction]);
+  }, [workgroupId]);
 }
 
 // Hook for unibox real-time updates

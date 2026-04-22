@@ -1,57 +1,69 @@
---
--- PostgreSQL database dump
---
-
-\restrict 6nAeLpWtRPQc2gVIjb1HB4J8nR28v4eXgw2Pb1PtmBToqw9vYXRrVUdAFniLluf
-
--- Dumped from database version 18.1
--- Dumped by pg_dump version 18.1
-
-SET statement_timeout = 0;
-SET lock_timeout = 0;
-SET idle_in_transaction_session_timeout = 0;
-SET transaction_timeout = 0;
 SET client_encoding = 'UTF8';
 SET standard_conforming_strings = on;
-SELECT pg_catalog.set_config('search_path', '', false);
-SET check_function_bodies = false;
-SET xmloption = content;
-SET client_min_messages = warning;
-SET row_security = off;
-
---
--- Name: pgcrypto; Type: EXTENSION; Schema: -; Owner: -
---
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
-
-
---
--- Name: EXTENSION pgcrypto; Type: COMMENT; Schema: -; Owner: 
---
-
 COMMENT ON EXTENSION pgcrypto IS 'cryptographic functions';
-
-
---
--- Name: uuid-ossp; Type: EXTENSION; Schema: -; Owner: -
---
-
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
-
-
---
--- Name: EXTENSION "uuid-ossp"; Type: COMMENT; Schema: -; Owner: 
---
-
 COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UUIDs)';
 
+-- ============================================================
+-- CORE TABLES (Moved to top for dependency resolution)
+-- ============================================================
 
---
--- Name: add_creator_as_owner(); Type: FUNCTION; Schema: public; Owner: postgres
---
+-- Name: organizations; Type: TABLE; Schema: public
+CREATE TABLE IF NOT EXISTS organizations (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL PRIMARY KEY,
+    name character varying(255) NOT NULL,
+    domain character varying(255),
+    settings jsonb DEFAULT '{}'::jsonb,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+);
 
-CREATE FUNCTION public.add_creator_as_owner() RETURNS trigger
+-- Name: user_role; Type: TYPE; Schema: public
+CREATE TYPE user_role AS ENUM (
+    'super_admin',
+    'admin',
+    'manager',
+    'team_lead',
+    'employee'
+);
+
+-- Name: users; Type: TABLE; Schema: public
+CREATE TABLE IF NOT EXISTS users (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL PRIMARY KEY,
+    organization_id uuid REFERENCES organizations(id),
+    org_id uuid REFERENCES organizations(id),
+    full_name character varying(255) NOT NULL,
+    email character varying(255) NOT NULL,
+    password_hash character varying(255) NOT NULL,
+    phone character varying(50),
+    role user_role DEFAULT 'employee'::user_role,
+    department character varying(100),
+    bio text,
+    avatar_url character varying(500),
+    password_change_required BOOLEAN DEFAULT FALSE,
+    module_permissions JSONB DEFAULT '{}'::jsonb,
+    invite_token TEXT UNIQUE,
+    invite_expires_at TIMESTAMP WITH TIME ZONE,
+    is_active boolean DEFAULT true,
+    last_login timestamp without time zone,
+    last_seen_at timestamp with time zone,
+    "position" character varying(100),
+    timezone character varying(100),
+    language character varying(10) DEFAULT 'en'::character varying,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users (email);
+CREATE INDEX IF NOT EXISTS idx_users_organization ON users (organization_id);
+CREATE INDEX IF NOT EXISTS idx_users_last_seen_at ON users (last_seen_at);
+
+-- ============================================================
+
+
+CREATE FUNCTION add_creator_as_owner() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
@@ -61,14 +73,11 @@ BEGIN
 END;
 $$;
 
-
-ALTER FUNCTION public.add_creator_as_owner() OWNER TO postgres;
-
 --
--- Name: create_default_channel(); Type: FUNCTION; Schema: public; Owner: postgres
+-- Name: create_default_channel(); Type: FUNCTION; Schema: public;
 --
 
-CREATE FUNCTION public.create_default_channel() RETURNS trigger
+CREATE FUNCTION create_default_channel() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
@@ -79,13 +88,11 @@ END;
 $$;
 
 
-ALTER FUNCTION public.create_default_channel() OWNER TO postgres;
-
 --
--- Name: log_stock_movement(); Type: FUNCTION; Schema: public; Owner: postgres
+-- Name: log_stock_movement(); Type: FUNCTION; Schema: public;
 --
 
-CREATE FUNCTION public.log_stock_movement() RETURNS trigger
+CREATE FUNCTION log_stock_movement() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
       BEGIN
@@ -110,13 +117,12 @@ CREATE FUNCTION public.log_stock_movement() RETURNS trigger
       $$;
 
 
-ALTER FUNCTION public.log_stock_movement() OWNER TO postgres;
 
 --
--- Name: update_leave_remaining_days(); Type: FUNCTION; Schema: public; Owner: postgres
+-- Name: update_leave_remaining_days(); Type: FUNCTION; Schema: public;
 --
 
-CREATE FUNCTION public.update_leave_remaining_days() RETURNS trigger
+CREATE FUNCTION update_leave_remaining_days() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
@@ -126,13 +132,12 @@ END;
 $$;
 
 
-ALTER FUNCTION public.update_leave_remaining_days() OWNER TO postgres;
 
 --
--- Name: update_stock_available_quantity(); Type: FUNCTION; Schema: public; Owner: postgres
+-- Name: update_stock_available_quantity(); Type: FUNCTION; Schema: public;
 --
 
-CREATE FUNCTION public.update_stock_available_quantity() RETURNS trigger
+CREATE FUNCTION update_stock_available_quantity() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
@@ -142,13 +147,12 @@ END;
 $$;
 
 
-ALTER FUNCTION public.update_stock_available_quantity() OWNER TO postgres;
 
 --
--- Name: update_updated_at_column(); Type: FUNCTION; Schema: public; Owner: postgres
+-- Name: update_updated_at_column(); Type: FUNCTION; Schema: public;
 --
 
-CREATE FUNCTION public.update_updated_at_column() RETURNS trigger
+CREATE FUNCTION update_updated_at_column() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
@@ -158,13 +162,12 @@ END;
 $$;
 
 
-ALTER FUNCTION public.update_updated_at_column() OWNER TO postgres;
 
 --
--- Name: update_workgroup_member_count(); Type: FUNCTION; Schema: public; Owner: postgres
+-- Name: update_workgroup_member_count(); Type: FUNCTION; Schema: public;
 --
 
-CREATE FUNCTION public.update_workgroup_member_count() RETURNS trigger
+CREATE FUNCTION update_workgroup_member_count() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
@@ -185,14 +188,11 @@ BEGIN
 END;
 $$;
 
-
-ALTER FUNCTION public.update_workgroup_member_count() OWNER TO postgres;
-
 --
--- Name: update_workgroup_message_count(); Type: FUNCTION; Schema: public; Owner: postgres
+-- Name: update_workgroup_message_count(); Type: FUNCTION; Schema: public;
 --
 
-CREATE FUNCTION public.update_workgroup_message_count() RETURNS trigger
+CREATE FUNCTION update_workgroup_message_count() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
@@ -215,18 +215,17 @@ END;
 $$;
 
 
-ALTER FUNCTION public.update_workgroup_message_count() OWNER TO postgres;
 
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
 
 --
--- Name: activities; Type: TABLE; Schema: public; Owner: postgres
+-- Name: activities; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.activities (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS activities (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     type character varying(50) NOT NULL,
     subject character varying(255),
@@ -246,14 +245,13 @@ CREATE TABLE IF NOT EXISTS public.activities (
 );
 
 
-ALTER TABLE public.activities OWNER TO postgres;
 
 --
--- Name: attendance; Type: TABLE; Schema: public; Owner: postgres
+-- Name: attendance; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.attendance (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS attendance (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     employee_id uuid,
     date date NOT NULL,
@@ -284,14 +282,13 @@ CREATE TABLE IF NOT EXISTS public.attendance (
 );
 
 
-ALTER TABLE public.attendance OWNER TO postgres;
 
 --
--- Name: calendar_event_attendees; Type: TABLE; Schema: public; Owner: postgres
+-- Name: calendar_event_attendees; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.calendar_event_attendees (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS calendar_event_attendees (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     event_id uuid,
     user_id uuid,
     status character varying(50) DEFAULT 'pending'::character varying,
@@ -302,14 +299,13 @@ CREATE TABLE IF NOT EXISTS public.calendar_event_attendees (
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
 );
 
-ALTER TABLE public.calendar_event_attendees OWNER TO postgres;
 
 --
--- Name: calendar_connections; Type: TABLE; Schema: public; Owner: postgres
+-- Name: calendar_connections; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.calendar_connections (
-    id uuid DEFAULT public.gen_random_uuid() NOT NULL,
+CREATE TABLE IF NOT EXISTS calendar_connections (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid,
     user_id uuid,
     provider character varying(50) NOT NULL,
@@ -326,14 +322,13 @@ CREATE TABLE IF NOT EXISTS public.calendar_connections (
 );
 
 
-ALTER TABLE public.calendar_connections OWNER TO postgres;
 
 --
--- Name: calendar_events; Type: TABLE; Schema: public; Owner: postgres
+-- Name: calendar_events; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.calendar_events (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS calendar_events (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     title character varying(255) NOT NULL,
     description text,
@@ -358,14 +353,13 @@ CREATE TABLE IF NOT EXISTS public.calendar_events (
 );
 
 
-ALTER TABLE public.calendar_events OWNER TO postgres;
 
 --
--- Name: call_logs; Type: TABLE; Schema: public; Owner: postgres
+-- Name: call_logs; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.call_logs (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS call_logs (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     contact_id uuid,
     user_id uuid,
@@ -382,14 +376,13 @@ CREATE TABLE IF NOT EXISTS public.call_logs (
 );
 
 
-ALTER TABLE public.call_logs OWNER TO postgres;
 
 --
--- Name: companies; Type: TABLE; Schema: public; Owner: postgres
+-- Name: companies; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.companies (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS companies (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
     industry character varying(100),
@@ -417,13 +410,12 @@ CREATE TABLE IF NOT EXISTS public.companies (
 );
 
 
-ALTER TABLE public.companies OWNER TO postgres;
 
 --
--- Name: connected_drives; Type: TABLE; Schema: public; Owner: postgres
+-- Name: connected_drives; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.connected_drives (
+CREATE TABLE IF NOT EXISTS connected_drives (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid,
     ownership character varying(50) NOT NULL,
@@ -439,14 +431,13 @@ CREATE TABLE IF NOT EXISTS public.connected_drives (
 );
 
 
-ALTER TABLE public.connected_drives OWNER TO postgres;
 
 --
--- Name: connected_mailboxes; Type: TABLE; Schema: public; Owner: postgres
+-- Name: connected_mailboxes; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.connected_mailboxes (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS connected_mailboxes (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     org_id uuid,
     user_id uuid,
     provider character varying(50) NOT NULL,
@@ -470,14 +461,13 @@ CREATE TABLE IF NOT EXISTS public.connected_mailboxes (
 );
 
 
-ALTER TABLE public.connected_mailboxes OWNER TO postgres;
 
 --
--- Name: contacts; Type: TABLE; Schema: public; Owner: postgres
+-- Name: contacts; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.contacts (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS contacts (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     first_name character varying(100),
     last_name character varying(100),
@@ -528,13 +518,12 @@ CREATE TABLE IF NOT EXISTS public.contacts (
 );
 
 
-ALTER TABLE public.contacts OWNER TO postgres;
 
 --
--- Name: crm_activities; Type: TABLE; Schema: public; Owner: postgres
+-- Name: crm_activities; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.crm_activities (
+CREATE TABLE IF NOT EXISTS crm_activities (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     user_id uuid,
@@ -549,13 +538,12 @@ CREATE TABLE IF NOT EXISTS public.crm_activities (
 );
 
 
-ALTER TABLE public.crm_activities OWNER TO postgres;
 
 --
--- Name: crm_comments; Type: TABLE; Schema: public; Owner: postgres
+-- Name: crm_comments; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.crm_comments (
+CREATE TABLE IF NOT EXISTS crm_comments (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     user_id uuid,
@@ -567,13 +555,12 @@ CREATE TABLE IF NOT EXISTS public.crm_comments (
     updated_at timestamp with time zone DEFAULT now()
 );
 
-ALTER TABLE public.crm_comments OWNER TO postgres;
 
 --
--- Name: crm_documents; Type: TABLE; Schema: public; Owner: postgres
+-- Name: crm_documents; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.crm_documents (
+CREATE TABLE IF NOT EXISTS crm_documents (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     user_id uuid,
@@ -588,14 +575,13 @@ CREATE TABLE IF NOT EXISTS public.crm_documents (
     updated_at timestamp with time zone DEFAULT now()
 );
 
-ALTER TABLE public.crm_documents OWNER TO postgres;
 
 --
--- Name: customers; Type: TABLE; Schema: public; Owner: postgres
+-- Name: customers; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.customers (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS customers (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     contact_id uuid,
     company_id uuid,
@@ -624,13 +610,12 @@ CREATE TABLE IF NOT EXISTS public.customers (
 );
 
 
-ALTER TABLE public.customers OWNER TO postgres;
 
 --
--- Name: deal_contacts; Type: TABLE; Schema: public; Owner: postgres
+-- Name: deal_contacts; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.deal_contacts (
+CREATE TABLE IF NOT EXISTS deal_contacts (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     deal_id uuid NOT NULL,
@@ -642,13 +627,12 @@ CREATE TABLE IF NOT EXISTS public.deal_contacts (
 );
 
 
-ALTER TABLE public.deal_contacts OWNER TO postgres;
 
 --
--- Name: deal_signing_parties; Type: TABLE; Schema: public; Owner: postgres
+-- Name: deal_signing_parties; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.deal_signing_parties (
+CREATE TABLE IF NOT EXISTS deal_signing_parties (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     deal_id uuid NOT NULL,
@@ -659,16 +643,16 @@ CREATE TABLE IF NOT EXISTS public.deal_signing_parties (
 );
 
 
-ALTER TABLE public.deal_signing_parties OWNER TO postgres;
 
 --
--- Name: deals; Type: TABLE; Schema: public; Owner: postgres
+-- Name: deals; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.deals (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS deals (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     title character varying(255) NOT NULL,
+    lead_id uuid, -- Reference added via ALTER TABLE later
     description text,
     value numeric(15,2),
     currency character varying(10) DEFAULT 'USD'::character varying,
@@ -753,63 +737,62 @@ CREATE TABLE IF NOT EXISTS public.deals (
 );
 
 
-ALTER TABLE public.deals OWNER TO postgres;
 
 --
--- Name: COLUMN deals.description; Type: COMMENT; Schema: public; Owner: postgres
+-- Name: COLUMN deals.description; Type: COMMENT; Schema: public
 --
 
-COMMENT ON COLUMN public.deals.description IS 'Detailed description of the deal';
-
-
---
--- Name: COLUMN deals.source; Type: COMMENT; Schema: public; Owner: postgres
---
-
-COMMENT ON COLUMN public.deals.source IS 'Lead source: website, referral, linkedin, etc.';
+COMMENT ON COLUMN deals.description IS 'Detailed description of the deal';
 
 
 --
--- Name: COLUMN deals.contact_name; Type: COMMENT; Schema: public; Owner: postgres
+-- Name: COLUMN deals.source; Type: COMMENT; Schema: public
 --
 
-COMMENT ON COLUMN public.deals.contact_name IS 'Name of the primary contact person';
-
-
---
--- Name: COLUMN deals.company_name; Type: COMMENT; Schema: public; Owner: postgres
---
-
-COMMENT ON COLUMN public.deals.company_name IS 'Name of the company';
+COMMENT ON COLUMN deals.source IS 'Lead source: website, referral, linkedin, etc.';
 
 
 --
--- Name: COLUMN deals.phone; Type: COMMENT; Schema: public; Owner: postgres
+-- Name: COLUMN deals.contact_name; Type: COMMENT; Schema: public
 --
 
-COMMENT ON COLUMN public.deals.phone IS 'Contact phone number';
-
-
---
--- Name: COLUMN deals.email; Type: COMMENT; Schema: public; Owner: postgres
---
-
-COMMENT ON COLUMN public.deals.email IS 'Contact email address';
+COMMENT ON COLUMN deals.contact_name IS 'Name of the primary contact person';
 
 
 --
--- Name: COLUMN deals.priority; Type: COMMENT; Schema: public; Owner: postgres
+-- Name: COLUMN deals.company_name; Type: COMMENT; Schema: public
 --
 
-COMMENT ON COLUMN public.deals.priority IS 'Deal priority: low, medium, high, urgent';
+COMMENT ON COLUMN deals.company_name IS 'Name of the company';
 
 
 --
--- Name: drive_activities; Type: TABLE; Schema: public; Owner: postgres
+-- Name: COLUMN deals.phone; Type: COMMENT; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.drive_activities (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+COMMENT ON COLUMN deals.phone IS 'Contact phone number';
+
+
+--
+-- Name: COLUMN deals.email; Type: COMMENT; Schema: public
+--
+
+COMMENT ON COLUMN deals.email IS 'Contact email address';
+
+
+--
+-- Name: COLUMN deals.priority; Type: COMMENT; Schema: public
+--
+
+COMMENT ON COLUMN deals.priority IS 'Deal priority: low, medium, high, urgent';
+
+
+--
+-- Name: drive_activities; Type: TABLE; Schema: public
+--
+
+CREATE TABLE IF NOT EXISTS drive_activities (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     org_id uuid,
     user_id uuid,
     file_id uuid,
@@ -820,14 +803,13 @@ CREATE TABLE IF NOT EXISTS public.drive_activities (
 );
 
 
-ALTER TABLE public.drive_activities OWNER TO postgres;
 
 --
--- Name: drive_file_versions; Type: TABLE; Schema: public; Owner: postgres
+-- Name: drive_file_versions; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.drive_file_versions (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS drive_file_versions (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     file_id uuid,
     version_number integer NOT NULL,
     file_path character varying(1000),
@@ -837,14 +819,13 @@ CREATE TABLE IF NOT EXISTS public.drive_file_versions (
 );
 
 
-ALTER TABLE public.drive_file_versions OWNER TO postgres;
 
 --
--- Name: drive_files; Type: TABLE; Schema: public; Owner: postgres
+-- Name: drive_files; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.drive_files (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS drive_files (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
     file_url character varying(500) NOT NULL,
@@ -875,14 +856,13 @@ CREATE TABLE IF NOT EXISTS public.drive_files (
 );
 
 
-ALTER TABLE public.drive_files OWNER TO postgres;
 
 --
--- Name: drive_folders; Type: TABLE; Schema: public; Owner: postgres
+-- Name: drive_folders; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.drive_folders (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS drive_folders (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     org_id uuid,
     name character varying(255) NOT NULL,
     parent_id uuid,
@@ -897,13 +877,12 @@ CREATE TABLE IF NOT EXISTS public.drive_folders (
 );
 
 
-ALTER TABLE public.drive_folders OWNER TO postgres;
 
 --
--- Name: drive_permissions; Type: TABLE; Schema: public; Owner: postgres
+-- Name: drive_permissions; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.drive_permissions (
+CREATE TABLE IF NOT EXISTS drive_permissions (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     drive_id uuid,
     org_id uuid,
@@ -915,14 +894,13 @@ CREATE TABLE IF NOT EXISTS public.drive_permissions (
 );
 
 
-ALTER TABLE public.drive_permissions OWNER TO postgres;
 
 --
--- Name: emails; Type: TABLE; Schema: public; Owner: postgres
+-- Name: emails; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.emails (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS emails (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     user_id uuid,
     mailbox_id uuid,
@@ -949,24 +927,23 @@ CREATE TABLE IF NOT EXISTS public.emails (
     has_attachments boolean DEFAULT false
 );
 
-ALTER TABLE ONLY public.emails
-    ADD CONSTRAINT emails_mailbox_id_fkey FOREIGN KEY (mailbox_id) REFERENCES public.connected_mailboxes(id) ON DELETE CASCADE;
+ALTER TABLE ONLY emails
+    ADD CONSTRAINT emails_mailbox_id_fkey FOREIGN KEY (mailbox_id) REFERENCES connected_mailboxes(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY public.emails
+ALTER TABLE ONLY emails
     ADD CONSTRAINT emails_message_id_key UNIQUE (message_id);
 
-CREATE INDEX idx_emails_mailbox_id ON public.emails USING btree (mailbox_id);
+CREATE INDEX idx_emails_mailbox_id ON emails USING btree (mailbox_id);
 
 
 
 
-ALTER TABLE public.emails OWNER TO postgres;
 
 --
--- Name: employee_documents; Type: TABLE; Schema: public; Owner: postgres
+-- Name: employee_documents; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.employee_documents (
+CREATE TABLE IF NOT EXISTS employee_documents (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     employee_id uuid NOT NULL,
     org_id uuid NOT NULL,
@@ -986,20 +963,19 @@ CREATE TABLE IF NOT EXISTS public.employee_documents (
 );
 
 
-ALTER TABLE public.employee_documents OWNER TO postgres;
 
 --
--- Name: TABLE employee_documents; Type: COMMENT; Schema: public; Owner: postgres
+-- Name: TABLE employee_documents; Type: COMMENT; Schema: public
 --
 
-COMMENT ON TABLE public.employee_documents IS 'Stores employee document uploads';
+COMMENT ON TABLE employee_documents IS 'Stores employee document uploads';
 
 
 --
--- Name: employee_leave_balances; Type: TABLE; Schema: public; Owner: postgres
+-- Name: employee_leave_balances; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.employee_leave_balances (
+CREATE TABLE IF NOT EXISTS employee_leave_balances (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     employee_id uuid NOT NULL,
     leave_type_id uuid NOT NULL,
@@ -1017,20 +993,19 @@ CREATE TABLE IF NOT EXISTS public.employee_leave_balances (
 );
 
 
-ALTER TABLE public.employee_leave_balances OWNER TO postgres;
 
 --
--- Name: TABLE employee_leave_balances; Type: COMMENT; Schema: public; Owner: postgres
+-- Name: TABLE employee_leave_balances; Type: COMMENT; Schema: public
 --
 
-COMMENT ON TABLE public.employee_leave_balances IS 'Employee leave balance tracking per year';
+COMMENT ON TABLE employee_leave_balances IS 'Employee leave balance tracking per year';
 
 
 --
--- Name: employee_product_assignments; Type: TABLE; Schema: public; Owner: postgres
+-- Name: employee_product_assignments; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.employee_product_assignments (
+CREATE TABLE IF NOT EXISTS employee_product_assignments (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     employee_id uuid NOT NULL,
@@ -1049,13 +1024,12 @@ CREATE TABLE IF NOT EXISTS public.employee_product_assignments (
 );
 
 
-ALTER TABLE public.employee_product_assignments OWNER TO postgres;
 
 --
--- Name: employee_salaries; Type: TABLE; Schema: public; Owner: postgres
+-- Name: employee_salaries; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.employee_salaries (
+CREATE TABLE IF NOT EXISTS employee_salaries (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     employee_id uuid NOT NULL,
@@ -1068,14 +1042,13 @@ CREATE TABLE IF NOT EXISTS public.employee_salaries (
 );
 
 
-ALTER TABLE public.employee_salaries OWNER TO postgres;
 
 --
--- Name: employees; Type: TABLE; Schema: public; Owner: postgres
+-- Name: employees; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.employees (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS employees (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     user_id uuid,
     employee_code character varying(50),
@@ -1143,13 +1116,12 @@ CREATE TABLE IF NOT EXISTS public.employees (
 );
 
 
-ALTER TABLE public.employees OWNER TO postgres;
 
 --
--- Name: entity_drive_files; Type: TABLE; Schema: public; Owner: postgres
+-- Name: entity_drive_files; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.entity_drive_files (
+CREATE TABLE IF NOT EXISTS entity_drive_files (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     entity_type character varying(50) NOT NULL,
@@ -1169,14 +1141,13 @@ CREATE TABLE IF NOT EXISTS public.entity_drive_files (
 );
 
 
-ALTER TABLE public.entity_drive_files OWNER TO postgres;
 
 --
--- Name: hrms_notifications; Type: TABLE; Schema: public; Owner: postgres
+-- Name: hrms_notifications; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.hrms_notifications (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS hrms_notifications (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     employee_id uuid,
     type character varying(50) DEFAULT 'info'::character varying NOT NULL,
@@ -1196,14 +1167,13 @@ CREATE TABLE IF NOT EXISTS public.hrms_notifications (
 );
 
 
-ALTER TABLE public.hrms_notifications OWNER TO postgres;
 
 --
--- Name: invoice_items; Type: TABLE; Schema: public; Owner: postgres
+-- Name: invoice_items; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.invoice_items (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS invoice_items (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     invoice_id uuid,
     product_id uuid,
     description text NOT NULL,
@@ -1217,14 +1187,13 @@ CREATE TABLE IF NOT EXISTS public.invoice_items (
 );
 
 
-ALTER TABLE public.invoice_items OWNER TO postgres;
 
 --
--- Name: invoices; Type: TABLE; Schema: public; Owner: postgres
+-- Name: invoices; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.invoices (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS invoices (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     invoice_number character varying(100) NOT NULL,
     customer_id uuid,
@@ -1254,14 +1223,13 @@ CREATE TABLE IF NOT EXISTS public.invoices (
 );
 
 
-ALTER TABLE public.invoices OWNER TO postgres;
 
 --
--- Name: lead_external_sources; Type: TABLE; Schema: public; Owner: postgres
+-- Name: lead_external_sources; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.lead_external_sources (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS lead_external_sources (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
     source_type character varying(50),
@@ -1276,13 +1244,12 @@ CREATE TABLE IF NOT EXISTS public.lead_external_sources (
 );
 
 
-ALTER TABLE public.lead_external_sources OWNER TO postgres;
 
 --
--- Name: lead_imports; Type: TABLE; Schema: public; Owner: postgres
+-- Name: lead_imports; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.lead_imports (
+CREATE TABLE IF NOT EXISTS lead_imports (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     workspace_id uuid,
@@ -1303,13 +1270,12 @@ CREATE TABLE IF NOT EXISTS public.lead_imports (
 );
 
 
-ALTER TABLE public.lead_imports OWNER TO postgres;
 
 --
--- Name: lead_workspace_access; Type: TABLE; Schema: public; Owner: postgres
+-- Name: lead_workspace_access; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.lead_workspace_access (
+CREATE TABLE IF NOT EXISTS lead_workspace_access (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     lead_id uuid NOT NULL,
     workspace_id uuid NOT NULL,
@@ -1321,14 +1287,13 @@ CREATE TABLE IF NOT EXISTS public.lead_workspace_access (
 );
 
 
-ALTER TABLE public.lead_workspace_access OWNER TO postgres;
 
 --
--- Name: lead_workspaces; Type: TABLE; Schema: public; Owner: postgres
+-- Name: lead_workspaces; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.lead_workspaces (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS lead_workspaces (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
     description text,
@@ -1339,14 +1304,13 @@ CREATE TABLE IF NOT EXISTS public.lead_workspaces (
 );
 
 
-ALTER TABLE public.lead_workspaces OWNER TO postgres;
 
 --
--- Name: leads; Type: TABLE; Schema: public; Owner: postgres
+-- Name: leads; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.leads (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS leads (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     first_name character varying(100),
     last_name character varying(100),
@@ -1417,14 +1381,13 @@ CREATE TABLE IF NOT EXISTS public.leads (
 );
 
 
-ALTER TABLE public.leads OWNER TO postgres;
 
 --
--- Name: leave_balances; Type: TABLE; Schema: public; Owner: postgres
+-- Name: leave_balances; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.leave_balances (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS leave_balances (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     employee_id uuid,
     leave_type_id uuid,
     year integer NOT NULL,
@@ -1436,13 +1399,12 @@ CREATE TABLE IF NOT EXISTS public.leave_balances (
 );
 
 
-ALTER TABLE public.leave_balances OWNER TO postgres;
 
 --
--- Name: leave_request_comments; Type: TABLE; Schema: public; Owner: postgres
+-- Name: leave_request_comments; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.leave_request_comments (
+CREATE TABLE IF NOT EXISTS leave_request_comments (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     leave_request_id uuid NOT NULL,
     user_id uuid NOT NULL,
@@ -1453,20 +1415,19 @@ CREATE TABLE IF NOT EXISTS public.leave_request_comments (
 );
 
 
-ALTER TABLE public.leave_request_comments OWNER TO postgres;
 
 --
--- Name: TABLE leave_request_comments; Type: COMMENT; Schema: public; Owner: postgres
+-- Name: TABLE leave_request_comments; Type: COMMENT; Schema: public
 --
 
-COMMENT ON TABLE public.leave_request_comments IS 'Comments and history for leave requests';
+COMMENT ON TABLE leave_request_comments IS 'Comments and history for leave requests';
 
 
 --
--- Name: leave_requests; Type: TABLE; Schema: public; Owner: postgres
+-- Name: leave_requests; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.leave_requests (
+CREATE TABLE IF NOT EXISTS leave_requests (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     employee_id uuid NOT NULL,
     leave_type_id uuid NOT NULL,
@@ -1497,20 +1458,19 @@ CREATE TABLE IF NOT EXISTS public.leave_requests (
 );
 
 
-ALTER TABLE public.leave_requests OWNER TO postgres;
 
 --
--- Name: TABLE leave_requests; Type: COMMENT; Schema: public; Owner: postgres
+-- Name: TABLE leave_requests; Type: COMMENT; Schema: public
 --
 
-COMMENT ON TABLE public.leave_requests IS 'Leave requests with approval workflow';
+COMMENT ON TABLE leave_requests IS 'Leave requests with approval workflow';
 
 
 --
--- Name: leave_types; Type: TABLE; Schema: public; Owner: postgres
+-- Name: leave_types; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.leave_types (
+CREATE TABLE IF NOT EXISTS leave_types (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     name character varying(100) NOT NULL,
     code character varying(20) NOT NULL,
@@ -1540,21 +1500,20 @@ CREATE TABLE IF NOT EXISTS public.leave_types (
 );
 
 
-ALTER TABLE public.leave_types OWNER TO postgres;
 
 --
--- Name: TABLE leave_types; Type: COMMENT; Schema: public; Owner: postgres
+-- Name: TABLE leave_types; Type: COMMENT; Schema: public
 --
 
-COMMENT ON TABLE public.leave_types IS 'Leave type definitions with policies and rules';
+COMMENT ON TABLE leave_types IS 'Leave type definitions with policies and rules';
 
 
 --
--- Name: marketing_ab_test_results; Type: TABLE; Schema: public; Owner: postgres
+-- Name: marketing_ab_test_results; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.marketing_ab_test_results (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS marketing_ab_test_results (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     test_id uuid,
     variant_id uuid,
     contact_id uuid,
@@ -1566,14 +1525,13 @@ CREATE TABLE IF NOT EXISTS public.marketing_ab_test_results (
 );
 
 
-ALTER TABLE public.marketing_ab_test_results OWNER TO postgres;
 
 --
--- Name: marketing_ab_test_variants; Type: TABLE; Schema: public; Owner: postgres
+-- Name: marketing_ab_test_variants; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.marketing_ab_test_variants (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS marketing_ab_test_variants (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     test_id uuid,
     variant_name character varying(100) NOT NULL,
     subject character varying(500),
@@ -1588,14 +1546,13 @@ CREATE TABLE IF NOT EXISTS public.marketing_ab_test_variants (
 );
 
 
-ALTER TABLE public.marketing_ab_test_variants OWNER TO postgres;
 
 --
--- Name: marketing_ab_tests; Type: TABLE; Schema: public; Owner: postgres
+-- Name: marketing_ab_tests; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.marketing_ab_tests (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS marketing_ab_tests (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
     description text,
@@ -1613,14 +1570,13 @@ CREATE TABLE IF NOT EXISTS public.marketing_ab_tests (
 );
 
 
-ALTER TABLE public.marketing_ab_tests OWNER TO postgres;
 
 --
--- Name: marketing_campaign_events; Type: TABLE; Schema: public; Owner: postgres
+-- Name: marketing_campaign_events; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.marketing_campaign_events (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS marketing_campaign_events (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     campaign_id uuid,
     contact_id uuid,
     event_type character varying(50) NOT NULL,
@@ -1635,14 +1591,13 @@ CREATE TABLE IF NOT EXISTS public.marketing_campaign_events (
 );
 
 
-ALTER TABLE public.marketing_campaign_events OWNER TO postgres;
 
 --
--- Name: marketing_campaigns; Type: TABLE; Schema: public; Owner: postgres
+-- Name: marketing_campaigns; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.marketing_campaigns (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS marketing_campaigns (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
     description text,
@@ -1674,14 +1629,13 @@ CREATE TABLE IF NOT EXISTS public.marketing_campaigns (
 );
 
 
-ALTER TABLE public.marketing_campaigns OWNER TO postgres;
 
 --
--- Name: marketing_form_submissions; Type: TABLE; Schema: public; Owner: postgres
+-- Name: marketing_form_submissions; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.marketing_form_submissions (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS marketing_form_submissions (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     form_id uuid,
     contact_id uuid,
     data jsonb NOT NULL,
@@ -1693,14 +1647,13 @@ CREATE TABLE IF NOT EXISTS public.marketing_form_submissions (
 );
 
 
-ALTER TABLE public.marketing_form_submissions OWNER TO postgres;
 
 --
--- Name: marketing_forms; Type: TABLE; Schema: public; Owner: postgres
+-- Name: marketing_forms; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.marketing_forms (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS marketing_forms (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
     description text,
@@ -1719,14 +1672,13 @@ CREATE TABLE IF NOT EXISTS public.marketing_forms (
 );
 
 
-ALTER TABLE public.marketing_forms OWNER TO postgres;
 
 --
--- Name: marketing_list_members; Type: TABLE; Schema: public; Owner: postgres
+-- Name: marketing_list_members; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.marketing_list_members (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS marketing_list_members (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     list_id uuid,
     contact_id uuid,
     status character varying(50) DEFAULT 'subscribed'::character varying,
@@ -1739,14 +1691,13 @@ CREATE TABLE IF NOT EXISTS public.marketing_list_members (
 );
 
 
-ALTER TABLE public.marketing_list_members OWNER TO postgres;
 
 --
--- Name: marketing_lists; Type: TABLE; Schema: public; Owner: postgres
+-- Name: marketing_lists; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.marketing_lists (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS marketing_lists (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
     description text,
@@ -1760,14 +1711,13 @@ CREATE TABLE IF NOT EXISTS public.marketing_lists (
 );
 
 
-ALTER TABLE public.marketing_lists OWNER TO postgres;
 
 --
--- Name: marketing_scoring_history; Type: TABLE; Schema: public; Owner: postgres
+-- Name: marketing_scoring_history; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.marketing_scoring_history (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS marketing_scoring_history (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     contact_id uuid,
     rule_id uuid,
     score_change integer NOT NULL,
@@ -1777,14 +1727,13 @@ CREATE TABLE IF NOT EXISTS public.marketing_scoring_history (
 );
 
 
-ALTER TABLE public.marketing_scoring_history OWNER TO postgres;
 
 --
--- Name: marketing_scoring_rules; Type: TABLE; Schema: public; Owner: postgres
+-- Name: marketing_scoring_rules; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.marketing_scoring_rules (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS marketing_scoring_rules (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
     rule_type character varying(50) NOT NULL,
@@ -1797,14 +1746,13 @@ CREATE TABLE IF NOT EXISTS public.marketing_scoring_rules (
 );
 
 
-ALTER TABLE public.marketing_scoring_rules OWNER TO postgres;
 
 --
--- Name: marketing_segments; Type: TABLE; Schema: public; Owner: postgres
+-- Name: marketing_segments; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.marketing_segments (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS marketing_segments (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
     description text,
@@ -1817,14 +1765,13 @@ CREATE TABLE IF NOT EXISTS public.marketing_segments (
 );
 
 
-ALTER TABLE public.marketing_segments OWNER TO postgres;
 
 --
--- Name: marketing_sequence_enrollments; Type: TABLE; Schema: public; Owner: postgres
+-- Name: marketing_sequence_enrollments; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.marketing_sequence_enrollments (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS marketing_sequence_enrollments (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     sequence_id uuid,
     contact_id uuid,
     current_step integer DEFAULT 0,
@@ -1836,14 +1783,13 @@ CREATE TABLE IF NOT EXISTS public.marketing_sequence_enrollments (
 );
 
 
-ALTER TABLE public.marketing_sequence_enrollments OWNER TO postgres;
 
 --
--- Name: marketing_sequence_steps; Type: TABLE; Schema: public; Owner: postgres
+-- Name: marketing_sequence_steps; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.marketing_sequence_steps (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS marketing_sequence_steps (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     sequence_id uuid,
     step_order integer NOT NULL,
     name character varying(255) NOT NULL,
@@ -1856,14 +1802,13 @@ CREATE TABLE IF NOT EXISTS public.marketing_sequence_steps (
 );
 
 
-ALTER TABLE public.marketing_sequence_steps OWNER TO postgres;
 
 --
--- Name: marketing_sequences; Type: TABLE; Schema: public; Owner: postgres
+-- Name: marketing_sequences; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.marketing_sequences (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS marketing_sequences (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
     description text,
@@ -1879,14 +1824,13 @@ CREATE TABLE IF NOT EXISTS public.marketing_sequences (
 );
 
 
-ALTER TABLE public.marketing_sequences OWNER TO postgres;
 
 --
--- Name: marketing_templates; Type: TABLE; Schema: public; Owner: postgres
+-- Name: marketing_templates; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.marketing_templates (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS marketing_templates (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
     description text,
@@ -1904,14 +1848,13 @@ CREATE TABLE IF NOT EXISTS public.marketing_templates (
 );
 
 
-ALTER TABLE public.marketing_templates OWNER TO postgres;
 
 --
--- Name: marketing_webhook_logs; Type: TABLE; Schema: public; Owner: postgres
+-- Name: marketing_webhook_logs; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.marketing_webhook_logs (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS marketing_webhook_logs (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     webhook_id uuid,
     event_type character varying(50) NOT NULL,
     payload jsonb NOT NULL,
@@ -1924,14 +1867,13 @@ CREATE TABLE IF NOT EXISTS public.marketing_webhook_logs (
 );
 
 
-ALTER TABLE public.marketing_webhook_logs OWNER TO postgres;
 
 --
--- Name: marketing_webhook_queue; Type: TABLE; Schema: public; Owner: postgres
+-- Name: marketing_webhook_queue; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.marketing_webhook_queue (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS marketing_webhook_queue (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     webhook_id uuid,
     event_type character varying(50) NOT NULL,
     payload jsonb NOT NULL,
@@ -1943,14 +1885,13 @@ CREATE TABLE IF NOT EXISTS public.marketing_webhook_queue (
 );
 
 
-ALTER TABLE public.marketing_webhook_queue OWNER TO postgres;
 
 --
--- Name: marketing_webhooks; Type: TABLE; Schema: public; Owner: postgres
+-- Name: marketing_webhooks; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.marketing_webhooks (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS marketing_webhooks (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
     url character varying(500) NOT NULL,
@@ -1965,14 +1906,13 @@ CREATE TABLE IF NOT EXISTS public.marketing_webhooks (
 );
 
 
-ALTER TABLE public.marketing_webhooks OWNER TO postgres;
 
 --
--- Name: notification_templates; Type: TABLE; Schema: public; Owner: postgres
+-- Name: notification_templates; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.notification_templates (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS notification_templates (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
     type character varying(50) NOT NULL,
@@ -1985,52 +1925,44 @@ CREATE TABLE IF NOT EXISTS public.notification_templates (
     org_id uuid
 );
 
+-- ============================================================
+-- Rush-CRM: Unified Notifications System
+-- Enhanced migration to handle potential legacy table conflicts
+-- ============================================================
 
-ALTER TABLE public.notification_templates OWNER TO postgres;
-
---
--- Name: notifications; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE IF NOT EXISTS public.notifications (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
-    organization_id uuid,
-    user_id uuid,
-    type character varying(50) NOT NULL,
+CREATE TABLE IF NOT EXISTS notifications (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    org_id uuid NOT NULL,
+    target_user_id uuid NOT NULL,
+    actor_user_id uuid,
     title character varying(255) NOT NULL,
-    message text,
-    link character varying(500),
+    message text NOT NULL,
+    type character varying(50) NOT NULL,
+    category character varying(50) DEFAULT 'general',
     is_read boolean DEFAULT false,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    org_id uuid,
-    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
-);
-
-
-ALTER TABLE public.notifications OWNER TO postgres;
-
---
--- Name: organizations; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE IF NOT EXISTS public.organizations (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
-    name character varying(255) NOT NULL,
-    domain character varying(255),
-    settings jsonb DEFAULT '{}'::jsonb,
+    action_url text,
+    link character varying(500),
+    metadata jsonb DEFAULT '{}'::jsonb,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 4. Create indices (safely handles existence)
+CREATE INDEX IF NOT EXISTS idx_notifications_user_unread
+    ON notifications (target_user_id, org_id, is_read, created_at DESC);
 
-ALTER TABLE public.organizations OWNER TO postgres;
+CREATE INDEX IF NOT EXISTS idx_notifications_user_org
+    ON notifications (target_user_id, org_id);
+
+-- (organizations table moved to top)
+
 
 --
--- Name: payroll; Type: TABLE; Schema: public; Owner: postgres
+-- Name: payroll; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.payroll (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS payroll (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     employee_id uuid,
     period_start date NOT NULL,
@@ -2057,14 +1989,12 @@ CREATE TABLE IF NOT EXISTS public.payroll (
 );
 
 
-ALTER TABLE public.payroll OWNER TO postgres;
-
 --
--- Name: permissions; Type: TABLE; Schema: public; Owner: postgres
+-- Name: permissions; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.permissions (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS permissions (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     name character varying(100) NOT NULL,
     resource character varying(100) NOT NULL,
     action character varying(50) NOT NULL,
@@ -2074,13 +2004,11 @@ CREATE TABLE IF NOT EXISTS public.permissions (
 );
 
 
-ALTER TABLE public.permissions OWNER TO postgres;
-
 --
--- Name: pipeline_stages; Type: TABLE; Schema: public; Owner: postgres
+-- Name: pipeline_stages; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.pipeline_stages (
+CREATE TABLE IF NOT EXISTS pipeline_stages (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     pipeline character varying(100) DEFAULT 'default'::character varying,
@@ -2094,13 +2022,12 @@ CREATE TABLE IF NOT EXISTS public.pipeline_stages (
 );
 
 
-ALTER TABLE public.pipeline_stages OWNER TO postgres;
 
 --
--- Name: product_batches; Type: TABLE; Schema: public; Owner: postgres
+-- Name: product_batches; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.product_batches (
+CREATE TABLE IF NOT EXISTS product_batches (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     product_id uuid NOT NULL,
@@ -2116,14 +2043,13 @@ CREATE TABLE IF NOT EXISTS public.product_batches (
 );
 
 
-ALTER TABLE public.product_batches OWNER TO postgres;
 
 --
--- Name: products; Type: TABLE; Schema: public; Owner: postgres
+-- Name: products; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.products (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS products (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
     sku character varying(100),
@@ -2160,14 +2086,13 @@ CREATE TABLE IF NOT EXISTS public.products (
 );
 
 
-ALTER TABLE public.products OWNER TO postgres;
 
 --
--- Name: profiles; Type: TABLE; Schema: public; Owner: postgres
+-- Name: profiles; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.profiles (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS profiles (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     user_id uuid,
     org_id uuid,
     full_name character varying(255),
@@ -2187,13 +2112,12 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 );
 
 
-ALTER TABLE public.profiles OWNER TO postgres;
 
 --
--- Name: project_activity_logs; Type: TABLE; Schema: public; Owner: postgres
+-- Name: project_activity_logs; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.project_activity_logs (
+CREATE TABLE IF NOT EXISTS project_activity_logs (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     project_id uuid NOT NULL,
@@ -2207,13 +2131,12 @@ CREATE TABLE IF NOT EXISTS public.project_activity_logs (
 );
 
 
-ALTER TABLE public.project_activity_logs OWNER TO postgres;
 
 --
--- Name: project_attachments; Type: TABLE; Schema: public; Owner: postgres
+-- Name: project_attachments; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.project_attachments (
+CREATE TABLE IF NOT EXISTS project_attachments (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     project_id uuid,
@@ -2230,13 +2153,12 @@ CREATE TABLE IF NOT EXISTS public.project_attachments (
 );
 
 
-ALTER TABLE public.project_attachments OWNER TO postgres;
 
 --
--- Name: project_comments; Type: TABLE; Schema: public; Owner: postgres
+-- Name: project_comments; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.project_comments (
+CREATE TABLE IF NOT EXISTS project_comments (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     project_id uuid,
@@ -2251,14 +2173,13 @@ CREATE TABLE IF NOT EXISTS public.project_comments (
 );
 
 
-ALTER TABLE public.project_comments OWNER TO postgres;
 
 --
--- Name: project_documents; Type: TABLE; Schema: public; Owner: postgres
+-- Name: project_documents; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.project_documents (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS project_documents (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     project_id uuid,
     name character varying(255) NOT NULL,
     file_url character varying(500) NOT NULL,
@@ -2276,13 +2197,12 @@ CREATE TABLE IF NOT EXISTS public.project_documents (
 );
 
 
-ALTER TABLE public.project_documents OWNER TO postgres;
 
 --
--- Name: project_members; Type: TABLE; Schema: public; Owner: postgres
+-- Name: project_members; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.project_members (
+CREATE TABLE IF NOT EXISTS project_members (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     project_id uuid NOT NULL,
@@ -2294,14 +2214,13 @@ CREATE TABLE IF NOT EXISTS public.project_members (
 );
 
 
-ALTER TABLE public.project_members OWNER TO postgres;
 
 --
--- Name: project_milestones; Type: TABLE; Schema: public; Owner: postgres
+-- Name: project_milestones; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.project_milestones (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS project_milestones (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     project_id uuid,
     name character varying(255) NOT NULL,
     description text,
@@ -2321,14 +2240,13 @@ CREATE TABLE IF NOT EXISTS public.project_milestones (
 );
 
 
-ALTER TABLE public.project_milestones OWNER TO postgres;
 
 --
--- Name: project_risks; Type: TABLE; Schema: public; Owner: postgres
+-- Name: project_risks; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.project_risks (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS project_risks (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     project_id uuid,
     title character varying(255) NOT NULL,
     description text,
@@ -2349,14 +2267,13 @@ CREATE TABLE IF NOT EXISTS public.project_risks (
 );
 
 
-ALTER TABLE public.project_risks OWNER TO postgres;
 
 --
--- Name: project_tasks; Type: TABLE; Schema: public; Owner: postgres
+-- Name: project_tasks; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.project_tasks (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS project_tasks (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     project_id uuid,
     title character varying(255) NOT NULL,
@@ -2383,14 +2300,13 @@ CREATE TABLE IF NOT EXISTS public.project_tasks (
 );
 
 
-ALTER TABLE public.project_tasks OWNER TO postgres;
 
 --
--- Name: project_time_entries; Type: TABLE; Schema: public; Owner: postgres
+-- Name: project_time_entries; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.project_time_entries (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS project_time_entries (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     project_id uuid,
     task_id uuid,
@@ -2412,14 +2328,13 @@ CREATE TABLE IF NOT EXISTS public.project_time_entries (
 );
 
 
-ALTER TABLE public.project_time_entries OWNER TO postgres;
 
 --
--- Name: projects; Type: TABLE; Schema: public; Owner: postgres
+-- Name: projects; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.projects (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS projects (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
     description text,
@@ -2452,13 +2367,12 @@ CREATE TABLE IF NOT EXISTS public.projects (
 );
 
 
-ALTER TABLE public.projects OWNER TO postgres;
 
 --
--- Name: public_holidays; Type: TABLE; Schema: public; Owner: postgres
+-- Name: public_holidays; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.public_holidays (
+CREATE TABLE IF NOT EXISTS public_holidays (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     name character varying(255) NOT NULL,
@@ -2470,21 +2384,20 @@ CREATE TABLE IF NOT EXISTS public.public_holidays (
 );
 
 
-ALTER TABLE public.public_holidays OWNER TO postgres;
 
 --
--- Name: TABLE public_holidays; Type: COMMENT; Schema: public; Owner: postgres
+-- Name: TABLE public_holidays; Type: COMMENT; Schema: public
 --
 
-COMMENT ON TABLE public.public_holidays IS 'Organization public holidays';
+COMMENT ON TABLE public_holidays IS 'Organization public holidays';
 
 
 --
--- Name: purchase_order_items; Type: TABLE; Schema: public; Owner: postgres
+-- Name: purchase_order_items; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.purchase_order_items (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS purchase_order_items (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     purchase_order_id uuid,
     product_id uuid,
     quantity integer NOT NULL,
@@ -2497,14 +2410,13 @@ CREATE TABLE IF NOT EXISTS public.purchase_order_items (
 );
 
 
-ALTER TABLE public.purchase_order_items OWNER TO postgres;
 
 --
--- Name: purchase_orders; Type: TABLE; Schema: public; Owner: postgres
+-- Name: purchase_orders; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.purchase_orders (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS purchase_orders (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     po_number character varying(100) NOT NULL,
     vendor_id uuid,
@@ -2528,14 +2440,13 @@ CREATE TABLE IF NOT EXISTS public.purchase_orders (
 );
 
 
-ALTER TABLE public.purchase_orders OWNER TO postgres;
 
 --
--- Name: roles; Type: TABLE; Schema: public; Owner: postgres
+-- Name: roles; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.roles (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS roles (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(100) NOT NULL,
     description text,
@@ -2546,13 +2457,12 @@ CREATE TABLE IF NOT EXISTS public.roles (
 );
 
 
-ALTER TABLE public.roles OWNER TO postgres;
 
 --
--- Name: salary_components; Type: TABLE; Schema: public; Owner: postgres
+-- Name: salary_components; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.salary_components (
+CREATE TABLE IF NOT EXISTS salary_components (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     name character varying(255) NOT NULL,
@@ -2566,13 +2476,12 @@ CREATE TABLE IF NOT EXISTS public.salary_components (
 );
 
 
-ALTER TABLE public.salary_components OWNER TO postgres;
 
 --
--- Name: salary_slip_items; Type: TABLE; Schema: public; Owner: postgres
+-- Name: salary_slip_items; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.salary_slip_items (
+CREATE TABLE IF NOT EXISTS salary_slip_items (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     salary_slip_id uuid NOT NULL,
     component_name character varying(255) NOT NULL,
@@ -2583,13 +2492,12 @@ CREATE TABLE IF NOT EXISTS public.salary_slip_items (
 );
 
 
-ALTER TABLE public.salary_slip_items OWNER TO postgres;
 
 --
--- Name: salary_slips; Type: TABLE; Schema: public; Owner: postgres
+-- Name: salary_slips; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.salary_slips (
+CREATE TABLE IF NOT EXISTS salary_slips (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     employee_id uuid NOT NULL,
@@ -2612,14 +2520,13 @@ CREATE TABLE IF NOT EXISTS public.salary_slips (
 );
 
 
-ALTER TABLE public.salary_slips OWNER TO postgres;
 
 --
--- Name: signing_parties; Type: TABLE; Schema: public; Owner: postgres
+-- Name: signing_parties; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.signing_parties (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS signing_parties (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
     email character varying(255),
@@ -2633,14 +2540,13 @@ CREATE TABLE IF NOT EXISTS public.signing_parties (
 );
 
 
-ALTER TABLE public.signing_parties OWNER TO postgres;
 
 --
--- Name: stock; Type: TABLE; Schema: public; Owner: postgres
+-- Name: stock; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.stock (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS stock (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     product_id uuid,
     warehouse_id uuid,
@@ -2657,13 +2563,12 @@ CREATE TABLE IF NOT EXISTS public.stock (
 );
 
 
-ALTER TABLE public.stock OWNER TO postgres;
 
 --
--- Name: stock_adjustments; Type: TABLE; Schema: public; Owner: postgres
+-- Name: stock_adjustments; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.stock_adjustments (
+CREATE TABLE IF NOT EXISTS stock_adjustments (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     product_id uuid NOT NULL,
@@ -2681,14 +2586,13 @@ CREATE TABLE IF NOT EXISTS public.stock_adjustments (
 );
 
 
-ALTER TABLE public.stock_adjustments OWNER TO postgres;
 
 --
--- Name: stock_movements; Type: TABLE; Schema: public; Owner: postgres
+-- Name: stock_movements; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.stock_movements (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS stock_movements (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     product_id uuid,
     warehouse_id uuid,
@@ -2709,13 +2613,12 @@ CREATE TABLE IF NOT EXISTS public.stock_movements (
 );
 
 
-ALTER TABLE public.stock_movements OWNER TO postgres;
 
 --
--- Name: tasks; Type: TABLE; Schema: public; Owner: postgres
+-- Name: tasks; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.tasks (
+CREATE TABLE IF NOT EXISTS tasks (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     project_id uuid,
@@ -2748,13 +2651,12 @@ CREATE TABLE IF NOT EXISTS public.tasks (
 );
 
 
-ALTER TABLE public.tasks OWNER TO postgres;
 
 --
--- Name: unibox_emails; Type: TABLE; Schema: public; Owner: postgres
+-- Name: unibox_emails; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.unibox_emails (
+CREATE TABLE IF NOT EXISTS unibox_emails (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     external_id character varying(255),
@@ -2782,16 +2684,15 @@ CREATE TABLE IF NOT EXISTS public.unibox_emails (
 );
 
 
-ALTER TABLE public.unibox_emails OWNER TO postgres;
 
 --
--- Name: user_roles; Type: TABLE; Schema: public; Owner: postgres
+-- Name: user_roles; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.user_roles (
+CREATE TABLE IF NOT EXISTS user_roles (
     user_id uuid NOT NULL,
     role_id uuid NOT NULL,
-    id uuid DEFAULT public.uuid_generate_v4(),
+    id uuid DEFAULT uuid_generate_v4(),
     role character varying(50) DEFAULT 'user'::character varying,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
@@ -2799,49 +2700,34 @@ CREATE TABLE IF NOT EXISTS public.user_roles (
 );
 
 
-ALTER TABLE public.user_roles OWNER TO postgres;
 
---
--- Name: users; Type: TABLE; Schema: public; Owner: postgres
---
-CREATE TYPE public.user_role AS ENUM (
-    'super_admin',
-    'admin',
-    'manager',
-    'team_lead',
-    'employee'
+-- (users table and types moved to top)
+
+CREATE TABLE IF NOT EXISTS invites (
+    id UUID PRIMARY KEY,
+    email TEXT NOT NULL,
+    full_name TEXT,
+    role VARCHAR(50) NOT NULL,
+    phone TEXT,
+    position TEXT,
+    department TEXT,
+    module_permissions JSONB DEFAULT '{}'::jsonb,
+    org_id UUID,
+    invite_token TEXT UNIQUE,
+    expires_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS public.users (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
-    organization_id uuid REFERENCES public.organizations(id),
-    email character varying(255) NOT NULL,
-    password_hash character varying(255) NOT NULL,
-    full_name character varying(255) NOT NULL,
-    role public.user_role DEFAULT 'employee'::public.user_role,
-    is_active boolean DEFAULT true,
-    last_login timestamp without time zone,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    avatar_url character varying(500),
-    phone character varying(50),
-    "position" character varying(100),
-    org_id uuid REFERENCES public.organizations(id),
-    department character varying(100),
-    bio text,
-    timezone character varying(100),
-    language character varying(10) DEFAULT 'en'::character varying
-);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invites_email ON invites (email);
+CREATE INDEX IF NOT EXISTS idx_invites_organization ON invites (organization_id);
 
-
-ALTER TABLE public.users OWNER TO postgres;
 
 --
--- Name: vendors; Type: TABLE; Schema: public; Owner: postgres
+-- Name: vendors; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.vendors (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS vendors (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
     contact_person character varying(255),
@@ -2868,14 +2754,13 @@ CREATE TABLE IF NOT EXISTS public.vendors (
 );
 
 
-ALTER TABLE public.vendors OWNER TO postgres;
 
 --
--- Name: warehouses; Type: TABLE; Schema: public; Owner: postgres
+-- Name: warehouses; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.warehouses (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS warehouses (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
     code character varying(50),
@@ -2900,14 +2785,13 @@ CREATE TABLE IF NOT EXISTS public.warehouses (
 );
 
 
-ALTER TABLE public.warehouses OWNER TO postgres;
 
 --
--- Name: workflow_actions; Type: TABLE; Schema: public; Owner: postgres
+-- Name: workflow_actions; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.workflow_actions (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS workflow_actions (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     workflow_id uuid,
     action_order integer NOT NULL,
     action_type character varying(100) NOT NULL,
@@ -2920,14 +2804,13 @@ CREATE TABLE IF NOT EXISTS public.workflow_actions (
 );
 
 
-ALTER TABLE public.workflow_actions OWNER TO postgres;
 
 --
--- Name: workflow_execution_steps; Type: TABLE; Schema: public; Owner: postgres
+-- Name: workflow_execution_steps; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.workflow_execution_steps (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS workflow_execution_steps (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     execution_id uuid,
     action_id uuid,
     status character varying(50) DEFAULT 'running'::character varying,
@@ -2939,14 +2822,13 @@ CREATE TABLE IF NOT EXISTS public.workflow_execution_steps (
 );
 
 
-ALTER TABLE public.workflow_execution_steps OWNER TO postgres;
 
 --
--- Name: workflow_executions; Type: TABLE; Schema: public; Owner: postgres
+-- Name: workflow_executions; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.workflow_executions (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS workflow_executions (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     workflow_id uuid,
     status character varying(50) DEFAULT 'running'::character varying,
     trigger_data jsonb,
@@ -2962,14 +2844,13 @@ CREATE TABLE IF NOT EXISTS public.workflow_executions (
 );
 
 
-ALTER TABLE public.workflow_executions OWNER TO postgres;
 
 --
--- Name: workflows; Type: TABLE; Schema: public; Owner: postgres
+-- Name: workflows; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.workflows (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS workflows (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     organization_id uuid,
     name character varying(255) NOT NULL,
     description text,
@@ -2987,13 +2868,12 @@ CREATE TABLE IF NOT EXISTS public.workflows (
 );
 
 
-ALTER TABLE public.workflows OWNER TO postgres;
 
 --
--- Name: workgroup_activities; Type: TABLE; Schema: public; Owner: postgres
+-- Name: workgroup_activities; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.workgroup_activities (
+CREATE TABLE IF NOT EXISTS workgroup_activities (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     workgroup_id uuid NOT NULL,
     user_id uuid,
@@ -3004,20 +2884,19 @@ CREATE TABLE IF NOT EXISTS public.workgroup_activities (
 );
 
 
-ALTER TABLE public.workgroup_activities OWNER TO postgres;
 
 --
--- Name: TABLE workgroup_activities; Type: COMMENT; Schema: public; Owner: postgres
+-- Name: TABLE workgroup_activities; Type: COMMENT; Schema: public
 --
 
-COMMENT ON TABLE public.workgroup_activities IS 'Activity log for workgroups for audit and notifications';
+COMMENT ON TABLE workgroup_activities IS 'Activity log for workgroups for audit and notifications';
 
 
 --
--- Name: workgroup_channels; Type: TABLE; Schema: public; Owner: postgres
+-- Name: workgroup_channels; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.workgroup_channels (
+CREATE TABLE IF NOT EXISTS workgroup_channels (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     workgroup_id uuid NOT NULL,
     name character varying(255) NOT NULL,
@@ -3034,20 +2913,19 @@ CREATE TABLE IF NOT EXISTS public.workgroup_channels (
 );
 
 
-ALTER TABLE public.workgroup_channels OWNER TO postgres;
 
 --
--- Name: TABLE workgroup_channels; Type: COMMENT; Schema: public; Owner: postgres
+-- Name: TABLE workgroup_channels; Type: COMMENT; Schema: public
 --
 
-COMMENT ON TABLE public.workgroup_channels IS 'Channels within workgroups for organized discussions';
+COMMENT ON TABLE workgroup_channels IS 'Channels within workgroups for organized discussions';
 
 
 --
--- Name: workgroup_files; Type: TABLE; Schema: public; Owner: postgres
+-- Name: workgroup_files; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.workgroup_files (
+CREATE TABLE IF NOT EXISTS workgroup_files (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     workgroup_id uuid NOT NULL,
     channel_id uuid,
@@ -3067,20 +2945,19 @@ CREATE TABLE IF NOT EXISTS public.workgroup_files (
 );
 
 
-ALTER TABLE public.workgroup_files OWNER TO postgres;
 
 --
--- Name: TABLE workgroup_files; Type: COMMENT; Schema: public; Owner: postgres
+-- Name: TABLE workgroup_files; Type: COMMENT; Schema: public
 --
 
-COMMENT ON TABLE public.workgroup_files IS 'Files shared within workgroups and channels';
+COMMENT ON TABLE workgroup_files IS 'Files shared within workgroups and channels';
 
 
 --
--- Name: workgroup_meeting_participants; Type: TABLE; Schema: public; Owner: postgres
+-- Name: workgroup_meeting_participants; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.workgroup_meeting_participants (
+CREATE TABLE IF NOT EXISTS workgroup_meeting_participants (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     meeting_id uuid NOT NULL,
     user_id uuid NOT NULL,
@@ -3096,13 +2973,12 @@ CREATE TABLE IF NOT EXISTS public.workgroup_meeting_participants (
 );
 
 
-ALTER TABLE public.workgroup_meeting_participants OWNER TO postgres;
 
 --
--- Name: workgroup_meetings; Type: TABLE; Schema: public; Owner: postgres
+-- Name: workgroup_meetings; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.workgroup_meetings (
+CREATE TABLE IF NOT EXISTS workgroup_meetings (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     workgroup_id uuid NOT NULL,
     channel_id uuid,
@@ -3127,20 +3003,19 @@ CREATE TABLE IF NOT EXISTS public.workgroup_meetings (
 );
 
 
-ALTER TABLE public.workgroup_meetings OWNER TO postgres;
 
 --
--- Name: TABLE workgroup_meetings; Type: COMMENT; Schema: public; Owner: postgres
+-- Name: TABLE workgroup_meetings; Type: COMMENT; Schema: public
 --
 
-COMMENT ON TABLE public.workgroup_meetings IS 'Scheduled and active meetings within workgroups';
+COMMENT ON TABLE workgroup_meetings IS 'Scheduled and active meetings within workgroups';
 
 
 --
--- Name: workgroup_members; Type: TABLE; Schema: public; Owner: postgres
+-- Name: workgroup_members; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.workgroup_members (
+CREATE TABLE IF NOT EXISTS workgroup_members (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     workgroup_id uuid NOT NULL,
     user_id uuid NOT NULL,
@@ -3156,21 +3031,20 @@ CREATE TABLE IF NOT EXISTS public.workgroup_members (
 );
 
 
-ALTER TABLE public.workgroup_members OWNER TO postgres;
 
 --
--- Name: TABLE workgroup_members; Type: COMMENT; Schema: public; Owner: postgres
+-- Name: TABLE workgroup_members; Type: COMMENT; Schema: public
 --
 
-COMMENT ON TABLE public.workgroup_members IS 'Members of workgroups with roles and permissions';
+COMMENT ON TABLE workgroup_members IS 'Members of workgroups with roles and permissions';
 
 
 --
--- Name: workgroup_notifications; Type: TABLE; Schema: public; Owner: postgres
+-- Name: workgroup_notifications; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.workgroup_notifications (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS workgroup_notifications (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     workgroup_id uuid,
     user_id uuid,
     type character varying(50) NOT NULL,
@@ -3182,13 +3056,12 @@ CREATE TABLE IF NOT EXISTS public.workgroup_notifications (
 );
 
 
-ALTER TABLE public.workgroup_notifications OWNER TO postgres;
 
 --
--- Name: workgroup_posts; Type: TABLE; Schema: public; Owner: postgres
+-- Name: workgroup_posts; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.workgroup_posts (
+CREATE TABLE IF NOT EXISTS workgroup_posts (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     workgroup_id uuid NOT NULL,
     channel_id uuid,
@@ -3201,28 +3074,40 @@ CREATE TABLE IF NOT EXISTS public.workgroup_posts (
     is_deleted boolean DEFAULT false,
     edited_at timestamp with time zone,
     deleted_at timestamp with time zone,
+    deleted_for_users uuid[] DEFAULT '{}'::uuid[],
     reactions jsonb DEFAULT '{}'::jsonb,
     mention_users uuid[] DEFAULT '{}'::uuid[],
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    last_seen_at timestamp with time zone,
     CONSTRAINT workgroup_posts_content_type_check CHECK (((content_type)::text = ANY (ARRAY[('text'::character varying)::text, ('file'::character varying)::text, ('image'::character varying)::text, ('link'::character varying)::text, ('code'::character varying)::text])))
 );
 
 
-ALTER TABLE public.workgroup_posts OWNER TO postgres;
 
 --
--- Name: TABLE workgroup_posts; Type: COMMENT; Schema: public; Owner: postgres
+-- Name: TABLE workgroup_posts; Type: COMMENT; Schema: public
 --
 
-COMMENT ON TABLE public.workgroup_posts IS 'Messages/posts within workgroups and channels';
+COMMENT ON TABLE workgroup_posts IS 'Messages/posts within workgroups and channels';
 
 
 --
--- Name: workgroups; Type: TABLE; Schema: public; Owner: postgres
+-- Name: workgroup_post_reads; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.workgroups (
+CREATE TABLE IF NOT EXISTS workgroup_post_reads (
+    post_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    read_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+
+--
+-- Name: workgroups; Type: TABLE; Schema: public
+--
+
+CREATE TABLE IF NOT EXISTS workgroups (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     org_id uuid NOT NULL,
     name character varying(255) NOT NULL,
@@ -3248,20 +3133,19 @@ CREATE TABLE IF NOT EXISTS public.workgroups (
 );
 
 
-ALTER TABLE public.workgroups OWNER TO postgres;
 
 --
--- Name: TABLE workgroups; Type: COMMENT; Schema: public; Owner: postgres
+-- Name: TABLE workgroups; Type: COMMENT; Schema: public
 --
 
-COMMENT ON TABLE public.workgroups IS 'Microsoft Teams-style workgroups/teams for collaboration';
+COMMENT ON TABLE workgroups IS 'Microsoft Teams-style workgroups/teams for collaboration';
 
 
 --
--- Name: workgroup_stats; Type: VIEW; Schema: public; Owner: postgres
+-- Name: workgroup_stats; Type: VIEW; Schema: public
 --
 
-CREATE VIEW public.workgroup_stats AS
+CREATE VIEW workgroup_stats AS
  SELECT w.id,
     w.name,
     w.type,
@@ -3272,20 +3156,19 @@ CREATE VIEW public.workgroup_stats AS
     count(DISTINCT wm.user_id) AS actual_member_count,
     count(DISTINCT wp.id) AS actual_message_count,
     max(wp.created_at) AS last_message_at
-   FROM ((public.workgroups w
-     LEFT JOIN public.workgroup_members wm ON ((w.id = wm.workgroup_id)))
-     LEFT JOIN public.workgroup_posts wp ON ((w.id = wp.workgroup_id)))
+   FROM ((workgroups w
+     LEFT JOIN workgroup_members wm ON ((w.id = wm.workgroup_id)))
+     LEFT JOIN workgroup_posts wp ON ((w.id = wp.workgroup_id)))
   GROUP BY w.id, w.name, w.type, w.is_private, w.member_count, w.message_count, w.last_activity_at;
 
 
-ALTER VIEW public.workgroup_stats OWNER TO postgres;
 
 --
--- Name: workgroup_wiki; Type: TABLE; Schema: public; Owner: postgres
+-- Name: workgroup_wiki; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.workgroup_wiki (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+CREATE TABLE IF NOT EXISTS workgroup_wiki (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
     workgroup_id uuid,
     title character varying(255) NOT NULL,
     content text,
@@ -3297,13 +3180,12 @@ CREATE TABLE IF NOT EXISTS public.workgroup_wiki (
 );
 
 
-ALTER TABLE public.workgroup_wiki OWNER TO postgres;
 
 --
--- Name: workgroup_wiki_pages; Type: TABLE; Schema: public; Owner: postgres
+-- Name: workgroup_wiki_pages; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.workgroup_wiki_pages (
+CREATE TABLE IF NOT EXISTS workgroup_wiki_pages (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     workgroup_id uuid NOT NULL,
     user_id uuid NOT NULL,
@@ -3320,4482 +3202,4471 @@ CREATE TABLE IF NOT EXISTS public.workgroup_wiki_pages (
 );
 
 
-ALTER TABLE public.workgroup_wiki_pages OWNER TO postgres;
 
 --
--- Name: activities activities_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: activities activities_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.activities
+ALTER TABLE ONLY activities
     ADD CONSTRAINT activities_pkey PRIMARY KEY (id);
 
 
 --
--- Name: attendance attendance_employee_id_date_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: attendance attendance_employee_id_date_key; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.attendance
+ALTER TABLE ONLY attendance
     ADD CONSTRAINT attendance_employee_id_date_key UNIQUE (employee_id, date);
 
 
 --
--- Name: attendance attendance_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: attendance attendance_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.attendance
+ALTER TABLE ONLY attendance
     ADD CONSTRAINT attendance_pkey PRIMARY KEY (id);
 
 
 --
--- Name: calendar_event_attendees calendar_event_attendees_event_id_user_id_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: calendar_event_attendees calendar_event_attendees_event_id_user_id_key; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.calendar_event_attendees
+ALTER TABLE ONLY calendar_event_attendees
     ADD CONSTRAINT calendar_event_attendees_event_id_user_id_key UNIQUE (event_id, user_id);
 
 
 --
--- Name: calendar_event_attendees calendar_event_attendees_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: calendar_event_attendees calendar_event_attendees_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.calendar_event_attendees
+ALTER TABLE ONLY calendar_event_attendees
     ADD CONSTRAINT calendar_event_attendees_pkey PRIMARY KEY (id);
 
 
 --
--- Name: calendar_events calendar_events_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: calendar_events calendar_events_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.calendar_events
+ALTER TABLE ONLY calendar_events
     ADD CONSTRAINT calendar_events_pkey PRIMARY KEY (id);
 
 
 --
--- Name: call_logs call_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: call_logs call_logs_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.call_logs
+ALTER TABLE ONLY call_logs
     ADD CONSTRAINT call_logs_pkey PRIMARY KEY (id);
 
 
 --
--- Name: companies companies_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: companies companies_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.companies
+ALTER TABLE ONLY companies
     ADD CONSTRAINT companies_pkey PRIMARY KEY (id);
 
 
 --
--- Name: connected_drives connected_drives_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: connected_drives connected_drives_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.connected_drives
+ALTER TABLE ONLY connected_drives
     ADD CONSTRAINT connected_drives_pkey PRIMARY KEY (id);
 
 
 --
--- Name: connected_mailboxes connected_mailboxes_org_id_user_id_email_address_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: connected_mailboxes connected_mailboxes_org_id_user_id_email_address_key; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.connected_mailboxes
+ALTER TABLE ONLY connected_mailboxes
     ADD CONSTRAINT connected_mailboxes_org_id_user_id_email_address_key UNIQUE (org_id, user_id, email_address);
 
 
 --
--- Name: connected_mailboxes connected_mailboxes_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: connected_mailboxes connected_mailboxes_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.connected_mailboxes
+ALTER TABLE ONLY connected_mailboxes
     ADD CONSTRAINT connected_mailboxes_pkey PRIMARY KEY (id);
 
 
 --
--- Name: contacts contacts_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: contacts contacts_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.contacts
+ALTER TABLE ONLY contacts
     ADD CONSTRAINT contacts_pkey PRIMARY KEY (id);
 
 
 --
--- Name: crm_activities crm_activities_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: crm_activities crm_activities_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.crm_activities
+ALTER TABLE ONLY crm_activities
     ADD CONSTRAINT crm_activities_pkey PRIMARY KEY (id);
 
 
 --
--- Name: crm_comments crm_comments_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: crm_comments crm_comments_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.crm_comments
+ALTER TABLE ONLY crm_comments
     ADD CONSTRAINT crm_comments_pkey PRIMARY KEY (id);
 
 
 --
--- Name: crm_documents crm_documents_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: crm_documents crm_documents_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.crm_documents
+ALTER TABLE ONLY crm_documents
     ADD CONSTRAINT crm_documents_pkey PRIMARY KEY (id);
 
 
 --
--- Name: customers customers_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: customers customers_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.customers
+ALTER TABLE ONLY customers
     ADD CONSTRAINT customers_pkey PRIMARY KEY (id);
 
 
 --
--- Name: deal_contacts deal_contacts_org_id_deal_id_contact_id_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: deal_contacts deal_contacts_org_id_deal_id_contact_id_key; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.deal_contacts
+ALTER TABLE ONLY deal_contacts
     ADD CONSTRAINT deal_contacts_org_id_deal_id_contact_id_key UNIQUE (org_id, deal_id, contact_id);
 
 
 --
--- Name: deal_contacts deal_contacts_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: deal_contacts deal_contacts_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.deal_contacts
+ALTER TABLE ONLY deal_contacts
     ADD CONSTRAINT deal_contacts_pkey PRIMARY KEY (id);
 
 
 --
--- Name: deal_signing_parties deal_signing_parties_org_id_deal_id_contact_id_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: deal_signing_parties deal_signing_parties_org_id_deal_id_contact_id_key; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.deal_signing_parties
+ALTER TABLE ONLY deal_signing_parties
     ADD CONSTRAINT deal_signing_parties_org_id_deal_id_contact_id_key UNIQUE (org_id, deal_id, contact_id);
 
 
 --
--- Name: deal_signing_parties deal_signing_parties_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: deal_signing_parties deal_signing_parties_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.deal_signing_parties
+ALTER TABLE ONLY deal_signing_parties
     ADD CONSTRAINT deal_signing_parties_pkey PRIMARY KEY (id);
 
 
 --
--- Name: deals deals_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: deals deals_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.deals
+ALTER TABLE ONLY deals
     ADD CONSTRAINT deals_pkey PRIMARY KEY (id);
 
 
 --
--- Name: drive_activities drive_activities_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: drive_activities drive_activities_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.drive_activities
+ALTER TABLE ONLY drive_activities
     ADD CONSTRAINT drive_activities_pkey PRIMARY KEY (id);
 
 
 --
--- Name: drive_file_versions drive_file_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: drive_file_versions drive_file_versions_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.drive_file_versions
+ALTER TABLE ONLY drive_file_versions
     ADD CONSTRAINT drive_file_versions_pkey PRIMARY KEY (id);
 
 
 --
--- Name: drive_files drive_files_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: drive_files drive_files_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.drive_files
+ALTER TABLE ONLY drive_files
     ADD CONSTRAINT drive_files_pkey PRIMARY KEY (id);
 
 
 --
--- Name: drive_folders drive_folders_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: drive_folders drive_folders_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.drive_folders
+ALTER TABLE ONLY drive_folders
     ADD CONSTRAINT drive_folders_pkey PRIMARY KEY (id);
 
 
 --
--- Name: drive_permissions drive_permissions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: drive_permissions drive_permissions_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.drive_permissions
+ALTER TABLE ONLY drive_permissions
     ADD CONSTRAINT drive_permissions_pkey PRIMARY KEY (id);
 
 
 --
--- Name: emails emails_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: emails emails_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.emails
+ALTER TABLE ONLY emails
     ADD CONSTRAINT emails_pkey PRIMARY KEY (id);
 
 
 --
--- Name: employee_documents employee_documents_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: employee_documents employee_documents_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.employee_documents
+ALTER TABLE ONLY employee_documents
     ADD CONSTRAINT employee_documents_pkey PRIMARY KEY (id);
 
 
 --
--- Name: employee_leave_balances employee_leave_balances_employee_id_leave_type_id_year_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: employee_leave_balances employee_leave_balances_employee_id_leave_type_id_year_key; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.employee_leave_balances
+ALTER TABLE ONLY employee_leave_balances
     ADD CONSTRAINT employee_leave_balances_employee_id_leave_type_id_year_key UNIQUE (employee_id, leave_type_id, year);
 
 
 --
--- Name: employee_leave_balances employee_leave_balances_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: employee_leave_balances employee_leave_balances_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.employee_leave_balances
+ALTER TABLE ONLY employee_leave_balances
     ADD CONSTRAINT employee_leave_balances_pkey PRIMARY KEY (id);
 
 
 --
--- Name: employee_product_assignments employee_product_assignments_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: employee_product_assignments employee_product_assignments_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.employee_product_assignments
+ALTER TABLE ONLY employee_product_assignments
     ADD CONSTRAINT employee_product_assignments_pkey PRIMARY KEY (id);
 
 
 --
--- Name: employee_salaries employee_salaries_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: employee_salaries employee_salaries_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.employee_salaries
+ALTER TABLE ONLY employee_salaries
     ADD CONSTRAINT employee_salaries_pkey PRIMARY KEY (id);
 
 
 --
--- Name: employees employees_email_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: employees employees_email_key; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.employees
+ALTER TABLE ONLY employees
     ADD CONSTRAINT employees_email_key UNIQUE (email);
 
 
 --
--- Name: employees employees_employee_code_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: employees employees_employee_code_key; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.employees
+ALTER TABLE ONLY employees
     ADD CONSTRAINT employees_employee_code_key UNIQUE (employee_code);
 
 
 --
--- Name: employees employees_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: employees employees_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.employees
+ALTER TABLE ONLY employees
     ADD CONSTRAINT employees_pkey PRIMARY KEY (id);
 
 
 --
--- Name: entity_drive_files entity_drive_files_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: entity_drive_files entity_drive_files_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.entity_drive_files
+ALTER TABLE ONLY entity_drive_files
     ADD CONSTRAINT entity_drive_files_pkey PRIMARY KEY (id);
 
 
 --
--- Name: hrms_notifications hrms_notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: hrms_notifications hrms_notifications_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.hrms_notifications
+ALTER TABLE ONLY hrms_notifications
     ADD CONSTRAINT hrms_notifications_pkey PRIMARY KEY (id);
 
 
 --
--- Name: invoice_items invoice_items_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: invoice_items invoice_items_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.invoice_items
+ALTER TABLE ONLY invoice_items
     ADD CONSTRAINT invoice_items_pkey PRIMARY KEY (id);
 
 
 --
--- Name: invoices invoices_invoice_number_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: invoices invoices_invoice_number_key; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.invoices
+ALTER TABLE ONLY invoices
     ADD CONSTRAINT invoices_invoice_number_key UNIQUE (invoice_number);
 
 
 --
--- Name: invoices invoices_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: invoices invoices_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.invoices
+ALTER TABLE ONLY invoices
     ADD CONSTRAINT invoices_pkey PRIMARY KEY (id);
 
 
 --
--- Name: lead_external_sources lead_external_sources_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: lead_external_sources lead_external_sources_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.lead_external_sources
+ALTER TABLE ONLY lead_external_sources
     ADD CONSTRAINT lead_external_sources_pkey PRIMARY KEY (id);
 
 
 --
--- Name: lead_imports lead_imports_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: lead_imports lead_imports_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.lead_imports
+ALTER TABLE ONLY lead_imports
     ADD CONSTRAINT lead_imports_pkey PRIMARY KEY (id);
 
 
 --
--- Name: lead_workspace_access lead_workspace_access_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: lead_workspace_access lead_workspace_access_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.lead_workspace_access
+ALTER TABLE ONLY lead_workspace_access
     ADD CONSTRAINT lead_workspace_access_pkey PRIMARY KEY (id);
 
 
 --
--- Name: lead_workspaces lead_workspaces_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: lead_workspaces lead_workspaces_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.lead_workspaces
+ALTER TABLE ONLY lead_workspaces
     ADD CONSTRAINT lead_workspaces_pkey PRIMARY KEY (id);
 
 
 --
--- Name: leads leads_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: leads leads_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.leads
+ALTER TABLE ONLY leads
     ADD CONSTRAINT leads_pkey PRIMARY KEY (id);
 
 
 --
--- Name: leave_balances leave_balances_employee_id_leave_type_id_year_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: leave_balances leave_balances_employee_id_leave_type_id_year_key; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.leave_balances
+ALTER TABLE ONLY leave_balances
     ADD CONSTRAINT leave_balances_employee_id_leave_type_id_year_key UNIQUE (employee_id, leave_type_id, year);
 
 
 --
--- Name: leave_balances leave_balances_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: leave_balances leave_balances_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.leave_balances
+ALTER TABLE ONLY leave_balances
     ADD CONSTRAINT leave_balances_pkey PRIMARY KEY (id);
 
 
 --
--- Name: leave_request_comments leave_request_comments_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: leave_request_comments leave_request_comments_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.leave_request_comments
+ALTER TABLE ONLY leave_request_comments
     ADD CONSTRAINT leave_request_comments_pkey PRIMARY KEY (id);
 
 
 --
--- Name: leave_requests leave_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: leave_requests leave_requests_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.leave_requests
+ALTER TABLE ONLY leave_requests
     ADD CONSTRAINT leave_requests_pkey PRIMARY KEY (id);
 
 
 --
--- Name: leave_types leave_types_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: leave_types leave_types_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.leave_types
+ALTER TABLE ONLY leave_types
     ADD CONSTRAINT leave_types_pkey PRIMARY KEY (id);
 
 
 --
--- Name: marketing_ab_test_results marketing_ab_test_results_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_ab_test_results marketing_ab_test_results_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_ab_test_results
+ALTER TABLE ONLY marketing_ab_test_results
     ADD CONSTRAINT marketing_ab_test_results_pkey PRIMARY KEY (id);
 
 
 --
--- Name: marketing_ab_test_variants marketing_ab_test_variants_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_ab_test_variants marketing_ab_test_variants_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_ab_test_variants
+ALTER TABLE ONLY marketing_ab_test_variants
     ADD CONSTRAINT marketing_ab_test_variants_pkey PRIMARY KEY (id);
 
 
 --
--- Name: marketing_ab_tests marketing_ab_tests_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_ab_tests marketing_ab_tests_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_ab_tests
+ALTER TABLE ONLY marketing_ab_tests
     ADD CONSTRAINT marketing_ab_tests_pkey PRIMARY KEY (id);
 
 
 --
--- Name: marketing_campaign_events marketing_campaign_events_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_campaign_events marketing_campaign_events_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_campaign_events
+ALTER TABLE ONLY marketing_campaign_events
     ADD CONSTRAINT marketing_campaign_events_pkey PRIMARY KEY (id);
 
 
 --
--- Name: marketing_campaigns marketing_campaigns_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_campaigns marketing_campaigns_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_campaigns
+ALTER TABLE ONLY marketing_campaigns
     ADD CONSTRAINT marketing_campaigns_pkey PRIMARY KEY (id);
 
 
 --
--- Name: marketing_form_submissions marketing_form_submissions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_form_submissions marketing_form_submissions_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_form_submissions
+ALTER TABLE ONLY marketing_form_submissions
     ADD CONSTRAINT marketing_form_submissions_pkey PRIMARY KEY (id);
 
 
 --
--- Name: marketing_forms marketing_forms_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_forms marketing_forms_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_forms
+ALTER TABLE ONLY marketing_forms
     ADD CONSTRAINT marketing_forms_pkey PRIMARY KEY (id);
 
 
 --
--- Name: marketing_list_members marketing_list_members_list_id_contact_id_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_list_members marketing_list_members_list_id_contact_id_key; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_list_members
+ALTER TABLE ONLY marketing_list_members
     ADD CONSTRAINT marketing_list_members_list_id_contact_id_key UNIQUE (list_id, contact_id);
 
 
 --
--- Name: marketing_list_members marketing_list_members_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_list_members marketing_list_members_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_list_members
+ALTER TABLE ONLY marketing_list_members
     ADD CONSTRAINT marketing_list_members_pkey PRIMARY KEY (id);
 
 
 --
--- Name: marketing_lists marketing_lists_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_lists marketing_lists_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_lists
+ALTER TABLE ONLY marketing_lists
     ADD CONSTRAINT marketing_lists_pkey PRIMARY KEY (id);
 
 
 --
--- Name: marketing_scoring_history marketing_scoring_history_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_scoring_history marketing_scoring_history_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_scoring_history
+ALTER TABLE ONLY marketing_scoring_history
     ADD CONSTRAINT marketing_scoring_history_pkey PRIMARY KEY (id);
 
 
 --
--- Name: marketing_scoring_rules marketing_scoring_rules_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_scoring_rules marketing_scoring_rules_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_scoring_rules
+ALTER TABLE ONLY marketing_scoring_rules
     ADD CONSTRAINT marketing_scoring_rules_pkey PRIMARY KEY (id);
 
 
 --
--- Name: marketing_segments marketing_segments_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_segments marketing_segments_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_segments
+ALTER TABLE ONLY marketing_segments
     ADD CONSTRAINT marketing_segments_pkey PRIMARY KEY (id);
 
 
 --
--- Name: marketing_sequence_enrollments marketing_sequence_enrollments_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_sequence_enrollments marketing_sequence_enrollments_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_sequence_enrollments
+ALTER TABLE ONLY marketing_sequence_enrollments
     ADD CONSTRAINT marketing_sequence_enrollments_pkey PRIMARY KEY (id);
 
 
 --
--- Name: marketing_sequence_enrollments marketing_sequence_enrollments_sequence_id_contact_id_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_sequence_enrollments marketing_sequence_enrollments_sequence_id_contact_id_key; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_sequence_enrollments
+ALTER TABLE ONLY marketing_sequence_enrollments
     ADD CONSTRAINT marketing_sequence_enrollments_sequence_id_contact_id_key UNIQUE (sequence_id, contact_id);
 
 
 --
--- Name: marketing_sequence_steps marketing_sequence_steps_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_sequence_steps marketing_sequence_steps_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_sequence_steps
+ALTER TABLE ONLY marketing_sequence_steps
     ADD CONSTRAINT marketing_sequence_steps_pkey PRIMARY KEY (id);
 
 
 --
--- Name: marketing_sequences marketing_sequences_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_sequences marketing_sequences_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_sequences
+ALTER TABLE ONLY marketing_sequences
     ADD CONSTRAINT marketing_sequences_pkey PRIMARY KEY (id);
 
 
 --
--- Name: marketing_templates marketing_templates_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_templates marketing_templates_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_templates
+ALTER TABLE ONLY marketing_templates
     ADD CONSTRAINT marketing_templates_pkey PRIMARY KEY (id);
 
 
 --
--- Name: marketing_webhook_logs marketing_webhook_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_webhook_logs marketing_webhook_logs_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_webhook_logs
+ALTER TABLE ONLY marketing_webhook_logs
     ADD CONSTRAINT marketing_webhook_logs_pkey PRIMARY KEY (id);
 
 
 --
--- Name: marketing_webhook_queue marketing_webhook_queue_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_webhook_queue marketing_webhook_queue_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_webhook_queue
+ALTER TABLE ONLY marketing_webhook_queue
     ADD CONSTRAINT marketing_webhook_queue_pkey PRIMARY KEY (id);
 
 
 --
--- Name: marketing_webhooks marketing_webhooks_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_webhooks marketing_webhooks_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_webhooks
+ALTER TABLE ONLY marketing_webhooks
     ADD CONSTRAINT marketing_webhooks_pkey PRIMARY KEY (id);
 
 
 --
--- Name: notification_templates notification_templates_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: notification_templates notification_templates_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.notification_templates
+ALTER TABLE ONLY notification_templates
     ADD CONSTRAINT notification_templates_pkey PRIMARY KEY (id);
 
 
 --
--- Name: notifications notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: notifications notifications_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.notifications
+ALTER TABLE ONLY notifications
     ADD CONSTRAINT notifications_pkey PRIMARY KEY (id);
 
 
---
--- Name: organizations organizations_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.organizations
-    ADD CONSTRAINT organizations_pkey PRIMARY KEY (id);
+-- (organizations pkey moved to top)
 
 
 --
--- Name: payroll payroll_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: payroll payroll_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.payroll
+ALTER TABLE ONLY payroll
     ADD CONSTRAINT payroll_pkey PRIMARY KEY (id);
 
 
 --
--- Name: permissions permissions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: permissions permissions_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.permissions
+ALTER TABLE ONLY permissions
     ADD CONSTRAINT permissions_pkey PRIMARY KEY (id);
 
 
 --
--- Name: pipeline_stages pipeline_stages_org_id_pipeline_stage_key_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: pipeline_stages pipeline_stages_org_id_pipeline_stage_key_key; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.pipeline_stages
+ALTER TABLE ONLY pipeline_stages
     ADD CONSTRAINT pipeline_stages_org_id_pipeline_stage_key_key UNIQUE (org_id, pipeline, stage_key);
 
 
 --
--- Name: pipeline_stages pipeline_stages_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: pipeline_stages pipeline_stages_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.pipeline_stages
+ALTER TABLE ONLY pipeline_stages
     ADD CONSTRAINT pipeline_stages_pkey PRIMARY KEY (id);
 
 
 --
--- Name: product_batches product_batches_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: product_batches product_batches_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.product_batches
+ALTER TABLE ONLY product_batches
     ADD CONSTRAINT product_batches_pkey PRIMARY KEY (id);
 
 
 --
--- Name: products products_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: products products_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.products
+ALTER TABLE ONLY products
     ADD CONSTRAINT products_pkey PRIMARY KEY (id);
 
 
 --
--- Name: products products_sku_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: products products_sku_key; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.products
+ALTER TABLE ONLY products
     ADD CONSTRAINT products_sku_key UNIQUE (sku);
 
 
 --
--- Name: profiles profiles_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: profiles profiles_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.profiles
+ALTER TABLE ONLY profiles
     ADD CONSTRAINT profiles_pkey PRIMARY KEY (id);
 
 
 --
--- Name: project_activity_logs project_activity_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: project_activity_logs project_activity_logs_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.project_activity_logs
+ALTER TABLE ONLY project_activity_logs
     ADD CONSTRAINT project_activity_logs_pkey PRIMARY KEY (id);
 
 
 --
--- Name: project_attachments project_attachments_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: project_attachments project_attachments_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.project_attachments
+ALTER TABLE ONLY project_attachments
     ADD CONSTRAINT project_attachments_pkey PRIMARY KEY (id);
 
 
 --
--- Name: project_comments project_comments_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: project_comments project_comments_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.project_comments
+ALTER TABLE ONLY project_comments
     ADD CONSTRAINT project_comments_pkey PRIMARY KEY (id);
 
 
 --
--- Name: project_documents project_documents_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: project_documents project_documents_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.project_documents
+ALTER TABLE ONLY project_documents
     ADD CONSTRAINT project_documents_pkey PRIMARY KEY (id);
 
 
 --
--- Name: project_members project_members_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: project_members project_members_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.project_members
+ALTER TABLE ONLY project_members
     ADD CONSTRAINT project_members_pkey PRIMARY KEY (id);
 
 
 --
--- Name: project_members project_members_project_id_user_id_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: project_members project_members_project_id_user_id_key; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.project_members
+ALTER TABLE ONLY project_members
     ADD CONSTRAINT project_members_project_id_user_id_key UNIQUE (project_id, user_id);
 
 
 --
--- Name: project_milestones project_milestones_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: project_milestones project_milestones_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.project_milestones
+ALTER TABLE ONLY project_milestones
     ADD CONSTRAINT project_milestones_pkey PRIMARY KEY (id);
 
 
 --
--- Name: project_risks project_risks_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: project_risks project_risks_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.project_risks
+ALTER TABLE ONLY project_risks
     ADD CONSTRAINT project_risks_pkey PRIMARY KEY (id);
 
 
 --
--- Name: project_tasks project_tasks_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: project_tasks project_tasks_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.project_tasks
+ALTER TABLE ONLY project_tasks
     ADD CONSTRAINT project_tasks_pkey PRIMARY KEY (id);
 
 
 --
--- Name: project_time_entries project_time_entries_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: project_time_entries project_time_entries_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.project_time_entries
+ALTER TABLE ONLY project_time_entries
     ADD CONSTRAINT project_time_entries_pkey PRIMARY KEY (id);
 
 
 --
--- Name: projects projects_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: projects projects_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.projects
+ALTER TABLE ONLY projects
     ADD CONSTRAINT projects_pkey PRIMARY KEY (id);
 
 
 --
--- Name: public_holidays public_holidays_org_id_date_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: public_holidays public_holidays_org_id_date_key; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.public_holidays
+ALTER TABLE ONLY public_holidays
     ADD CONSTRAINT public_holidays_org_id_date_key UNIQUE (org_id, date);
 
 
 --
--- Name: public_holidays public_holidays_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: public_holidays public_holidays_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.public_holidays
+ALTER TABLE ONLY public_holidays
     ADD CONSTRAINT public_holidays_pkey PRIMARY KEY (id);
 
 
 --
--- Name: purchase_order_items purchase_order_items_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: purchase_order_items purchase_order_items_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.purchase_order_items
+ALTER TABLE ONLY purchase_order_items
     ADD CONSTRAINT purchase_order_items_pkey PRIMARY KEY (id);
 
 
 --
--- Name: purchase_orders purchase_orders_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: purchase_orders purchase_orders_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.purchase_orders
+ALTER TABLE ONLY purchase_orders
     ADD CONSTRAINT purchase_orders_pkey PRIMARY KEY (id);
 
 
 --
--- Name: purchase_orders purchase_orders_po_number_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: purchase_orders purchase_orders_po_number_key; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.purchase_orders
+ALTER TABLE ONLY purchase_orders
     ADD CONSTRAINT purchase_orders_po_number_key UNIQUE (po_number);
 
 
 --
--- Name: roles roles_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: roles roles_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.roles
+ALTER TABLE ONLY roles
     ADD CONSTRAINT roles_pkey PRIMARY KEY (id);
 
 
 --
--- Name: salary_components salary_components_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: salary_components salary_components_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.salary_components
+ALTER TABLE ONLY salary_components
     ADD CONSTRAINT salary_components_pkey PRIMARY KEY (id);
 
 
 --
--- Name: salary_slip_items salary_slip_items_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: salary_slip_items salary_slip_items_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.salary_slip_items
+ALTER TABLE ONLY salary_slip_items
     ADD CONSTRAINT salary_slip_items_pkey PRIMARY KEY (id);
 
 
 --
--- Name: salary_slips salary_slips_org_id_employee_id_month_year_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: salary_slips salary_slips_org_id_employee_id_month_year_key; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.salary_slips
+ALTER TABLE ONLY salary_slips
     ADD CONSTRAINT salary_slips_org_id_employee_id_month_year_key UNIQUE (org_id, employee_id, month, year);
 
 
 --
--- Name: salary_slips salary_slips_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: salary_slips salary_slips_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.salary_slips
+ALTER TABLE ONLY salary_slips
     ADD CONSTRAINT salary_slips_pkey PRIMARY KEY (id);
 
 
 --
--- Name: signing_parties signing_parties_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: signing_parties signing_parties_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.signing_parties
+ALTER TABLE ONLY signing_parties
     ADD CONSTRAINT signing_parties_pkey PRIMARY KEY (id);
 
 
 --
--- Name: stock_adjustments stock_adjustments_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: stock_adjustments stock_adjustments_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.stock_adjustments
+ALTER TABLE ONLY stock_adjustments
     ADD CONSTRAINT stock_adjustments_pkey PRIMARY KEY (id);
 
 
 --
--- Name: stock_movements stock_movements_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: stock_movements stock_movements_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.stock_movements
+ALTER TABLE ONLY stock_movements
     ADD CONSTRAINT stock_movements_pkey PRIMARY KEY (id);
 
 
 --
--- Name: stock stock_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: stock stock_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.stock
+ALTER TABLE ONLY stock
     ADD CONSTRAINT stock_pkey PRIMARY KEY (id);
 
 
 --
--- Name: stock stock_product_id_warehouse_id_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: stock stock_product_id_warehouse_id_key; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.stock
+ALTER TABLE ONLY stock
     ADD CONSTRAINT stock_product_id_warehouse_id_key UNIQUE (product_id, warehouse_id);
 
 
 --
--- Name: tasks tasks_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: tasks tasks_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.tasks
+ALTER TABLE ONLY tasks
     ADD CONSTRAINT tasks_pkey PRIMARY KEY (id);
 
 
 --
--- Name: unibox_emails unibox_emails_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: unibox_emails unibox_emails_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.unibox_emails
+ALTER TABLE ONLY unibox_emails
     ADD CONSTRAINT unibox_emails_pkey PRIMARY KEY (id);
 
 
 --
--- Name: user_roles user_roles_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: user_roles user_roles_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.user_roles
+ALTER TABLE ONLY user_roles
     ADD CONSTRAINT user_roles_pkey PRIMARY KEY (user_id, role_id);
 
 
 --
--- Name: users users_email_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: users users_email_key; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.users
+ALTER TABLE ONLY users
     ADD CONSTRAINT users_email_key UNIQUE (email);
 
 
---
--- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.users
-    ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+-- (users pkey moved to top)
 
 
 --
--- Name: vendors vendors_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: vendors vendors_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.vendors
+ALTER TABLE ONLY vendors
     ADD CONSTRAINT vendors_pkey PRIMARY KEY (id);
 
 
 --
--- Name: warehouses warehouses_code_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: warehouses warehouses_code_key; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.warehouses
+ALTER TABLE ONLY warehouses
     ADD CONSTRAINT warehouses_code_key UNIQUE (code);
 
 
 --
--- Name: warehouses warehouses_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: warehouses warehouses_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.warehouses
+ALTER TABLE ONLY warehouses
     ADD CONSTRAINT warehouses_pkey PRIMARY KEY (id);
 
 
 --
--- Name: workflow_actions workflow_actions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workflow_actions workflow_actions_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workflow_actions
+ALTER TABLE ONLY workflow_actions
     ADD CONSTRAINT workflow_actions_pkey PRIMARY KEY (id);
 
 
 --
--- Name: workflow_execution_steps workflow_execution_steps_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workflow_execution_steps workflow_execution_steps_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workflow_execution_steps
+ALTER TABLE ONLY workflow_execution_steps
     ADD CONSTRAINT workflow_execution_steps_pkey PRIMARY KEY (id);
 
 
 --
--- Name: workflow_executions workflow_executions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workflow_executions workflow_executions_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workflow_executions
+ALTER TABLE ONLY workflow_executions
     ADD CONSTRAINT workflow_executions_pkey PRIMARY KEY (id);
 
 
 --
--- Name: workflows workflows_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workflows workflows_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workflows
+ALTER TABLE ONLY workflows
     ADD CONSTRAINT workflows_pkey PRIMARY KEY (id);
 
 
 --
--- Name: workgroup_activities workgroup_activities_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_activities workgroup_activities_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_activities
+ALTER TABLE ONLY workgroup_activities
     ADD CONSTRAINT workgroup_activities_pkey PRIMARY KEY (id);
 
 
 --
--- Name: workgroup_channels workgroup_channels_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_channels workgroup_channels_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_channels
+ALTER TABLE ONLY workgroup_channels
     ADD CONSTRAINT workgroup_channels_pkey PRIMARY KEY (id);
 
 
 --
--- Name: workgroup_channels workgroup_channels_workgroup_id_name_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_channels workgroup_channels_workgroup_id_name_key; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_channels
+ALTER TABLE ONLY workgroup_channels
     ADD CONSTRAINT workgroup_channels_workgroup_id_name_key UNIQUE (workgroup_id, name);
 
 
 --
--- Name: workgroup_files workgroup_files_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_files workgroup_files_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_files
+ALTER TABLE ONLY workgroup_files
     ADD CONSTRAINT workgroup_files_pkey PRIMARY KEY (id);
 
 
 --
--- Name: workgroup_meeting_participants workgroup_meeting_participants_meeting_id_user_id_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_meeting_participants workgroup_meeting_participants_meeting_id_user_id_key; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_meeting_participants
+ALTER TABLE ONLY workgroup_meeting_participants
     ADD CONSTRAINT workgroup_meeting_participants_meeting_id_user_id_key UNIQUE (meeting_id, user_id);
 
 
 --
--- Name: workgroup_meeting_participants workgroup_meeting_participants_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_meeting_participants workgroup_meeting_participants_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_meeting_participants
+ALTER TABLE ONLY workgroup_meeting_participants
     ADD CONSTRAINT workgroup_meeting_participants_pkey PRIMARY KEY (id);
 
 
 --
--- Name: workgroup_meetings workgroup_meetings_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_meetings workgroup_meetings_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_meetings
+ALTER TABLE ONLY workgroup_meetings
     ADD CONSTRAINT workgroup_meetings_pkey PRIMARY KEY (id);
 
 
 --
--- Name: workgroup_members workgroup_members_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_members workgroup_members_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_members
+ALTER TABLE ONLY workgroup_members
     ADD CONSTRAINT workgroup_members_pkey PRIMARY KEY (id);
 
 
 --
--- Name: workgroup_members workgroup_members_workgroup_id_user_id_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_members workgroup_members_workgroup_id_user_id_key; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_members
+ALTER TABLE ONLY workgroup_members
     ADD CONSTRAINT workgroup_members_workgroup_id_user_id_key UNIQUE (workgroup_id, user_id);
 
 
 --
--- Name: workgroup_notifications workgroup_notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_notifications workgroup_notifications_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_notifications
+ALTER TABLE ONLY workgroup_notifications
     ADD CONSTRAINT workgroup_notifications_pkey PRIMARY KEY (id);
 
 
 --
--- Name: workgroup_posts workgroup_posts_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_posts workgroup_posts_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_posts
+ALTER TABLE ONLY workgroup_posts
     ADD CONSTRAINT workgroup_posts_pkey PRIMARY KEY (id);
 
 
 --
--- Name: workgroup_wiki_pages workgroup_wiki_pages_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_wiki_pages workgroup_wiki_pages_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_wiki_pages
+ALTER TABLE ONLY workgroup_wiki_pages
     ADD CONSTRAINT workgroup_wiki_pages_pkey PRIMARY KEY (id);
 
 
 --
--- Name: workgroup_wiki_pages workgroup_wiki_pages_workgroup_id_slug_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_wiki_pages workgroup_wiki_pages_workgroup_id_slug_key; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_wiki_pages
+ALTER TABLE ONLY workgroup_wiki_pages
     ADD CONSTRAINT workgroup_wiki_pages_workgroup_id_slug_key UNIQUE (workgroup_id, slug);
 
 
 --
--- Name: workgroup_wiki workgroup_wiki_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_wiki workgroup_wiki_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_wiki
+ALTER TABLE ONLY workgroup_wiki
     ADD CONSTRAINT workgroup_wiki_pkey PRIMARY KEY (id);
 
 
 --
--- Name: workgroups workgroups_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroups workgroups_pkey; Type: CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroups
+ALTER TABLE ONLY workgroups
     ADD CONSTRAINT workgroups_pkey PRIMARY KEY (id);
 
 
 --
 --
--- Name: idx_crm_comments_entity; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_crm_comments_entity; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_crm_comments_entity ON public.crm_comments USING btree (entity_type, entity_id);
+CREATE INDEX idx_crm_comments_entity ON crm_comments USING btree (entity_type, entity_id);
 
 --
--- Name: idx_crm_comments_org; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_crm_comments_org; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_crm_comments_org ON public.crm_comments USING btree (org_id);
+CREATE INDEX idx_crm_comments_org ON crm_comments USING btree (org_id);
 
 --
--- Name: idx_crm_documents_entity; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_crm_documents_entity; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_crm_documents_entity ON public.crm_documents USING btree (entity_type, entity_id);
+CREATE INDEX idx_crm_documents_entity ON crm_documents USING btree (entity_type, entity_id);
 
 --
--- Name: idx_crm_documents_org; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_crm_documents_org; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_crm_documents_org ON public.crm_documents USING btree (org_id);
+CREATE INDEX idx_crm_documents_org ON crm_documents USING btree (org_id);
 
--- Name: idx_activities_contact; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_activities_contact; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_activities_contact ON public.activities USING btree (contact_id);
+CREATE INDEX idx_activities_contact ON activities USING btree (contact_id);
 
 
 --
--- Name: idx_activities_organization; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_activities_organization; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_activities_organization ON public.activities USING btree (organization_id);
+CREATE INDEX idx_activities_organization ON activities USING btree (organization_id);
 
 
 --
--- Name: idx_attendance_employee; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_attendance_employee; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_attendance_employee ON public.attendance USING btree (employee_id);
+CREATE INDEX idx_attendance_employee ON attendance USING btree (employee_id);
 
 
 --
--- Name: idx_companies_organization; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_companies_organization; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_companies_organization ON public.companies USING btree (organization_id);
+CREATE INDEX idx_companies_organization ON companies USING btree (organization_id);
 
 
 --
--- Name: idx_connected_drives_org; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_connected_drives_org; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_connected_drives_org ON public.connected_drives USING btree (org_id);
+CREATE INDEX idx_connected_drives_org ON connected_drives USING btree (org_id);
 
 
 --
--- Name: idx_contacts_email; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_contacts_email; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_contacts_email ON public.contacts USING btree (email);
+CREATE INDEX idx_contacts_email ON contacts USING btree (email);
 
 
 --
--- Name: idx_contacts_organization; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_contacts_organization; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_contacts_organization ON public.contacts USING btree (organization_id);
+CREATE INDEX idx_contacts_organization ON contacts USING btree (organization_id);
 
 
 --
--- Name: idx_customers_converted_deal; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_customers_converted_deal; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_customers_converted_deal ON public.customers USING btree (converted_from_deal_id);
+CREATE INDEX idx_customers_converted_deal ON customers USING btree (converted_from_deal_id);
 
 
 --
--- Name: idx_customers_converted_lead; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_customers_converted_lead; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_customers_converted_lead ON public.customers USING btree (converted_from_lead_id);
+CREATE INDEX idx_customers_converted_lead ON customers USING btree (converted_from_lead_id);
 
 
 --
--- Name: idx_deal_contacts_contact; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_deal_contacts_contact; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_deal_contacts_contact ON public.deal_contacts USING btree (contact_id);
+CREATE INDEX idx_deal_contacts_contact ON deal_contacts USING btree (contact_id);
 
 
 --
--- Name: idx_deal_contacts_deal; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_deal_contacts_deal; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_deal_contacts_deal ON public.deal_contacts USING btree (deal_id);
+CREATE INDEX idx_deal_contacts_deal ON deal_contacts USING btree (deal_id);
 
 
 --
--- Name: idx_deal_contacts_org; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_deal_contacts_org; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_deal_contacts_org ON public.deal_contacts USING btree (org_id);
+CREATE INDEX idx_deal_contacts_org ON deal_contacts USING btree (org_id);
 
 
 --
--- Name: idx_deal_signing_parties_contact; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_deal_signing_parties_contact; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_deal_signing_parties_contact ON public.deal_signing_parties USING btree (contact_id);
+CREATE INDEX idx_deal_signing_parties_contact ON deal_signing_parties USING btree (contact_id);
 
 
 --
--- Name: idx_deal_signing_parties_deal; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_deal_signing_parties_deal; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_deal_signing_parties_deal ON public.deal_signing_parties USING btree (deal_id);
+CREATE INDEX idx_deal_signing_parties_deal ON deal_signing_parties USING btree (deal_id);
 
 
 --
--- Name: idx_deal_signing_parties_org; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_deal_signing_parties_org; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_deal_signing_parties_org ON public.deal_signing_parties USING btree (org_id);
+CREATE INDEX idx_deal_signing_parties_org ON deal_signing_parties USING btree (org_id);
 
 
 --
--- Name: idx_deals_agent_name; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_deals_agent_name; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_deals_agent_name ON public.deals USING btree (agent_name);
+CREATE INDEX idx_deals_agent_name ON deals USING btree (agent_name);
 
 
 --
--- Name: idx_deals_company_name; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_deals_company_name; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_deals_company_name ON public.deals USING btree (company_name);
+CREATE INDEX idx_deals_company_name ON deals USING btree (company_name);
 
 
 --
--- Name: idx_deals_contact; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_deals_contact; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_deals_contact ON public.deals USING btree (contact_id);
+CREATE INDEX idx_deals_contact ON deals USING btree (contact_id);
 
 
 --
--- Name: idx_deals_contact_name; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_deals_contact_name; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_deals_contact_name ON public.deals USING btree (contact_name);
+CREATE INDEX idx_deals_contact_name ON deals USING btree (contact_name);
 
 
 --
--- Name: idx_deals_converted_customer; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_deals_converted_customer; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_deals_converted_customer ON public.deals USING btree (converted_to_customer_id);
+CREATE INDEX idx_deals_converted_customer ON deals USING btree (converted_to_customer_id);
 
 
 --
--- Name: idx_deals_converted_lead; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_deals_converted_lead; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_deals_converted_lead ON public.deals USING btree (converted_from_lead_id);
+CREATE INDEX idx_deals_converted_lead ON deals USING btree (converted_from_lead_id);
 
 
 --
--- Name: idx_deals_email; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_deals_email; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_deals_email ON public.deals USING btree (email);
+CREATE INDEX idx_deals_email ON deals USING btree (email);
 
 
 --
--- Name: idx_deals_external_source; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_deals_external_source; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_deals_external_source ON public.deals USING btree (external_source_id);
+CREATE INDEX idx_deals_external_source ON deals USING btree (external_source_id);
 
 
 --
--- Name: idx_deals_organization; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_deals_organization; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_deals_organization ON public.deals USING btree (organization_id);
+CREATE INDEX idx_deals_organization ON deals USING btree (organization_id);
 
 
 --
--- Name: idx_deals_priority; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_deals_priority; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_deals_priority ON public.deals USING btree (priority);
+CREATE INDEX idx_deals_priority ON deals USING btree (priority);
 
 
 --
--- Name: idx_deals_service_interested; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_deals_service_interested; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_deals_service_interested ON public.deals USING btree (service_interested);
+CREATE INDEX idx_deals_service_interested ON deals USING btree (service_interested);
 
 
 --
--- Name: idx_deals_source; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_deals_source; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_deals_source ON public.deals USING btree (source);
+CREATE INDEX idx_deals_source ON deals USING btree (source);
 
 
 --
--- Name: idx_deals_workspace_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_deals_workspace_id; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_deals_workspace_id ON public.deals USING btree (workspace_id);
+CREATE INDEX idx_deals_workspace_id ON deals USING btree (workspace_id);
 
 
 --
--- Name: idx_drive_permissions_drive; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_drive_permissions_drive; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_drive_permissions_drive ON public.drive_permissions USING btree (drive_id);
+CREATE INDEX idx_drive_permissions_drive ON drive_permissions USING btree (drive_id);
 
 
 --
--- Name: idx_employee_documents_employee; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_employee_documents_employee; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_employee_documents_employee ON public.employee_documents USING btree (employee_id);
+CREATE INDEX idx_employee_documents_employee ON employee_documents USING btree (employee_id);
 
 
 --
--- Name: idx_employee_documents_org; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_employee_documents_org; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_employee_documents_org ON public.employee_documents USING btree (org_id);
+CREATE INDEX idx_employee_documents_org ON employee_documents USING btree (org_id);
 
 
 --
--- Name: idx_employee_documents_type; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_employee_documents_type; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_employee_documents_type ON public.employee_documents USING btree (document_type);
+CREATE INDEX idx_employee_documents_type ON employee_documents USING btree (document_type);
 
 
 --
--- Name: idx_employee_salaries_employee; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_employee_salaries_employee; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_employee_salaries_employee ON public.employee_salaries USING btree (employee_id);
+CREATE INDEX idx_employee_salaries_employee ON employee_salaries USING btree (employee_id);
 
 
 --
--- Name: idx_employees_organization; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_employees_organization; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_employees_organization ON public.employees USING btree (organization_id);
+CREATE INDEX idx_employees_organization ON employees USING btree (organization_id);
 
 
 --
--- Name: idx_entity_drive_files_entity; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_entity_drive_files_entity; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_entity_drive_files_entity ON public.entity_drive_files USING btree (entity_type, entity_id);
+CREATE INDEX idx_entity_drive_files_entity ON entity_drive_files USING btree (entity_type, entity_id);
 
 
 --
--- Name: idx_epa_employee_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_epa_employee_id; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_epa_employee_id ON public.employee_product_assignments USING btree (employee_id);
+CREATE INDEX idx_epa_employee_id ON employee_product_assignments USING btree (employee_id);
 
 
 --
--- Name: idx_epa_org_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_epa_org_id; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_epa_org_id ON public.employee_product_assignments USING btree (org_id);
+CREATE INDEX idx_epa_org_id ON employee_product_assignments USING btree (org_id);
 
 
 --
--- Name: idx_epa_product_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_epa_product_id; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_epa_product_id ON public.employee_product_assignments USING btree (product_id);
+CREATE INDEX idx_epa_product_id ON employee_product_assignments USING btree (product_id);
 
 
 --
--- Name: idx_epa_status; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_epa_status; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_epa_status ON public.employee_product_assignments USING btree (status);
+CREATE INDEX idx_epa_status ON employee_product_assignments USING btree (status);
 
 
 --
--- Name: idx_holidays_org_date; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_holidays_org_date; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_holidays_org_date ON public.public_holidays USING btree (org_id, date);
+CREATE INDEX idx_holidays_org_date ON public_holidays USING btree (org_id, date);
 
 
 --
--- Name: idx_lead_imports_imported_by; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_lead_imports_imported_by; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_lead_imports_imported_by ON public.lead_imports USING btree (imported_by);
+CREATE INDEX idx_lead_imports_imported_by ON lead_imports USING btree (imported_by);
 
 
 --
--- Name: idx_lead_imports_org_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_lead_imports_org_id; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_lead_imports_org_id ON public.lead_imports USING btree (org_id);
+CREATE INDEX idx_lead_imports_org_id ON lead_imports USING btree (org_id);
 
 
 --
--- Name: idx_lead_imports_status; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_lead_imports_status; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_lead_imports_status ON public.lead_imports USING btree (status);
+CREATE INDEX idx_lead_imports_status ON lead_imports USING btree (status);
 
 
 --
--- Name: idx_lead_imports_workspace_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_lead_imports_workspace_id; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_lead_imports_workspace_id ON public.lead_imports USING btree (workspace_id);
+CREATE INDEX idx_lead_imports_workspace_id ON lead_imports USING btree (workspace_id);
 
 
 --
--- Name: idx_leads_assigned_to; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_leads_assigned_to; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_leads_assigned_to ON public.leads USING btree (assigned_to);
+CREATE INDEX idx_leads_assigned_to ON leads USING btree (assigned_to);
 
 
 --
--- Name: idx_leads_converted_deal; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_leads_converted_deal; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_leads_converted_deal ON public.leads USING btree (converted_to_deal_id);
+CREATE INDEX idx_leads_converted_deal ON leads USING btree (converted_to_deal_id);
 
 
 --
--- Name: idx_leads_converted_to_deal_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_leads_converted_to_deal_id; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_leads_converted_to_deal_id ON public.leads USING btree (converted_to_deal_id);
+CREATE INDEX idx_leads_converted_to_deal_id ON leads USING btree (converted_to_deal_id);
 
 
 --
--- Name: idx_leads_created_by; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_leads_created_by; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_leads_created_by ON public.leads USING btree (created_by);
+CREATE INDEX idx_leads_created_by ON leads USING btree (created_by);
 
 
 --
--- Name: idx_leads_import_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_leads_import_id; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_leads_import_id ON public.leads USING btree (import_id);
+CREATE INDEX idx_leads_import_id ON leads USING btree (import_id);
 
 
 --
--- Name: idx_leads_organization; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_leads_organization; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_leads_organization ON public.leads USING btree (organization_id);
+CREATE INDEX idx_leads_organization ON leads USING btree (organization_id);
 
 
 --
--- Name: idx_leads_workspace; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_leads_workspace; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_leads_workspace ON public.leads USING btree (workspace_id);
+CREATE INDEX idx_leads_workspace ON leads USING btree (workspace_id);
 
 
 --
--- Name: idx_leads_workspace_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_leads_workspace_id; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_leads_workspace_id ON public.leads USING btree (workspace_id);
+CREATE INDEX idx_leads_workspace_id ON leads USING btree (workspace_id);
 
 
 --
--- Name: idx_leave_balances_employee; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_leave_balances_employee; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_leave_balances_employee ON public.employee_leave_balances USING btree (employee_id);
+CREATE INDEX idx_leave_balances_employee ON employee_leave_balances USING btree (employee_id);
 
 
 --
--- Name: idx_leave_balances_org; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_leave_balances_org; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_leave_balances_org ON public.employee_leave_balances USING btree (org_id);
+CREATE INDEX idx_leave_balances_org ON employee_leave_balances USING btree (org_id);
 
 
 --
--- Name: idx_leave_balances_year; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_leave_balances_year; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_leave_balances_year ON public.employee_leave_balances USING btree (year);
+CREATE INDEX idx_leave_balances_year ON employee_leave_balances USING btree (year);
 
 
 --
--- Name: idx_leave_comments_request; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_leave_comments_request; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_leave_comments_request ON public.leave_request_comments USING btree (leave_request_id);
+CREATE INDEX idx_leave_comments_request ON leave_request_comments USING btree (leave_request_id);
 
 
 --
--- Name: idx_leave_requests_dates; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_leave_requests_dates; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_leave_requests_dates ON public.leave_requests USING btree (start_date, end_date);
+CREATE INDEX idx_leave_requests_dates ON leave_requests USING btree (start_date, end_date);
 
 
 --
--- Name: idx_leave_requests_employee; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_leave_requests_employee; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_leave_requests_employee ON public.leave_requests USING btree (employee_id);
+CREATE INDEX idx_leave_requests_employee ON leave_requests USING btree (employee_id);
 
 
 --
--- Name: idx_leave_requests_org; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_leave_requests_org; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_leave_requests_org ON public.leave_requests USING btree (org_id);
+CREATE INDEX idx_leave_requests_org ON leave_requests USING btree (org_id);
 
 
 --
--- Name: idx_leave_requests_status; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_leave_requests_status; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_leave_requests_status ON public.leave_requests USING btree (status);
+CREATE INDEX idx_leave_requests_status ON leave_requests USING btree (status);
 
 
 --
--- Name: idx_marketing_campaigns_org; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_marketing_campaigns_org; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_marketing_campaigns_org ON public.marketing_campaigns USING btree (organization_id);
+CREATE INDEX idx_marketing_campaigns_org ON marketing_campaigns USING btree (organization_id);
 
 
 --
--- Name: idx_marketing_events_campaign; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_marketing_events_campaign; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_marketing_events_campaign ON public.marketing_campaign_events USING btree (campaign_id);
+CREATE INDEX idx_marketing_events_campaign ON marketing_campaign_events USING btree (campaign_id);
 
 
 --
--- Name: idx_marketing_events_contact; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_marketing_events_contact; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_marketing_events_contact ON public.marketing_campaign_events USING btree (contact_id);
+CREATE INDEX idx_marketing_events_contact ON marketing_campaign_events USING btree (contact_id);
 
 
 --
--- Name: idx_marketing_lists_org; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_marketing_lists_org; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_marketing_lists_org ON public.marketing_lists USING btree (organization_id);
+CREATE INDEX idx_marketing_lists_org ON marketing_lists USING btree (organization_id);
 
 
 --
--- Name: idx_pipeline_stages_org; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_pipeline_stages_org; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_pipeline_stages_org ON public.pipeline_stages USING btree (org_id);
+CREATE INDEX idx_pipeline_stages_org ON pipeline_stages USING btree (org_id);
 
 
 --
--- Name: idx_product_batches_org; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_product_batches_org; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_product_batches_org ON public.product_batches USING btree (org_id);
+CREATE INDEX idx_product_batches_org ON product_batches USING btree (org_id);
 
 
 --
--- Name: idx_product_batches_product; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_product_batches_product; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_product_batches_product ON public.product_batches USING btree (product_id);
+CREATE INDEX idx_product_batches_product ON product_batches USING btree (product_id);
 
 
 --
--- Name: idx_products_barcode; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_products_barcode; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_products_barcode ON public.products USING btree (barcode);
+CREATE INDEX idx_products_barcode ON products USING btree (barcode);
 
 
 --
--- Name: idx_products_organization; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_products_organization; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_products_organization ON public.products USING btree (organization_id);
+CREATE INDEX idx_products_organization ON products USING btree (organization_id);
 
 
 --
--- Name: idx_products_reorder_level; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_products_reorder_level; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_products_reorder_level ON public.products USING btree (reorder_level);
+CREATE INDEX idx_products_reorder_level ON products USING btree (reorder_level);
 
 
 --
--- Name: idx_project_activity_logs_project; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_project_activity_logs_project; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_project_activity_logs_project ON public.project_activity_logs USING btree (project_id);
+CREATE INDEX idx_project_activity_logs_project ON project_activity_logs USING btree (project_id);
 
 
 --
--- Name: idx_project_attachments_project; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_project_attachments_project; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_project_attachments_project ON public.project_attachments USING btree (project_id);
+CREATE INDEX idx_project_attachments_project ON project_attachments USING btree (project_id);
 
 
 --
--- Name: idx_project_comments_project; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_project_comments_project; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_project_comments_project ON public.project_comments USING btree (project_id);
+CREATE INDEX idx_project_comments_project ON project_comments USING btree (project_id);
 
 
 --
--- Name: idx_project_comments_task; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_project_comments_task; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_project_comments_task ON public.project_comments USING btree (task_id);
+CREATE INDEX idx_project_comments_task ON project_comments USING btree (task_id);
 
 
 --
--- Name: idx_project_members_project; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_project_members_project; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_project_members_project ON public.project_members USING btree (project_id);
+CREATE INDEX idx_project_members_project ON project_members USING btree (project_id);
 
 
 --
--- Name: idx_project_members_user; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_project_members_user; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_project_members_user ON public.project_members USING btree (user_id);
+CREATE INDEX idx_project_members_user ON project_members USING btree (user_id);
 
 
 --
--- Name: idx_project_tasks_parent; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_project_tasks_parent; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_project_tasks_parent ON public.project_tasks USING btree (parent_task_id);
+CREATE INDEX idx_project_tasks_parent ON project_tasks USING btree (parent_task_id);
 
 
 --
--- Name: idx_projects_organization; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_projects_organization; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_projects_organization ON public.projects USING btree (organization_id);
+CREATE INDEX idx_projects_organization ON projects USING btree (organization_id);
 
 
 --
--- Name: idx_salary_components_org; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_salary_components_org; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_salary_components_org ON public.salary_components USING btree (org_id);
+CREATE INDEX idx_salary_components_org ON salary_components USING btree (org_id);
 
 
 --
--- Name: idx_salary_slips_employee; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_salary_slips_employee; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_salary_slips_employee ON public.salary_slips USING btree (employee_id);
+CREATE INDEX idx_salary_slips_employee ON salary_slips USING btree (employee_id);
 
 
 --
--- Name: idx_salary_slips_month_year; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_salary_slips_month_year; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_salary_slips_month_year ON public.salary_slips USING btree (month, year);
+CREATE INDEX idx_salary_slips_month_year ON salary_slips USING btree (month, year);
 
 
 --
--- Name: idx_stock_adjustments_org; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_stock_adjustments_org; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_stock_adjustments_org ON public.stock_adjustments USING btree (org_id);
+CREATE INDEX idx_stock_adjustments_org ON stock_adjustments USING btree (org_id);
 
 
 --
--- Name: idx_stock_adjustments_product; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_stock_adjustments_product; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_stock_adjustments_product ON public.stock_adjustments USING btree (product_id);
+CREATE INDEX idx_stock_adjustments_product ON stock_adjustments USING btree (product_id);
 
 
 --
--- Name: idx_stock_product; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_stock_product; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_stock_product ON public.stock USING btree (product_id);
+CREATE INDEX idx_stock_product ON stock USING btree (product_id);
 
 
 --
--- Name: idx_tasks_milestone; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_tasks_milestone; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_tasks_milestone ON public.tasks USING btree (milestone_id);
+CREATE INDEX idx_tasks_milestone ON tasks USING btree (milestone_id);
 
 
 --
--- Name: idx_tasks_parent; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_tasks_parent; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_tasks_parent ON public.tasks USING btree (parent_task_id);
+CREATE INDEX idx_tasks_parent ON tasks USING btree (parent_task_id);
 
 
 --
--- Name: idx_unibox_emails_org; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_unibox_emails_org; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_unibox_emails_org ON public.unibox_emails USING btree (org_id);
+CREATE INDEX idx_unibox_emails_org ON unibox_emails USING btree (org_id);
 
 
 --
--- Name: idx_unibox_emails_sender; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_unibox_emails_sender; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_unibox_emails_sender ON public.unibox_emails USING btree (sender_email);
+CREATE INDEX idx_unibox_emails_sender ON unibox_emails USING btree (sender_email);
 
 
 --
--- Name: idx_unibox_emails_status; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_unibox_emails_status; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_unibox_emails_status ON public.unibox_emails USING btree (status);
+CREATE INDEX idx_unibox_emails_status ON unibox_emails USING btree (status);
 
 
 --
--- Name: idx_users_email; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_users_email; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_users_email ON public.users USING btree (email);
+CREATE INDEX idx_users_email ON users USING btree (email);
 
 
 --
--- Name: idx_users_organization; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_users_organization; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_users_organization ON public.users USING btree (organization_id);
+CREATE INDEX idx_users_organization ON users USING btree (organization_id);
 
 
 --
--- Name: idx_vendors_business_type; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_vendors_business_type; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_vendors_business_type ON public.vendors USING btree (business_type);
+CREATE INDEX idx_vendors_business_type ON vendors USING btree (business_type);
 
 
 --
--- Name: idx_workgroup_activities_workgroup_created; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_workgroup_activities_workgroup_created; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_workgroup_activities_workgroup_created ON public.workgroup_activities USING btree (workgroup_id, created_at DESC);
+CREATE INDEX idx_workgroup_activities_workgroup_created ON workgroup_activities USING btree (workgroup_id, created_at DESC);
 
 
 --
--- Name: idx_workgroup_channels_type; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_workgroup_channels_type; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_workgroup_channels_type ON public.workgroup_channels USING btree (type);
+CREATE INDEX idx_workgroup_channels_type ON workgroup_channels USING btree (type);
 
 
 --
--- Name: idx_workgroup_channels_workgroup_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_workgroup_channels_workgroup_id; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_workgroup_channels_workgroup_id ON public.workgroup_channels USING btree (workgroup_id);
+CREATE INDEX idx_workgroup_channels_workgroup_id ON workgroup_channels USING btree (workgroup_id);
 
 
 --
--- Name: idx_workgroup_files_channel_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_workgroup_files_channel_id; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_workgroup_files_channel_id ON public.workgroup_files USING btree (channel_id);
+CREATE INDEX idx_workgroup_files_channel_id ON workgroup_files USING btree (channel_id);
 
 
 --
--- Name: idx_workgroup_files_created_at; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_workgroup_files_created_at; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_workgroup_files_created_at ON public.workgroup_files USING btree (created_at DESC);
+CREATE INDEX idx_workgroup_files_created_at ON workgroup_files USING btree (created_at DESC);
 
 
 --
--- Name: idx_workgroup_files_uploaded_by; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_workgroup_files_uploaded_by; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_workgroup_files_uploaded_by ON public.workgroup_files USING btree (uploaded_by);
+CREATE INDEX idx_workgroup_files_uploaded_by ON workgroup_files USING btree (uploaded_by);
 
 
 --
--- Name: idx_workgroup_files_workgroup_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_workgroup_files_workgroup_id; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_workgroup_files_workgroup_id ON public.workgroup_files USING btree (workgroup_id);
+CREATE INDEX idx_workgroup_files_workgroup_id ON workgroup_files USING btree (workgroup_id);
 
 
 --
--- Name: idx_workgroup_meetings_scheduled_start; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_workgroup_meetings_scheduled_start; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_workgroup_meetings_scheduled_start ON public.workgroup_meetings USING btree (scheduled_start);
+CREATE INDEX idx_workgroup_meetings_scheduled_start ON workgroup_meetings USING btree (scheduled_start);
 
 
 --
--- Name: idx_workgroup_meetings_status; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_workgroup_meetings_status; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_workgroup_meetings_status ON public.workgroup_meetings USING btree (status);
+CREATE INDEX idx_workgroup_meetings_status ON workgroup_meetings USING btree (status);
 
 
 --
--- Name: idx_workgroup_meetings_workgroup_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_workgroup_meetings_workgroup_id; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_workgroup_meetings_workgroup_id ON public.workgroup_meetings USING btree (workgroup_id);
+CREATE INDEX idx_workgroup_meetings_workgroup_id ON workgroup_meetings USING btree (workgroup_id);
 
 
 --
--- Name: idx_workgroup_members_role; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_workgroup_members_role; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_workgroup_members_role ON public.workgroup_members USING btree (role);
+CREATE INDEX idx_workgroup_members_role ON workgroup_members USING btree (role);
 
 
 --
--- Name: idx_workgroup_members_user_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_workgroup_members_user_id; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_workgroup_members_user_id ON public.workgroup_members USING btree (user_id);
+CREATE INDEX idx_workgroup_members_user_id ON workgroup_members USING btree (user_id);
 
 
 --
--- Name: idx_workgroup_members_workgroup_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_workgroup_members_workgroup_id; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_workgroup_members_workgroup_id ON public.workgroup_members USING btree (workgroup_id);
+CREATE INDEX idx_workgroup_members_workgroup_id ON workgroup_members USING btree (workgroup_id);
 
 
 --
--- Name: idx_workgroup_notifications_created_at; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_workgroup_notifications_created_at; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_workgroup_notifications_created_at ON public.workgroup_notifications USING btree (created_at DESC);
+CREATE INDEX idx_workgroup_notifications_created_at ON workgroup_notifications USING btree (created_at DESC);
 
 
 --
--- Name: idx_workgroup_notifications_is_read; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_workgroup_notifications_is_read; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_workgroup_notifications_is_read ON public.workgroup_notifications USING btree (is_read);
+CREATE INDEX idx_workgroup_notifications_is_read ON workgroup_notifications USING btree (is_read);
 
 
 --
--- Name: idx_workgroup_notifications_user_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_workgroup_notifications_user_id; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_workgroup_notifications_user_id ON public.workgroup_notifications USING btree (user_id);
+CREATE INDEX idx_workgroup_notifications_user_id ON workgroup_notifications USING btree (user_id);
 
 
 --
--- Name: idx_workgroup_notifications_workgroup_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_workgroup_notifications_workgroup_id; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_workgroup_notifications_workgroup_id ON public.workgroup_notifications USING btree (workgroup_id);
+CREATE INDEX idx_workgroup_notifications_workgroup_id ON workgroup_notifications USING btree (workgroup_id);
 
 
 --
--- Name: idx_workgroup_posts_channel_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_workgroup_posts_channel_id; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_workgroup_posts_channel_id ON public.workgroup_posts USING btree (channel_id);
+CREATE INDEX idx_workgroup_posts_channel_id ON workgroup_posts USING btree (channel_id);
 
 
 --
--- Name: idx_workgroup_posts_created_at; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_workgroup_posts_created_at; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_workgroup_posts_created_at ON public.workgroup_posts USING btree (created_at DESC);
+CREATE INDEX idx_workgroup_posts_created_at ON workgroup_posts USING btree (created_at DESC);
 
 
 --
--- Name: idx_workgroup_posts_parent_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_workgroup_posts_parent_id; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_workgroup_posts_parent_id ON public.workgroup_posts USING btree (parent_id);
+CREATE INDEX idx_workgroup_posts_parent_id ON workgroup_posts USING btree (parent_id);
 
 
 --
--- Name: idx_workgroup_posts_workgroup_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_workgroup_posts_workgroup_id; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_workgroup_posts_workgroup_id ON public.workgroup_posts USING btree (workgroup_id);
+CREATE INDEX idx_workgroup_posts_workgroup_id ON workgroup_posts USING btree (workgroup_id);
 
 
 --
--- Name: idx_workgroup_wiki_pages_slug; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_workgroup_wiki_pages_slug; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_workgroup_wiki_pages_slug ON public.workgroup_wiki_pages USING btree (workgroup_id, slug);
+CREATE INDEX idx_workgroup_wiki_pages_slug ON workgroup_wiki_pages USING btree (workgroup_id, slug);
 
 
 --
--- Name: idx_workgroup_wiki_pages_workgroup_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_workgroup_wiki_pages_workgroup_id; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_workgroup_wiki_pages_workgroup_id ON public.workgroup_wiki_pages USING btree (workgroup_id);
+CREATE INDEX idx_workgroup_wiki_pages_workgroup_id ON workgroup_wiki_pages USING btree (workgroup_id);
 
 
 --
--- Name: idx_workgroups_created_at; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_workgroups_created_at; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_workgroups_created_at ON public.workgroups USING btree (created_at DESC);
+CREATE INDEX idx_workgroups_created_at ON workgroups USING btree (created_at DESC);
 
 
 --
--- Name: idx_workgroups_org_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_workgroups_org_id; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_workgroups_org_id ON public.workgroups USING btree (org_id);
+CREATE INDEX idx_workgroups_org_id ON workgroups USING btree (org_id);
 
 
 --
--- Name: idx_workgroups_type; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_workgroups_type; Type: INDEX; Schema: public
 --
 
-CREATE INDEX idx_workgroups_type ON public.workgroups USING btree (type);
+CREATE INDEX idx_workgroups_type ON workgroups USING btree (type);
 
 
 --
--- Name: workgroups trigger_add_creator_as_owner; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: workgroups trigger_add_creator_as_owner; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER trigger_add_creator_as_owner AFTER INSERT ON public.workgroups FOR EACH ROW EXECUTE FUNCTION public.add_creator_as_owner();
+CREATE TRIGGER trigger_add_creator_as_owner AFTER INSERT ON workgroups FOR EACH ROW EXECUTE FUNCTION add_creator_as_owner();
 
 
 --
--- Name: workgroups trigger_create_default_channel; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: workgroups trigger_create_default_channel; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER trigger_create_default_channel AFTER INSERT ON public.workgroups FOR EACH ROW EXECUTE FUNCTION public.create_default_channel();
+CREATE TRIGGER trigger_create_default_channel AFTER INSERT ON workgroups FOR EACH ROW EXECUTE FUNCTION create_default_channel();
 
 
 --
--- Name: stock trigger_log_stock_movement; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: stock trigger_log_stock_movement; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER trigger_log_stock_movement AFTER UPDATE ON public.stock FOR EACH ROW EXECUTE FUNCTION public.log_stock_movement();
+CREATE TRIGGER trigger_log_stock_movement AFTER UPDATE ON stock FOR EACH ROW EXECUTE FUNCTION log_stock_movement();
 
 
 --
--- Name: leave_balances trigger_update_leave_balance; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: leave_balances trigger_update_leave_balance; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER trigger_update_leave_balance BEFORE INSERT OR UPDATE ON public.leave_balances FOR EACH ROW EXECUTE FUNCTION public.update_leave_remaining_days();
+CREATE TRIGGER trigger_update_leave_balance BEFORE INSERT OR UPDATE ON leave_balances FOR EACH ROW EXECUTE FUNCTION update_leave_remaining_days();
 
 
 --
--- Name: stock trigger_update_stock_available; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: stock trigger_update_stock_available; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER trigger_update_stock_available BEFORE INSERT OR UPDATE ON public.stock FOR EACH ROW EXECUTE FUNCTION public.update_stock_available_quantity();
+CREATE TRIGGER trigger_update_stock_available BEFORE INSERT OR UPDATE ON stock FOR EACH ROW EXECUTE FUNCTION update_stock_available_quantity();
 
 
 --
--- Name: workgroup_members trigger_update_workgroup_member_count; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: workgroup_members trigger_update_workgroup_member_count; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER trigger_update_workgroup_member_count AFTER INSERT OR DELETE ON public.workgroup_members FOR EACH ROW EXECUTE FUNCTION public.update_workgroup_member_count();
+CREATE TRIGGER trigger_update_workgroup_member_count AFTER INSERT OR DELETE ON workgroup_members FOR EACH ROW EXECUTE FUNCTION update_workgroup_member_count();
 
 
 --
--- Name: workgroup_posts trigger_update_workgroup_message_count; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: workgroup_posts trigger_update_workgroup_message_count; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER trigger_update_workgroup_message_count AFTER INSERT OR DELETE ON public.workgroup_posts FOR EACH ROW EXECUTE FUNCTION public.update_workgroup_message_count();
+CREATE TRIGGER trigger_update_workgroup_message_count AFTER INSERT OR DELETE ON workgroup_posts FOR EACH ROW EXECUTE FUNCTION update_workgroup_message_count();
 
 
 --
--- Name: activities update_activities_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: activities update_activities_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_activities_updated_at BEFORE UPDATE ON public.activities FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_activities_updated_at BEFORE UPDATE ON activities FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: attendance update_attendance_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: attendance update_attendance_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_attendance_updated_at BEFORE UPDATE ON public.attendance FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_attendance_updated_at BEFORE UPDATE ON attendance FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: calendar_events update_calendar_events_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: calendar_events update_calendar_events_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_calendar_events_updated_at BEFORE UPDATE ON public.calendar_events FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_calendar_events_updated_at BEFORE UPDATE ON calendar_events FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: companies update_companies_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: companies update_companies_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_companies_updated_at BEFORE UPDATE ON public.companies FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_companies_updated_at BEFORE UPDATE ON companies FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: contacts update_contacts_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: contacts update_contacts_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_contacts_updated_at BEFORE UPDATE ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_contacts_updated_at BEFORE UPDATE ON contacts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: customers update_customers_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: customers update_customers_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_customers_updated_at BEFORE UPDATE ON public.customers FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_customers_updated_at BEFORE UPDATE ON customers FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: deals update_deals_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: deals update_deals_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_deals_updated_at BEFORE UPDATE ON public.deals FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_deals_updated_at BEFORE UPDATE ON deals FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: drive_files update_drive_files_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: drive_files update_drive_files_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_drive_files_updated_at BEFORE UPDATE ON public.drive_files FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_drive_files_updated_at BEFORE UPDATE ON drive_files FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: employees update_employees_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: employees update_employees_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_employees_updated_at BEFORE UPDATE ON public.employees FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_employees_updated_at BEFORE UPDATE ON employees FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: invoices update_invoices_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: invoices update_invoices_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_invoices_updated_at BEFORE UPDATE ON public.invoices FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_invoices_updated_at BEFORE UPDATE ON invoices FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: leads update_leads_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: leads update_leads_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_leads_updated_at BEFORE UPDATE ON public.leads FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_leads_updated_at BEFORE UPDATE ON leads FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: marketing_campaigns update_marketing_campaigns_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: marketing_campaigns update_marketing_campaigns_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_marketing_campaigns_updated_at BEFORE UPDATE ON public.marketing_campaigns FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_marketing_campaigns_updated_at BEFORE UPDATE ON marketing_campaigns FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: marketing_forms update_marketing_forms_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: marketing_forms update_marketing_forms_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_marketing_forms_updated_at BEFORE UPDATE ON public.marketing_forms FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_marketing_forms_updated_at BEFORE UPDATE ON marketing_forms FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: marketing_lists update_marketing_lists_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: marketing_lists update_marketing_lists_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_marketing_lists_updated_at BEFORE UPDATE ON public.marketing_lists FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_marketing_lists_updated_at BEFORE UPDATE ON marketing_lists FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: marketing_segments update_marketing_segments_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: marketing_segments update_marketing_segments_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_marketing_segments_updated_at BEFORE UPDATE ON public.marketing_segments FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_marketing_segments_updated_at BEFORE UPDATE ON marketing_segments FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: marketing_sequences update_marketing_sequences_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: marketing_sequences update_marketing_sequences_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_marketing_sequences_updated_at BEFORE UPDATE ON public.marketing_sequences FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_marketing_sequences_updated_at BEFORE UPDATE ON marketing_sequences FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: marketing_templates update_marketing_templates_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: marketing_templates update_marketing_templates_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_marketing_templates_updated_at BEFORE UPDATE ON public.marketing_templates FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_marketing_templates_updated_at BEFORE UPDATE ON marketing_templates FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: notification_templates update_notification_templates_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: notification_templates update_notification_templates_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_notification_templates_updated_at BEFORE UPDATE ON public.notification_templates FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_notification_templates_updated_at BEFORE UPDATE ON notification_templates FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: organizations update_organizations_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: organizations update_organizations_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_organizations_updated_at BEFORE UPDATE ON public.organizations FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_organizations_updated_at BEFORE UPDATE ON organizations FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: payroll update_payroll_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: payroll update_payroll_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_payroll_updated_at BEFORE UPDATE ON public.payroll FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_payroll_updated_at BEFORE UPDATE ON payroll FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: products update_products_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: products update_products_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_products_updated_at BEFORE UPDATE ON public.products FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_products_updated_at BEFORE UPDATE ON products FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: project_risks update_project_risks_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: project_risks update_project_risks_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_project_risks_updated_at BEFORE UPDATE ON public.project_risks FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_project_risks_updated_at BEFORE UPDATE ON project_risks FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: project_tasks update_project_tasks_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: project_tasks update_project_tasks_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_project_tasks_updated_at BEFORE UPDATE ON public.project_tasks FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_project_tasks_updated_at BEFORE UPDATE ON project_tasks FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: projects update_projects_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: projects update_projects_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_projects_updated_at BEFORE UPDATE ON public.projects FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_projects_updated_at BEFORE UPDATE ON projects FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: purchase_orders update_purchase_orders_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: purchase_orders update_purchase_orders_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_purchase_orders_updated_at BEFORE UPDATE ON public.purchase_orders FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_purchase_orders_updated_at BEFORE UPDATE ON purchase_orders FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: roles update_roles_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: roles update_roles_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_roles_updated_at BEFORE UPDATE ON public.roles FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_roles_updated_at BEFORE UPDATE ON roles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: users update_users_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: users update_users_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON public.users FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: vendors update_vendors_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: vendors update_vendors_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_vendors_updated_at BEFORE UPDATE ON public.vendors FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_vendors_updated_at BEFORE UPDATE ON vendors FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: warehouses update_warehouses_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: warehouses update_warehouses_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_warehouses_updated_at BEFORE UPDATE ON public.warehouses FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_warehouses_updated_at BEFORE UPDATE ON warehouses FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: workflows update_workflows_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: workflows update_workflows_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_workflows_updated_at BEFORE UPDATE ON public.workflows FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_workflows_updated_at BEFORE UPDATE ON workflows FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: workgroup_wiki update_workgroup_wiki_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+-- Name: workgroup_wiki update_workgroup_wiki_updated_at; Type: TRIGGER; Schema: public
 --
 
-CREATE TRIGGER update_workgroup_wiki_updated_at BEFORE UPDATE ON public.workgroup_wiki FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER update_workgroup_wiki_updated_at BEFORE UPDATE ON workgroup_wiki FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 
 --
--- Name: activities activities_assigned_to_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: activities activities_assigned_to_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.activities
-    ADD CONSTRAINT activities_assigned_to_fkey FOREIGN KEY (assigned_to) REFERENCES public.users(id);
+ALTER TABLE ONLY activities
+    ADD CONSTRAINT activities_assigned_to_fkey FOREIGN KEY (assigned_to) REFERENCES users(id);
 
 
 --
--- Name: activities activities_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: activities activities_company_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.activities
-    ADD CONSTRAINT activities_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id);
+ALTER TABLE ONLY activities
+    ADD CONSTRAINT activities_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id);
 
 
 --
--- Name: activities activities_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: activities activities_contact_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.activities
-    ADD CONSTRAINT activities_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES public.contacts(id);
+ALTER TABLE ONLY activities
+    ADD CONSTRAINT activities_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES contacts(id);
 
 
 --
--- Name: activities activities_deal_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: activities activities_deal_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.activities
-    ADD CONSTRAINT activities_deal_id_fkey FOREIGN KEY (deal_id) REFERENCES public.deals(id);
+ALTER TABLE ONLY activities
+    ADD CONSTRAINT activities_deal_id_fkey FOREIGN KEY (deal_id) REFERENCES deals(id);
 
 
 --
--- Name: activities activities_lead_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: activities activities_lead_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.activities
-    ADD CONSTRAINT activities_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES public.leads(id);
+ALTER TABLE ONLY activities
+    ADD CONSTRAINT activities_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES leads(id);
 
 
 --
--- Name: activities activities_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: activities activities_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.activities
-    ADD CONSTRAINT activities_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY activities
+    ADD CONSTRAINT activities_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: activities activities_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: activities activities_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.activities
-    ADD CONSTRAINT activities_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY activities
+    ADD CONSTRAINT activities_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: activities activities_owner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: activities activities_owner_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.activities
-    ADD CONSTRAINT activities_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES public.users(id);
+ALTER TABLE ONLY activities
+    ADD CONSTRAINT activities_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id);
 
 
 --
--- Name: attendance attendance_employee_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: attendance attendance_employee_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.attendance
-    ADD CONSTRAINT attendance_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES public.employees(id) ON DELETE CASCADE;
+ALTER TABLE ONLY attendance
+    ADD CONSTRAINT attendance_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE;
 
 
 --
--- Name: attendance attendance_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: attendance attendance_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.attendance
-    ADD CONSTRAINT attendance_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id);
+ALTER TABLE ONLY attendance
+    ADD CONSTRAINT attendance_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id);
 
 
 --
--- Name: attendance attendance_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: attendance attendance_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.attendance
-    ADD CONSTRAINT attendance_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY attendance
+    ADD CONSTRAINT attendance_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: calendar_event_attendees calendar_event_attendees_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: calendar_event_attendees calendar_event_attendees_event_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.calendar_event_attendees
-    ADD CONSTRAINT calendar_event_attendees_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.calendar_events(id) ON DELETE CASCADE;
+ALTER TABLE ONLY calendar_event_attendees
+    ADD CONSTRAINT calendar_event_attendees_event_id_fkey FOREIGN KEY (event_id) REFERENCES calendar_events(id) ON DELETE CASCADE;
 
 
 --
--- Name: calendar_event_attendees calendar_event_attendees_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: calendar_event_attendees calendar_event_attendees_user_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.calendar_event_attendees
-    ADD CONSTRAINT calendar_event_attendees_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+ALTER TABLE ONLY calendar_event_attendees
+    ADD CONSTRAINT calendar_event_attendees_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 
 --
--- Name: calendar_events calendar_events_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: calendar_events calendar_events_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.calendar_events
-    ADD CONSTRAINT calendar_events_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY calendar_events
+    ADD CONSTRAINT calendar_events_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: calendar_events calendar_events_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: calendar_events calendar_events_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.calendar_events
-    ADD CONSTRAINT calendar_events_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY calendar_events
+    ADD CONSTRAINT calendar_events_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: calendar_events calendar_events_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: calendar_events calendar_events_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.calendar_events
-    ADD CONSTRAINT calendar_events_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY calendar_events
+    ADD CONSTRAINT calendar_events_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: call_logs call_logs_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: call_logs call_logs_contact_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.call_logs
-    ADD CONSTRAINT call_logs_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES public.contacts(id);
+ALTER TABLE ONLY call_logs
+    ADD CONSTRAINT call_logs_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES contacts(id);
 
 
 --
--- Name: call_logs call_logs_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: call_logs call_logs_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.call_logs
-    ADD CONSTRAINT call_logs_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY call_logs
+    ADD CONSTRAINT call_logs_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: call_logs call_logs_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: call_logs call_logs_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.call_logs
-    ADD CONSTRAINT call_logs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY call_logs
+    ADD CONSTRAINT call_logs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: call_logs call_logs_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: call_logs call_logs_user_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.call_logs
-    ADD CONSTRAINT call_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
+ALTER TABLE ONLY call_logs
+    ADD CONSTRAINT call_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
 
 
 --
--- Name: companies companies_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: companies companies_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.companies
-    ADD CONSTRAINT companies_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY companies
+    ADD CONSTRAINT companies_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: companies companies_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: companies companies_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.companies
-    ADD CONSTRAINT companies_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY companies
+    ADD CONSTRAINT companies_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: companies companies_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: companies companies_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.companies
-    ADD CONSTRAINT companies_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY companies
+    ADD CONSTRAINT companies_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: companies companies_owner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: companies companies_owner_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.companies
-    ADD CONSTRAINT companies_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES public.users(id);
+ALTER TABLE ONLY companies
+    ADD CONSTRAINT companies_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id);
 
 
 --
--- Name: connected_drives connected_drives_connected_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: connected_drives connected_drives_connected_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.connected_drives
-    ADD CONSTRAINT connected_drives_connected_by_fkey FOREIGN KEY (connected_by) REFERENCES public.users(id);
+ALTER TABLE ONLY connected_drives
+    ADD CONSTRAINT connected_drives_connected_by_fkey FOREIGN KEY (connected_by) REFERENCES users(id);
 
 
 --
--- Name: connected_drives connected_drives_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: connected_drives connected_drives_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.connected_drives
-    ADD CONSTRAINT connected_drives_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY connected_drives
+    ADD CONSTRAINT connected_drives_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: connected_mailboxes connected_mailboxes_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: connected_mailboxes connected_mailboxes_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.connected_mailboxes
-    ADD CONSTRAINT connected_mailboxes_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY connected_mailboxes
+    ADD CONSTRAINT connected_mailboxes_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: connected_mailboxes connected_mailboxes_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: connected_mailboxes connected_mailboxes_user_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.connected_mailboxes
-    ADD CONSTRAINT connected_mailboxes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+ALTER TABLE ONLY connected_mailboxes
+    ADD CONSTRAINT connected_mailboxes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 
 --
--- Name: contacts contacts_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: contacts contacts_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.contacts
-    ADD CONSTRAINT contacts_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY contacts
+    ADD CONSTRAINT contacts_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: contacts contacts_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: contacts contacts_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.contacts
-    ADD CONSTRAINT contacts_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id);
+ALTER TABLE ONLY contacts
+    ADD CONSTRAINT contacts_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id);
 
 
 --
--- Name: contacts contacts_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: contacts contacts_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.contacts
-    ADD CONSTRAINT contacts_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY contacts
+    ADD CONSTRAINT contacts_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: contacts contacts_owner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: contacts contacts_owner_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.contacts
-    ADD CONSTRAINT contacts_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES public.users(id);
+ALTER TABLE ONLY contacts
+    ADD CONSTRAINT contacts_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id);
 
 
 --
--- Name: contacts contacts_responsible_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: contacts contacts_responsible_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.contacts
-    ADD CONSTRAINT contacts_responsible_id_fkey FOREIGN KEY (responsible_id) REFERENCES public.users(id);
+ALTER TABLE ONLY contacts
+    ADD CONSTRAINT contacts_responsible_id_fkey FOREIGN KEY (responsible_id) REFERENCES users(id);
 
 
 --
--- Name: customers customers_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: customers customers_company_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.customers
-    ADD CONSTRAINT customers_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id);
+ALTER TABLE ONLY customers
+    ADD CONSTRAINT customers_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id);
 
 
 --
--- Name: customers customers_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: customers customers_contact_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.customers
-    ADD CONSTRAINT customers_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES public.contacts(id);
+ALTER TABLE ONLY customers
+    ADD CONSTRAINT customers_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES contacts(id);
 
 
 --
--- Name: customers customers_converted_from_deal_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: customers customers_converted_from_deal_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.customers
-    ADD CONSTRAINT customers_converted_from_deal_id_fkey FOREIGN KEY (converted_from_deal_id) REFERENCES public.deals(id) ON DELETE SET NULL;
+ALTER TABLE ONLY customers
+    ADD CONSTRAINT customers_converted_from_deal_id_fkey FOREIGN KEY (converted_from_deal_id) REFERENCES deals(id) ON DELETE SET NULL;
 
 
 --
--- Name: customers customers_converted_from_lead_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: customers customers_converted_from_lead_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.customers
-    ADD CONSTRAINT customers_converted_from_lead_id_fkey FOREIGN KEY (converted_from_lead_id) REFERENCES public.leads(id) ON DELETE SET NULL;
+ALTER TABLE ONLY customers
+    ADD CONSTRAINT customers_converted_from_lead_id_fkey FOREIGN KEY (converted_from_lead_id) REFERENCES leads(id) ON DELETE SET NULL;
 
 
 --
--- Name: customers customers_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: customers customers_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.customers
-    ADD CONSTRAINT customers_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY customers
+    ADD CONSTRAINT customers_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: customers customers_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: customers customers_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.customers
-    ADD CONSTRAINT customers_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY customers
+    ADD CONSTRAINT customers_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: deal_contacts deal_contacts_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: deal_contacts deal_contacts_contact_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.deal_contacts
-    ADD CONSTRAINT deal_contacts_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES public.contacts(id) ON DELETE CASCADE;
+ALTER TABLE ONLY deal_contacts
+    ADD CONSTRAINT deal_contacts_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE;
 
 
 --
--- Name: deal_contacts deal_contacts_deal_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: deal_contacts deal_contacts_deal_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.deal_contacts
-    ADD CONSTRAINT deal_contacts_deal_id_fkey FOREIGN KEY (deal_id) REFERENCES public.deals(id) ON DELETE CASCADE;
+ALTER TABLE ONLY deal_contacts
+    ADD CONSTRAINT deal_contacts_deal_id_fkey FOREIGN KEY (deal_id) REFERENCES deals(id) ON DELETE CASCADE;
 
 
 --
--- Name: deal_contacts deal_contacts_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: deal_contacts deal_contacts_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.deal_contacts
-    ADD CONSTRAINT deal_contacts_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY deal_contacts
+    ADD CONSTRAINT deal_contacts_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: deal_signing_parties deal_signing_parties_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: deal_signing_parties deal_signing_parties_contact_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.deal_signing_parties
-    ADD CONSTRAINT deal_signing_parties_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES public.contacts(id) ON DELETE CASCADE;
+ALTER TABLE ONLY deal_signing_parties
+    ADD CONSTRAINT deal_signing_parties_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE;
 
 
 --
--- Name: deal_signing_parties deal_signing_parties_deal_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: deal_signing_parties deal_signing_parties_deal_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.deal_signing_parties
-    ADD CONSTRAINT deal_signing_parties_deal_id_fkey FOREIGN KEY (deal_id) REFERENCES public.deals(id) ON DELETE CASCADE;
+ALTER TABLE ONLY deal_signing_parties
+    ADD CONSTRAINT deal_signing_parties_deal_id_fkey FOREIGN KEY (deal_id) REFERENCES deals(id) ON DELETE CASCADE;
 
 
 --
--- Name: deal_signing_parties deal_signing_parties_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: deal_signing_parties deal_signing_parties_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.deal_signing_parties
-    ADD CONSTRAINT deal_signing_parties_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY deal_signing_parties
+    ADD CONSTRAINT deal_signing_parties_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: deals deals_assigned_to_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: deals deals_assigned_to_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.deals
-    ADD CONSTRAINT deals_assigned_to_fkey FOREIGN KEY (assigned_to) REFERENCES public.users(id);
+ALTER TABLE ONLY deals
+    ADD CONSTRAINT deals_assigned_to_fkey FOREIGN KEY (assigned_to) REFERENCES users(id);
 
 
 --
--- Name: deals deals_company_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: deals deals_company_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.deals
-    ADD CONSTRAINT deals_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id);
+ALTER TABLE ONLY deals
+    ADD CONSTRAINT deals_company_id_fkey FOREIGN KEY (company_id) REFERENCES companies(id);
 
 
 --
--- Name: deals deals_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: deals deals_contact_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.deals
-    ADD CONSTRAINT deals_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES public.contacts(id);
+ALTER TABLE ONLY deals
+    ADD CONSTRAINT deals_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES contacts(id);
 
 
 --
--- Name: deals deals_converted_from_lead_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: deals deals_converted_from_lead_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.deals
-    ADD CONSTRAINT deals_converted_from_lead_id_fkey FOREIGN KEY (converted_from_lead_id) REFERENCES public.leads(id) ON DELETE SET NULL;
+ALTER TABLE ONLY deals
+    ADD CONSTRAINT deals_converted_from_lead_id_fkey FOREIGN KEY (converted_from_lead_id) REFERENCES leads(id) ON DELETE SET NULL;
 
 
 --
--- Name: deals deals_converted_to_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: deals deals_converted_to_customer_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.deals
-    ADD CONSTRAINT deals_converted_to_customer_id_fkey FOREIGN KEY (converted_to_customer_id) REFERENCES public.customers(id);
+ALTER TABLE ONLY deals
+    ADD CONSTRAINT deals_converted_to_customer_id_fkey FOREIGN KEY (converted_to_customer_id) REFERENCES customers(id);
 
 
 --
--- Name: deals deals_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: deals deals_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.deals
-    ADD CONSTRAINT deals_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id);
+ALTER TABLE ONLY deals
+    ADD CONSTRAINT deals_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id);
 
 
 --
--- Name: deals deals_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: deals deals_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.deals
-    ADD CONSTRAINT deals_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY deals
+    ADD CONSTRAINT deals_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: deals deals_owner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: deals deals_owner_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.deals
-    ADD CONSTRAINT deals_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES public.users(id);
+ALTER TABLE ONLY deals
+    ADD CONSTRAINT deals_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id);
 
 
 --
--- Name: deals deals_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: deals deals_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.deals
-    ADD CONSTRAINT deals_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workgroups(id) ON DELETE SET NULL;
+ALTER TABLE ONLY deals
+    ADD CONSTRAINT deals_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workgroups(id) ON DELETE SET NULL;
 
 
 --
--- Name: drive_activities drive_activities_file_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: drive_activities drive_activities_file_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.drive_activities
-    ADD CONSTRAINT drive_activities_file_id_fkey FOREIGN KEY (file_id) REFERENCES public.drive_files(id) ON DELETE CASCADE;
+ALTER TABLE ONLY drive_activities
+    ADD CONSTRAINT drive_activities_file_id_fkey FOREIGN KEY (file_id) REFERENCES drive_files(id) ON DELETE CASCADE;
 
 
 --
--- Name: drive_activities drive_activities_folder_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: drive_activities drive_activities_folder_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.drive_activities
-    ADD CONSTRAINT drive_activities_folder_id_fkey FOREIGN KEY (folder_id) REFERENCES public.drive_folders(id) ON DELETE CASCADE;
+ALTER TABLE ONLY drive_activities
+    ADD CONSTRAINT drive_activities_folder_id_fkey FOREIGN KEY (folder_id) REFERENCES drive_folders(id) ON DELETE CASCADE;
 
 
 --
--- Name: drive_activities drive_activities_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: drive_activities drive_activities_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.drive_activities
-    ADD CONSTRAINT drive_activities_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY drive_activities
+    ADD CONSTRAINT drive_activities_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: drive_activities drive_activities_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: drive_activities drive_activities_user_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.drive_activities
-    ADD CONSTRAINT drive_activities_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+ALTER TABLE ONLY drive_activities
+    ADD CONSTRAINT drive_activities_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 
 --
--- Name: drive_file_versions drive_file_versions_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: drive_file_versions drive_file_versions_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.drive_file_versions
-    ADD CONSTRAINT drive_file_versions_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY drive_file_versions
+    ADD CONSTRAINT drive_file_versions_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: drive_file_versions drive_file_versions_file_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: drive_file_versions drive_file_versions_file_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.drive_file_versions
-    ADD CONSTRAINT drive_file_versions_file_id_fkey FOREIGN KEY (file_id) REFERENCES public.drive_files(id) ON DELETE CASCADE;
+ALTER TABLE ONLY drive_file_versions
+    ADD CONSTRAINT drive_file_versions_file_id_fkey FOREIGN KEY (file_id) REFERENCES drive_files(id) ON DELETE CASCADE;
 
 
 --
--- Name: drive_files drive_files_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: drive_files drive_files_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.drive_files
-    ADD CONSTRAINT drive_files_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY drive_files
+    ADD CONSTRAINT drive_files_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: drive_files drive_files_folder_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: drive_files drive_files_folder_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.drive_files
-    ADD CONSTRAINT drive_files_folder_id_fkey FOREIGN KEY (folder_id) REFERENCES public.drive_folders(id);
+ALTER TABLE ONLY drive_files
+    ADD CONSTRAINT drive_files_folder_id_fkey FOREIGN KEY (folder_id) REFERENCES drive_folders(id);
 
 
 --
--- Name: drive_files drive_files_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: drive_files drive_files_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.drive_files
-    ADD CONSTRAINT drive_files_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY drive_files
+    ADD CONSTRAINT drive_files_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: drive_files drive_files_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: drive_files drive_files_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.drive_files
-    ADD CONSTRAINT drive_files_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY drive_files
+    ADD CONSTRAINT drive_files_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: drive_files drive_files_parent_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: drive_files drive_files_parent_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.drive_files
-    ADD CONSTRAINT drive_files_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.drive_files(id);
+ALTER TABLE ONLY drive_files
+    ADD CONSTRAINT drive_files_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES drive_files(id);
 
 
 --
--- Name: drive_files drive_files_uploaded_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: drive_files drive_files_uploaded_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.drive_files
-    ADD CONSTRAINT drive_files_uploaded_by_fkey FOREIGN KEY (uploaded_by) REFERENCES public.users(id);
+ALTER TABLE ONLY drive_files
+    ADD CONSTRAINT drive_files_uploaded_by_fkey FOREIGN KEY (uploaded_by) REFERENCES users(id);
 
 
 --
--- Name: drive_folders drive_folders_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: drive_folders drive_folders_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.drive_folders
-    ADD CONSTRAINT drive_folders_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY drive_folders
+    ADD CONSTRAINT drive_folders_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: drive_folders drive_folders_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: drive_folders drive_folders_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.drive_folders
-    ADD CONSTRAINT drive_folders_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY drive_folders
+    ADD CONSTRAINT drive_folders_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: drive_folders drive_folders_parent_folder_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: drive_folders drive_folders_parent_folder_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.drive_folders
-    ADD CONSTRAINT drive_folders_parent_folder_id_fkey FOREIGN KEY (parent_folder_id) REFERENCES public.drive_folders(id) ON DELETE CASCADE;
+ALTER TABLE ONLY drive_folders
+    ADD CONSTRAINT drive_folders_parent_folder_id_fkey FOREIGN KEY (parent_folder_id) REFERENCES drive_folders(id) ON DELETE CASCADE;
 
 
 --
--- Name: drive_folders drive_folders_parent_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: drive_folders drive_folders_parent_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.drive_folders
-    ADD CONSTRAINT drive_folders_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.drive_folders(id) ON DELETE CASCADE;
+ALTER TABLE ONLY drive_folders
+    ADD CONSTRAINT drive_folders_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES drive_folders(id) ON DELETE CASCADE;
 
 
 --
--- Name: drive_permissions drive_permissions_drive_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: drive_permissions drive_permissions_drive_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.drive_permissions
-    ADD CONSTRAINT drive_permissions_drive_id_fkey FOREIGN KEY (drive_id) REFERENCES public.connected_drives(id) ON DELETE CASCADE;
+ALTER TABLE ONLY drive_permissions
+    ADD CONSTRAINT drive_permissions_drive_id_fkey FOREIGN KEY (drive_id) REFERENCES connected_drives(id) ON DELETE CASCADE;
 
 
 --
--- Name: drive_permissions drive_permissions_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: drive_permissions drive_permissions_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.drive_permissions
-    ADD CONSTRAINT drive_permissions_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY drive_permissions
+    ADD CONSTRAINT drive_permissions_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: drive_permissions drive_permissions_role_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: drive_permissions drive_permissions_role_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.drive_permissions
-    ADD CONSTRAINT drive_permissions_role_fkey FOREIGN KEY (role) REFERENCES public.roles(id);
+ALTER TABLE ONLY drive_permissions
+    ADD CONSTRAINT drive_permissions_role_fkey FOREIGN KEY (role) REFERENCES roles(id);
 
 
 --
--- Name: drive_permissions drive_permissions_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: drive_permissions drive_permissions_user_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.drive_permissions
-    ADD CONSTRAINT drive_permissions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
+ALTER TABLE ONLY drive_permissions
+    ADD CONSTRAINT drive_permissions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
 
 
 --
--- Name: emails emails_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: emails emails_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.emails
-    ADD CONSTRAINT emails_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY emails
+    ADD CONSTRAINT emails_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: emails emails_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: emails emails_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.emails
-    ADD CONSTRAINT emails_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY emails
+    ADD CONSTRAINT emails_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: emails emails_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: emails emails_user_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.emails
-    ADD CONSTRAINT emails_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+ALTER TABLE ONLY emails
+    ADD CONSTRAINT emails_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY public.emails
-    ADD CONSTRAINT emails_mailbox_id_fkey FOREIGN KEY (mailbox_id) REFERENCES public.connected_mailboxes(id) ON DELETE CASCADE;
+ALTER TABLE ONLY emails
+    ADD CONSTRAINT emails_mailbox_id_fkey FOREIGN KEY (mailbox_id) REFERENCES connected_mailboxes(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY public.emails
+ALTER TABLE ONLY emails
     ADD CONSTRAINT emails_message_id_key UNIQUE (message_id);
 
-CREATE INDEX IF NOT EXISTS idx_emails_mailbox_id ON public.emails USING btree (mailbox_id);
+CREATE INDEX IF NOT EXISTS idx_emails_mailbox_id ON emails USING btree (mailbox_id);
 
 
 --
--- Name: employee_documents employee_documents_employee_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: employee_documents employee_documents_employee_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.employee_documents
-    ADD CONSTRAINT employee_documents_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES public.employees(id) ON DELETE CASCADE;
+ALTER TABLE ONLY employee_documents
+    ADD CONSTRAINT employee_documents_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE;
 
 
 --
--- Name: employee_documents employee_documents_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: employee_documents employee_documents_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.employee_documents
-    ADD CONSTRAINT employee_documents_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY employee_documents
+    ADD CONSTRAINT employee_documents_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: employee_documents employee_documents_uploaded_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: employee_documents employee_documents_uploaded_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.employee_documents
-    ADD CONSTRAINT employee_documents_uploaded_by_fkey FOREIGN KEY (uploaded_by) REFERENCES public.users(id);
+ALTER TABLE ONLY employee_documents
+    ADD CONSTRAINT employee_documents_uploaded_by_fkey FOREIGN KEY (uploaded_by) REFERENCES users(id);
 
 
 --
--- Name: employee_leave_balances employee_leave_balances_employee_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: employee_leave_balances employee_leave_balances_employee_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.employee_leave_balances
-    ADD CONSTRAINT employee_leave_balances_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES public.employees(id) ON DELETE CASCADE;
+ALTER TABLE ONLY employee_leave_balances
+    ADD CONSTRAINT employee_leave_balances_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE;
 
 
 --
--- Name: employee_leave_balances employee_leave_balances_leave_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: employee_leave_balances employee_leave_balances_leave_type_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.employee_leave_balances
-    ADD CONSTRAINT employee_leave_balances_leave_type_id_fkey FOREIGN KEY (leave_type_id) REFERENCES public.leave_types(id) ON DELETE CASCADE;
+ALTER TABLE ONLY employee_leave_balances
+    ADD CONSTRAINT employee_leave_balances_leave_type_id_fkey FOREIGN KEY (leave_type_id) REFERENCES leave_types(id) ON DELETE CASCADE;
 
 
 --
--- Name: employee_leave_balances employee_leave_balances_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: employee_leave_balances employee_leave_balances_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.employee_leave_balances
-    ADD CONSTRAINT employee_leave_balances_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY employee_leave_balances
+    ADD CONSTRAINT employee_leave_balances_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: employees employees_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: employees employees_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.employees
-    ADD CONSTRAINT employees_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY employees
+    ADD CONSTRAINT employees_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: employees employees_manager_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: employees employees_manager_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.employees
-    ADD CONSTRAINT employees_manager_id_fkey FOREIGN KEY (manager_id) REFERENCES public.employees(id);
+ALTER TABLE ONLY employees
+    ADD CONSTRAINT employees_manager_id_fkey FOREIGN KEY (manager_id) REFERENCES employees(id);
 
 
 --
--- Name: employees employees_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: employees employees_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.employees
-    ADD CONSTRAINT employees_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id);
+ALTER TABLE ONLY employees
+    ADD CONSTRAINT employees_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id);
 
 
 --
--- Name: employees employees_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: employees employees_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.employees
-    ADD CONSTRAINT employees_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY employees
+    ADD CONSTRAINT employees_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: employees employees_reporting_manager_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: employees employees_reporting_manager_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.employees
-    ADD CONSTRAINT employees_reporting_manager_id_fkey FOREIGN KEY (reporting_manager_id) REFERENCES public.employees(id);
+ALTER TABLE ONLY employees
+    ADD CONSTRAINT employees_reporting_manager_id_fkey FOREIGN KEY (reporting_manager_id) REFERENCES employees(id);
 
 
 --
--- Name: employees employees_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: employees employees_user_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.employees
-    ADD CONSTRAINT employees_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
+ALTER TABLE ONLY employees
+    ADD CONSTRAINT employees_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
 
 
 --
--- Name: entity_drive_files entity_drive_files_linked_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: entity_drive_files entity_drive_files_linked_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.entity_drive_files
-    ADD CONSTRAINT entity_drive_files_linked_by_fkey FOREIGN KEY (linked_by) REFERENCES public.users(id);
+ALTER TABLE ONLY entity_drive_files
+    ADD CONSTRAINT entity_drive_files_linked_by_fkey FOREIGN KEY (linked_by) REFERENCES users(id);
 
 
 --
--- Name: entity_drive_files entity_drive_files_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: entity_drive_files entity_drive_files_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.entity_drive_files
-    ADD CONSTRAINT entity_drive_files_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY entity_drive_files
+    ADD CONSTRAINT entity_drive_files_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: stock fk_stock_product; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: stock fk_stock_product; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.stock
-    ADD CONSTRAINT fk_stock_product FOREIGN KEY (product_id) REFERENCES public.products(id) ON DELETE CASCADE;
+ALTER TABLE ONLY stock
+    ADD CONSTRAINT fk_stock_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE;
 
 
 --
--- Name: stock fk_stock_warehouse; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: stock fk_stock_warehouse; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.stock
-    ADD CONSTRAINT fk_stock_warehouse FOREIGN KEY (warehouse_id) REFERENCES public.warehouses(id) ON DELETE CASCADE;
+ALTER TABLE ONLY stock
+    ADD CONSTRAINT fk_stock_warehouse FOREIGN KEY (warehouse_id) REFERENCES warehouses(id) ON DELETE CASCADE;
 
 
 --
--- Name: hrms_notifications hrms_notifications_employee_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: hrms_notifications hrms_notifications_employee_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.hrms_notifications
-    ADD CONSTRAINT hrms_notifications_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES public.employees(id) ON DELETE CASCADE;
+ALTER TABLE ONLY hrms_notifications
+    ADD CONSTRAINT hrms_notifications_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE;
 
 
 --
--- Name: hrms_notifications hrms_notifications_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: hrms_notifications hrms_notifications_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.hrms_notifications
-    ADD CONSTRAINT hrms_notifications_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY hrms_notifications
+    ADD CONSTRAINT hrms_notifications_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: hrms_notifications hrms_notifications_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: hrms_notifications hrms_notifications_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.hrms_notifications
-    ADD CONSTRAINT hrms_notifications_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY hrms_notifications
+    ADD CONSTRAINT hrms_notifications_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: invoice_items invoice_items_invoice_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: invoice_items invoice_items_invoice_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.invoice_items
-    ADD CONSTRAINT invoice_items_invoice_id_fkey FOREIGN KEY (invoice_id) REFERENCES public.invoices(id) ON DELETE CASCADE;
+ALTER TABLE ONLY invoice_items
+    ADD CONSTRAINT invoice_items_invoice_id_fkey FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE;
 
 
 --
--- Name: invoice_items invoice_items_product_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: invoice_items invoice_items_product_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.invoice_items
-    ADD CONSTRAINT invoice_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id);
+ALTER TABLE ONLY invoice_items
+    ADD CONSTRAINT invoice_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id);
 
 
 --
--- Name: invoices invoices_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: invoices invoices_contact_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.invoices
-    ADD CONSTRAINT invoices_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES public.contacts(id);
+ALTER TABLE ONLY invoices
+    ADD CONSTRAINT invoices_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES contacts(id);
 
 
 --
--- Name: invoices invoices_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: invoices invoices_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.invoices
-    ADD CONSTRAINT invoices_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY invoices
+    ADD CONSTRAINT invoices_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: invoices invoices_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: invoices invoices_customer_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.invoices
-    ADD CONSTRAINT invoices_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customers(id);
+ALTER TABLE ONLY invoices
+    ADD CONSTRAINT invoices_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES customers(id);
 
 
 --
--- Name: invoices invoices_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: invoices invoices_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.invoices
-    ADD CONSTRAINT invoices_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY invoices
+    ADD CONSTRAINT invoices_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: invoices invoices_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: invoices invoices_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.invoices
-    ADD CONSTRAINT invoices_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY invoices
+    ADD CONSTRAINT invoices_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: lead_external_sources lead_external_sources_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: lead_external_sources lead_external_sources_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.lead_external_sources
-    ADD CONSTRAINT lead_external_sources_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY lead_external_sources
+    ADD CONSTRAINT lead_external_sources_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: lead_external_sources lead_external_sources_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: lead_external_sources lead_external_sources_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.lead_external_sources
-    ADD CONSTRAINT lead_external_sources_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY lead_external_sources
+    ADD CONSTRAINT lead_external_sources_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: lead_workspace_access lead_workspace_access_granted_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: lead_workspace_access lead_workspace_access_granted_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.lead_workspace_access
-    ADD CONSTRAINT lead_workspace_access_granted_by_fkey FOREIGN KEY (granted_by) REFERENCES public.users(id);
+ALTER TABLE ONLY lead_workspace_access
+    ADD CONSTRAINT lead_workspace_access_granted_by_fkey FOREIGN KEY (granted_by) REFERENCES users(id);
 
 
 --
--- Name: lead_workspace_access lead_workspace_access_lead_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: lead_workspace_access lead_workspace_access_lead_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.lead_workspace_access
-    ADD CONSTRAINT lead_workspace_access_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES public.leads(id) ON DELETE CASCADE;
+ALTER TABLE ONLY lead_workspace_access
+    ADD CONSTRAINT lead_workspace_access_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE;
 
 
 --
--- Name: lead_workspace_access lead_workspace_access_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: lead_workspace_access lead_workspace_access_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.lead_workspace_access
-    ADD CONSTRAINT lead_workspace_access_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workgroups(id) ON DELETE CASCADE;
+ALTER TABLE ONLY lead_workspace_access
+    ADD CONSTRAINT lead_workspace_access_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workgroups(id) ON DELETE CASCADE;
 
 
 --
--- Name: lead_workspaces lead_workspaces_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: lead_workspaces lead_workspaces_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.lead_workspaces
-    ADD CONSTRAINT lead_workspaces_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY lead_workspaces
+    ADD CONSTRAINT lead_workspaces_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: lead_workspaces lead_workspaces_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: lead_workspaces lead_workspaces_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.lead_workspaces
-    ADD CONSTRAINT lead_workspaces_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY lead_workspaces
+    ADD CONSTRAINT lead_workspaces_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: lead_workspaces lead_workspaces_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: lead_workspaces lead_workspaces_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.lead_workspaces
-    ADD CONSTRAINT lead_workspaces_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY lead_workspaces
+    ADD CONSTRAINT lead_workspaces_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: leads leads_assigned_to_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: leads leads_assigned_to_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.leads
-    ADD CONSTRAINT leads_assigned_to_fkey FOREIGN KEY (assigned_to) REFERENCES public.users(id);
+ALTER TABLE ONLY leads
+    ADD CONSTRAINT leads_assigned_to_fkey FOREIGN KEY (assigned_to) REFERENCES users(id);
 
 
 --
--- Name: leads leads_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: leads leads_contact_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.leads
-    ADD CONSTRAINT leads_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES public.contacts(id);
+ALTER TABLE ONLY leads
+    ADD CONSTRAINT leads_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES contacts(id);
 
 
 --
--- Name: leads leads_converted_to_deal_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: leads leads_converted_to_deal_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.leads
-    ADD CONSTRAINT leads_converted_to_deal_id_fkey FOREIGN KEY (converted_to_deal_id) REFERENCES public.deals(id);
+ALTER TABLE ONLY leads
+    ADD CONSTRAINT leads_converted_to_deal_id_fkey FOREIGN KEY (converted_to_deal_id) REFERENCES deals(id);
 
 
 --
--- Name: leads leads_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: leads leads_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.leads
-    ADD CONSTRAINT leads_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id);
+ALTER TABLE ONLY leads
+    ADD CONSTRAINT leads_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id);
 
 
 --
--- Name: leads leads_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: leads leads_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.leads
-    ADD CONSTRAINT leads_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY leads
+    ADD CONSTRAINT leads_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: leads leads_owner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: leads leads_owner_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.leads
-    ADD CONSTRAINT leads_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES public.users(id);
+ALTER TABLE ONLY leads
+    ADD CONSTRAINT leads_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id);
 
 
 --
--- Name: leave_balances leave_balances_employee_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: leave_balances leave_balances_employee_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.leave_balances
-    ADD CONSTRAINT leave_balances_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES public.employees(id) ON DELETE CASCADE;
+ALTER TABLE ONLY leave_balances
+    ADD CONSTRAINT leave_balances_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE;
 
 
 --
--- Name: leave_request_comments leave_request_comments_leave_request_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: leave_request_comments leave_request_comments_leave_request_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.leave_request_comments
-    ADD CONSTRAINT leave_request_comments_leave_request_id_fkey FOREIGN KEY (leave_request_id) REFERENCES public.leave_requests(id) ON DELETE CASCADE;
+ALTER TABLE ONLY leave_request_comments
+    ADD CONSTRAINT leave_request_comments_leave_request_id_fkey FOREIGN KEY (leave_request_id) REFERENCES leave_requests(id) ON DELETE CASCADE;
 
 
 --
--- Name: leave_request_comments leave_request_comments_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: leave_request_comments leave_request_comments_user_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.leave_request_comments
-    ADD CONSTRAINT leave_request_comments_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
+ALTER TABLE ONLY leave_request_comments
+    ADD CONSTRAINT leave_request_comments_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
 
 
 --
--- Name: leave_requests leave_requests_approved_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: leave_requests leave_requests_approved_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.leave_requests
-    ADD CONSTRAINT leave_requests_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES public.users(id);
+ALTER TABLE ONLY leave_requests
+    ADD CONSTRAINT leave_requests_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES users(id);
 
 
 --
--- Name: leave_requests leave_requests_approver_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: leave_requests leave_requests_approver_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.leave_requests
-    ADD CONSTRAINT leave_requests_approver_id_fkey FOREIGN KEY (approver_id) REFERENCES public.users(id);
+ALTER TABLE ONLY leave_requests
+    ADD CONSTRAINT leave_requests_approver_id_fkey FOREIGN KEY (approver_id) REFERENCES users(id);
 
 
 --
--- Name: leave_requests leave_requests_employee_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: leave_requests leave_requests_employee_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.leave_requests
-    ADD CONSTRAINT leave_requests_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES public.employees(id) ON DELETE CASCADE;
+ALTER TABLE ONLY leave_requests
+    ADD CONSTRAINT leave_requests_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE;
 
 
 --
--- Name: leave_requests leave_requests_leave_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: leave_requests leave_requests_leave_type_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.leave_requests
-    ADD CONSTRAINT leave_requests_leave_type_id_fkey FOREIGN KEY (leave_type_id) REFERENCES public.leave_types(id);
+ALTER TABLE ONLY leave_requests
+    ADD CONSTRAINT leave_requests_leave_type_id_fkey FOREIGN KEY (leave_type_id) REFERENCES leave_types(id);
 
 
 --
--- Name: leave_requests leave_requests_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: leave_requests leave_requests_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.leave_requests
-    ADD CONSTRAINT leave_requests_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY leave_requests
+    ADD CONSTRAINT leave_requests_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: leave_requests leave_requests_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: leave_requests leave_requests_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.leave_requests
-    ADD CONSTRAINT leave_requests_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY leave_requests
+    ADD CONSTRAINT leave_requests_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: leave_types leave_types_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: leave_types leave_types_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.leave_types
-    ADD CONSTRAINT leave_types_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY leave_types
+    ADD CONSTRAINT leave_types_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: leave_types leave_types_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: leave_types leave_types_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.leave_types
-    ADD CONSTRAINT leave_types_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY leave_types
+    ADD CONSTRAINT leave_types_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_ab_test_results marketing_ab_test_results_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_ab_test_results marketing_ab_test_results_contact_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_ab_test_results
-    ADD CONSTRAINT marketing_ab_test_results_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES public.contacts(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_ab_test_results
+    ADD CONSTRAINT marketing_ab_test_results_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_ab_test_results marketing_ab_test_results_test_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_ab_test_results marketing_ab_test_results_test_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_ab_test_results
-    ADD CONSTRAINT marketing_ab_test_results_test_id_fkey FOREIGN KEY (test_id) REFERENCES public.marketing_ab_tests(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_ab_test_results
+    ADD CONSTRAINT marketing_ab_test_results_test_id_fkey FOREIGN KEY (test_id) REFERENCES marketing_ab_tests(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_ab_test_results marketing_ab_test_results_variant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_ab_test_results marketing_ab_test_results_variant_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_ab_test_results
-    ADD CONSTRAINT marketing_ab_test_results_variant_id_fkey FOREIGN KEY (variant_id) REFERENCES public.marketing_ab_test_variants(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_ab_test_results
+    ADD CONSTRAINT marketing_ab_test_results_variant_id_fkey FOREIGN KEY (variant_id) REFERENCES marketing_ab_test_variants(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_ab_test_variants marketing_ab_test_variants_test_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_ab_test_variants marketing_ab_test_variants_test_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_ab_test_variants
-    ADD CONSTRAINT marketing_ab_test_variants_test_id_fkey FOREIGN KEY (test_id) REFERENCES public.marketing_ab_tests(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_ab_test_variants
+    ADD CONSTRAINT marketing_ab_test_variants_test_id_fkey FOREIGN KEY (test_id) REFERENCES marketing_ab_tests(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_ab_tests marketing_ab_tests_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_ab_tests marketing_ab_tests_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_ab_tests
-    ADD CONSTRAINT marketing_ab_tests_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY marketing_ab_tests
+    ADD CONSTRAINT marketing_ab_tests_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: marketing_ab_tests marketing_ab_tests_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_ab_tests marketing_ab_tests_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_ab_tests
-    ADD CONSTRAINT marketing_ab_tests_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_ab_tests
+    ADD CONSTRAINT marketing_ab_tests_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_ab_tests marketing_ab_tests_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_ab_tests marketing_ab_tests_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_ab_tests
-    ADD CONSTRAINT marketing_ab_tests_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_ab_tests
+    ADD CONSTRAINT marketing_ab_tests_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_campaign_events marketing_campaign_events_campaign_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_campaign_events marketing_campaign_events_campaign_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_campaign_events
-    ADD CONSTRAINT marketing_campaign_events_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.marketing_campaigns(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_campaign_events
+    ADD CONSTRAINT marketing_campaign_events_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES marketing_campaigns(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_campaign_events marketing_campaign_events_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_campaign_events marketing_campaign_events_contact_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_campaign_events
-    ADD CONSTRAINT marketing_campaign_events_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES public.contacts(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_campaign_events
+    ADD CONSTRAINT marketing_campaign_events_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_campaigns marketing_campaigns_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_campaigns marketing_campaigns_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_campaigns
-    ADD CONSTRAINT marketing_campaigns_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY marketing_campaigns
+    ADD CONSTRAINT marketing_campaigns_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: marketing_campaigns marketing_campaigns_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_campaigns marketing_campaigns_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_campaigns
-    ADD CONSTRAINT marketing_campaigns_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_campaigns
+    ADD CONSTRAINT marketing_campaigns_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_campaigns marketing_campaigns_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_campaigns marketing_campaigns_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_campaigns
-    ADD CONSTRAINT marketing_campaigns_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_campaigns
+    ADD CONSTRAINT marketing_campaigns_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_form_submissions marketing_form_submissions_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_form_submissions marketing_form_submissions_contact_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_form_submissions
-    ADD CONSTRAINT marketing_form_submissions_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES public.contacts(id);
+ALTER TABLE ONLY marketing_form_submissions
+    ADD CONSTRAINT marketing_form_submissions_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES contacts(id);
 
 
 --
--- Name: marketing_form_submissions marketing_form_submissions_form_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_form_submissions marketing_form_submissions_form_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_form_submissions
-    ADD CONSTRAINT marketing_form_submissions_form_id_fkey FOREIGN KEY (form_id) REFERENCES public.marketing_forms(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_form_submissions
+    ADD CONSTRAINT marketing_form_submissions_form_id_fkey FOREIGN KEY (form_id) REFERENCES marketing_forms(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_forms marketing_forms_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_forms marketing_forms_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_forms
-    ADD CONSTRAINT marketing_forms_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY marketing_forms
+    ADD CONSTRAINT marketing_forms_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: marketing_forms marketing_forms_list_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_forms marketing_forms_list_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_forms
-    ADD CONSTRAINT marketing_forms_list_id_fkey FOREIGN KEY (list_id) REFERENCES public.marketing_lists(id);
+ALTER TABLE ONLY marketing_forms
+    ADD CONSTRAINT marketing_forms_list_id_fkey FOREIGN KEY (list_id) REFERENCES marketing_lists(id);
 
 
 --
--- Name: marketing_forms marketing_forms_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_forms marketing_forms_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_forms
-    ADD CONSTRAINT marketing_forms_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_forms
+    ADD CONSTRAINT marketing_forms_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_forms marketing_forms_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_forms marketing_forms_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_forms
-    ADD CONSTRAINT marketing_forms_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_forms
+    ADD CONSTRAINT marketing_forms_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_list_members marketing_list_members_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_list_members marketing_list_members_contact_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_list_members
-    ADD CONSTRAINT marketing_list_members_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES public.contacts(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_list_members
+    ADD CONSTRAINT marketing_list_members_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_list_members marketing_list_members_list_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_list_members marketing_list_members_list_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_list_members
-    ADD CONSTRAINT marketing_list_members_list_id_fkey FOREIGN KEY (list_id) REFERENCES public.marketing_lists(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_list_members
+    ADD CONSTRAINT marketing_list_members_list_id_fkey FOREIGN KEY (list_id) REFERENCES marketing_lists(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_list_members marketing_list_members_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_list_members marketing_list_members_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_list_members
-    ADD CONSTRAINT marketing_list_members_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id);
+ALTER TABLE ONLY marketing_list_members
+    ADD CONSTRAINT marketing_list_members_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id);
 
 
 --
--- Name: marketing_lists marketing_lists_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_lists marketing_lists_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_lists
-    ADD CONSTRAINT marketing_lists_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY marketing_lists
+    ADD CONSTRAINT marketing_lists_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: marketing_lists marketing_lists_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_lists marketing_lists_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_lists
-    ADD CONSTRAINT marketing_lists_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_lists
+    ADD CONSTRAINT marketing_lists_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_lists marketing_lists_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_lists marketing_lists_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_lists
-    ADD CONSTRAINT marketing_lists_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_lists
+    ADD CONSTRAINT marketing_lists_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_scoring_history marketing_scoring_history_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_scoring_history marketing_scoring_history_contact_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_scoring_history
-    ADD CONSTRAINT marketing_scoring_history_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES public.contacts(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_scoring_history
+    ADD CONSTRAINT marketing_scoring_history_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_scoring_history marketing_scoring_history_rule_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_scoring_history marketing_scoring_history_rule_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_scoring_history
-    ADD CONSTRAINT marketing_scoring_history_rule_id_fkey FOREIGN KEY (rule_id) REFERENCES public.marketing_scoring_rules(id);
+ALTER TABLE ONLY marketing_scoring_history
+    ADD CONSTRAINT marketing_scoring_history_rule_id_fkey FOREIGN KEY (rule_id) REFERENCES marketing_scoring_rules(id);
 
 
 --
--- Name: marketing_scoring_rules marketing_scoring_rules_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_scoring_rules marketing_scoring_rules_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_scoring_rules
-    ADD CONSTRAINT marketing_scoring_rules_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_scoring_rules
+    ADD CONSTRAINT marketing_scoring_rules_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_scoring_rules marketing_scoring_rules_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_scoring_rules marketing_scoring_rules_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_scoring_rules
-    ADD CONSTRAINT marketing_scoring_rules_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_scoring_rules
+    ADD CONSTRAINT marketing_scoring_rules_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_segments marketing_segments_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_segments marketing_segments_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_segments
-    ADD CONSTRAINT marketing_segments_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY marketing_segments
+    ADD CONSTRAINT marketing_segments_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: marketing_segments marketing_segments_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_segments marketing_segments_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_segments
-    ADD CONSTRAINT marketing_segments_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_segments
+    ADD CONSTRAINT marketing_segments_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_segments marketing_segments_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_segments marketing_segments_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_segments
-    ADD CONSTRAINT marketing_segments_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_segments
+    ADD CONSTRAINT marketing_segments_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_sequence_enrollments marketing_sequence_enrollments_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_sequence_enrollments marketing_sequence_enrollments_contact_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_sequence_enrollments
-    ADD CONSTRAINT marketing_sequence_enrollments_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES public.contacts(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_sequence_enrollments
+    ADD CONSTRAINT marketing_sequence_enrollments_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_sequence_enrollments marketing_sequence_enrollments_sequence_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_sequence_enrollments marketing_sequence_enrollments_sequence_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_sequence_enrollments
-    ADD CONSTRAINT marketing_sequence_enrollments_sequence_id_fkey FOREIGN KEY (sequence_id) REFERENCES public.marketing_sequences(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_sequence_enrollments
+    ADD CONSTRAINT marketing_sequence_enrollments_sequence_id_fkey FOREIGN KEY (sequence_id) REFERENCES marketing_sequences(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_sequence_steps marketing_sequence_steps_sequence_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_sequence_steps marketing_sequence_steps_sequence_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_sequence_steps
-    ADD CONSTRAINT marketing_sequence_steps_sequence_id_fkey FOREIGN KEY (sequence_id) REFERENCES public.marketing_sequences(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_sequence_steps
+    ADD CONSTRAINT marketing_sequence_steps_sequence_id_fkey FOREIGN KEY (sequence_id) REFERENCES marketing_sequences(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_sequences marketing_sequences_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_sequences marketing_sequences_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_sequences
-    ADD CONSTRAINT marketing_sequences_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY marketing_sequences
+    ADD CONSTRAINT marketing_sequences_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: marketing_sequences marketing_sequences_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_sequences marketing_sequences_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_sequences
-    ADD CONSTRAINT marketing_sequences_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_sequences
+    ADD CONSTRAINT marketing_sequences_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_sequences marketing_sequences_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_sequences marketing_sequences_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_sequences
-    ADD CONSTRAINT marketing_sequences_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_sequences
+    ADD CONSTRAINT marketing_sequences_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_templates marketing_templates_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_templates marketing_templates_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_templates
-    ADD CONSTRAINT marketing_templates_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY marketing_templates
+    ADD CONSTRAINT marketing_templates_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: marketing_templates marketing_templates_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_templates marketing_templates_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_templates
-    ADD CONSTRAINT marketing_templates_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_templates
+    ADD CONSTRAINT marketing_templates_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_templates marketing_templates_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_templates marketing_templates_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_templates
-    ADD CONSTRAINT marketing_templates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_templates
+    ADD CONSTRAINT marketing_templates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_webhook_logs marketing_webhook_logs_webhook_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_webhook_logs marketing_webhook_logs_webhook_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_webhook_logs
-    ADD CONSTRAINT marketing_webhook_logs_webhook_id_fkey FOREIGN KEY (webhook_id) REFERENCES public.marketing_webhooks(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_webhook_logs
+    ADD CONSTRAINT marketing_webhook_logs_webhook_id_fkey FOREIGN KEY (webhook_id) REFERENCES marketing_webhooks(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_webhook_queue marketing_webhook_queue_webhook_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_webhook_queue marketing_webhook_queue_webhook_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_webhook_queue
-    ADD CONSTRAINT marketing_webhook_queue_webhook_id_fkey FOREIGN KEY (webhook_id) REFERENCES public.marketing_webhooks(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_webhook_queue
+    ADD CONSTRAINT marketing_webhook_queue_webhook_id_fkey FOREIGN KEY (webhook_id) REFERENCES marketing_webhooks(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_webhooks marketing_webhooks_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_webhooks marketing_webhooks_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_webhooks
-    ADD CONSTRAINT marketing_webhooks_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY marketing_webhooks
+    ADD CONSTRAINT marketing_webhooks_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: marketing_webhooks marketing_webhooks_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_webhooks marketing_webhooks_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_webhooks
-    ADD CONSTRAINT marketing_webhooks_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_webhooks
+    ADD CONSTRAINT marketing_webhooks_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: marketing_webhooks marketing_webhooks_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: marketing_webhooks marketing_webhooks_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.marketing_webhooks
-    ADD CONSTRAINT marketing_webhooks_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY marketing_webhooks
+    ADD CONSTRAINT marketing_webhooks_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: notification_templates notification_templates_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: notification_templates notification_templates_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.notification_templates
-    ADD CONSTRAINT notification_templates_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY notification_templates
+    ADD CONSTRAINT notification_templates_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: notification_templates notification_templates_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: notification_templates notification_templates_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.notification_templates
-    ADD CONSTRAINT notification_templates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY notification_templates
+    ADD CONSTRAINT notification_templates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: notifications notifications_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: notifications notifications_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.notifications
-    ADD CONSTRAINT notifications_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY notifications
+    ADD CONSTRAINT notifications_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: notifications notifications_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: notifications notifications_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.notifications
-    ADD CONSTRAINT notifications_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY notifications
+    ADD CONSTRAINT notifications_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: notifications notifications_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: notifications notifications_user_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.notifications
-    ADD CONSTRAINT notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+ALTER TABLE ONLY notifications
+    ADD CONSTRAINT notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 
 --
--- Name: payroll payroll_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: payroll payroll_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.payroll
-    ADD CONSTRAINT payroll_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY payroll
+    ADD CONSTRAINT payroll_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: payroll payroll_employee_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: payroll payroll_employee_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.payroll
-    ADD CONSTRAINT payroll_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES public.employees(id) ON DELETE CASCADE;
+ALTER TABLE ONLY payroll
+    ADD CONSTRAINT payroll_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE;
 
 
 --
--- Name: payroll payroll_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: payroll payroll_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.payroll
-    ADD CONSTRAINT payroll_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY payroll
+    ADD CONSTRAINT payroll_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: payroll payroll_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: payroll payroll_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.payroll
-    ADD CONSTRAINT payroll_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY payroll
+    ADD CONSTRAINT payroll_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: product_batches product_batches_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: product_batches product_batches_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.product_batches
-    ADD CONSTRAINT product_batches_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY product_batches
+    ADD CONSTRAINT product_batches_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: product_batches product_batches_product_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: product_batches product_batches_product_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.product_batches
-    ADD CONSTRAINT product_batches_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id) ON DELETE CASCADE;
+ALTER TABLE ONLY product_batches
+    ADD CONSTRAINT product_batches_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE;
 
 
 --
--- Name: product_batches product_batches_supplier_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: product_batches product_batches_supplier_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.product_batches
-    ADD CONSTRAINT product_batches_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES public.vendors(id);
+ALTER TABLE ONLY product_batches
+    ADD CONSTRAINT product_batches_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES vendors(id);
 
 
 --
--- Name: products products_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: products products_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.products
-    ADD CONSTRAINT products_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY products
+    ADD CONSTRAINT products_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: products products_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: products products_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.products
-    ADD CONSTRAINT products_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY products
+    ADD CONSTRAINT products_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: products products_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: products products_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.products
-    ADD CONSTRAINT products_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY products
+    ADD CONSTRAINT products_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: products products_supplier_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: products products_supplier_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.products
-    ADD CONSTRAINT products_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES public.vendors(id);
+ALTER TABLE ONLY products
+    ADD CONSTRAINT products_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES vendors(id);
 
 
 --
--- Name: profiles profiles_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: profiles profiles_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.profiles
-    ADD CONSTRAINT profiles_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY profiles
+    ADD CONSTRAINT profiles_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: profiles profiles_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: profiles profiles_user_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.profiles
-    ADD CONSTRAINT profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+ALTER TABLE ONLY profiles
+    ADD CONSTRAINT profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 
 --
--- Name: project_documents project_documents_project_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: project_documents project_documents_project_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.project_documents
-    ADD CONSTRAINT project_documents_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id) ON DELETE CASCADE;
+ALTER TABLE ONLY project_documents
+    ADD CONSTRAINT project_documents_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
 
 
 --
--- Name: project_documents project_documents_uploaded_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: project_documents project_documents_uploaded_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.project_documents
-    ADD CONSTRAINT project_documents_uploaded_by_fkey FOREIGN KEY (uploaded_by) REFERENCES public.users(id);
+ALTER TABLE ONLY project_documents
+    ADD CONSTRAINT project_documents_uploaded_by_fkey FOREIGN KEY (uploaded_by) REFERENCES users(id);
 
 
 --
--- Name: project_milestones project_milestones_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: project_milestones project_milestones_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.project_milestones
-    ADD CONSTRAINT project_milestones_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY project_milestones
+    ADD CONSTRAINT project_milestones_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: project_milestones project_milestones_project_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: project_milestones project_milestones_project_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.project_milestones
-    ADD CONSTRAINT project_milestones_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id) ON DELETE CASCADE;
+ALTER TABLE ONLY project_milestones
+    ADD CONSTRAINT project_milestones_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
 
 
 --
--- Name: project_risks project_risks_owner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: project_risks project_risks_owner_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.project_risks
-    ADD CONSTRAINT project_risks_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES public.users(id);
+ALTER TABLE ONLY project_risks
+    ADD CONSTRAINT project_risks_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id);
 
 
 --
--- Name: project_risks project_risks_project_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: project_risks project_risks_project_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.project_risks
-    ADD CONSTRAINT project_risks_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id) ON DELETE CASCADE;
+ALTER TABLE ONLY project_risks
+    ADD CONSTRAINT project_risks_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
 
 
 --
--- Name: project_tasks project_tasks_assigned_to_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: project_tasks project_tasks_assigned_to_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.project_tasks
-    ADD CONSTRAINT project_tasks_assigned_to_fkey FOREIGN KEY (assigned_to) REFERENCES public.users(id);
+ALTER TABLE ONLY project_tasks
+    ADD CONSTRAINT project_tasks_assigned_to_fkey FOREIGN KEY (assigned_to) REFERENCES users(id);
 
 
 --
--- Name: project_tasks project_tasks_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: project_tasks project_tasks_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.project_tasks
-    ADD CONSTRAINT project_tasks_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY project_tasks
+    ADD CONSTRAINT project_tasks_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: project_tasks project_tasks_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: project_tasks project_tasks_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.project_tasks
-    ADD CONSTRAINT project_tasks_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY project_tasks
+    ADD CONSTRAINT project_tasks_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: project_tasks project_tasks_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: project_tasks project_tasks_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.project_tasks
-    ADD CONSTRAINT project_tasks_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY project_tasks
+    ADD CONSTRAINT project_tasks_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: project_tasks project_tasks_parent_task_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: project_tasks project_tasks_parent_task_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.project_tasks
-    ADD CONSTRAINT project_tasks_parent_task_id_fkey FOREIGN KEY (parent_task_id) REFERENCES public.project_tasks(id);
+ALTER TABLE ONLY project_tasks
+    ADD CONSTRAINT project_tasks_parent_task_id_fkey FOREIGN KEY (parent_task_id) REFERENCES project_tasks(id);
 
 
 --
--- Name: project_tasks project_tasks_project_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: project_tasks project_tasks_project_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.project_tasks
-    ADD CONSTRAINT project_tasks_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id) ON DELETE CASCADE;
+ALTER TABLE ONLY project_tasks
+    ADD CONSTRAINT project_tasks_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
 
 
 --
--- Name: project_time_entries project_time_entries_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: project_time_entries project_time_entries_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.project_time_entries
-    ADD CONSTRAINT project_time_entries_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY project_time_entries
+    ADD CONSTRAINT project_time_entries_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: project_time_entries project_time_entries_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: project_time_entries project_time_entries_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.project_time_entries
-    ADD CONSTRAINT project_time_entries_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY project_time_entries
+    ADD CONSTRAINT project_time_entries_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: project_time_entries project_time_entries_project_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: project_time_entries project_time_entries_project_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.project_time_entries
-    ADD CONSTRAINT project_time_entries_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id) ON DELETE CASCADE;
+ALTER TABLE ONLY project_time_entries
+    ADD CONSTRAINT project_time_entries_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
 
 
 --
--- Name: project_time_entries project_time_entries_task_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: project_time_entries project_time_entries_task_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.project_time_entries
-    ADD CONSTRAINT project_time_entries_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.project_tasks(id);
+ALTER TABLE ONLY project_time_entries
+    ADD CONSTRAINT project_time_entries_task_id_fkey FOREIGN KEY (task_id) REFERENCES project_tasks(id);
 
 
 --
--- Name: project_time_entries project_time_entries_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: project_time_entries project_time_entries_user_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.project_time_entries
-    ADD CONSTRAINT project_time_entries_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+ALTER TABLE ONLY project_time_entries
+    ADD CONSTRAINT project_time_entries_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 
 --
--- Name: projects projects_client_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: projects projects_client_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.projects
-    ADD CONSTRAINT projects_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.customers(id);
+ALTER TABLE ONLY projects
+    ADD CONSTRAINT projects_client_id_fkey FOREIGN KEY (client_id) REFERENCES customers(id);
 
 
 --
--- Name: projects projects_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: projects projects_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.projects
-    ADD CONSTRAINT projects_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY projects
+    ADD CONSTRAINT projects_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: projects projects_manager_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: projects projects_manager_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.projects
-    ADD CONSTRAINT projects_manager_id_fkey FOREIGN KEY (manager_id) REFERENCES public.users(id);
+ALTER TABLE ONLY projects
+    ADD CONSTRAINT projects_manager_id_fkey FOREIGN KEY (manager_id) REFERENCES users(id);
 
 
 --
--- Name: projects projects_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: projects projects_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.projects
-    ADD CONSTRAINT projects_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY projects
+    ADD CONSTRAINT projects_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: projects projects_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: projects projects_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.projects
-    ADD CONSTRAINT projects_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY projects
+    ADD CONSTRAINT projects_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: projects projects_owner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: projects projects_owner_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.projects
-    ADD CONSTRAINT projects_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES public.users(id);
+ALTER TABLE ONLY projects
+    ADD CONSTRAINT projects_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id);
 
 
 --
--- Name: public_holidays public_holidays_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: public_holidays public_holidays_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.public_holidays
-    ADD CONSTRAINT public_holidays_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public_holidays
+    ADD CONSTRAINT public_holidays_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: purchase_order_items purchase_order_items_product_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: purchase_order_items purchase_order_items_product_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.purchase_order_items
-    ADD CONSTRAINT purchase_order_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id) ON DELETE CASCADE;
+ALTER TABLE ONLY purchase_order_items
+    ADD CONSTRAINT purchase_order_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE;
 
 
 --
--- Name: purchase_order_items purchase_order_items_purchase_order_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: purchase_order_items purchase_order_items_purchase_order_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.purchase_order_items
-    ADD CONSTRAINT purchase_order_items_purchase_order_id_fkey FOREIGN KEY (purchase_order_id) REFERENCES public.purchase_orders(id) ON DELETE CASCADE;
+ALTER TABLE ONLY purchase_order_items
+    ADD CONSTRAINT purchase_order_items_purchase_order_id_fkey FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id) ON DELETE CASCADE;
 
 
 --
--- Name: purchase_orders purchase_orders_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: purchase_orders purchase_orders_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.purchase_orders
-    ADD CONSTRAINT purchase_orders_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY purchase_orders
+    ADD CONSTRAINT purchase_orders_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: purchase_orders purchase_orders_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: purchase_orders purchase_orders_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.purchase_orders
-    ADD CONSTRAINT purchase_orders_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY purchase_orders
+    ADD CONSTRAINT purchase_orders_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: purchase_orders purchase_orders_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: purchase_orders purchase_orders_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.purchase_orders
-    ADD CONSTRAINT purchase_orders_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY purchase_orders
+    ADD CONSTRAINT purchase_orders_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: purchase_orders purchase_orders_vendor_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: purchase_orders purchase_orders_vendor_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.purchase_orders
-    ADD CONSTRAINT purchase_orders_vendor_id_fkey FOREIGN KEY (vendor_id) REFERENCES public.vendors(id) ON DELETE CASCADE;
+ALTER TABLE ONLY purchase_orders
+    ADD CONSTRAINT purchase_orders_vendor_id_fkey FOREIGN KEY (vendor_id) REFERENCES vendors(id) ON DELETE CASCADE;
 
 
 --
--- Name: purchase_orders purchase_orders_warehouse_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: purchase_orders purchase_orders_warehouse_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.purchase_orders
-    ADD CONSTRAINT purchase_orders_warehouse_id_fkey FOREIGN KEY (warehouse_id) REFERENCES public.warehouses(id);
+ALTER TABLE ONLY purchase_orders
+    ADD CONSTRAINT purchase_orders_warehouse_id_fkey FOREIGN KEY (warehouse_id) REFERENCES warehouses(id);
 
 
 --
--- Name: roles roles_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: roles roles_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.roles
-    ADD CONSTRAINT roles_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY roles
+    ADD CONSTRAINT roles_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: roles roles_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: roles roles_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.roles
-    ADD CONSTRAINT roles_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY roles
+    ADD CONSTRAINT roles_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: signing_parties signing_parties_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: signing_parties signing_parties_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.signing_parties
-    ADD CONSTRAINT signing_parties_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY signing_parties
+    ADD CONSTRAINT signing_parties_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: signing_parties signing_parties_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: signing_parties signing_parties_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.signing_parties
-    ADD CONSTRAINT signing_parties_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY signing_parties
+    ADD CONSTRAINT signing_parties_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: stock stock_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: stock stock_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.stock
-    ADD CONSTRAINT stock_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY stock
+    ADD CONSTRAINT stock_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: stock_movements stock_movements_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: stock_movements stock_movements_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.stock_movements
-    ADD CONSTRAINT stock_movements_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY stock_movements
+    ADD CONSTRAINT stock_movements_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: stock_movements stock_movements_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: stock_movements stock_movements_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.stock_movements
-    ADD CONSTRAINT stock_movements_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY stock_movements
+    ADD CONSTRAINT stock_movements_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: stock_movements stock_movements_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: stock_movements stock_movements_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.stock_movements
-    ADD CONSTRAINT stock_movements_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY stock_movements
+    ADD CONSTRAINT stock_movements_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: stock_movements stock_movements_product_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: stock_movements stock_movements_product_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.stock_movements
-    ADD CONSTRAINT stock_movements_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id) ON DELETE CASCADE;
+ALTER TABLE ONLY stock_movements
+    ADD CONSTRAINT stock_movements_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE;
 
 
 --
--- Name: stock_movements stock_movements_warehouse_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: stock_movements stock_movements_warehouse_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.stock_movements
-    ADD CONSTRAINT stock_movements_warehouse_id_fkey FOREIGN KEY (warehouse_id) REFERENCES public.warehouses(id) ON DELETE CASCADE;
+ALTER TABLE ONLY stock_movements
+    ADD CONSTRAINT stock_movements_warehouse_id_fkey FOREIGN KEY (warehouse_id) REFERENCES warehouses(id) ON DELETE CASCADE;
 
 
 --
--- Name: stock stock_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: stock stock_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.stock
-    ADD CONSTRAINT stock_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY stock
+    ADD CONSTRAINT stock_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: stock stock_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: stock stock_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.stock
-    ADD CONSTRAINT stock_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY stock
+    ADD CONSTRAINT stock_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: stock stock_product_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: stock stock_product_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.stock
-    ADD CONSTRAINT stock_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id) ON DELETE CASCADE;
+ALTER TABLE ONLY stock
+    ADD CONSTRAINT stock_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE;
 
 
 --
--- Name: stock stock_warehouse_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: stock stock_warehouse_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.stock
-    ADD CONSTRAINT stock_warehouse_id_fkey FOREIGN KEY (warehouse_id) REFERENCES public.warehouses(id) ON DELETE CASCADE;
+ALTER TABLE ONLY stock
+    ADD CONSTRAINT stock_warehouse_id_fkey FOREIGN KEY (warehouse_id) REFERENCES warehouses(id) ON DELETE CASCADE;
 
 
 --
--- Name: user_roles user_roles_role_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: user_roles user_roles_role_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.user_roles
-    ADD CONSTRAINT user_roles_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id) ON DELETE CASCADE;
+ALTER TABLE ONLY user_roles
+    ADD CONSTRAINT user_roles_role_id_fkey FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE;
 
 
 --
--- Name: user_roles user_roles_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: user_roles user_roles_user_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.user_roles
-    ADD CONSTRAINT user_roles_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+ALTER TABLE ONLY user_roles
+    ADD CONSTRAINT user_roles_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 
 --
--- Name: users users_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: users users_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.users
-    ADD CONSTRAINT users_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY users
+    ADD CONSTRAINT users_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: users users_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: users users_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.users
-    ADD CONSTRAINT users_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY users
+    ADD CONSTRAINT users_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: vendors vendors_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: vendors vendors_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.vendors
-    ADD CONSTRAINT vendors_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY vendors
+    ADD CONSTRAINT vendors_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: vendors vendors_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: vendors vendors_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.vendors
-    ADD CONSTRAINT vendors_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY vendors
+    ADD CONSTRAINT vendors_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: vendors vendors_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: vendors vendors_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.vendors
-    ADD CONSTRAINT vendors_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY vendors
+    ADD CONSTRAINT vendors_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: warehouses warehouses_manager_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: warehouses warehouses_manager_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.warehouses
-    ADD CONSTRAINT warehouses_manager_id_fkey FOREIGN KEY (manager_id) REFERENCES public.users(id);
+ALTER TABLE ONLY warehouses
+    ADD CONSTRAINT warehouses_manager_id_fkey FOREIGN KEY (manager_id) REFERENCES users(id);
 
 
 --
--- Name: warehouses warehouses_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: warehouses warehouses_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.warehouses
-    ADD CONSTRAINT warehouses_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY warehouses
+    ADD CONSTRAINT warehouses_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: warehouses warehouses_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: warehouses warehouses_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.warehouses
-    ADD CONSTRAINT warehouses_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY warehouses
+    ADD CONSTRAINT warehouses_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: workflow_actions workflow_actions_workflow_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workflow_actions workflow_actions_workflow_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workflow_actions
-    ADD CONSTRAINT workflow_actions_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workflow_actions
+    ADD CONSTRAINT workflow_actions_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES workflows(id) ON DELETE CASCADE;
 
 
 --
--- Name: workflow_execution_steps workflow_execution_steps_action_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workflow_execution_steps workflow_execution_steps_action_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workflow_execution_steps
-    ADD CONSTRAINT workflow_execution_steps_action_id_fkey FOREIGN KEY (action_id) REFERENCES public.workflow_actions(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workflow_execution_steps
+    ADD CONSTRAINT workflow_execution_steps_action_id_fkey FOREIGN KEY (action_id) REFERENCES workflow_actions(id) ON DELETE CASCADE;
 
 
 --
--- Name: workflow_execution_steps workflow_execution_steps_execution_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workflow_execution_steps workflow_execution_steps_execution_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workflow_execution_steps
-    ADD CONSTRAINT workflow_execution_steps_execution_id_fkey FOREIGN KEY (execution_id) REFERENCES public.workflow_executions(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workflow_execution_steps
+    ADD CONSTRAINT workflow_execution_steps_execution_id_fkey FOREIGN KEY (execution_id) REFERENCES workflow_executions(id) ON DELETE CASCADE;
 
 
 --
--- Name: workflow_executions workflow_executions_workflow_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workflow_executions workflow_executions_workflow_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workflow_executions
-    ADD CONSTRAINT workflow_executions_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflows(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workflow_executions
+    ADD CONSTRAINT workflow_executions_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES workflows(id) ON DELETE CASCADE;
 
 
 --
--- Name: workflows workflows_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workflows workflows_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workflows
-    ADD CONSTRAINT workflows_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY workflows
+    ADD CONSTRAINT workflows_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: workflows workflows_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workflows workflows_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workflows
-    ADD CONSTRAINT workflows_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workflows
+    ADD CONSTRAINT workflows_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: workflows workflows_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workflows workflows_organization_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workflows
-    ADD CONSTRAINT workflows_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workflows
+    ADD CONSTRAINT workflows_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: workgroup_activities workgroup_activities_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_activities workgroup_activities_user_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_activities
-    ADD CONSTRAINT workgroup_activities_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+ALTER TABLE ONLY workgroup_activities
+    ADD CONSTRAINT workgroup_activities_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;
 
 
 --
--- Name: workgroup_activities workgroup_activities_workgroup_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_activities workgroup_activities_workgroup_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_activities
-    ADD CONSTRAINT workgroup_activities_workgroup_id_fkey FOREIGN KEY (workgroup_id) REFERENCES public.workgroups(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workgroup_activities
+    ADD CONSTRAINT workgroup_activities_workgroup_id_fkey FOREIGN KEY (workgroup_id) REFERENCES workgroups(id) ON DELETE CASCADE;
 
 
 --
--- Name: workgroup_channels workgroup_channels_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_channels workgroup_channels_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_channels
-    ADD CONSTRAINT workgroup_channels_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY workgroup_channels
+    ADD CONSTRAINT workgroup_channels_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: workgroup_channels workgroup_channels_workgroup_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_channels workgroup_channels_workgroup_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_channels
-    ADD CONSTRAINT workgroup_channels_workgroup_id_fkey FOREIGN KEY (workgroup_id) REFERENCES public.workgroups(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workgroup_channels
+    ADD CONSTRAINT workgroup_channels_workgroup_id_fkey FOREIGN KEY (workgroup_id) REFERENCES workgroups(id) ON DELETE CASCADE;
 
 
 --
--- Name: workgroup_files workgroup_files_channel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_files workgroup_files_channel_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_files
-    ADD CONSTRAINT workgroup_files_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.workgroup_channels(id) ON DELETE SET NULL;
+ALTER TABLE ONLY workgroup_files
+    ADD CONSTRAINT workgroup_files_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES workgroup_channels(id) ON DELETE SET NULL;
 
 
 --
--- Name: workgroup_files workgroup_files_post_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_files workgroup_files_post_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_files
-    ADD CONSTRAINT workgroup_files_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.workgroup_posts(id) ON DELETE SET NULL;
+ALTER TABLE ONLY workgroup_files
+    ADD CONSTRAINT workgroup_files_post_id_fkey FOREIGN KEY (post_id) REFERENCES workgroup_posts(id) ON DELETE SET NULL;
 
 
 --
--- Name: workgroup_files workgroup_files_uploaded_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_files workgroup_files_uploaded_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_files
-    ADD CONSTRAINT workgroup_files_uploaded_by_fkey FOREIGN KEY (uploaded_by) REFERENCES public.users(id);
+ALTER TABLE ONLY workgroup_files
+    ADD CONSTRAINT workgroup_files_uploaded_by_fkey FOREIGN KEY (uploaded_by) REFERENCES users(id);
 
 
 --
--- Name: workgroup_files workgroup_files_workgroup_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_files workgroup_files_workgroup_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_files
-    ADD CONSTRAINT workgroup_files_workgroup_id_fkey FOREIGN KEY (workgroup_id) REFERENCES public.workgroups(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workgroup_files
+    ADD CONSTRAINT workgroup_files_workgroup_id_fkey FOREIGN KEY (workgroup_id) REFERENCES workgroups(id) ON DELETE CASCADE;
 
 
 --
--- Name: workgroup_meeting_participants workgroup_meeting_participants_meeting_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_meeting_participants workgroup_meeting_participants_meeting_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_meeting_participants
-    ADD CONSTRAINT workgroup_meeting_participants_meeting_id_fkey FOREIGN KEY (meeting_id) REFERENCES public.workgroup_meetings(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workgroup_meeting_participants
+    ADD CONSTRAINT workgroup_meeting_participants_meeting_id_fkey FOREIGN KEY (meeting_id) REFERENCES workgroup_meetings(id) ON DELETE CASCADE;
 
 
 --
--- Name: workgroup_meeting_participants workgroup_meeting_participants_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_meeting_participants workgroup_meeting_participants_user_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_meeting_participants
-    ADD CONSTRAINT workgroup_meeting_participants_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workgroup_meeting_participants
+    ADD CONSTRAINT workgroup_meeting_participants_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 
 --
--- Name: workgroup_meetings workgroup_meetings_channel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_meetings workgroup_meetings_channel_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_meetings
-    ADD CONSTRAINT workgroup_meetings_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.workgroup_channels(id) ON DELETE SET NULL;
+ALTER TABLE ONLY workgroup_meetings
+    ADD CONSTRAINT workgroup_meetings_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES workgroup_channels(id) ON DELETE SET NULL;
 
 
 --
--- Name: workgroup_meetings workgroup_meetings_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_meetings workgroup_meetings_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_meetings
-    ADD CONSTRAINT workgroup_meetings_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY workgroup_meetings
+    ADD CONSTRAINT workgroup_meetings_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: workgroup_meetings workgroup_meetings_workgroup_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_meetings workgroup_meetings_workgroup_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_meetings
-    ADD CONSTRAINT workgroup_meetings_workgroup_id_fkey FOREIGN KEY (workgroup_id) REFERENCES public.workgroups(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workgroup_meetings
+    ADD CONSTRAINT workgroup_meetings_workgroup_id_fkey FOREIGN KEY (workgroup_id) REFERENCES workgroups(id) ON DELETE CASCADE;
 
 
 --
--- Name: workgroup_members workgroup_members_invited_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_members workgroup_members_invited_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_members
-    ADD CONSTRAINT workgroup_members_invited_by_fkey FOREIGN KEY (invited_by) REFERENCES public.users(id);
+ALTER TABLE ONLY workgroup_members
+    ADD CONSTRAINT workgroup_members_invited_by_fkey FOREIGN KEY (invited_by) REFERENCES users(id);
 
 
 --
--- Name: workgroup_members workgroup_members_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_members workgroup_members_user_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_members
-    ADD CONSTRAINT workgroup_members_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workgroup_members
+    ADD CONSTRAINT workgroup_members_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 
 --
--- Name: workgroup_members workgroup_members_workgroup_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_members workgroup_members_workgroup_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_members
-    ADD CONSTRAINT workgroup_members_workgroup_id_fkey FOREIGN KEY (workgroup_id) REFERENCES public.workgroups(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workgroup_members
+    ADD CONSTRAINT workgroup_members_workgroup_id_fkey FOREIGN KEY (workgroup_id) REFERENCES workgroups(id) ON DELETE CASCADE;
 
 
 --
--- Name: workgroup_notifications workgroup_notifications_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_notifications workgroup_notifications_user_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_notifications
-    ADD CONSTRAINT workgroup_notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workgroup_notifications
+    ADD CONSTRAINT workgroup_notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 
 --
--- Name: workgroup_posts workgroup_posts_channel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_posts workgroup_posts_channel_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_posts
-    ADD CONSTRAINT workgroup_posts_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.workgroup_channels(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workgroup_posts
+    ADD CONSTRAINT workgroup_posts_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES workgroup_channels(id) ON DELETE CASCADE;
 
 
 --
--- Name: workgroup_posts workgroup_posts_parent_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_posts workgroup_posts_parent_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_posts
-    ADD CONSTRAINT workgroup_posts_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.workgroup_posts(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workgroup_posts
+    ADD CONSTRAINT workgroup_posts_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES workgroup_posts(id) ON DELETE CASCADE;
 
 
 --
--- Name: workgroup_posts workgroup_posts_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_posts workgroup_posts_user_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_posts
-    ADD CONSTRAINT workgroup_posts_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workgroup_posts
+    ADD CONSTRAINT workgroup_posts_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 
 --
--- Name: workgroup_posts workgroup_posts_workgroup_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_posts workgroup_posts_workgroup_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_posts
-    ADD CONSTRAINT workgroup_posts_workgroup_id_fkey FOREIGN KEY (workgroup_id) REFERENCES public.workgroups(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workgroup_posts
+    ADD CONSTRAINT workgroup_posts_workgroup_id_fkey FOREIGN KEY (workgroup_id) REFERENCES workgroups(id) ON DELETE CASCADE;
 
 
 --
--- Name: workgroup_wiki workgroup_wiki_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_wiki workgroup_wiki_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_wiki
-    ADD CONSTRAINT workgroup_wiki_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY workgroup_wiki
+    ADD CONSTRAINT workgroup_wiki_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: workgroup_wiki_pages workgroup_wiki_pages_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_wiki_pages workgroup_wiki_pages_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_wiki_pages
-    ADD CONSTRAINT workgroup_wiki_pages_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY workgroup_wiki_pages
+    ADD CONSTRAINT workgroup_wiki_pages_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: workgroup_wiki_pages workgroup_wiki_pages_last_modified_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_wiki_pages workgroup_wiki_pages_last_modified_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_wiki_pages
-    ADD CONSTRAINT workgroup_wiki_pages_last_modified_by_fkey FOREIGN KEY (last_modified_by) REFERENCES public.users(id);
+ALTER TABLE ONLY workgroup_wiki_pages
+    ADD CONSTRAINT workgroup_wiki_pages_last_modified_by_fkey FOREIGN KEY (last_modified_by) REFERENCES users(id);
 
 
 --
--- Name: workgroup_wiki_pages workgroup_wiki_pages_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_wiki_pages workgroup_wiki_pages_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_wiki_pages
-    ADD CONSTRAINT workgroup_wiki_pages_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workgroup_wiki_pages
+    ADD CONSTRAINT workgroup_wiki_pages_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 --
--- Name: workgroup_wiki_pages workgroup_wiki_pages_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_wiki_pages workgroup_wiki_pages_user_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_wiki_pages
-    ADD CONSTRAINT workgroup_wiki_pages_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workgroup_wiki_pages
+    ADD CONSTRAINT workgroup_wiki_pages_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 
 --
--- Name: workgroup_wiki_pages workgroup_wiki_pages_workgroup_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_wiki_pages workgroup_wiki_pages_workgroup_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_wiki_pages
-    ADD CONSTRAINT workgroup_wiki_pages_workgroup_id_fkey FOREIGN KEY (workgroup_id) REFERENCES public.workgroups(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workgroup_wiki_pages
+    ADD CONSTRAINT workgroup_wiki_pages_workgroup_id_fkey FOREIGN KEY (workgroup_id) REFERENCES workgroups(id) ON DELETE CASCADE;
 
 
 --
--- Name: workgroup_wiki workgroup_wiki_parent_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_wiki workgroup_wiki_parent_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_wiki
-    ADD CONSTRAINT workgroup_wiki_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.workgroup_wiki(id);
+ALTER TABLE ONLY workgroup_wiki
+    ADD CONSTRAINT workgroup_wiki_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES workgroup_wiki(id);
 
 
 --
--- Name: workgroup_wiki workgroup_wiki_updated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroup_wiki workgroup_wiki_updated_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroup_wiki
-    ADD CONSTRAINT workgroup_wiki_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id);
+ALTER TABLE ONLY workgroup_wiki
+    ADD CONSTRAINT workgroup_wiki_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id);
 
 
 --
--- Name: workgroups workgroups_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroups workgroups_created_by_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroups
-    ADD CONSTRAINT workgroups_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+ALTER TABLE ONLY workgroups
+    ADD CONSTRAINT workgroups_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 
 --
--- Name: workgroups workgroups_org_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: workgroups workgroups_org_id_fkey; Type: FK CONSTRAINT; Schema: public
 --
 
-ALTER TABLE ONLY public.workgroups
-    ADD CONSTRAINT workgroups_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workgroups
+    ADD CONSTRAINT workgroups_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 
 -- 
@@ -7803,7 +7674,7 @@ ALTER TABLE ONLY public.workgroups
 -- 
 
 CREATE TABLE IF NOT EXISTS project_templates (
-    id UUID PRIMARY KEY DEFAULT public.uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
     org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
@@ -7826,13 +7697,13 @@ CREATE TRIGGER update_project_templates_updated_at
 
 
 --
--- Name: project_invoices; Type: TABLE; Schema: public; Owner: postgres
+-- Name: project_invoices; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.project_invoices (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL PRIMARY KEY,
-    org_id uuid NOT NULL REFERENCES public.organizations(id),
-    project_id uuid NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS project_invoices (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL PRIMARY KEY,
+    org_id uuid NOT NULL REFERENCES organizations(id),
+    project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     invoice_number character varying(255) NOT NULL,
     amount numeric(15,2) NOT NULL,
     currency character varying(10) DEFAULT 'USD',
@@ -7841,20 +7712,20 @@ CREATE TABLE IF NOT EXISTS public.project_invoices (
     due_date date,
     paid_date date,
     description text,
-    created_by uuid REFERENCES public.users(id),
+    created_by uuid REFERENCES users(id),
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
 );
 
 --
--- Name: project_notifications; Type: TABLE; Schema: public; Owner: postgres
+-- Name: project_notifications; Type: TABLE; Schema: public
 --
 
-CREATE TABLE IF NOT EXISTS public.project_notifications (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS project_notifications (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL PRIMARY KEY,
     org_id uuid NOT NULL,
-    project_id uuid REFERENCES public.projects(id) ON DELETE CASCADE,
-    user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    project_id uuid REFERENCES projects(id) ON DELETE CASCADE,
+    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     title character varying(255) NOT NULL,
     message text,
     type character varying(50) DEFAULT 'info' CHECK (type IN ('info', 'warning', 'success', 'error')),
@@ -7864,14 +7735,14 @@ CREATE TABLE IF NOT EXISTS public.project_notifications (
     data jsonb DEFAULT '{}'::jsonb
 );
 
-CREATE INDEX idx_project_invoices_project_id ON public.project_invoices(project_id);
-CREATE INDEX idx_project_invoices_org_id ON public.project_invoices(org_id);
-CREATE INDEX idx_project_notifications_user_project ON public.project_notifications(user_id, project_id);
+CREATE INDEX idx_project_invoices_project_id ON project_invoices(project_id);
+CREATE INDEX idx_project_invoices_org_id ON project_invoices(org_id);
+CREATE INDEX idx_project_notifications_user_project ON project_notifications(user_id, project_id);
 
 CREATE TRIGGER update_project_invoices_updated_at
-    BEFORE UPDATE ON public.project_invoices
+    BEFORE UPDATE ON project_invoices
     FOR EACH ROW
-    EXECUTE FUNCTION public.update_updated_at_column();
+    EXECUTE FUNCTION update_updated_at_column();
 
 
 -- Car Inventory Management System
@@ -7884,7 +7755,6 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- ============================================================================
 -- 1. CAR WORKSPACES TABLE
 -- ============================================================================
-DROP TABLE IF EXISTS car_workspaces CASCADE;
 CREATE TABLE IF NOT EXISTS car_workspaces (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id uuid NOT NULL,
@@ -7913,7 +7783,6 @@ CREATE INDEX idx_car_workspaces_admin ON car_workspaces(admin_id);
 -- ============================================================================
 -- 2. CAR INVENTORY TABLE
 -- ============================================================================
-DROP TABLE IF EXISTS car_inventory CASCADE;
 CREATE TABLE IF NOT EXISTS car_inventory (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id uuid NOT NULL,
@@ -8009,7 +7878,6 @@ CREATE INDEX idx_car_inventory_stock ON car_inventory(stock_number);
 -- ============================================================================
 -- 3. CAR DOCUMENTS TABLE
 -- ============================================================================
-DROP TABLE IF EXISTS car_documents CASCADE;
 CREATE TABLE IF NOT EXISTS car_documents (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id uuid NOT NULL,
@@ -8032,7 +7900,6 @@ CREATE INDEX idx_car_documents_type ON car_documents(document_type);
 -- ============================================================================
 -- 4. CAR INQUIRIES TABLE
 -- ============================================================================
-DROP TABLE IF EXISTS car_inquiries CASCADE;
 CREATE TABLE IF NOT EXISTS car_inquiries (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id uuid NOT NULL,
@@ -8074,7 +7941,6 @@ CREATE INDEX idx_car_inquiries_assigned ON car_inquiries(assigned_to);
 -- ============================================================================
 -- 5. CAR TEST DRIVES TABLE
 -- ============================================================================
-DROP TABLE IF EXISTS car_test_drives CASCADE;
 CREATE TABLE IF NOT EXISTS car_test_drives (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id uuid NOT NULL,
@@ -8125,7 +7991,6 @@ CREATE INDEX idx_car_test_drives_status ON car_test_drives(status);
 -- ============================================================================
 -- 6. CAR SALES TABLE
 -- ============================================================================
-DROP TABLE IF EXISTS car_sales CASCADE;
 CREATE TABLE IF NOT EXISTS car_sales (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id uuid NOT NULL,
@@ -8195,7 +8060,6 @@ CREATE INDEX idx_car_sales_status ON car_sales(payment_status);
 -- ============================================================================
 -- 7. CAR SERVICE HISTORY TABLE
 -- ============================================================================
-DROP TABLE IF EXISTS car_service_history CASCADE;
 CREATE TABLE IF NOT EXISTS car_service_history (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id uuid NOT NULL,
@@ -8224,7 +8088,6 @@ CREATE INDEX idx_car_service_date ON car_service_history(service_date);
 -- ============================================================================
 -- 8. CAR WORKSPACE MEMBERS TABLE
 -- ============================================================================
-DROP TABLE IF EXISTS car_workspace_members CASCADE;
 CREATE TABLE IF NOT EXISTS car_workspace_members (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   workspace_id uuid NOT NULL REFERENCES car_workspaces(id) ON DELETE CASCADE,
@@ -8242,7 +8105,6 @@ CREATE INDEX idx_car_workspace_members_user ON car_workspace_members(user_id);
 -- ============================================================================
 -- 9. CAR ACTIVITY LOG TABLE
 -- ============================================================================
-DROP TABLE IF EXISTS car_activity_log CASCADE;
 CREATE TABLE IF NOT EXISTS car_activity_log (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id uuid NOT NULL,
@@ -8317,20 +8179,6 @@ COMMENT ON TABLE car_sales IS 'Completed car sales transactions';
 COMMENT ON TABLE car_service_history IS 'Service and maintenance history for each car';
 COMMENT ON TABLE car_workspace_members IS 'Users assigned to specific workspaces';
 COMMENT ON TABLE car_activity_log IS 'Activity tracking for audit trail';
-
-
-
-
-
-
-
---
--- PostgreSQL database dump complete
---
-
-\unrestrict 6nAeLpWtRPQc2gVIjb1HB4J8nR28v4eXgw2Pb1PtmBToqw9vYXRrVUdAFniLluf
-
-
 
 -- =====================================================
 -- RECRUITMENT MANAGEMENT SYSTEM TABLES
@@ -8573,19 +8421,6 @@ COMMENT ON TABLE candidate_timeline IS 'Activity log for candidate journey';
 -- =====================================================
 -- ADVANCED RECRUITMENT FEATURES
 -- =====================================================
--- Added: 2026-04-09T14:47:37.670Z
--- Description: Advanced recruitment features including:
---   - Offer Management System
---   - Candidate Scoring & Ranking
---   - Talent Pool Management
---   - Job Templates
---   - Background Verification
---   - Recruitment Analytics
--- =====================================================
-
--- Advanced Recruitment Features Migration
--- Migration: 20260409_add_advanced_recruitment_features.sql
--- Adds: Offer Management, Candidate Scoring, Talent Pool, Job Templates, Background Verification
 
 -- =====================================================
 -- 1. OFFER MANAGEMENT SYSTEM
@@ -8979,38 +8814,30 @@ COMMENT ON TABLE recruitment_metrics IS 'Analytics and KPI tracking for recruitm
 -- DEFAULT DATA SETUP
 -- =====================================================
 
--- Insert Default Scoring Criteria
-INSERT INTO scoring_criteria (criteria_name, category, description, max_score, weight_percentage, organization_id) VALUES
-('Technical Skills', 'technical', 'Assessment of job-specific technical competencies', 100, 30.00, NULL),
-('Communication Skills', 'behavioral', 'Verbal and written communication effectiveness', 100, 20.00, NULL),
-('Problem Solving', 'behavioral', 'Analytical thinking and problem resolution abilities', 100, 25.00, NULL),
-('Cultural Fit', 'behavioral', 'Alignment with company values and team dynamics', 100, 15.00, NULL),
-('Experience Relevance', 'experience', 'Relevance and depth of previous work experience', 100, 10.00, NULL);
+-- -- Insert Default Scoring Criteria
+-- INSERT INTO scoring_criteria (criteria_name, category, description, max_score, weight_percentage, organization_id) VALUES
+-- ('Technical Skills', 'technical', 'Assessment of job-specific technical competencies', 100, 30.00, NULL),
+-- ('Communication Skills', 'behavioral', 'Verbal and written communication effectiveness', 100, 20.00, NULL),
+-- ('Problem Solving', 'behavioral', 'Analytical thinking and problem resolution abilities', 100, 25.00, NULL),
+-- ('Cultural Fit', 'behavioral', 'Alignment with company values and team dynamics', 100, 15.00, NULL),
+-- ('Experience Relevance', 'experience', 'Relevance and depth of previous work experience', 100, 10.00, NULL);
 
--- Insert Default Background Check Types
-INSERT INTO background_check_types (check_type_name, check_category, description, is_mandatory, typical_duration_days) VALUES
-('Education Verification', 'education', 'Verify educational qualifications and degrees', true, 5),
-('Employment History', 'employment', 'Verify previous employment and references', true, 7),
-('Identity Verification', 'identity', 'Verify identity documents (CNIC, Passport)', true, 2),
-('Reference Check', 'reference', 'Contact and verify professional references', false, 3),
-('Criminal Background', 'criminal', 'Check for criminal history and legal issues', false, 10);
+-- -- Insert Default Background Check Types
+-- INSERT INTO background_check_types (check_type_name, check_category, description, is_mandatory, typical_duration_days) VALUES
+-- ('Education Verification', 'education', 'Verify educational qualifications and degrees', true, 5),
+-- ('Employment History', 'employment', 'Verify previous employment and references', true, 7),
+-- ('Identity Verification', 'identity', 'Verify identity documents (CNIC, Passport)', true, 2),
+-- ('Reference Check', 'reference', 'Contact and verify professional references', false, 3),
+-- ('Criminal Background', 'criminal', 'Check for criminal history and legal issues', false, 10);
 
--- Insert Default Recruitment Sources
-INSERT INTO recruitment_sources (source_name, source_type, source_url) VALUES
-('LinkedIn', 'social_media', 'https://linkedin.com'),
-('Indeed', 'job_board', 'https://indeed.com'),
-('Employee Referral', 'referral', NULL),
-('Company Website', 'direct', NULL),
-('University Campus', 'direct', NULL),
-('Recruitment Agency', 'agency', NULL);
-
-ALTER TABLE public.calendar_events 
-    ADD COLUMN external_calendar_id VARCHAR(255),
-    ADD COLUMN external_provider VARCHAR(50);
-
-ALTER TABLE public.calendar_events 
-    ADD CONSTRAINT calendar_events_external_id_unique UNIQUE(external_calendar_id);
-
+-- -- Insert Default Recruitment Sources
+-- INSERT INTO recruitment_sources (source_name, source_type, source_url) VALUES
+-- ('LinkedIn', 'social_media', 'https://linkedin.com'),
+-- ('Indeed', 'job_board', 'https://indeed.com'),
+-- ('Employee Referral', 'referral', NULL),
+-- ('Company Website', 'direct', NULL),
+-- ('University Campus', 'direct', NULL),
+-- ('Recruitment Agency', 'agency', NULL);
 
 
 -- RingCentral OAuth Tokens (per-user)
@@ -9043,29 +8870,6 @@ CREATE TABLE IF NOT EXISTS ringcentral_webhooks (
   expires_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
-
-
-
--- Migration: Add RingCentral telephony fields and SMS logs table
--- Run against database: CRM
-
--- Enhance call_logs with RC-specific and entity association fields
-ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS lead_id uuid;
-ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS deal_id uuid;
-ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS company_id uuid;
-ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS entity_type varchar(50);
-ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS entity_id uuid;
-ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS provider varchar(50) DEFAULT 'ringcentral';
-ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS rc_session_id varchar(255);
-ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS rc_call_id varchar(255);
-ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS call_result varchar(100);
-ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS transcript text;
-ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS ai_summary text;
-ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS ai_recap text;
-ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS from_name varchar(255);
-ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS to_name varchar(255);
-ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS from_number varchar(50);
-ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS to_number varchar(50);
 
 -- SMS logs table
 CREATE TABLE IF NOT EXISTS sms_logs (
@@ -9150,11 +8954,102 @@ CREATE TABLE IF NOT EXISTS instantly_webhook_health (
   UNIQUE(org_id)
 );
 
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_instantly_events_org ON instantly_unibox_events(org_id);
 CREATE INDEX IF NOT EXISTS idx_instantly_events_processed ON instantly_unibox_events(processed);
 CREATE INDEX IF NOT EXISTS idx_instantly_events_sender ON instantly_unibox_events(sender_email);
 
+-- Create project_shares table for sharing projects with external clients
+CREATE TABLE IF NOT EXISTS project_shares (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    share_token VARCHAR(255) NOT NULL UNIQUE,
+    client_name VARCHAR(255),
+    client_email VARCHAR(255),
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_project_shares_org FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE,
+    CONSTRAINT fk_project_shares_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+
+-- Create index for faster lookups
+CREATE INDEX IF NOT EXISTS idx_project_shares_project_id ON project_shares(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_shares_token ON project_shares(share_token);
+CREATE INDEX IF NOT EXISTS idx_project_shares_org_id ON project_shares(org_id);
+
+-- Add comment
+COMMENT ON TABLE project_shares IS 'Stores shareable links for projects to share with external clients';
+
+
+
+-- 5. Auto-cleanup Trigger
+CREATE OR REPLACE FUNCTION prune_old_notifications() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  DELETE FROM notifications
+  WHERE target_user_id = NEW.target_user_id
+    AND id NOT IN (
+      SELECT id FROM notifications
+      WHERE target_user_id = NEW.target_user_id
+      ORDER BY created_at DESC
+      LIMIT 200
+    );
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_prune_notifications ON notifications;
+CREATE TRIGGER trg_prune_notifications
+  AFTER INSERT ON notifications
+  FOR EACH ROW EXECUTE FUNCTION prune_old_notifications();
+
+
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+      user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      org_id uuid NOT NULL,
+      endpoint text NOT NULL UNIQUE,
+      p256dh text NOT NULL,
+      auth text NOT NULL,
+      created_at timestamptz DEFAULT CURRENT_TIMESTAMP,
+      updated_at timestamptz DEFAULT CURRENT_TIMESTAMP
+    );
+
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id ON push_subscriptions(user_id);
+
+
+-- Create email_crm_links table to track connections between emails and CRM entities
+CREATE TABLE IF NOT EXISTS public.email_crm_links (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    org_id uuid REFERENCES organizations(id) ON DELETE CASCADE,
+    email_id uuid REFERENCES emails(id) ON DELETE CASCADE,
+    entity_type character varying(50) NOT NULL, -- 'contact', 'lead', 'deal', 'company'
+    entity_id uuid NOT NULL,
+    link_type character varying(50) DEFAULT 'converted', -- 'converted', 'manually_linked'
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(email_id, entity_type, entity_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_crm_links_email_id ON email_crm_links(email_id);
+CREATE INDEX IF NOT EXISTS idx_email_crm_links_entity ON email_crm_links(entity_type, entity_id);
+
+-- Create password reset tokens table
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token UUID NOT NULL UNIQUE,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id)
+);
+
+-- Create index for faster lookups
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON password_reset_tokens(token);
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expires_at ON password_reset_tokens(expires_at);
 
 
 -- =====================================================

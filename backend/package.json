@@ -35,6 +35,7 @@
     "socket.io": "^4.8.3",
     "tsdav": "^2.1.8",
     "uuid": "^9.0.1",
+    "web-push": "^3.6.7",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

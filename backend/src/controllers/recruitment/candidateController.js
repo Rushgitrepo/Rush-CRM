@@ -1,6 +1,7 @@
 const db = require('../../config/database');
 const Joi = require('joi');
 const nodemailer = require('nodemailer');
+const notificationService = require('../../services/notificationService');
 
 // Email configuration
 const transporter = nodemailer.createTransport({
@@ -505,18 +506,17 @@ exports.updateCandidateStatus = async (req, res) => {
       return res.status(404).json({ error: 'Candidate not found' });
     }
 
-    // Add timeline entry
-    await db.query(
-      `INSERT INTO candidate_timeline (
-        candidate_id, activity_type, description, performed_by, performed_by_name
-      ) VALUES ($1, $2, $3, $4, $5)`,
-      [
-        id,
-        status,
-        `Status changed to ${status}`,
-        req.user.id,
-        req.user.full_name
-      ]
+    // Notify organization admins about the status change
+    const admins = await notificationService.getOrgAdmins(organizationId);
+    notificationService.notify(
+      organizationId,
+      admins,
+      'candidate_status_changed',
+      'Candidate Status Updated',
+      `Candidate "${result.rows[0].full_name}" is now ${status.replace('_', ' ')}`,
+      `/recruitment/candidates/${id}`,
+      req.user.id,
+      { candidateId: id, status }
     );
 
     res.json({
@@ -880,7 +880,7 @@ exports.submitPublicApplicationForm = async (req, res) => {
         current_salary = $16,
         expected_salary = $17,
         joining_availability = $18,
-        status = 'form_completed',
+        status = 'form_generated',
         updated_at = NOW()
       WHERE id = $19`,
       [
@@ -919,5 +919,68 @@ exports.submitPublicApplicationForm = async (req, res) => {
   } catch (error) {
     console.error('Error submitting application form:', error);
     res.status(500).json({ error: 'Failed to submit application form' });
+  }
+};
+
+// Download CV
+exports.downloadCV = async (req, res) => {
+  console.log('=== Download CV Request ===');
+  console.log('Params:', req.params);
+  console.log('User:', req.user);
+  
+  try {
+    const { id } = req.params;
+    const organizationId = req.user.orgId;
+
+    let query = 'SELECT cv_url, full_name FROM candidates WHERE id = $1';
+    const params = [id];
+
+    if (organizationId) {
+      query += ' AND organization_id = $2';
+      params.push(organizationId);
+    }
+
+    console.log('Query:', query);
+    console.log('Query params:', params);
+
+    const result = await db.query(query, params);
+
+    console.log('Query result rows:', result.rows.length);
+
+    if (result.rows.length === 0) {
+      console.log('Candidate not found');
+      return res.status(404).json({ error: 'Candidate not found' });
+    }
+
+    const candidate = result.rows[0];
+    console.log('Candidate:', candidate);
+
+    if (!candidate.cv_url) {
+      console.log('No CV URL');
+      return res.status(404).json({ error: 'CV not found for this candidate' });
+    }
+
+    const path = require('path');
+    const fs = require('fs');
+    // cv_url is like '/uploads/cvs/filename.pdf'
+    const relativePath = candidate.cv_url.startsWith('/') ? candidate.cv_url.substring(1) : candidate.cv_url;
+    const filePath = path.join(__dirname, '../../../public/', relativePath);
+
+    console.log('File path:', filePath);
+    console.log('File exists:', fs.existsSync(filePath));
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'CV file not found on server' });
+    }
+
+    const fileName = path.basename(filePath);
+    const ext = path.extname(fileName);
+    const downloadName = `${candidate.full_name.replace(/\s+/g, '_')}_CV${ext}`;
+
+    console.log('Sending file:', downloadName);
+    res.download(filePath, downloadName);
+  } catch (error) {
+    console.error('Error downloading CV:', error);
+    res.status(500).json({ error: 'Failed to download CV' });
   }
 };

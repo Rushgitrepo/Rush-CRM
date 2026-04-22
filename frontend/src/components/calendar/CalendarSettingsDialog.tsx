@@ -195,7 +195,7 @@ export function CalendarSettingsDialog({ open, onOpenChange }: CalendarSettingsD
         {/* Footer Buttons */}
         <div className="flex items-center gap-3 pt-4 border-t">
           <Button 
-            className="bg-success hover:bg-success/90 text-success-foreground"
+            className="bg-primary hover:bg-primary/90 text-success-foreground"
             onClick={handleSave}
           >
             SAVE

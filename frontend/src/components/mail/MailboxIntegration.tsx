@@ -26,29 +26,29 @@ const providers = [
       </svg>
     ),
   },
-  {
-    id: "outlook",
-    name: "Outlook",
-    authType: "oauth" as const,
-    color: "#0078D4",
-    icon: (
-      <div className="w-10 h-10 rounded-lg bg-[#0078D4] flex items-center justify-center">
-        <span className="text-white font-bold text-xl italic">O</span>
-      </div>
-    ),
-  },
-  {
-    id: "icloud",
-    name: "iCloud Mail",
-    authType: "password" as const,
-    color: "#3693F5",
-    subtitle: "Secure Connect",
-    icon: (
-      <svg viewBox="0 0 24 24" className="w-10 h-10" fill="#3693F5">
-        <path d="M19.35 10.04A7.49 7.49 0 0012 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 000 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" />
-      </svg>
-    ),
-  },
+  // {
+  //   id: "outlook",
+  //   name: "Outlook",
+  //   authType: "oauth" as const,
+  //   color: "#0078D4",
+  //   icon: (
+  //     <div className="w-10 h-10 rounded-lg bg-[#0078D4] flex items-center justify-center">
+  //       <span className="text-white font-bold text-xl italic">O</span>
+  //     </div>
+  //   ),
+  // },
+  // {
+  //   id: "icloud",
+  //   name: "iCloud Mail",
+  //   authType: "password" as const,
+  //   color: "#3693F5",
+  //   subtitle: "Secure Connect",
+  //   icon: (
+  //     <svg viewBox="0 0 24 24" className="w-10 h-10" fill="#3693F5">
+  //       <path d="M19.35 10.04A7.49 7.49 0 0012 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 000 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" />
+  //     </svg>
+  //   ),
+  // },
   {
     id: "custom_imap",
     name: "Other IMAP",
@@ -208,7 +208,7 @@ export function MailboxIntegration({
       )}
 
       {/* Provider Grid */}
-      <div className="text-center py-8">
+      <div className=" text-center py-8">
         <h2 className="text-xl font-medium text-foreground mb-2">
           Connect your email
         </h2>
@@ -216,7 +216,7 @@ export function MailboxIntegration({
           Gmail and Outlook use secure OAuth — no passwords needed. Your CRM
           will sync real emails.
         </p>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-3xl mx-auto">
+        <div className="grid grid-cols-2 md:grid-cols-2 gap-4 max-w-3xl mx-auto">
           {providers.map((provider) => {
             const isConnected = connectedProviders.has(provider.id);
             const isLoading = oauthLoading === provider.id;
@@ -254,7 +254,9 @@ export function MailboxIntegration({
                   {provider.authType === "password" && !isConnected && (
                     <p className="text-[10px] text-muted-foreground mt-1">
                       App password
+                      <p className="font-bold text-blue-600">Coming Soon</p>
                     </p>
+                  
                   )}
                 </div>
               </Card>

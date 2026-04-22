@@ -157,7 +157,6 @@ async function importDatabase() {
     console.log(`  Total Statements: ${statements.length}`);
     console.log(`  Successful: ${success}`);
     console.log(`  Errors: ${errors}`);
-    console.log(`  Tables Created: ${tables}`);
     console.log(`  Data Inserts: ${inserts}`);
 
     if (errorList.length > 0) {
@@ -177,6 +176,7 @@ async function importDatabase() {
     `);
     console.log(`Total tables in database: ${result.rows.length}`);
     result.rows.forEach(r => console.log(`  - ${r.table_name}`));
+    console.log(`  Tables Created: ${tables}`);
     console.log('\nYou can now start the server: npm run dev\n');
 
   } catch (error) {
