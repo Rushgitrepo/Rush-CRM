@@ -175,7 +175,7 @@ export default function AuthPage() {
               {activeTab === 'signin' ? 'RMS Login' : 'Create Account'}
             </h3>
             <p className="text-sm text-slate-500">
-              Sign in to your account or create a new one.
+              Sign in to your account.
             </p>
           </div>
 
@@ -248,7 +248,7 @@ export default function AuthPage() {
                       className="absolute right-0 top-0 h-11 w-11 text-black-400 hover:text-slate-600 flex items-center justify-center cursor-pointer"
                       onClick={() => setShowSignInPassword(!showSignInPassword)}
                     >
-                      {showSignInPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {showSignInPassword ? <EyeOff color='black' className="h-4 w-4" /> : <Eye color='black' className="h-4 w-4" />}
                     </a>
                   </div>
                 </div>
