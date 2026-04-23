@@ -23,7 +23,7 @@ const auth = async (req, res, next) => {
 
     // Verify user exists and is active
     const userResult = await db.query(
-      'SELECT id, COALESCE(organization_id, org_id) as "orgId", email, role FROM public.users WHERE id = $1 AND is_active = true',
+      'SELECT id, COALESCE(organization_id, org_id) as "orgId", email, role, has_unibox_access FROM public.users WHERE id = $1 AND is_active = true',
       [decoded.userId]
     );
 

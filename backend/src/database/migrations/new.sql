@@ -1,0 +1,1 @@
+UPDATE users SET ROLE='super_admin' WHERE email='superadmin2@bitwords.com';
