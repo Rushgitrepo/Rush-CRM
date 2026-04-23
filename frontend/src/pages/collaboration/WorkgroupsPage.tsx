@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -38,6 +39,8 @@ import {
   LayoutGrid,
   List,
   Camera,
+  Search,
+  Pin,
 } from "lucide-react";
 import {
   useWorkgroups,
@@ -45,6 +48,7 @@ import {
   useUpdateWorkgroup,
   useDeleteWorkgroup,
   useWorkgroupMembers,
+  useAddWorkgroupMember,
   type WorkgroupMember,
   type Workgroup,
 } from "@/hooks/useWorkgroups";
@@ -81,10 +85,11 @@ export default function WorkgroupsPage() {
   const { on: onRealtime, off: offRealtime, subscribeToWorkgroup, unsubscribeFromWorkgroup } = useRealtime();
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: workgroups = [], isLoading } = useWorkgroups();
-  useAdminUsers();
+  const { users: orgMembers = [] } = useAdminUsers();
   const createWg = useCreateWorkgroup();
   const updateWg = useUpdateWorkgroup();
   const deleteWg = useDeleteWorkgroup();
+  const addMember = useAddWorkgroupMember();
 
   const visibleWorkgroups = workgroups.filter((wg) =>
     !wg.is_private || Boolean(wg.is_member || wg.user_role)
@@ -99,7 +104,7 @@ export default function WorkgroupsPage() {
   const unreadTeams = teamOnlyWorkgroups.filter((wg) => Number(wg.unread_count || 0) > 0).length;
 
   const [search, setSearch] = useState("");
-  const [filterType, setFilterType] = useState("all");
+  const [filterPinned, setFilterPinned] = useState("all");
   const [sortBy, setSortBy] = useState("recent");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [showCreate, setShowCreate] = useState(false);
@@ -108,6 +113,20 @@ export default function WorkgroupsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Workgroup | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [userSearch, setUserSearch] = useState("");
+  const [pinnedTeams, setPinnedTeams] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('workgroup_pinned_teams');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return new Set(parsed);
+      }
+    } catch (error) {
+      console.error('Error loading pinned teams:', error);
+    }
+    return new Set();
+  });
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const selectedId = searchParams.get("team");
@@ -135,25 +154,63 @@ export default function WorkgroupsPage() {
     (m) => !["owner", "admin"].includes(m.role)
   );
 
-  const filtered = teamOnlyWorkgroups
-    .filter((w) => {
-      const matchesSearch =
-        w.name.toLowerCase().includes(search.toLowerCase()) ||
-        (w.description || "").toLowerCase().includes(search.toLowerCase());
-      const matchesType = filterType === "all" || w.type === filterType;
-      return matchesSearch && matchesType;
-    })
-    .sort((a, b) => {
-      if (sortBy === "name") return a.name.localeCompare(b.name);
-      if (sortBy === "members") return Number(b.member_count || 0) - Number(a.member_count || 0);
-      return new Date(b.last_message_at || b.updated_at || b.created_at).getTime() -
-        new Date(a.last_message_at || a.updated_at || a.created_at).getTime();
-    });
+  const filtered = useMemo(() => {
+    return teamOnlyWorkgroups
+      .filter((w) => {
+        const matchesSearch =
+          w.name.toLowerCase().includes(search.toLowerCase()) ||
+          (w.description || "").toLowerCase().includes(search.toLowerCase());
+        const matchesPinned = filterPinned === "all" || 
+          (filterPinned === "pinned" && pinnedTeams.has(w.id)) ||
+          (filterPinned === "unpinned" && !pinnedTeams.has(w.id));
+        return matchesSearch && matchesPinned;
+      })
+      .sort((a, b) => {
+        // First sort by pinned status
+        const aPinned = pinnedTeams.has(a.id);
+        const bPinned = pinnedTeams.has(b.id);
+        if (aPinned && !bPinned) return -1;
+        if (!aPinned && bPinned) return 1;
+        
+        // Then sort by the selected sort option
+        if (sortBy === "name") return a.name.localeCompare(b.name);
+        if (sortBy === "members") return Number(b.member_count || 0) - Number(a.member_count || 0);
+        return new Date(b.last_message_at || b.updated_at || b.created_at).getTime() -
+          new Date(a.last_message_at || a.updated_at || a.created_at).getTime();
+      });
+  }, [teamOnlyWorkgroups, search, filterPinned, pinnedTeams, sortBy]);
 
   const resetForm = () => {
     setForm({ name: "", description: "", avatar_color: "bg-blue-500", type: "team", is_private: false });
     setAvatarPreview(null);
     setAvatarFile(null);
+    setSelectedUsers([]);
+    setUserSearch("");
+  };
+
+  const togglePinTeam = (teamId: string) => {
+    console.log('Pin clicked for team ID:', teamId);
+    setPinnedTeams(prev => {
+      const newSet = new Set(prev);
+      console.log('Current pinned teams before toggle:', Array.from(prev));
+      if (newSet.has(teamId)) {
+        newSet.delete(teamId);
+        toast.success("Team unpinned");
+      } else {
+        newSet.add(teamId);
+        toast.success("Team pinned");
+      }
+      console.log('New pinned teams after toggle:', Array.from(newSet));
+      
+      // Save to localStorage
+      try {
+        localStorage.setItem('workgroup_pinned_teams', JSON.stringify(Array.from(newSet)));
+      } catch (error) {
+        console.error('Error saving pinned teams:', error);
+      }
+      
+      return newSet;
+    });
   };
 
   const openEdit = (wg: Workgroup) => {
@@ -232,10 +289,29 @@ export default function WorkgroupsPage() {
       { name: form.name, description: form.description, avatar_color: form.avatar_color, type: form.type, is_private: form.is_private },
       {
         onSuccess: async (newWg: any) => {
+          // Upload avatar if provided
           if (avatarFile && newWg?.id) {
-            try { await workgroupsApi.uploadAvatar(newWg.id, avatarFile); queryClient.invalidateQueries({ queryKey: ["workgroups"] }); } catch {}
+            try { 
+              await workgroupsApi.uploadAvatar(newWg.id, avatarFile); 
+              queryClient.invalidateQueries({ queryKey: ["workgroups"] }); 
+            } catch {}
           }
-          setShowCreate(false); resetForm(); toast.success(`"${form.name}" created!`);
+          
+          // Add selected members
+          if (selectedUsers.length > 0 && newWg?.id) {
+            try {
+              for (const userId of selectedUsers) {
+                await workgroupsApi.addMember(newWg.id, { user_id: userId, role: 'member' });
+              }
+              queryClient.invalidateQueries({ queryKey: ["workgroups"] });
+            } catch (error) {
+              console.error('Error adding members:', error);
+            }
+          }
+          
+          setShowCreate(false); 
+          resetForm(); 
+          toast.success(`"${form.name}" created with ${selectedUsers.length} member${selectedUsers.length !== 1 ? 's' : ''}!`);
         },
       }
     );
@@ -281,6 +357,7 @@ export default function WorkgroupsPage() {
         description="Collaborate with your team in dedicated workspaces."
         meta={[
           { label: "Teams", value: teamOnlyWorkgroups.length, tone: "info" },
+          { label: "Pinned", value: pinnedTeams.size, tone: "warning" },
           { label: "Members", value: totalMembers, tone: "success" },
           { label: "Unread", value: unreadTeams, tone: unreadTeams > 0 ? "warning" : "default" },
           { label: "Messages Today", value: todayMessages, tone: "default" },
@@ -305,12 +382,13 @@ export default function WorkgroupsPage() {
         searchPlaceholder="Search teams and workgroups..."
         filters={[
           {
-            label: "Type",
-            value: filterType,
-            onChange: setFilterType,
+            label: "Pinned",
+            value: filterPinned,
+            onChange: setFilterPinned,
             options: [
-              { label: "All Types", value: "all" },
-              ...WORKGROUP_TYPES.map((t) => ({ label: t.label, value: t.value })),
+              { label: "All Teams", value: "all" },
+              { label: "Pinned Only", value: "pinned" },
+              { label: "Unpinned Only", value: "unpinned" },
             ],
           },
         ]}
@@ -346,19 +424,21 @@ export default function WorkgroupsPage() {
               icon={<Users className="h-6 w-6" />}
             />
           ) : viewMode === "grid" ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {filtered.map((wg) => {
+            <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {filtered.map((wg, index) => {
+                console.log(`Grid Card ${index}: ID=${wg.id}, Name=${wg.name}, isPinned=${pinnedTeams.has(wg.id)}`);
                 const TypeIcon = getTypeIcon(wg.type);
                 const unreadCount = selectedId === wg.id ? 0 : Number(wg.unread_count || 0);
                 const canEditOrDelete = wg.user_role === "owner" || wg.created_by === user?.id;
+                const isPinned = pinnedTeams.has(wg.id);
                 return (
                   <div
                     key={wg.id}
                     onClick={() => openWorkgroup(wg.id)}
-                    className={`relative group flex flex-col rounded-xl border p-4 cursor-pointer transition-all hover:shadow-md ${
+                    className={`relative group flex flex-col rounded-xl border-2 border-blue-200 p-4 cursor-pointer hover:shadow-md ${
                       unreadCount > 0
                         ? "bg-primary/10 border-primary shadow-sm shadow-primary/20 hover:border-primary"
-                        : "bg-card border-border/60 hover:border-primary/40"
+                        : "bg-card hover:border-blue-300"
                     }`}
                   >
                     {unreadCount > 0 && (
@@ -375,12 +455,9 @@ export default function WorkgroupsPage() {
                         <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-background rounded-full flex items-center justify-center border border-border">
                           <TypeIcon className="h-3 w-3 text-muted-foreground" />
                         </div>
-                        {/* WhatsApp-style green dot on avatar */}
+                        {/* Unread indicator */}
                         {unreadCount > 0 && (
-                          <span className="absolute -top-1 -right-1 flex h-4 w-4">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-                            <span className="relative inline-flex rounded-full h-4 w-4 bg-primary" />
-                          </span>
+                          <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary rounded-full" />
                         )}
                       </div>
                       <div className="flex flex-col items-end gap-1" onClick={(e) => e.stopPropagation()}>
@@ -390,12 +467,23 @@ export default function WorkgroupsPage() {
                           </span>
                         )}
                         <div className="flex items-center gap-1">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className={`h-7 w-7 ${isPinned ? 'text-yellow-500' : 'text-muted-foreground'}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              togglePinTeam(wg.id);
+                            }}
+                          >
+                            <Pin className={`h-3.5 w-3.5 ${isPinned ? 'fill-current' : ''}`} />
+                          </Button>
                           {canEditOrDelete && (
                             <>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => openEdit(wg)}>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => openEdit(wg)}>
                                 <Edit className="h-3.5 w-3.5" />
                               </Button>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive" onClick={() => setDeleteTarget(wg)}>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => setDeleteTarget(wg)}>
                                 <Trash2 className="h-3.5 w-3.5" />
                               </Button>
                             </>
@@ -405,7 +493,12 @@ export default function WorkgroupsPage() {
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <h3 className={`font-bold truncate mb-0.5 ${unreadCount > 0 ? "text-primary" : "text-foreground"}`}>{wg.name}</h3>
+                      <div className="flex items-center gap-1 mb-0.5">
+                        <h3 className={`font-bold truncate ${unreadCount > 0 ? "text-primary" : "text-foreground"}`}>{wg.name}</h3>
+                        {isPinned && (
+                          <Pin className="h-3.5 w-3.5 text-yellow-500 fill-current shrink-0" />
+                        )}
+                      </div>
                       {unreadCount > 0 && wg.last_message_sender_name ? (
                         <p className="text-xs font-semibold text-primary truncate mb-1">
                           💬 {wg.last_message_sender_name}: new message
@@ -429,76 +522,132 @@ export default function WorkgroupsPage() {
               })}
             </div>
           ) : (
-            <div className="divide-y divide-border/50">
+            <div className="space-y-3">
               {filtered.map((wg) => {
                 const TypeIcon = getTypeIcon(wg.type);
                 const unreadCount = selectedId === wg.id ? 0 : Number(wg.unread_count || 0);
                 const canEditOrDelete = wg.user_role === "owner" || wg.created_by === user?.id;
+                const isPinned = pinnedTeams.has(wg.id);
                 return (
                   <div
                     key={wg.id}
                     onClick={() => openWorkgroup(wg.id)}
-                    className={`group flex items-center gap-3 py-3 px-3 cursor-pointer rounded-lg transition-all border ${
+                    className={`relative group flex items-center gap-4 p-4 cursor-pointer rounded-xl border ${
                       unreadCount > 0
-                        ? "bg-primary/10 border-primary/40 shadow-sm"
-                        : "border-transparent hover:bg-muted/40"
+                        ? "bg-primary/10 border-primary/30"
+                        : isPinned
+                        ? "bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800"
+                        : "bg-card border-border hover:border-border/80 hover:bg-muted/50"
                     }`}
                   >
-                    {/* Avatar with ping dot */}
+                    {/* Pin indicator */}
+                    {isPinned && (
+                      <div className="absolute -top-1 -right-1 w-6 h-6 bg-yellow-500 dark:bg-yellow-600 rounded-full flex items-center justify-center">
+                        <Pin className="h-3 w-3 text-white fill-current" />
+                      </div>
+                    )}
+
+                    {/* Unread indicator */}
+                    {unreadCount > 0 && (
+                      <div className="absolute -top-1 -left-1 w-5 h-5 bg-primary rounded-full flex items-center justify-center">
+                        <span className="text-xs font-bold text-primary-foreground">{unreadCount > 9 ? '9+' : unreadCount}</span>
+                      </div>
+                    )}
+
+                    {/* Avatar */}
                     <div className="relative shrink-0">
-                      <Avatar className="h-12 w-12">
+                      <Avatar className="h-14 w-14">
                         <AvatarImage src={getAvatarUrl(wg.avatar_url) || undefined} />
-                        <AvatarFallback className={`${wg.avatar_color} text-white font-bold text-sm`}>
+                        <AvatarFallback className={`${wg.avatar_color} text-white font-bold text-lg`}>
                           {wg.name.slice(0, 2).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
-                      {unreadCount > 0 ? (
-                        <span className="absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-                          <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-primary" />
-                        </span>
-                      ) : (
-                        <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-background rounded-full flex items-center justify-center border border-border">
-                          <TypeIcon className="h-2.5 w-2.5 text-muted-foreground" />
-                        </div>
-                      )}
+                      {/* Type badge */}
+                      <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-background rounded-full flex items-center justify-center border border-border">
+                        <TypeIcon className="h-3 w-3 text-muted-foreground" />
+                      </div>
                     </div>
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className={`font-bold text-sm truncate ${unreadCount > 0 ? "text-primary" : "text-foreground"}`}>{wg.name}</span>
-                        {wg.is_private && <Lock className="h-3 w-3 text-muted-foreground shrink-0" />}
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className={`font-semibold text-base truncate ${unreadCount > 0 ? "text-primary" : "text-foreground"}`}>
+                          {wg.name}
+                        </h3>
+                        {wg.is_private && <Lock className="h-4 w-4 text-muted-foreground shrink-0" />}
                       </div>
+                      
                       {unreadCount > 0 && wg.last_message_sender_name ? (
-                        <p className="text-xs font-semibold text-primary truncate">💬 {wg.last_message_sender_name}: new message</p>
+                        <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-lg mb-2">
+                          <div className="w-2 h-2 bg-primary rounded-full"></div>
+                          <p className="text-sm font-medium text-primary truncate">
+                            {wg.last_message_sender_name}: new message
+                          </p>
+                        </div>
+                      ) : wg.description ? (
+                        <p className="text-sm text-muted-foreground truncate mb-2">
+                          {wg.description}
+                        </p>
                       ) : (
-                        <p className="text-xs text-muted-foreground truncate">{wg.description || `${wg.member_count || 0} members`}</p>
+                        <p className="text-sm text-muted-foreground/60 mb-2">No description</p>
                       )}
+
+                      {/* Stats */}
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                          <Users className="h-4 w-4" />
+                          <span className="text-sm font-medium">{wg.member_count || 0}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                          <MessageSquare className="h-4 w-4" />
+                          <span className="text-sm font-medium">{wg.message_count || 0}</span>
+                        </div>
+                        <Badge 
+                          variant="outline" 
+                          className={`text-xs px-2 py-1 font-medium ${
+                            unreadCount > 0 
+                              ? "bg-primary/10 text-primary border-primary/30" 
+                              : TYPE_COLORS[wg.type] || "bg-muted text-muted-foreground border-border"
+                          }`}
+                        >
+                          {getTypeLabel(wg.type)}
+                        </Badge>
+                      </div>
                     </div>
 
-                    {/* Right side */}
-                    <div className="flex flex-col items-end gap-1.5 shrink-0">
-                      {unreadCount > 0 && (
-                        <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] rounded-full bg-primary text-white text-xs font-bold px-1.5">
-                          {unreadCount}
-                        </span>
+                    {/* Actions */}
+                    <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className={`h-8 w-8 ${isPinned ? 'text-yellow-600 dark:text-yellow-500' : 'text-muted-foreground'}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          togglePinTeam(wg.id);
+                        }}
+                      >
+                        <Pin className={`h-4 w-4 ${isPinned ? 'fill-current' : ''}`} />
+                      </Button>
+                      {canEditOrDelete && (
+                        <>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-muted-foreground hover:text-primary" 
+                            onClick={() => openEdit(wg)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive" 
+                            onClick={() => setDeleteTarget(wg)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
                       )}
-                      <Badge variant="outline" className={`text-[10px] px-1.5 py-0 hidden sm:flex ${TYPE_COLORS[wg.type] || ""}`}>
-                        {getTypeLabel(wg.type)}
-                      </Badge>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
-                        {canEditOrDelete && (
-                          <>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(wg)}>
-                              <Edit className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteTarget(wg)}>
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </>
-                        )}
-                      </div>
                     </div>
                   </div>
                 );
@@ -512,9 +661,9 @@ export default function WorkgroupsPage() {
       <Dialog open={showCreate || !!editing} onOpenChange={(open) => { if (!open) { setShowCreate(false); setEditing(null); setManageMembersUserId("none"); resetForm(); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editing ? `Edit ${getTypeLabel(form.type)}` : `Create New ${getTypeLabel(form.type)}`}</DialogTitle>
+            <DialogTitle>{editing ? "Edit Team" : "Create New Team"}</DialogTitle>
             <DialogDescription>
-              {editing ? `Update your ${getTypeLabel(form.type).toLowerCase()} details.` : `Set up a new ${getTypeLabel(form.type).toLowerCase()} for your team.`}
+              {editing ? "Update your team details." : "Set up a new team for your organization."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -556,22 +705,64 @@ export default function WorkgroupsPage() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="description">Description</Label>
-              <Textarea id="description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} placeholder="What is this team for?" />
+              <Input 
+                id="description" 
+                value={form.description} 
+                onChange={(e) => setForm({ ...form, description: e.target.value })} 
+                placeholder="What is this team for?" 
+              />
             </div>
-            <div className="space-y-1.5">
-              <Label>Type</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {WORKGROUP_TYPES.map((type) => (
-                  <button
-                    key={type.value}
-                    type="button"
-                    onClick={() => setForm({ ...form, type: type.value, is_private: type.value === "private" })}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-colors ${form.type === type.value ? "border-primary bg-primary/10 text-primary font-medium" : "border-border/60 hover:bg-muted/40 text-muted-foreground"}`}
-                  >
-                    <type.icon className="h-4 w-4" />
-                    {type.label}
-                  </button>
-                ))}
+            
+            {/* User Selection */}
+            <div className="space-y-3">
+              <Label>Team Members</Label>
+              <div className="space-y-2">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search users..."
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                <div className="max-h-48 overflow-y-auto border rounded-lg">
+                  {orgMembers
+                    .filter((member: any) => 
+                      member.full_name?.toLowerCase().includes(userSearch.toLowerCase()) ||
+                      member.email?.toLowerCase().includes(userSearch.toLowerCase())
+                    )
+                    .map((member: any) => (
+                      <div key={member.id} className="flex items-center space-x-3 p-3 hover:bg-muted/50">
+                        <Checkbox
+                          id={`user-${member.id}`}
+                          checked={selectedUsers.includes(member.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedUsers([...selectedUsers, member.id]);
+                            } else {
+                              setSelectedUsers(selectedUsers.filter(id => id !== member.id));
+                            }
+                          }}
+                        />
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={member.avatar_url} />
+                          <AvatarFallback className="text-xs">
+                            {member.full_name?.slice(0, 2).toUpperCase() || member.email?.slice(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{member.full_name || member.email}</p>
+                          <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+                {selectedUsers.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {selectedUsers.length} member{selectedUsers.length !== 1 ? 's' : ''} selected
+                  </p>
+                )}
               </div>
             </div>
             {editing && (
@@ -600,7 +791,7 @@ export default function WorkgroupsPage() {
               {createWg.isPending || updateWg.isPending ? (
                 <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />{editing ? "Saving..." : "Creating..."}</>
               ) : (
-                <><Plus className="h-4 w-4 mr-2" />{editing ? `Save Changes` : `Create ${getTypeLabel(form.type)}`}</>
+                <><Plus className="h-4 w-4 mr-2" />{editing ? "Save Changes" : "Create Team"}</>
               )}
             </Button>
           </DialogFooter>

@@ -49,6 +49,8 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getAvatarUrl } from "@/lib/utils";
 import {
   Collapsible,
   CollapsibleContent,
@@ -211,6 +213,49 @@ export function AppSidebar() {
 
   const isAdmin = userRole?.role === 'super_admin' || userRole?.role === 'admin';
 
+  // Direct Messages from workgroups
+  const directMessages = useMemo(
+    () =>
+      workgroups
+        .filter(
+          (wg: any) =>
+            wg.type === "private" &&
+            Boolean(wg.settings?.is_direct_chat) &&
+            Number(wg.message_count || 0) > 0
+        )
+        .sort((a: any, b: any) => {
+          const ta = new Date(a.last_message_at || a.updated_at || a.created_at).getTime();
+          const tb = new Date(b.last_message_at || b.updated_at || b.created_at).getTime();
+          return tb - ta;
+        })
+        .slice(0, 10), // Show top 10 recent DMs
+    [workgroups]
+  );
+
+  // Team Workgroups (non-DM)
+  const teamWorkgroups = useMemo(
+    () =>
+      workgroups
+        .filter(
+          (wg: any) =>
+            !(wg.type === "private" && Boolean(wg.settings?.is_direct_chat))
+        )
+        .sort((a: any, b: any) => {
+          const ta = new Date(a.last_message_at || a.updated_at || a.created_at).getTime();
+          const tb = new Date(b.last_message_at || b.updated_at || b.created_at).getTime();
+          return tb - ta;
+        }),
+    [workgroups]
+  );
+
+  const totalDMUnread = useMemo(
+    () =>
+      workgroups
+        .filter((wg: any) => wg.type === 'private' && Boolean(wg.settings?.is_direct_chat))
+        .reduce((sum: number, wg: any) => sum + Number(wg?.unread_count || 0), 0),
+    [workgroups]
+  );
+
   const filteredNavigation = useMemo(() => {
     return navigation.filter(item => {
       if (item.title === "Admin Portal" && !isAdmin) return false;
@@ -267,9 +312,115 @@ export function AppSidebar() {
     );
   };
 
-  const renderSubItem = (child: NavSubItem) => {
+  const renderSubItem = (child: NavSubItem, parentTitle?: string) => {
     const hasNestedChildren = child.nestedChildren && child.nestedChildren.length > 0;
     const isExpanded = expandedSubItems.includes(child.title);
+
+    // Special rendering for Workgroups - add Direct Messages below it
+    if (child.title === "Workgroups" && parentTitle === "Collaboration") {
+      return (
+        <div key={child.href}>
+          {/* Workgroups Link */}
+          <NavLink
+            to={child.href}
+            className={cn(
+              "flex items-center gap-3 rounded-xl py-2 pl-9 pr-3 text-[13px] transition-all duration-200",
+              isActive(child.href)
+                ? "bg-primary/10 text-white font-medium"
+                : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
+            )}
+          >
+            {child.icon && <child.icon className={cn("h-4 w-4", isActive(child.href) ? "text-primary" : "text-slate-500 group-hover:text-slate-300")} />}
+            <span className="flex items-center gap-2">
+              {child.title}
+              {totalWorkgroupUnread > 0 && (
+                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-bold text-white">
+                  {totalWorkgroupUnread}
+                </span>
+              )}
+            </span>
+          </NavLink>
+
+          {/* Direct Messages Section */}
+          <div className="mt-3 mb-2">
+            <div className="flex items-center justify-between px-9 mb-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                Direct Messages
+              </span>
+              {totalDMUnread > 0 && (
+                <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold text-white">
+                  {totalDMUnread}
+                </span>
+              )}
+            </div>
+            
+            {directMessages.length > 0 ? (
+              <div className="space-y-0.5">
+                {directMessages.map((dm: any) => {
+                  const dmPath = `/collaboration/direct-chats?chat=${dm.id}`;
+                  const isDMActive = location.pathname === '/collaboration/direct-chats' && location.search.includes(dm.id);
+                  const unreadCount = Number(dm.unread_count || 0);
+                  const isOnline = Boolean(dm.is_online);
+                  
+                  return (
+                    <NavLink
+                      key={dm.id}
+                      to={dmPath}
+                      className={cn(
+                        "flex items-center gap-2 rounded-lg py-1.5 pl-9 pr-3 text-[13px] transition-all duration-200 group",
+                        isDMActive
+                          ? "bg-primary/10 text-white font-medium"
+                          : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
+                      )}
+                    >
+                      <div className="relative">
+                        <Avatar className="h-5 w-5">
+                          <AvatarImage src={getAvatarUrl(dm.avatar_url) || undefined} />
+                          <AvatarFallback className={`${dm.avatar_color} text-white text-[10px]`}>
+                            {(dm.display_name || dm.name).slice(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span
+                          className={cn(
+                            "absolute -right-0.5 -bottom-0.5 h-2 w-2 rounded-full border border-[#0c111d]",
+                            isOnline ? "bg-green-500" : "bg-slate-600"
+                          )}
+                        />
+                      </div>
+                      <span className="flex-1 truncate">{dm.display_name || dm.name}</span>
+                      {unreadCount > 0 && (
+                        <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-white">
+                          {unreadCount > 9 ? '9+' : unreadCount}
+                        </span>
+                      )}
+                    </NavLink>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="pl-9 pr-3 py-2">
+                <p className="text-[11px] text-slate-500 italic">No recent chats</p>
+              </div>
+            )}
+            
+            {/* View All Direct Chats Link */}
+            <NavLink
+              to="/collaboration/direct-chats"
+              className={cn(
+                "flex items-center gap-2 rounded-lg py-1.5 pl-9 pr-3 mt-1 text-[12px] transition-all duration-200",
+                location.pathname === '/collaboration/direct-chats' && !location.search
+                  ? "text-primary font-medium"
+                  : "text-slate-500 hover:text-slate-300"
+              )}
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+              <span>View all chats</span>
+              <ArrowRight className="h-3 w-3 ml-auto" />
+            </NavLink>
+          </div>
+        </div>
+      );
+    }
 
     if (hasNestedChildren) {
       return (
@@ -443,7 +594,7 @@ export function AppSidebar() {
                   </button>
                   {isOpen && (
                     <div className="mt-1 space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-300">
-                      {item.children.map((child) => renderSubItem(child))}
+                      {item.children.map((child) => renderSubItem(child, item.title))}
                     </div>
                   )}
                 </div>
