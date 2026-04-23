@@ -8,6 +8,11 @@ class EmailService {
 
   initializeTransporter() {
     try {
+      if (!nodemailer || !nodemailer.createTransport) {
+        console.error('❌ Nodemailer not properly loaded');
+        return;
+      }
+
       this.transporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST,
         port: parseInt(process.env.SMTP_PORT),
@@ -98,6 +103,67 @@ Rush RMS Team
       console.error('❌ Email service connection failed:', error.message);
       throw error;
     }
+  }
+
+  async verifyConnection() {
+    return await this.testConnection();
+  }
+
+  async verifySMTP(config) {
+    try {
+      // Create a temporary transporter with the provided config
+      const tempTransporter = nodemailer.createTransport({
+        host: config.smtp_host,
+        port: parseInt(config.smtp_port || 587),
+        secure: config.smtp_port === 465,
+        auth: {
+          user: config.smtp_username || config.email_address,
+          pass: config.encrypted_password,
+        },
+      });
+
+      await tempTransporter.verify();
+      return { verified: true };
+    } catch (error) {
+      console.error('SMTP verification failed:', error.message);
+      return { verified: false, error: error.message };
+    }
+  }
+
+  async sendEmail(options) {
+    if (!this.transporter) {
+      throw new Error('Email service not initialized');
+    }
+
+    try {
+      const info = await this.transporter.sendMail(options);
+      console.log(`✅ Email sent:`, info.messageId);
+      return { success: true, messageId: info.messageId };
+    } catch (error) {
+      console.error(`❌ Failed to send email:`, error.message);
+      throw error;
+    }
+  }
+
+  async sendCampaign(campaign, contacts) {
+    const results = [];
+    
+    for (const contact of contacts) {
+      try {
+        await this.sendEmail({
+          from: `"${campaign.from_name || 'Rush RMS'}" <${campaign.from_email || process.env.SMTP_USER}>`,
+          to: contact.email,
+          subject: campaign.subject,
+          html: campaign.content,
+        });
+        
+        results.push({ email: contact.email, success: true });
+      } catch (error) {
+        results.push({ email: contact.email, success: false, error: error.message });
+      }
+    }
+    
+    return results;
   }
 }
 
