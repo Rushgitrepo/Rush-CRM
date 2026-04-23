@@ -317,9 +317,117 @@ const convertToLead = async (req, res, next) => {
 // Check user permission for unibox
 const checkPermission = async (req, res, next) => {
   try {
-    // For now, allow all users to access unibox
-    // In a real implementation, you would check user roles/permissions
-    res.json({ hasPermission: true });
+    const OWNER_USER_ID = '5d546e42-fae2-4d4e-82bc-9cb186d720c6';
+    
+    // Check if user is the owner
+    if (req.user.id === OWNER_USER_ID) {
+      return res.json({ hasPermission: true, isOwner: true });
+    }
+    
+    // Check if user has been granted permission
+    const result = await db.query(
+      'SELECT has_unibox_access FROM users WHERE id = $1 AND org_id = $2',
+      [req.user.id, req.user.orgId]
+    );
+    
+    const hasAccess = result.rows.length > 0 && result.rows[0].has_unibox_access;
+    res.json({ hasPermission: hasAccess, isOwner: false });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Get all users with unibox permission (owner only)
+const getPermissions = async (req, res, next) => {
+  try {
+    const OWNER_USER_ID = '5d546e42-fae2-4d4e-82bc-9cb186d720c6';
+    
+    if (req.user.id !== OWNER_USER_ID) {
+      return res.status(403).json({ error: 'Only the owner can view permissions' });
+    }
+    
+    const result = await db.query(
+      `SELECT 
+        id,
+        full_name,
+        email,
+        avatar_url,
+        updated_at as granted_at
+      FROM users
+      WHERE org_id = $1 AND has_unibox_access = TRUE
+      ORDER BY full_name ASC`,
+      [req.user.orgId]
+    );
+    
+    res.json(result.rows);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Grant unibox permission to a user (owner only)
+const grantPermission = async (req, res, next) => {
+  try {
+    const OWNER_USER_ID = '5d546e42-fae2-4d4e-82bc-9cb186d720c6';
+    const { user_id } = req.body;
+    
+    if (req.user.id !== OWNER_USER_ID) {
+      return res.status(403).json({ error: 'Only the owner can grant permissions' });
+    }
+    
+    if (!user_id) {
+      return res.status(400).json({ error: 'user_id is required' });
+    }
+    
+    // Check if user exists in the same org
+    const userCheck = await db.query(
+      'SELECT id, full_name FROM users WHERE id = $1 AND org_id = $2',
+      [user_id, req.user.orgId]
+    );
+    
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found in your organization' });
+    }
+    
+    // Grant permission
+    await db.query(
+      'UPDATE users SET has_unibox_access = TRUE WHERE id = $1 AND org_id = $2',
+      [user_id, req.user.orgId]
+    );
+    
+    res.json({ 
+      message: `Unibox access granted to ${userCheck.rows[0].full_name}`
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Revoke unibox permission from a user (owner only)
+const revokePermission = async (req, res, next) => {
+  try {
+    const OWNER_USER_ID = '5d546e42-fae2-4d4e-82bc-9cb186d720c6';
+    const { user_id } = req.params;
+    
+    if (req.user.id !== OWNER_USER_ID) {
+      return res.status(403).json({ error: 'Only the owner can revoke permissions' });
+    }
+    
+    // Prevent owner from revoking their own permission
+    if (user_id === OWNER_USER_ID) {
+      return res.status(400).json({ error: 'Cannot revoke owner permission' });
+    }
+    
+    const result = await db.query(
+      'UPDATE users SET has_unibox_access = FALSE WHERE id = $1 AND org_id = $2 RETURNING full_name',
+      [user_id, req.user.orgId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.json({ message: 'Unibox access revoked successfully' });
   } catch (err) {
     next(err);
   }
@@ -366,5 +474,8 @@ module.exports = {
   getTemplates,
   convertToLead,
   checkPermission,
+  getPermissions,
+  grantPermission,
+  revokePermission,
   createSampleEmail,
 };

@@ -191,14 +191,14 @@ export default function UsersPage() {
         <div className="flex gap-2">
           <Dialog open={addUserOpen} onOpenChange={setAddUserOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline">
+              {/* <Button variant="outline">
                 <UserCog className="mr-2 h-4 w-4" />
                 Add User Manually
-              </Button>
+              </Button> */}
             </DialogTrigger>
             <DialogContent className="sm:max-w-[500px]">
               <DialogHeader>
-                <DialogTitle className="flex items-center gap-2"><UserCog className="h-5 w-5" /> Add User Manually</DialogTitle>
+                {/* <DialogTitle className="flex items-center gap-2"><UserCog className="h-5 w-5" /> Add User Manually</DialogTitle> */}
                 <DialogDescription>Create a user account with a temporary password. They must change it on first login.</DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
