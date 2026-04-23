@@ -118,7 +118,15 @@ const getWorkgroups = async (req, res, next) => {
           FROM workgroup_members wm_self
           WHERE wm_self.workgroup_id = w.id
             AND wm_self.user_id = $1
-        ) as is_member
+        ) as is_member,
+        COALESCE(
+          (
+            SELECT wm_self.is_starred
+            FROM workgroup_members wm_self
+            WHERE wm_self.workgroup_id = w.id
+              AND wm_self.user_id = $1
+          ), false
+        ) as is_starred
       FROM workgroups w
       LEFT JOIN users u ON w.created_by = u.id
       LEFT JOIN workgroup_members wm ON w.id = wm.workgroup_id
@@ -1366,6 +1374,38 @@ const getWorkgroupActivities = async (req, res, next) => {
   }
 };
 
+// Toggle star status for workgroup
+const toggleStarWorkgroup = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { is_starred } = req.body;
+    
+    // Check if user is member
+    const memberQuery = `
+      SELECT id FROM workgroup_members 
+      WHERE workgroup_id = $1 AND user_id = $2
+    `;
+    const memberResult = await db.query(memberQuery, [id, req.user.id]);
+    
+    if (memberResult.rows.length === 0) {
+      return res.status(403).json({ error: 'You must be a member to star workgroups' });
+    }
+    
+    // Update star status
+    const updateQuery = `
+      UPDATE workgroup_members 
+      SET is_starred = $1
+      WHERE workgroup_id = $2 AND user_id = $3
+      RETURNING *
+    `;
+    const result = await db.query(updateQuery, [is_starred, id, req.user.id]);
+    
+    res.json(result.rows[0]);
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getWorkgroups,
   getWorkgroup,
@@ -1382,5 +1422,6 @@ module.exports = {
   togglePinWorkgroupPost,
   addWorkgroupPostReaction,
   getOrCreateDirectChatWorkgroup,
-  getWorkgroupActivities
+  getWorkgroupActivities,
+  toggleStarWorkgroup
 };

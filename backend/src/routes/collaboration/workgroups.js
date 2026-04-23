@@ -16,7 +16,8 @@ const {
   togglePinWorkgroupPost,
   addWorkgroupPostReaction,
   getOrCreateDirectChatWorkgroup,
-  getWorkgroupActivities
+  getWorkgroupActivities,
+  toggleStarWorkgroup
 } = require('../../controllers/collaboration/workgroupController');
 const { auth } = require('../../middleware/auth');
 
@@ -27,6 +28,7 @@ router.use(auth);
 router.get('/', getWorkgroups);
 router.post('/', createWorkgroup);
 router.post('/direct-chat', getOrCreateDirectChatWorkgroup);
+router.put('/:id/star', toggleStarWorkgroup);
 router.get('/:id', getWorkgroup);
 router.put('/:id', updateWorkgroup);
 router.delete('/:id', deleteWorkgroup);

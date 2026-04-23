@@ -2,6 +2,8 @@ import { useState, useMemo } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWorkgroups } from "@/hooks/useWorkgroups";
+import { api } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   LayoutDashboard,
   LayoutGrid,
@@ -47,6 +49,7 @@ import {
   ArrowRight,
   LogOut,
   HelpCircle,
+  Star,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -207,28 +210,61 @@ export function AppSidebar() {
   const location = useLocation();
   const { userRole } = useAuth();
   const { data: workgroups = [] } = useWorkgroups();
+  const queryClient = useQueryClient();
   const [openSections, setOpenSections] = useState<string[]>(["Collaboration", "CRM"]);
   const [expandedSubItems, setExpandedSubItems] = useState<string[]>([]);
   const [expandedNestedItems, setExpandedNestedItems] = useState<string[]>([]);
 
   const isAdmin = userRole?.role === 'super_admin' || userRole?.role === 'admin';
 
-  // Direct Messages from workgroups
+  const toggleStarChat = async (workgroupId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const workgroup = workgroups.find((wg: any) => wg.id === workgroupId);
+    if (!workgroup) return;
+    
+    const newStarredState = !workgroup.is_starred;
+    
+    try {
+      await api.put(`/workgroups/${workgroupId}/star`, {
+        is_starred: newStarredState
+      });
+      // Invalidate and refetch workgroups to update the UI immediately
+      queryClient.invalidateQueries({ queryKey: ['workgroups'] });
+    } catch (error) {
+      console.error('Failed to toggle star:', error);
+    }
+  };
+
+  // Direct Messages from workgroups - show starred first, then recent, max 5
   const directMessages = useMemo(
-    () =>
-      workgroups
+    () => {
+      const dms = workgroups
         .filter(
           (wg: any) =>
             wg.type === "private" &&
             Boolean(wg.settings?.is_direct_chat) &&
             Number(wg.message_count || 0) > 0
-        )
-        .sort((a: any, b: any) => {
-          const ta = new Date(a.last_message_at || a.updated_at || a.created_at).getTime();
-          const tb = new Date(b.last_message_at || b.updated_at || b.created_at).getTime();
-          return tb - ta;
-        })
-        .slice(0, 10), // Show top 10 recent DMs
+        );
+      
+      // Separate starred and non-starred
+      const starred = dms.filter((wg: any) => wg.is_starred);
+      const nonStarred = dms.filter((wg: any) => !wg.is_starred);
+      
+      // Sort both by recent activity
+      const sortByRecent = (a: any, b: any) => {
+        const ta = new Date(a.last_message_at || a.updated_at || a.created_at).getTime();
+        const tb = new Date(b.last_message_at || b.updated_at || b.created_at).getTime();
+        return tb - ta;
+      };
+      
+      starred.sort(sortByRecent);
+      nonStarred.sort(sortByRecent);
+      
+      // Combine starred first, then non-starred, limit to 5 total
+      return [...starred, ...nonStarred].slice(0, 5);
+    },
     [workgroups]
   );
 
@@ -361,39 +397,56 @@ export function AppSidebar() {
                   const isDMActive = location.pathname === '/collaboration/direct-chats' && location.search.includes(dm.id);
                   const unreadCount = Number(dm.unread_count || 0);
                   const isOnline = Boolean(dm.is_online);
+                  const isStarred = Boolean(dm.is_starred);
                   
                   return (
-                    <NavLink
+                    <div
                       key={dm.id}
-                      to={dmPath}
-                      className={cn(
-                        "flex items-center gap-2 rounded-lg py-1.5 pl-9 pr-3 text-[13px] transition-all duration-200 group",
-                        isDMActive
-                          ? "bg-primary/10 text-white font-medium"
-                          : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
-                      )}
+                      className="group/dm relative"
                     >
-                      <div className="relative">
-                        <Avatar className="h-5 w-5">
-                          <AvatarImage src={getAvatarUrl(dm.avatar_url) || undefined} />
-                          <AvatarFallback className={`${dm.avatar_color} text-white text-[10px]`}>
-                            {(dm.display_name || dm.name).slice(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span
-                          className={cn(
-                            "absolute -right-0.5 -bottom-0.5 h-2 w-2 rounded-full border border-[#0c111d]",
-                            isOnline ? "bg-green-500" : "bg-slate-600"
-                          )}
-                        />
-                      </div>
-                      <span className="flex-1 truncate">{dm.display_name || dm.name}</span>
-                      {unreadCount > 0 && (
-                        <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-white">
-                          {unreadCount > 9 ? '9+' : unreadCount}
-                        </span>
-                      )}
-                    </NavLink>
+                      <NavLink
+                        to={dmPath}
+                        className={cn(
+                          "flex items-center gap-2 rounded-lg py-1.5 pl-9 pr-8 text-[13px] transition-all duration-200",
+                          isDMActive
+                            ? "bg-primary/10 text-white font-medium"
+                            : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
+                        )}
+                      >
+                        <div className="relative">
+                          <Avatar className="h-5 w-5">
+                            <AvatarImage src={getAvatarUrl(dm.avatar_url) || undefined} />
+                            <AvatarFallback className={`${dm.avatar_color} text-white text-[10px]`}>
+                              {(dm.display_name || dm.name).slice(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span
+                            className={cn(
+                              "absolute -right-0.5 -bottom-0.5 h-2 w-2 rounded-full border border-[#0c111d]",
+                              isOnline ? "bg-green-500" : "bg-slate-600"
+                            )}
+                          />
+                        </div>
+                        <span className="flex-1 truncate">{dm.display_name || dm.name}</span>
+                        {unreadCount > 0 && (
+                          <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-white">
+                            {unreadCount > 9 ? '9+' : unreadCount}
+                          </span>
+                        )}
+                      </NavLink>
+                      <button
+                        onClick={(e) => toggleStarChat(dm.id, e)}
+                        className={cn(
+                          "absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded transition-all",
+                          isStarred
+                            ? "text-yellow-500 opacity-100"
+                            : "text-slate-600 opacity-0 group-hover/dm:opacity-100 hover:text-yellow-500"
+                        )}
+                        title={isStarred ? "Unstar chat" : "Star chat"}
+                      >
+                        <Star className={cn("h-3.5 w-3.5", isStarred && "fill-yellow-500")} />
+                      </button>
+                    </div>
                   );
                 })}
               </div>
