@@ -364,7 +364,7 @@ export default function DirectChatPage() {
                                 : isActive ? "text-white/70" : "text-red-500"
                             }
                           >
-                            {isOnline ? "● Online" : "○ Offline"}
+                            {isOnline ? "● Online" : " Offline"}
                           </span>
                         </p>
                         {lastSeenLabel && (
