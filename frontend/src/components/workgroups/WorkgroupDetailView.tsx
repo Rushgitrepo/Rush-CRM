@@ -253,6 +253,8 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeletingMessages, setIsDeletingMessages] = useState(false);
   const [, setLastSeenTick] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [starredMessages, setStarredMessages] = useState<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
   const membersScrollRef = useRef<HTMLDivElement>(null);
   const composerEmojiRef = useRef<HTMLDivElement>(null);
@@ -281,15 +283,37 @@ const flatPosts = useMemo(() => {
     );
   }, [posts]);
 
+  // Filter posts based on search query
+  const filteredPosts = useMemo(() => {
+    if (!searchQuery.trim()) return flatPosts;
+    
+    const query = searchQuery.toLowerCase().trim();
+    return flatPosts.filter((post) => {
+      // Search in message content
+      if (post.content?.toLowerCase().includes(query)) return true;
+      
+      // Search in author name
+      if (post.author_name?.toLowerCase().includes(query)) return true;
+      
+      // Search in attachments
+      if (post.attachments?.some(att => 
+        att.original_name?.toLowerCase().includes(query) ||
+        att.file_type?.toLowerCase().includes(query)
+      )) return true;
+      
+      return false;
+    });
+  }, [flatPosts, searchQuery]);
+
   // Auto-scroll to bottom on new posts
   useEffect(() => {
-    if (!scrollRef.current || !flatPosts.length) return;
+    if (!scrollRef.current || !filteredPosts.length) return;
     requestAnimationFrame(() => {
       if (scrollRef.current) {
         scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
       }
     });
-  }, [flatPosts]);
+  }, [filteredPosts]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -622,6 +646,24 @@ const flatPosts = useMemo(() => {
     }
   };
 
+  const handleToggleStarMessage = (messageId: string) => {
+    setStarredMessages(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(messageId)) {
+        newSet.delete(messageId);
+        toast.success("Message unstarred");
+      } else {
+        newSet.add(messageId);
+        toast.success("Message starred");
+      }
+      return newSet;
+    });
+  };
+
+  const clearSearch = () => {
+    setSearchQuery("");
+  };
+
   const getAuthedFileUrl = (fileId: string, mode: "view" | "download" = "download") => {
     const token = api.getToken();
     const baseUrl = `${API_BASE_URL}/workgroups/${workgroupId}/files/${fileId}/${mode}`;
@@ -765,8 +807,7 @@ const flatPosts = useMemo(() => {
       otherMember.user_id,
       otherMember.full_name || otherMember.email || 'Unknown',
       otherMember.avatar_url || null,
-      'video',
-      true
+      'video'
     );
   };
 
@@ -1303,10 +1344,34 @@ const flatPosts = useMemo(() => {
                 <Input
                   placeholder="Search in this channel..."
                   className="pl-10 w-64 bg-muted/40"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                 />
+                {searchQuery && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                    onClick={clearSearch}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                )}
               </div>
-              <Button variant="ghost" size="icon">
-                <Star className="h-4 w-4" />
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={() => {
+                  const starredCount = starredMessages.size;
+                  if (starredCount === 0) {
+                    toast.info("No starred messages yet. Star messages by clicking the star icon on any message.");
+                  } else {
+                    toast.info(`You have ${starredCount} starred message${starredCount !== 1 ? 's' : ''}`);
+                  }
+                }}
+                className={starredMessages.size > 0 ? "text-yellow-500" : ""}
+              >
+                <Star className={`h-4 w-4 ${starredMessages.size > 0 ? 'fill-current' : ''}`} />
               </Button>
               <Button
                 variant="ghost"
@@ -1405,8 +1470,43 @@ const flatPosts = useMemo(() => {
                         )}
                       </div>
                     ) : (
-                      flatPosts.map((post, index) => {
-                        const prevPost = index > 0 ? flatPosts[index - 1] : null;
+                      <>
+                        {/* Search Results Indicator */}
+                        {searchQuery.trim() && (
+                          <div className="flex justify-center mb-4">
+                            <div className="px-4 py-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+                              <p className="text-sm text-blue-700 dark:text-blue-300">
+                                {filteredPosts.length === 0 
+                                  ? `No messages found for "${searchQuery}"` 
+                                  : `Found ${filteredPosts.length} message${filteredPosts.length !== 1 ? 's' : ''} for "${searchQuery}"`
+                                }
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {filteredPosts.length === 0 && searchQuery.trim() ? (
+                          <div className="text-center py-12">
+                            <Search className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                              No messages found
+                            </h3>
+                            <p className="text-gray-600 dark:text-gray-400 mb-6">
+                              Try searching with different keywords or clear the search to see all messages.
+                            </p>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={clearSearch}
+                              className="gap-2"
+                            >
+                              <X className="h-4 w-4" />
+                              Clear Search
+                            </Button>
+                          </div>
+                        ) : (
+                          filteredPosts.map((post, index) => {
+                        const prevPost = index > 0 ? filteredPosts[index - 1] : null;
                         const currentDate = new Date(
                           post.created_at,
                         ).toDateString();
@@ -1473,6 +1573,9 @@ const flatPosts = useMemo(() => {
                               onTogglePin={(postId, isPinned) =>
                                 togglePin.mutate({ postId, isPinned, workgroupId })
                               }
+                              isStarred={starredMessages.has(post.id)}
+                              onToggleStar={handleToggleStarMessage}
+                              searchQuery={searchQuery}
                               onReaction={async (postId, emoji) => {
                                 try {
                                   const response = await fetch(
@@ -1499,6 +1602,8 @@ const flatPosts = useMemo(() => {
                           </div>
                         );
                       })
+                        )}
+                      </>
                     )}
 
                     {/* Scroll to Bottom Button */}
@@ -2552,6 +2657,9 @@ interface PostCardProps {
   isSelectedForDelete?: boolean;
   onToggleDeleteSelection?: (postId: string, checked: boolean) => void;
   onStartDeleteSelection?: (postId: string) => void;
+  isStarred?: boolean;
+  onToggleStar?: (postId: string) => void;
+  searchQuery?: string;
 }
 
 function PostCard({
@@ -2577,6 +2685,9 @@ function PostCard({
   isSelectedForDelete = false,
   onToggleDeleteSelection,
   onStartDeleteSelection,
+  isStarred = false,
+  onToggleStar,
+  searchQuery = "",
 }: PostCardProps) {
   const navigate = useNavigate();
   if ((post.content || "").startsWith("[SYSTEM] ")) {
@@ -2628,10 +2739,27 @@ function PostCard({
     };
   }, [showEmojiPicker]);
 
+  // Function to highlight search terms
+  const highlightSearchTerm = (text: string, searchTerm: string) => {
+    if (!searchTerm.trim()) return text;
+    
+    const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    const parts = text.split(regex);
+    
+    return parts.map((part, index) => 
+      regex.test(part) ? (
+        <mark key={index} className="bg-yellow-200 dark:bg-yellow-800 px-0.5 rounded">
+          {part}
+        </mark>
+      ) : part
+    );
+  };
+
   const handleEmojiClick = (emoji: string) => {
     onReaction?.(post.id, emoji);
     setShowEmojiPicker(false);
   };
+  
   const resolveUserName = (userId: string) => {
     if (userId === currentUserId) return "You";
     const member = memberDirectory.find((m) => m.user_id === userId);
@@ -2658,16 +2786,65 @@ function PostCard({
   const escapeRegex = (value: string) =>
     value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const renderMessageWithMentions = (text: string) => {
-    if (!mentionEntries.length || !text.includes("@")) return text;
+    // First apply search highlighting if there's a search query
+    let processedText = text;
+    let searchHighlightedParts: (string | JSX.Element)[] = [];
+    
+    if (searchQuery.trim()) {
+      const searchRegex = new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+      const searchParts = text.split(searchRegex);
+      searchHighlightedParts = searchParts.map((part, index) => 
+        searchRegex.test(part) ? (
+          <mark key={`search-${index}`} className="bg-yellow-200 dark:bg-yellow-800 px-0.5 rounded">
+            {part}
+          </mark>
+        ) : part
+      );
+    } else {
+      searchHighlightedParts = [text];
+    }
+    
+    // Then apply mention highlighting
+    if (!mentionEntries.length || !text.includes("@")) {
+      return searchHighlightedParts.length === 1 && typeof searchHighlightedParts[0] === 'string' 
+        ? searchHighlightedParts[0] 
+        : <span>{searchHighlightedParts}</span>;
+    }
+    
     const pattern = mentionEntries
       .map((entry) => escapeRegex(`@${entry.label}`))
       .join("|");
-    if (!pattern) return text;
+    if (!pattern) {
+      return searchHighlightedParts.length === 1 && typeof searchHighlightedParts[0] === 'string' 
+        ? searchHighlightedParts[0] 
+        : <span>{searchHighlightedParts}</span>;
+    }
+    
     const mentionRegex = new RegExp(`(${pattern})`, "gi");
     const parts = text.split(mentionRegex);
+    
     return parts.map((part, idx) => {
       const targetUserId = mentionLookup.get(part.toLowerCase());
-      if (!targetUserId) return <span key={`txt-${idx}`}>{part}</span>;
+      if (!targetUserId) {
+        // Apply search highlighting to non-mention parts
+        if (searchQuery.trim()) {
+          const searchRegex = new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+          const searchParts = part.split(searchRegex);
+          return (
+            <span key={`txt-${idx}`}>
+              {searchParts.map((searchPart, searchIdx) => 
+                searchRegex.test(searchPart) ? (
+                  <mark key={`search-${idx}-${searchIdx}`} className="bg-yellow-200 dark:bg-yellow-800 px-0.5 rounded">
+                    {searchPart}
+                  </mark>
+                ) : searchPart
+              )}
+            </span>
+          );
+        }
+        return <span key={`txt-${idx}`}>{part}</span>;
+      }
+      
       return (
         <button
           key={`mention-${idx}`}
@@ -2812,6 +2989,10 @@ function PostCard({
                         <Reply className="h-4 w-4 mr-2" /> Reply
                       </DropdownMenuItem>
                     )}
+                    <DropdownMenuItem onClick={() => onToggleStar?.(post.id)}>
+                      <Star className={`h-4 w-4 mr-2 ${isStarred ? 'fill-current text-yellow-500' : ''}`} /> 
+                      {isStarred ? 'Unstar' : 'Star'} Message
+                    </DropdownMenuItem>
                     {isGroupAdmin && (
                       <DropdownMenuItem
                         onClick={() => onTogglePin(post.id, post.is_pinned)}
