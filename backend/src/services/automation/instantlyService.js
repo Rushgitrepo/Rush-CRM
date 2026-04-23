@@ -120,28 +120,125 @@ class InstantlyService {
     const apiKey = settings.api_key_encrypted; // Should decrypt here
 
     try {
-      // Example call to Instantly API (assuming /emails is the correct endpoint)
-      // Based on research: GET /api/v2/emails
-      const response = await fetch(`${this.baseUrl}/emails?limit=50`, {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Accept': 'application/json'
+      // Call Instantly API - try different endpoints based on Instantly.ai API documentation
+      let response;
+      let endpoint;
+      
+      // Try common Instantly.ai endpoints in order of likelihood
+      const endpoints = [
+        '/unibox',           // Most likely for inbox emails
+        '/campaigns',        // Get campaigns first, then leads
+        '/accounts',         // Account-based approach
+        '/lead-lists'        // Lead lists approach
+      ];
+      
+      let lastError;
+      for (const testEndpoint of endpoints) {
+        try {
+          console.log(`[Instantly Service] Trying endpoint: ${testEndpoint}`);
+          response = await fetch(`${this.baseUrl}${testEndpoint}?limit=50`, {
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Accept': 'application/json'
+            }
+          });
+          
+          if (response.ok) {
+            endpoint = testEndpoint;
+            console.log(`[Instantly Service] Success with endpoint: ${endpoint}`);
+            break;
+          } else {
+            const errorData = await response.json().catch(() => ({}));
+            lastError = errorData.message || `${response.status}: ${response.statusText}`;
+            console.log(`[Instantly Service] Failed ${testEndpoint}: ${lastError}`);
+          }
+        } catch (error) {
+          lastError = error.message;
+          console.log(`[Instantly Service] Error with ${testEndpoint}: ${lastError}`);
         }
-      });
+      }
+      
+      if (!response || !response.ok) {
+        throw new Error(`All Instantly.ai endpoints failed. Last error: ${lastError}. Please check your API key scopes and Instantly.ai documentation.`);
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `API error: ${response.status}`);
+        const errorMessage = errorData.message || `API error: ${response.status}`;
+        
+        // Handle specific scope error
+        if (errorMessage.includes('leads:read') || errorMessage.includes('emails:read')) {
+          throw new Error('Instantly API key missing required scope: leads:read. Please regenerate your API key with leads permissions.');
+        }
+        
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
-      const emails = data.items || data.data || [];
-      console.log(`[Instantly Service] Syncing ${emails.length} emails for org ${orgId}...`);
-
+      console.log(`[Instantly Service] API Response from ${endpoint}:`, JSON.stringify(data, null, 2));
+      
+      // Handle different response structures based on endpoint
+      let items = [];
+      if (endpoint === '/unibox') {
+        items = data.emails || data.messages || data.items || data.data || [];
+      } else if (endpoint === '/campaigns') {
+        items = data.campaigns || data.data || [];
+        // For campaigns, we'd need to fetch leads from each campaign
+        console.log(`[Instantly Service] Found ${items.length} campaigns, but need to implement campaign-specific lead fetching`);
+        return { total: 0, synced: 0, message: 'Found campaigns but need campaign-specific implementation' };
+      } else if (endpoint === '/lead-lists') {
+        const leadLists = data.items || data.data || [];
+        console.log(`[Instantly Service] Found ${leadLists.length} lead lists`);
+        
+        if (leadLists.length === 0) {
+          return { total: 0, synced: 0, message: 'No lead lists found. Create lead lists in Instantly.ai first.' };
+        }
+        
+        // Fetch leads from each lead list
+        for (const leadList of leadLists) {
+          console.log(`[Instantly Service] Fetching leads from list: ${leadList.name || leadList.id}`);
+          try {
+            const leadsResponse = await fetch(`${this.baseUrl}/lead-lists/${leadList.id}/leads?limit=100`, {
+              headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Accept': 'application/json'
+              }
+            });
+            
+            if (leadsResponse.ok) {
+              const leadsData = await leadsResponse.json();
+              const leads = leadsData.items || leadsData.data || [];
+              console.log(`[Instantly Service] Found ${leads.length} leads in list ${leadList.name || leadList.id}`);
+              items.push(...leads);
+            }
+          } catch (error) {
+            console.log(`[Instantly Service] Failed to fetch leads from list ${leadList.id}: ${error.message}`);
+          }
+        }
+      } else {
+        items = data.leads || data.items || data.data || data || [];
+      }
+      
+      console.log(`[Instantly Service] Processing ${items.length} items from ${endpoint}`);
+      
+      if (items.length === 0) {
+        return { total: 0, synced: 0, message: `No items found in ${endpoint}` };
+      }
+      
       let syncCount = 0;
 
-      for (const email of emails) {
-        const externalId = (email.id || email.message_id).toString();
+      for (const item of items) {
+        // Handle different item structures based on endpoint
+        let email, lead;
+        if (endpoint === '/unibox') {
+          email = item;
+          lead = null;
+        } else {
+          lead = item;
+          email = item.email || item.last_reply || item;
+        }
+        
+        const externalId = (item.id || item.lead_id || item.message_id || `${endpoint}-${Date.now()}-${Math.random()}`).toString();
 
         // Check if email already exists to avoid duplicates
         const existing = await db.query(
@@ -150,10 +247,10 @@ class InstantlyService {
         );
 
         if (existing.rows.length === 0) {
-          const bodyRaw = email.body_text || email.body || '';
-          const isHtml = /<[a-z][\s\S]*>/i.test(bodyRaw) || (typeof email.body === 'object' && email.body.html);
-          const bodyHtml = email.body?.html || email.body_html || (isHtml ? bodyRaw : '');
-          const bodyText = !isHtml ? bodyRaw : (email.body_text || email.body?.text || '');
+          const bodyRaw = email?.body_text || email?.body || item.last_reply_body || item.body || '';
+          const isHtml = /<[a-z][\s\S]*>/i.test(bodyRaw) || (typeof email?.body === 'object' && email.body.html);
+          const bodyHtml = email?.body?.html || email?.body_html || (isHtml ? bodyRaw : '');
+          const bodyText = !isHtml ? bodyRaw : (email?.body_text || email?.body?.text || '');
 
           const result = await db.query(
             `INSERT INTO unibox_emails (
@@ -164,16 +261,16 @@ class InstantlyService {
             [
               orgId,
               externalId,
-              email.from_address_email || email.sender || email.eaccount,
-              email.sender_name || email.from_name || email.lead_name || email.eaccount?.split('@')[0] || 'Unknown Sender',
-              email.subject,
+              item.email || email?.from_address_email || email?.sender || email?.eaccount || 'unknown@example.com',
+              (item.first_name && item.last_name) ? `${item.first_name} ${item.last_name}` : (email?.sender_name || email?.from_name || item.first_name || item.sender_name || 'Unknown Sender'),
+              email?.subject || item.last_reply_subject || item.subject || 'No Subject',
               bodyText,
               bodyHtml,
-              'New',
+              'Lead',
               'Normal',
-              new Date(email.timestamp_email || email.received_at || Date.now()),
+              new Date(email?.timestamp_email || email?.received_at || item.last_reply_at || item.received_at || Date.now()),
               false,
-              JSON.stringify(email)
+              JSON.stringify({ endpoint, item, email, lead })
             ]
           );
 
@@ -189,7 +286,7 @@ class InstantlyService {
         [orgId]
       );
 
-      return { total: emails.length, synced: syncCount };
+      return { total: items.length, synced: syncCount, endpoint };
     } catch (error) {
       console.error('[Instantly Service] Sync failed:', error.message);
       throw error;
