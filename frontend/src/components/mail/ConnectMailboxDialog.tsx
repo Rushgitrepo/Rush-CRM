@@ -14,7 +14,7 @@ import { api } from '@/lib/api';
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { toast } from "sonner";
-import { Mail, Lock, Server } from "lucide-react";
+import { Mail, Lock, Server, Eye, EyeOff } from "lucide-react";
 
 interface ConnectMailboxDialogProps {
   open: boolean;
@@ -49,6 +49,7 @@ export function ConnectMailboxDialog({ open, onOpenChange, provider, onSuccess }
   const { user, profile } = useAuth();
   const { organization } = useOrganization();
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const defaults = providerDefaults[provider] || providerDefaults.custom_imap;
   const isCustom = provider === "custom_imap" || provider === "exchange";
 
@@ -96,9 +97,28 @@ export function ConnectMailboxDialog({ open, onOpenChange, provider, onSuccess }
 
       toast.info('Verifying IMAP connection...');
       const verifyResult = await api.post<any>('/email/sync', { action: 'verify', mailbox_id: mailbox.id });
+      
       if (verifyResult?.verified === false) {
         await api.delete(`/email/mailboxes/${mailbox.id}`);
-        throw new Error(verifyResult?.error || 'IMAP connection failed.');
+        
+        // Parse and show specific error messages
+        const errorMsg = verifyResult?.error || 'Connection failed';
+        
+        if (errorMsg.includes('authentication') || errorMsg.includes('Invalid credentials') || errorMsg.includes('AUTHENTICATIONFAILED')) {
+          throw new Error('Invalid email or password. Please check your credentials and try again.');
+        } else if (errorMsg.includes('ENOTFOUND') || errorMsg.includes('getaddrinfo')) {
+          throw new Error(`Cannot find mail server. Please check the IMAP host: ${form.imap_host || defaults.imap_host}`);
+        } else if (errorMsg.includes('ETIMEDOUT') || errorMsg.includes('timeout')) {
+          throw new Error('Connection timeout. Please check your internet connection and firewall settings.');
+        } else if (errorMsg.includes('ECONNREFUSED')) {
+          throw new Error(`Connection refused. Please verify the IMAP port: ${form.imap_port || defaults.imap_port}`);
+        } else if (errorMsg.includes('certificate') || errorMsg.includes('SSL') || errorMsg.includes('TLS')) {
+          throw new Error('SSL/TLS certificate error. The mail server may have security issues.');
+        } else if (errorMsg.includes('SMTP')) {
+          throw new Error(`SMTP configuration error: ${errorMsg}`);
+        } else {
+          throw new Error(`Connection failed: ${errorMsg}`);
+        }
       }
 
       toast.info('Starting initial email sync...');
@@ -109,8 +129,14 @@ export function ConnectMailboxDialog({ open, onOpenChange, provider, onSuccess }
       toast.success(`${providerNames[provider]} connected successfully!`);
       onSuccess();
     } catch (err: any) {
-      console.error(err);
-      toast.error(err.message || "Failed to connect mailbox");
+      console.error('Mailbox connection error:', err);
+      
+      // Handle network errors
+      if (err.message?.includes('Failed to fetch') || err.message?.includes('Network')) {
+        toast.error('Network error. Please check your internet connection.');
+      } else {
+        toast.error(err.message || "Failed to connect mailbox");
+      }
     } finally {
       setLoading(false);
     }
@@ -155,12 +181,28 @@ export function ConnectMailboxDialog({ open, onOpenChange, provider, onSuccess }
             <div className="relative">
               <Input
                 id="password"
-                type="password"
+                type={showPassword ? "text" : "password"}
                 placeholder="••••••••"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
+                className="pr-20"
               />
-              <Lock className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0 hover:bg-transparent"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4 text-muted-foreground hover:text-foreground transition-colors" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-muted-foreground hover:text-foreground transition-colors" />
+                  )}
+                </Button>
+                <Lock className="h-4 w-4 text-muted-foreground" />
+              </div>
             </div>
           </div>
 

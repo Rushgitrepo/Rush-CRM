@@ -254,7 +254,6 @@ export function MailboxIntegration({
                   {provider.authType === "password" && !isConnected && (
                     <p className="text-[10px] text-muted-foreground mt-1">
                       App password
-                      <p className="font-bold text-blue-600">Coming Soon</p>
                     </p>
                   
                   )}
@@ -276,6 +275,8 @@ export function MailboxIntegration({
             queryClient.invalidateQueries({
               queryKey: ["connected-mailboxes"],
             });
+            // Navigate to webmail after successful connection
+            onMailboxConnected();
           }}
         />
       )}

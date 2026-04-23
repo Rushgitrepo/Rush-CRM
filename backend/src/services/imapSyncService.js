@@ -28,7 +28,29 @@ class ImapSyncService {
       return { verified: true };
     } catch (err) {
       console.error('IMAP Verification Error:', err);
-      return { verified: false, error: err.message };
+      
+      // Provide specific error messages based on error type
+      let errorMessage = err.message;
+      
+      if (err.message.includes('Invalid credentials') || err.message.includes('AUTHENTICATIONFAILED') || err.message.includes('authentication failed')) {
+        errorMessage = 'Invalid credentials: Please check your email and password.';
+      } else if (err.message.includes('ENOTFOUND') || err.message.includes('getaddrinfo')) {
+        errorMessage = `Cannot find mail server: ${config.imap_host}. Please verify the IMAP host.`;
+      } else if (err.message.includes('ETIMEDOUT') || err.message.includes('timeout')) {
+        errorMessage = 'Connection timeout: Please check your internet connection and firewall settings.';
+      } else if (err.message.includes('ECONNREFUSED')) {
+        errorMessage = `Connection refused: Please verify the IMAP port ${config.imap_port || 993}.`;
+      } else if (err.message.includes('certificate') || err.message.includes('SSL') || err.message.includes('TLS')) {
+        errorMessage = 'SSL/TLS error: The mail server certificate may be invalid or expired.';
+      } else if (err.code === 'ENOTFOUND') {
+        errorMessage = `Mail server not found: ${config.imap_host}`;
+      } else if (err.code === 'ETIMEDOUT') {
+        errorMessage = 'Connection timeout: Server is not responding.';
+      } else if (err.code === 'ECONNREFUSED') {
+        errorMessage = 'Connection refused: Server rejected the connection.';
+      }
+      
+      return { verified: false, error: errorMessage };
     }
   }
 

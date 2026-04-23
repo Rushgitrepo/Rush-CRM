@@ -185,11 +185,23 @@ class ImapIdleService {
             );
           }
         } catch (msgErr) {
-          console.error(`Failed to save message uid=${msg.uid}:`, msgErr.message);
+          console.error(`Failed to save message uid=${msg.uid} for ${mailbox.email_address}:`, msgErr.message);
         }
       }
     } catch (err) {
-      console.error(`_fetchNew failed for ${mailbox.email_address}:`, err.message);
+      console.error(`IMAP: Command failed for ${mailbox.email_address}: ${err.message}`);
+      
+      // Update sync status to indicate error
+      try {
+        await db.query(
+          `UPDATE connected_mailboxes SET sync_status = 'error', last_error = $1 WHERE id = $2`,
+          [err.message, mailbox.id]
+        );
+      } catch (dbErr) {
+        console.error('Failed to update mailbox error status:', dbErr.message);
+      }
+      
+      // Don't throw - let the connection retry
     }
   }
 }
