@@ -1,16 +1,22 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 
 export function useUniboxPermission() {
-  const { userRole } = useAuth();
-  const isAdmin = userRole?.role === "super_admin" || userRole?.role === "admin";
+  const { user } = useAuth();
 
-  const { data: hasPermission, isLoading } = useQuery({
-    queryKey: ["unibox-permission"],
+  const { data, isLoading } = useQuery({
+    queryKey: ["unibox-permission", user?.id],
     queryFn: async () => {
-      return isAdmin || true;
+      const response = await api.get('/unibox/permission');
+      return response.data;
     },
+    enabled: !!user,
   });
 
-  return { hasPermission: hasPermission ?? true, isLoading };
+  return { 
+    hasPermission: data?.hasPermission ?? false, 
+    isOwner: data?.isOwner ?? false,
+    isLoading 
+  };
 }

@@ -2,6 +2,7 @@ const db = require('../../config/database');
 const { v4: uuidv4 } = require('uuid');
 const realtimeService = require('../../services/realtimeService');
 const pushService = require('../../services/pushService');
+const { createNotification } = require('./workgroupNotificationsController');
 
 const createSystemPost = async (workgroupId, actorUserId, content) => {
   const postId = uuidv4();
@@ -1040,6 +1041,19 @@ const createWorkgroupPost = async (req, res, next) => {
       post_id: insertedPost.id,
       is_direct_chat: isDirectChat,
     };
+
+    // Create database notification for all members except sender
+    try {
+      await createNotification(
+        id,
+        req.user.id,
+        'message',
+        notifTitle,
+        notifBody
+      );
+    } catch (notifErr) {
+      console.error('Failed to create notification:', notifErr);
+    }
 
     for (const { user_id } of membersResult.rows) {
       // Per-user socket notification (reaches connected clients on any page)

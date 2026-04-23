@@ -79,7 +79,6 @@ const markAllNotificationsAsRead = async (req, res, next) => {
       UPDATE workgroup_notifications 
       SET is_read = TRUE, updated_at = CURRENT_TIMESTAMP
       WHERE workgroup_id = $1 AND user_id = $2 AND is_read = FALSE
-      RETURNING COUNT(*) as updated_count
     `;
     
     const result = await db.query(query, [workgroupId, req.user.id]);

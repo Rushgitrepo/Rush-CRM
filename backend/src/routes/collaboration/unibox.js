@@ -20,5 +20,8 @@ router.get('/templates', uniboxController.getTemplates);
 
 // Permissions
 router.get('/permission', uniboxController.checkPermission);
+router.get('/permissions', uniboxController.getPermissions);
+router.post('/permissions', uniboxController.grantPermission);
+router.delete('/permissions/:user_id', uniboxController.revokePermission);
 
 module.exports = router;

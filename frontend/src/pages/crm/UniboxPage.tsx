@@ -2,11 +2,13 @@ import { useState } from "react";
 import { useUniboxEmails, useUniboxStats, UNIBOX_STATUSES, type UniboxEmail } from "@/hooks/useUniboxEmails";
 import { useUniboxPermission } from "@/hooks/useUniboxPermission";
 import { ConvertToLeadDialog } from "@/components/unibox/ConvertToLeadDialog";
+import { UniboxPermissionsManager } from "@/components/unibox/UniboxPermissionsManager";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -26,8 +28,6 @@ import {
   Archive,
   ArchiveRestore,
   Search,
-  Filter,
-  BarChart3,
   Eye,
   EyeOff,
   AlertCircle,
@@ -35,6 +35,7 @@ import {
   Calendar,
   Users,
   TrendingUp,
+  BarChart3,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -57,7 +58,7 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 
 export default function UniboxPage() {
-  const { hasPermission, isLoading: permLoading } = useUniboxPermission();
+  const { hasPermission, isOwner, isLoading: permLoading } = useUniboxPermission();
   const [statusFilter, setStatusFilter] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [showStarredOnly, setShowStarredOnly] = useState(false);
@@ -114,31 +115,13 @@ export default function UniboxPage() {
     if (!selectedEmail) return;
     await convertToLead.mutateAsync({ emailId: selectedEmail.id, leadData: data });
     setConvertDialogOpen(false);
-    // Refresh selected email
     setSelectedEmail(null);
   };
 
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Unibox Mailbox</h1>
-          <p className="text-muted-foreground">Manage emails from Instantly.ai and convert to leads</p>
-        </div>
-        <Button
-          variant="outline"
-          onClick={() => syncInstantly.mutate()}
-          disabled={syncInstantly.isPending}
-          className="gap-2"
-        >
-          <TrendingUp className={cn("h-4 w-4", syncInstantly.isPending && "animate-spin")} />
-          {syncInstantly.isPending ? "Syncing..." : "Sync Instantly"}
-        </Button>
-      </div>
-
-      {/* Stats Dashboard */}
+  const mailboxContent = (
+    <>
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-4">
           <Card className="p-3">
             <div className="flex items-center gap-2">
               <Mail className="h-4 w-4 text-blue-600" />
@@ -215,11 +198,8 @@ export default function UniboxPage() {
       )}
 
       <div className="grid grid-cols-12 gap-4 h-[calc(100vh-16rem)]">
-        {/* Left: Filters and Search */}
         <Card className="col-span-3 p-3 flex flex-col">
           <h3 className="text-sm font-semibold text-foreground mb-3">Search & Filters</h3>
-
-          {/* Search */}
           <div className="relative mb-4">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -229,8 +209,6 @@ export default function UniboxPage() {
               className="pl-10"
             />
           </div>
-
-          {/* Quick Filters */}
           <div className="space-y-2 mb-4">
             <Button
               variant={showUnreadOnly ? "default" : "ghost"}
@@ -251,8 +229,6 @@ export default function UniboxPage() {
               Starred Only
             </Button>
           </div>
-
-          {/* Status Filters */}
           <div className="space-y-1">
             <p className="text-xs font-medium text-muted-foreground mb-2">Status</p>
             <button
@@ -286,7 +262,6 @@ export default function UniboxPage() {
           </div>
         </Card>
 
-        {/* Middle: Email list */}
         <Card className="col-span-4 flex flex-col overflow-hidden">
           <div className="p-3 border-b border-border">
             <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
@@ -370,7 +345,6 @@ export default function UniboxPage() {
           </ScrollArea>
         </Card>
 
-        {/* Right: Email detail */}
         <Card className="col-span-5 flex flex-col overflow-hidden">
           {selectedEmail ? (
             <>
@@ -401,7 +375,6 @@ export default function UniboxPage() {
                   </div>
                 </div>
 
-                {/* Quick Actions */}
                 <div className="flex items-center gap-2 flex-wrap">
                   <Button
                     variant="outline"
@@ -455,7 +428,6 @@ export default function UniboxPage() {
                   </Button>
                 </div>
 
-                {/* Status and Convert Actions */}
                 <div className="flex items-center gap-3 flex-wrap">
                   <Select
                     value={selectedEmail.status}
@@ -493,7 +465,6 @@ export default function UniboxPage() {
                 </div>
               </div>
 
-              {/* Email body */}
               <ScrollArea className="flex-1 p-4">
                 {selectedEmail.body_html ? (
                   <div
@@ -517,6 +488,63 @@ export default function UniboxPage() {
           )}
         </Card>
       </div>
+    </>
+  );
+
+  return (
+    <div className="space-y-4">
+      {isOwner ? (
+        <Tabs defaultValue="mailbox" className="w-full">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-3xl font-bold text-foreground">Unibox Mailbox</h1>
+              <p className="text-muted-foreground">Manage emails from Instantly.ai and convert to leads</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                onClick={() => syncInstantly.mutate()}
+                disabled={syncInstantly.isPending}
+                className="gap-2"
+              >
+                <TrendingUp className={cn("h-4 w-4", syncInstantly.isPending && "animate-spin")} />
+                {syncInstantly.isPending ? "Syncing..." : "Sync Instantly"}
+              </Button>
+              <TabsList>
+                <TabsTrigger value="mailbox">Mailbox</TabsTrigger>
+                <TabsTrigger value="permissions">Access Management</TabsTrigger>
+              </TabsList>
+            </div>
+          </div>
+
+          <TabsContent value="mailbox" className="space-y-4">
+            {mailboxContent}
+          </TabsContent>
+
+          <TabsContent value="permissions">
+            <UniboxPermissionsManager />
+          </TabsContent>
+        </Tabs>
+      ) : (
+        <>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-foreground">Unibox Mailbox</h1>
+              <p className="text-muted-foreground">Manage emails from Instantly.ai and convert to leads</p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => syncInstantly.mutate()}
+              disabled={syncInstantly.isPending}
+              className="gap-2"
+            >
+              <TrendingUp className={cn("h-4 w-4", syncInstantly.isPending && "animate-spin")} />
+              {syncInstantly.isPending ? "Syncing..." : "Sync Instantly"}
+            </Button>
+          </div>
+          {mailboxContent}
+        </>
+      )}
 
       <ConvertToLeadDialog
         email={selectedEmail}

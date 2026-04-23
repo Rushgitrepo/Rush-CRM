@@ -293,10 +293,10 @@ export function AppSidebar() {
   );
 
   const filteredNavigation = useMemo(() => {
-    return navigation.filter(item => {
-      if (item.title === "Admin Portal" && !isAdmin) return false;
-      return true;
-    });
+    return navigation.map(item => {
+      if (item.title === "Admin Portal" && !isAdmin) return null;
+      return item;
+    }).filter(Boolean) as NavItem[];
   }, [isAdmin]);
 
   const toggleSection = (title: string) => {
