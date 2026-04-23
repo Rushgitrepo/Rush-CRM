@@ -31,6 +31,7 @@ interface Permission {
   full_name: string;
   email: string;
   avatar_url: string;
+  role: string;
   granted_at: string;
 }
 
@@ -51,22 +52,22 @@ export function UniboxPermissionsManager() {
     queryKey: ["unibox-permissions"],
     queryFn: async () => {
       const response = await api.get("/unibox/permissions");
-      return response.data;
+      return response;
     },
   });
 
   const { data: allUsers = [] } = useQuery<User[]>({
     queryKey: ["organization-users"],
     queryFn: async () => {
-      const response = await api.get("/admin/users");
-      return response.data;
+      const response = await api.get("/members");
+      return response;
     },
   });
 
   const grantMutation = useMutation({
     mutationFn: async (userId: string) => {
       const response = await api.post("/unibox/permissions", { user_id: userId });
-      return response.data;
+      return response;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["unibox-permissions"] });
@@ -82,7 +83,7 @@ export function UniboxPermissionsManager() {
   const revokeMutation = useMutation({
     mutationFn: async (userId: string) => {
       const response = await api.delete(`/unibox/permissions/${userId}`);
-      return response.data;
+      return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["unibox-permissions"] });
@@ -206,18 +207,25 @@ export function UniboxPermissionsManager() {
                   <p className="text-sm text-muted-foreground">{permission.email}</p>
                   <p className="text-xs text-muted-foreground mt-1">
                     Access granted {format(new Date(permission.granted_at), "PPp")}
+                    {permission.role === 'super_admin' && (
+                      <Badge className="ml-2 text-xs" variant="secondary">
+                        Super Admin
+                      </Badge>
+                    )}
                   </p>
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => revokeMutation.mutate(permission.id)}
-                disabled={revokeMutation.isPending}
-                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              {permission.role !== 'super_admin' && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => revokeMutation.mutate(permission.id)}
+                  disabled={revokeMutation.isPending}
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           ))}
         </div>
@@ -225,7 +233,7 @@ export function UniboxPermissionsManager() {
 
       <div className="mt-4 p-3 bg-muted/50 rounded-lg">
         <p className="text-xs text-muted-foreground">
-          <strong>Note:</strong> Users with access can view and manage all Unibox emails,
+          <strong>Note:</strong> Only super admins can manage Unibox access. Users with access can view and manage all Unibox emails,
           convert them to leads, and update their status.
         </p>
       </div>

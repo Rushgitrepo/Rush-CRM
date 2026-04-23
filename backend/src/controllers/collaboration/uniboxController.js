@@ -317,33 +317,51 @@ const convertToLead = async (req, res, next) => {
 // Check user permission for unibox
 const checkPermission = async (req, res, next) => {
   try {
-    const OWNER_USER_ID = '5d546e42-fae2-4d4e-82bc-9cb186d720c6';
+    console.log('Unibox permission check for user:', req.user.id, req.user.email, req.user.role);
     
-    // Check if user is the owner
-    if (req.user.id === OWNER_USER_ID) {
-      return res.json({ hasPermission: true, isOwner: true });
-    }
-    
-    // Check if user has been granted permission
-    const result = await db.query(
-      'SELECT has_unibox_access FROM users WHERE id = $1 AND org_id = $2',
+    // Check if user is super admin
+    const userResult = await db.query(
+      'SELECT role, has_unibox_access FROM users WHERE id = $1 AND org_id = $2',
       [req.user.id, req.user.orgId]
     );
     
-    const hasAccess = result.rows.length > 0 && result.rows[0].has_unibox_access;
-    res.json({ hasPermission: hasAccess, isOwner: false });
+    console.log('Database result:', userResult.rows);
+    
+    if (userResult.rows.length === 0) {
+      console.log('No user found in database');
+      return res.json({ hasPermission: false, isOwner: false });
+    }
+    
+    const user = userResult.rows[0];
+    const isSuperAdmin = user.role === 'super_admin';
+    const hasAccess = isSuperAdmin || user.has_unibox_access || false;
+    
+    console.log('Permission check result:', { isSuperAdmin, hasAccess, role: user.role, has_unibox_access: user.has_unibox_access });
+    
+    const result = { 
+      hasPermission: hasAccess, 
+      isOwner: isSuperAdmin 
+    };
+    
+    console.log('Sending response:', result);
+    res.json(result);
   } catch (err) {
+    console.error('Unibox permission check error:', err);
     next(err);
   }
 };
 
-// Get all users with unibox permission (owner only)
+// Get all users with unibox permission (super admin only)
 const getPermissions = async (req, res, next) => {
   try {
-    const OWNER_USER_ID = '5d546e42-fae2-4d4e-82bc-9cb186d720c6';
+    // Check if user is super admin
+    const adminCheck = await db.query(
+      'SELECT role FROM users WHERE id = $1 AND org_id = $2',
+      [req.user.id, req.user.orgId]
+    );
     
-    if (req.user.id !== OWNER_USER_ID) {
-      return res.status(403).json({ error: 'Only the owner can view permissions' });
+    if (adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'super_admin') {
+      return res.status(403).json({ error: 'Only super admins can view permissions' });
     }
     
     const result = await db.query(
@@ -352,6 +370,7 @@ const getPermissions = async (req, res, next) => {
         full_name,
         email,
         avatar_url,
+        role,
         updated_at as granted_at
       FROM users
       WHERE org_id = $1 AND has_unibox_access = TRUE
@@ -365,14 +384,19 @@ const getPermissions = async (req, res, next) => {
   }
 };
 
-// Grant unibox permission to a user (owner only)
+// Grant unibox permission to a user (super admin only)
 const grantPermission = async (req, res, next) => {
   try {
-    const OWNER_USER_ID = '5d546e42-fae2-4d4e-82bc-9cb186d720c6';
     const { user_id } = req.body;
     
-    if (req.user.id !== OWNER_USER_ID) {
-      return res.status(403).json({ error: 'Only the owner can grant permissions' });
+    // Check if user is super admin
+    const adminCheck = await db.query(
+      'SELECT role FROM users WHERE id = $1 AND org_id = $2',
+      [req.user.id, req.user.orgId]
+    );
+    
+    if (adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'super_admin') {
+      return res.status(403).json({ error: 'Only super admins can grant permissions' });
     }
     
     if (!user_id) {
@@ -403,19 +427,19 @@ const grantPermission = async (req, res, next) => {
   }
 };
 
-// Revoke unibox permission from a user (owner only)
+// Revoke unibox permission from a user (super admin only)
 const revokePermission = async (req, res, next) => {
   try {
-    const OWNER_USER_ID = '5d546e42-fae2-4d4e-82bc-9cb186d720c6';
     const { user_id } = req.params;
     
-    if (req.user.id !== OWNER_USER_ID) {
-      return res.status(403).json({ error: 'Only the owner can revoke permissions' });
-    }
+    // Check if user is super admin
+    const adminCheck = await db.query(
+      'SELECT role FROM users WHERE id = $1 AND org_id = $2',
+      [req.user.id, req.user.orgId]
+    );
     
-    // Prevent owner from revoking their own permission
-    if (user_id === OWNER_USER_ID) {
-      return res.status(400).json({ error: 'Cannot revoke owner permission' });
+    if (adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'super_admin') {
+      return res.status(403).json({ error: 'Only super admins can revoke permissions' });
     }
     
     const result = await db.query(

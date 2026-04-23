@@ -8,11 +8,28 @@ export function useUniboxPermission() {
   const { data, isLoading } = useQuery({
     queryKey: ["unibox-permission", user?.id],
     queryFn: async () => {
-      const response = await api.get('/unibox/permission');
-      return response.data;
+      try {
+        console.log('Fetching unibox permission...');
+        const response = await api.get('/unibox/permission');
+        console.log('Full API response:', response);
+        console.log('Response data:', response.data);
+        console.log('Response type:', typeof response);
+        
+        // The API client returns the data directly, not wrapped in .data
+        const result = response || { hasPermission: false, isOwner: false };
+        console.log('Final result:', result);
+        return result;
+      } catch (error) {
+        console.error('Unibox permission check failed:', error);
+        return { hasPermission: false, isOwner: false };
+      }
     },
     enabled: !!user,
+    staleTime: 0, // Force fresh data
+    cacheTime: 0, // Don't cache
   });
+
+  console.log('useUniboxPermission result:', { data, isLoading });
 
   return { 
     hasPermission: data?.hasPermission ?? false, 
