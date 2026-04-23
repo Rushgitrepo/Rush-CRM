@@ -324,13 +324,13 @@ export function AppSidebar() {
           <NavLink
             to={child.href}
             className={cn(
-              "flex items-center gap-3 rounded-xl py-2 pl-9 pr-3 text-[13px] transition-all duration-200",
+              "flex items-center gap-3 rounded-lg py-2 pl-9 pr-3 text-[13px] transition-all duration-200",
               isActive(child.href)
                 ? "bg-primary/10 text-white font-medium"
                 : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
             )}
           >
-            {child.icon && <child.icon className={cn("h-4 w-4", isActive(child.href) ? "text-primary" : "text-slate-500 group-hover:text-slate-300")} />}
+            {child.icon && <child.icon className={cn("h-4 w-4", isActive(child.href) ? "text-primary" : "text-slate-500")} />}
             <span className="flex items-center gap-2">
               {child.title}
               {totalWorkgroupUnread > 0 && (
@@ -342,19 +342,19 @@ export function AppSidebar() {
           </NavLink>
 
           {/* Direct Messages Section */}
-          <div className="mt-3 mb-2">
-            <div className="flex items-center justify-between px-9 mb-2">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+          <div className="mt-4 mb-2">
+            <div className="flex items-center justify-between px-9 mb-2.5">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                 Direct Messages
               </span>
               {totalDMUnread > 0 && (
-                <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold text-white">
+                <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1.5 text-[9px] font-bold text-white">
                   {totalDMUnread}
                 </span>
               )}
             </div>
             
-            {directMessages.length > 0 ? (
+{directMessages.length > 0 && (
               <div className="space-y-0.5">
                 {directMessages.map((dm: any) => {
                   const dmPath = `/collaboration/direct-chats?chat=${dm.id}`;
@@ -397,26 +397,24 @@ export function AppSidebar() {
                   );
                 })}
               </div>
-            ) : (
-              <div className="pl-9 pr-3 py-2">
-                <p className="text-[11px] text-slate-500 italic">No recent chats</p>
-              </div>
             )}
             
             {/* View All Direct Chats Link */}
-            <NavLink
-              to="/collaboration/direct-chats"
-              className={cn(
-                "flex items-center gap-2 rounded-lg py-1.5 pl-9 pr-3 mt-1 text-[12px] transition-all duration-200",
-                location.pathname === '/collaboration/direct-chats' && !location.search
-                  ? "text-primary font-medium"
-                  : "text-slate-500 hover:text-slate-300"
-              )}
-            >
-              <MessageSquare className="h-3.5 w-3.5" />
-              <span>View all chats</span>
-              <ArrowRight className="h-3 w-3 ml-auto" />
-            </NavLink>
+            {directMessages.length > 0 && (
+              <NavLink
+                to="/collaboration/direct-chats"
+                className={cn(
+                  "flex items-center gap-2 rounded-lg py-2 pl-9 pr-3 mt-2 text-[12px] transition-all duration-200",
+                  location.pathname === '/collaboration/direct-chats' && !location.search
+                    ? "text-primary font-medium"
+                    : "text-slate-500 hover:text-slate-300"
+                )}
+              >
+                <MessageSquare className="h-3.5 w-3.5" />
+                <span>View all chats</span>
+                <ArrowRight className="h-3 w-3 ml-auto" />
+              </NavLink>
+            )}
           </div>
         </div>
       );
