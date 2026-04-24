@@ -4,13 +4,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Plus, Search, Mail, Phone, Edit, Trash2, Users, UserCheck, UserX, Building2 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, FILE_BASE_URL } from "@/lib/api";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -20,6 +20,7 @@ interface Employee {
   email: string; phone: string | null; department: string | null;
   position: string | null; hire_date: string; status: string;
   employee_id: string | null; salary: number | null; address: string | null;
+  profile_picture?: string;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -187,6 +188,7 @@ export default function EmployeesPage() {
               <div key={emp.id} className="flex items-center gap-3 px-5 py-3 hover:bg-muted/30 transition-colors group cursor-pointer" onClick={() => navigate(`/hrms/employees/${emp.id}`)}>
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <Avatar className="h-8 w-8 shrink-0">
+                    <AvatarImage src={`${FILE_BASE_URL}${emp.profile_picture}`} alt={name} />
                     <AvatarFallback className={cn("text-[11px] text-white", emp.department ? getDeptColor(emp.department) : "bg-primary")}>
                       {getInitials(name || "?")}
                     </AvatarFallback>

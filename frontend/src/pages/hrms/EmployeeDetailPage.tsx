@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Mail, Phone, MapPin, Calendar, Building2, DollarSign, Edit, Trash2, User, FileText, Briefcase, GraduationCap, Award, Languages, Heart, Users, CreditCard, Loader2, Download, Eye, Upload } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, FILE_BASE_URL } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -123,9 +123,7 @@ export default function EmployeeDetailPage() {
       formData.append('document_type', uploadForm.document_type);
       formData.append('document_name', uploadForm.document_name || uploadForm.file.name);
 
-      await api.post(`/employees/${id}/documents`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      await api.post(`/employees/${id}/documents`, formData);
 
       toast.success('Document uploaded successfully');
       setUploadDialog(false);
@@ -196,6 +194,7 @@ export default function EmployeeDetailPage() {
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-4">
               <Avatar className="h-20 w-20">
+                <AvatarImage src={`${FILE_BASE_URL}${employee.profile_picture}`} alt={name} />
                 <AvatarFallback className="text-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white">
                   {getInitials(name)}
                 </AvatarFallback>
@@ -748,7 +747,7 @@ export default function EmployeeDetailPage() {
                             size="sm"
                             variant="ghost"
                             className="gap-2"
-                            onClick={() => window.open(doc.file_path, '_blank')}
+                            onClick={() => window.open(`${FILE_BASE_URL}${doc.file_path}`, '_blank')}
                           >
                             <Eye className="h-4 w-4" />
                             View
@@ -759,7 +758,7 @@ export default function EmployeeDetailPage() {
                             className="gap-2"
                             onClick={() => {
                               const link = document.createElement('a');
-                              link.href = doc.file_path;
+                              link.href = `${FILE_BASE_URL}${doc.file_path}`;
                               link.download = doc.document_name;
                               link.click();
                             }}

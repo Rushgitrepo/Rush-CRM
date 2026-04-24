@@ -158,9 +158,7 @@ export default function CarFormPage() {
     formData.append('setPrimary', primaryImageIndex.toString());
 
     try {
-      await api.post(`/car-inventory/${carId}/images`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      await api.post(`/car-inventory/${carId}/images`, formData);
     } catch (error) {
       console.error('Image upload error:', error);
     }

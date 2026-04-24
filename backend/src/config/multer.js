@@ -105,7 +105,7 @@ const multerConfig = {
   },
 
   // Specific predefined configs
-  employees: multer({ storage: createStorage('documents'), limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: documentFilter }),
+   employees: multer({ storage: createStorage('employees'), limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: documentFilter }),
   imports: multer({ storage: createStorage('documents'), limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: spreadsheetFilter }),
   workgroups: multer({ storage: createStorage('workgroups'), limits: { fileSize: 50 * 1024 * 1024 }, fileFilter: allFilesFilter }),
   drive: multer({ storage: createStorage('drive'), limits: { fileSize: 100 * 1024 * 1024 }, fileFilter: allFilesFilter }),

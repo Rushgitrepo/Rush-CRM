@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, User, Mail, Phone, Building2, FileText, Upload, Save, ChevronRight, ChevronLeft, Loader2, X, Download, Eye, Trash2 } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, FILE_BASE_URL } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -1093,7 +1093,7 @@ export default function EditEmployeePage() {
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  onClick={() => window.open(doc.file_path, '_blank')}
+                                  onClick={() => window.open(`${FILE_BASE_URL}${doc.file_path}`, '_blank')}
                                 >
                                   <Eye className="h-4 w-4" />
                                 </Button>
