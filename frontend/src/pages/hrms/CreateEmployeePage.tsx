@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, User, Mail, Phone, Building2, FileText, Upload, Save, ChevronRight, ChevronLeft } from 'lucide-react';
+import { ArrowLeft, User, Mail, Phone, Building2, FileText, Upload, Save, ChevronRight, ChevronLeft, Loader2, X, Eye } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -116,13 +116,18 @@ export default function CreateEmployeePage() {
     }
   };
 
-  const removeFile = (type: string, index?: number) => {
-    if (type === 'cnic_picture' || type === 'profile_picture' || type === 'resume') {
-      setUploadedFiles(prev => ({ ...prev, [type]: null }));
-    } else if (index !== undefined) {
+  const removeFile = (field: keyof typeof uploadedFiles, index?: number) => {
+    if (field === 'educational_docs' || field === 'experience_letters' || field === 'other_docs') {
+      if (index !== undefined) {
+        setUploadedFiles(prev => ({
+          ...prev,
+          [field]: (prev[field] as File[]).filter((_, i) => i !== index)
+        }));
+      }
+    } else {
       setUploadedFiles(prev => ({
         ...prev,
-        [type]: (prev[type as keyof typeof prev] as File[]).filter((_, i) => i !== index)
+        [field]: null
       }));
     }
   };
@@ -267,11 +272,7 @@ export default function CreateEmployeePage() {
       formData.append('document_type', documentType);
       formData.append('document_name', documentName);
       
-      return await api.post(`/employees/${employeeId}/documents`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      return await api.post(`/employees/${employeeId}/documents`, formData);
     } catch (error) {
       console.error(`Failed to upload ${documentName}:`, error);
       throw error;
@@ -773,6 +774,123 @@ export default function CreateEmployeePage() {
                       className="mt-2"
                     />
                   </div>
+
+                  <div className="md:col-span-2">
+                    <h3 className="text-lg font-semibold text-foreground mb-4 mt-6">Education & Experience</h3>
+                  </div>
+
+                  <div>
+                    <Label>Education Level</Label>
+                    <Input
+                      value={formData.education_level}
+                      onChange={(e) => handleChange('education_level', e.target.value)}
+                      placeholder="Bachelor's, Master's, etc."
+                      className="mt-2"
+                    />
+                  </div>
+
+                  <div>
+                    <Label>University</Label>
+                    <Input
+                      value={formData.university}
+                      onChange={(e) => handleChange('university', e.target.value)}
+                      placeholder="University name"
+                      className="mt-2"
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Degree</Label>
+                    <Input
+                      value={formData.degree}
+                      onChange={(e) => handleChange('degree', e.target.value)}
+                      placeholder="BS Computer Science"
+                      className="mt-2"
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Graduation Year</Label>
+                    <Input
+                      type="number"
+                      value={formData.graduation_year}
+                      onChange={(e) => handleChange('graduation_year', e.target.value)}
+                      placeholder="2020"
+                      className="mt-2"
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Previous Company</Label>
+                    <Input
+                      value={formData.previous_company}
+                      onChange={(e) => handleChange('previous_company', e.target.value)}
+                      placeholder="Company name"
+                      className="mt-2"
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Previous Position</Label>
+                    <Input
+                      value={formData.previous_position}
+                      onChange={(e) => handleChange('previous_position', e.target.value)}
+                      placeholder="Job title"
+                      className="mt-2"
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Years of Experience</Label>
+                    <Input
+                      type="number"
+                      value={formData.years_of_experience}
+                      onChange={(e) => handleChange('years_of_experience', e.target.value)}
+                      placeholder="5"
+                      className="mt-2"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <Label>Skills (comma separated)</Label>
+                    <Input
+                      value={formData.skills}
+                      onChange={(e) => handleChange('skills', e.target.value)}
+                      placeholder="JavaScript, React, Node.js"
+                      className="mt-2"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <Label>Certifications (comma separated)</Label>
+                    <Input
+                      value={formData.certifications}
+                      onChange={(e) => handleChange('certifications', e.target.value)}
+                      placeholder="AWS Certified, PMP"
+                      className="mt-2"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <Label>Languages (comma separated)</Label>
+                    <Input
+                      value={formData.languages}
+                      onChange={(e) => handleChange('languages', e.target.value)}
+                      placeholder="English, Urdu, Arabic"
+                      className="mt-2"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <Label>Additional Notes</Label>
+                    <Textarea
+                      value={formData.notes}
+                      onChange={(e) => handleChange('notes', e.target.value)}
+                      placeholder="Any additional information"
+                      className="mt-2"
+                      rows={4}
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -987,6 +1105,165 @@ export default function CreateEmployeePage() {
                     </CardContent>
                   </Card>
                 </div>
+
+                {/* Selected Files List */}
+                {(uploadedFiles.profile_picture || uploadedFiles.cnic_picture || uploadedFiles.resume || 
+                  uploadedFiles.educational_docs.length > 0 || uploadedFiles.experience_letters.length > 0 || 
+                  uploadedFiles.other_docs.length > 0) && (
+                  <div className="mt-8 p-6 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-200 dark:border-gray-700">
+                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-gray-900 dark:text-white">
+                      <FileText className="h-5 w-5 text-primary" />
+                      Selected Files for Upload
+                    </h3>
+                    <div className="grid gap-3">
+                      {uploadedFiles.profile_picture && (
+                        <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                              <User className="h-4 w-4 text-green-600" />
+                            </div>
+                            <span className="text-sm font-medium">Profile: {uploadedFiles.profile_picture.name}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => window.open(URL.createObjectURL(uploadedFiles.profile_picture!), '_blank')} 
+                              className="h-8 w-8 text-gray-400 hover:text-primary"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => removeFile('profile_picture')} className="h-8 w-8 text-gray-400 hover:text-red-600">
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      {uploadedFiles.cnic_picture && (
+                        <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                              <FileText className="h-4 w-4 text-blue-600" />
+                            </div>
+                            <span className="text-sm font-medium">CNIC: {uploadedFiles.cnic_picture.name}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => window.open(URL.createObjectURL(uploadedFiles.cnic_picture!), '_blank')} 
+                              className="h-8 w-8 text-gray-400 hover:text-primary"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => removeFile('cnic_picture')} className="h-8 w-8 text-gray-400 hover:text-red-600">
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      {uploadedFiles.resume && (
+                        <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
+                              <FileText className="h-4 w-4 text-indigo-600" />
+                            </div>
+                            <span className="text-sm font-medium">Resume: {uploadedFiles.resume.name}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => window.open(URL.createObjectURL(uploadedFiles.resume!), '_blank')} 
+                              className="h-8 w-8 text-gray-400 hover:text-primary"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => removeFile('resume')} className="h-8 w-8 text-gray-400 hover:text-red-600">
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      {uploadedFiles.educational_docs.map((file, i) => (
+                        <div key={`edu-${i}`} className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                              <FileText className="h-4 w-4 text-purple-600" />
+                            </div>
+                            <span className="text-sm font-medium">Education: {file.name}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => window.open(URL.createObjectURL(file), '_blank')} 
+                              className="h-8 w-8 text-gray-400 hover:text-primary"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => removeFile('educational_docs', i)} className="h-8 w-8 text-gray-400 hover:text-red-600">
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                      {uploadedFiles.experience_letters.map((file, i) => (
+                        <div key={`exp-${i}`} className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+                              <Building2 className="h-4 w-4 text-orange-600" />
+                            </div>
+                            <span className="text-sm font-medium">Experience: {file.name}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => window.open(URL.createObjectURL(file), '_blank')} 
+                              className="h-8 w-8 text-gray-400 hover:text-primary"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => removeFile('experience_letters', i)} className="h-8 w-8 text-gray-400 hover:text-red-600">
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                      {uploadedFiles.other_docs.map((file, i) => (
+                        <div key={`other-${i}`} className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-gray-100 dark:bg-gray-900/30 rounded-lg">
+                              <FileText className="h-4 w-4 text-gray-600" />
+                            </div>
+                            <span className="text-sm font-medium">Other: {file.name}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => window.open(URL.createObjectURL(file), '_blank')} 
+                              className="h-8 w-8 text-gray-400 hover:text-primary"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => removeFile('other_docs', i)} className="h-8 w-8 text-gray-400 hover:text-red-600">
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) || (
+                  <div className="mt-8 text-center p-8 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700">
+                    <div className="bg-white dark:bg-gray-900 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm border border-gray-100 dark:border-gray-800">
+                      <Upload className="h-6 w-6 text-gray-400" />
+                    </div>
+                    <p className="text-gray-500 dark:text-gray-400">No documents selected yet</p>
+                  </div>
+                )}
               </div>
             )}
 

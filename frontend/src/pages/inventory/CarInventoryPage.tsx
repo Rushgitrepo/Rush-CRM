@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { api, FILE_BASE_URL } from "@/lib/api";
 import {
   Car, Plus, Search, Filter, Grid, List, Building2, TrendingUp,
   DollarSign, Package, Eye, Edit, Trash2, MoreVertical
@@ -244,7 +245,7 @@ export default function CarInventoryPage() {
               <div className="aspect-video bg-muted relative">
                 {car.primary_image ? (
                   <img
-                    src={car.primary_image}
+                    src={`${FILE_BASE_URL}${car.primary_image}`}
                     alt={`${car.year} ${car.make} ${car.model}`}
                     className="w-full h-full object-cover"
                   />
@@ -368,7 +369,7 @@ export default function CarInventoryPage() {
                     <div className="w-24 h-24 bg-muted rounded flex-shrink-0">
                       {car.primary_image ? (
                         <img
-                          src={car.primary_image}
+                          src={`${FILE_BASE_URL}${car.primary_image}`}
                           alt={`${car.year} ${car.make} ${car.model}`}
                           className="w-full h-full object-cover rounded"
                         />
