@@ -538,6 +538,14 @@ CREATE TABLE IF NOT EXISTS crm_activities (
 );
 
 
+CREATE INDEX IF NOT EXISTS idx_crm_activities_org_created ON public.crm_activities(org_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_crm_activities_entity_lookup ON public.crm_activities(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_crm_activities_user_id ON public.crm_activities(user_id);
+
+CREATE INDEX IF NOT EXISTS idx_leads_org_status ON public.leads(org_id, status);
+CREATE INDEX IF NOT EXISTS idx_leads_assigned_to ON public.leads(assigned_to);
+CREATE INDEX IF NOT EXISTS idx_leads_created_at ON public.leads(created_at DESC);
+
 
 --
 -- Name: crm_comments; Type: TABLE; Schema: public
@@ -1112,9 +1120,18 @@ CREATE TABLE IF NOT EXISTS employees (
     bank_account_title character varying(255),
     education_level character varying(100),
     university character varying(255),
-    emergency_contact_relation character varying(100)
+    emergency_contact_relation character varying(100),
+    degree CHARACTER VARYING(255),
+    graduation_year INTEGER,
+    previous_company CHARACTER VARYING(255),
+    previous_position CHARACTER VARYING(255),
+    years_of_experience INTEGER,
+    skills TEXT[],
+    certifications TEXT[],
+    languages TEXT[],
+    education_level CHARACTER VARYING(100),
+    university CHARACTER VARYING(255)
 );
-
 
 
 --
