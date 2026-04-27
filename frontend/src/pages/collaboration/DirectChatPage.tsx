@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, MessageCircle, Phone, Search, UserRound, Users, Video } from "lucide-react";
+import { ArrowLeft, MessageCircle, Phone, Search, Trash2, UserRound, Users, Video } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
@@ -8,13 +8,23 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getAvatarUrl } from "@/lib/utils";
 import WorkgroupDetailView from "@/components/workgroups/WorkgroupDetailView";
-import { useWorkgroups } from "@/hooks/useWorkgroups";
+import { useWorkgroups, useDeleteWorkgroup } from "@/hooks/useWorkgroups";
 import { useAdminUsers } from "@/hooks/useAdminUsers";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRealtime } from "@/hooks/useRealtime";
 import { workgroupsApi } from "@/lib/api";
 import { toast } from "sonner";
 import { useVideoCall } from "@/contexts/VideoCallContext";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function DirectChatPage() {
   const navigate = useNavigate();
@@ -35,6 +45,8 @@ export default function DirectChatPage() {
   const selectedId = searchParams.get("chat");
   const searchBoxRef = useRef<HTMLDivElement>(null);
   const { startCall: startVideoCall, callState } = useVideoCall();
+  const deleteWg = useDeleteWorkgroup();
+  const [deleteChatId, setDeleteChatId] = useState<string | null>(null);
 
   const directChats = useMemo(
     () =>
@@ -108,6 +120,18 @@ export default function DirectChatPage() {
     const next = new URLSearchParams(searchParams);
     next.delete("chat");
     setSearchParams(next);
+  };
+
+  const handleDeleteChat = () => {
+    if (!deleteChatId) return;
+    deleteWg.mutate(deleteChatId, {
+      onSuccess: () => {
+        setDeleteChatId(null);
+        if (selectedId === deleteChatId) {
+          closeChat();
+        }
+      }
+    });
   };
 
   const openDirectChatWithUser = async (targetUserId: string) => {
@@ -192,7 +216,7 @@ export default function DirectChatPage() {
   }, [selectedId, queryClient]);
 
   useEffect(() => {
-    const handleWorkgroupPost = (payload: { workgroup_id?: string; user_id?: string }) => {
+    const handleWorkgroupPost = (payload: { workgroup_id?: string; user_id?: string; author_name?: string; created_at?: string }) => {
       if (!payload?.workgroup_id) return;
       let found = false;
       queryClient.setQueriesData(
@@ -202,12 +226,13 @@ export default function DirectChatPage() {
           return prev.map((wg) => {
             if (wg?.id !== payload.workgroup_id) return wg;
             found = true;
-            if (payload.user_id === user?.id || selectedId === payload.workgroup_id) {
-              return { ...wg, unread_count: 0 };
-            }
+            const isOwnMessage = payload.user_id === user?.id;
+            const isActiveChat = selectedId === payload.workgroup_id;
             return {
               ...wg,
-              unread_count: Number(wg.unread_count || 0) + 1,
+              unread_count: isOwnMessage || isActiveChat ? 0 : Number(wg.unread_count || 0) + 1,
+              last_message_at: payload.created_at || new Date().toISOString(),
+              last_message_sender_name: payload.author_name || wg.last_message_sender_name,
             };
           });
         },
@@ -216,9 +241,36 @@ export default function DirectChatPage() {
         queryClient.invalidateQueries({ queryKey: ["workgroups"] });
       }
     };
+
+    const handleWorkgroupUpdated = (payload: any) => {
+      const targetId = payload?.workgroup?.id || payload?.workgroup_id;
+      if (!targetId) return;
+
+      if (payload.action === 'deleted') {
+        if (selectedId === targetId) {
+          closeChat();
+          toast.info("This conversation has been deleted.");
+        }
+      }
+      
+      // Invalidate queries to refresh the list for all actions (created, updated, deleted)
+      queryClient.invalidateQueries({ queryKey: ["workgroups"] });
+    };
+
+    const handleNewNotification = (payload: any) => {
+      // Refresh workgroups whenever a new message notification arrives
+      // This is crucial for new chats that only show up after the first message
+      queryClient.invalidateQueries({ queryKey: ["workgroups"] });
+    };
+
     onRealtime("workgroup_post:new", handleWorkgroupPost);
+    onRealtime("workgroup:updated", handleWorkgroupUpdated);
+    onRealtime("workgroup:notification", handleNewNotification);
+
     return () => {
       offRealtime("workgroup_post:new", handleWorkgroupPost);
+      offRealtime("workgroup:updated", handleWorkgroupUpdated);
+      offRealtime("workgroup:notification", handleNewNotification);
     };
   }, [onRealtime, offRealtime, queryClient, selectedId, user?.id]);
 
@@ -331,6 +383,7 @@ export default function DirectChatPage() {
                     <div className="flex items-center gap-2">
                       <div className="relative">
                         <Avatar className="h-7 w-7">
+                          <AvatarImage src={getAvatarUrl(chat.avatar_url || chat.direct_peer_avatar_url || chat.avatar) || undefined} />
                           <AvatarFallback
                             className={`${chat.avatar_color} text-white text-xs`}
                           >
@@ -425,6 +478,18 @@ export default function DirectChatPage() {
                             {unreadCount}
                           </span>
                         )}
+                        <button
+                          title="Delete chat"
+                          className={`inline-flex h-6 w-6 items-center justify-center rounded-full transition-colors ${
+                            isActive ? 'hover:bg-white/20' : 'hover:bg-red-100 group-hover:text-red-600'
+                          }`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteChatId(chat.id);
+                          }}
+                        >
+                          <Trash2 className={`h-3 w-3 ${isActive ? 'text-white/80' : 'text-destructive'}`} />
+                        </button>
                       </div>
                     </div>
                   </button>
@@ -461,6 +526,26 @@ export default function DirectChatPage() {
             )}
           </section>
         </div>
+
+        <AlertDialog open={!!deleteChatId} onOpenChange={(open) => !open && setDeleteChatId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Conversation?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete this conversation and all its messages. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteChat}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                {deleteWg.isPending ? "Deleting..." : "Delete Permanently"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
     </div>
   );
 }

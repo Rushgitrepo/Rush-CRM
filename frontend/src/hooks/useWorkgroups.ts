@@ -241,7 +241,6 @@ export function useCreatePost() {
     }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['workgroup-posts', variables.workgroupId] });
-      queryClient.invalidateQueries({ queryKey: ['workgroups'] });
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.error || 'Failed to post message');
