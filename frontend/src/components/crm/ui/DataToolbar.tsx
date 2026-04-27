@@ -120,8 +120,8 @@ export function DataToolbar({
                   className={cn(
                     "gap-1 px-3",
                     view === option.id
-                      ? "bg-card shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
+                      ? "bg-card shadow-sm text-primary hover:text-white hover:bg-primary/90"
+                      : "text-muted-foreground hover:text-white hover:bg-primary/90"
                   )}
                   onClick={() => onViewChange(option.id)}
                 >

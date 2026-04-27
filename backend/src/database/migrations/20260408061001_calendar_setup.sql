@@ -1,3 +1,5 @@
+ALTER TABLE public.calendar_events ADD COLUMN IF NOT EXISTS deleted_at timestamp without time zone;
+
 -- =========================
 -- Calendar Events
 -- =========================
@@ -16,7 +18,8 @@ CREATE TABLE IF NOT EXISTS public.calendar_events (
   external_calendar_id VARCHAR(255),
   external_provider VARCHAR(50),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  deleted_at timestamp without time zone
 );
 
 -- =========================
