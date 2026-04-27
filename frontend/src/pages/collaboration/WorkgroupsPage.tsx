@@ -255,7 +255,7 @@ export default function WorkgroupsPage() {
   }, [selectedId, queryClient]);
 
   useEffect(() => {
-    const handleWorkgroupPost = (payload: { workgroup_id?: string; user_id?: string }) => {
+    const handleWorkgroupPost = (payload: { workgroup_id?: string; user_id?: string; author_name?: string; created_at?: string }) => {
       if (!payload?.workgroup_id) return;
       let found = false;
       queryClient.setQueriesData({ queryKey: ["workgroups"] }, (prev: any[] | undefined) => {
@@ -263,8 +263,14 @@ export default function WorkgroupsPage() {
         return prev.map((wg) => {
           if (wg?.id !== payload.workgroup_id) return wg;
           found = true;
-          if (payload.user_id === user?.id || selectedId === payload.workgroup_id) return { ...wg, unread_count: 0 };
-          return { ...wg, unread_count: Number(wg.unread_count || 0) + 1 };
+          const isOwnMessage = payload.user_id === user?.id;
+          const isActiveWorkgroup = selectedId === payload.workgroup_id;
+          return {
+            ...wg,
+            unread_count: isOwnMessage || isActiveWorkgroup ? 0 : Number(wg.unread_count || 0) + 1,
+            last_message_at: payload.created_at || new Date().toISOString(),
+            last_message_sender_name: payload.author_name || wg.last_message_sender_name,
+          };
         });
       });
       if (!found) queryClient.invalidateQueries({ queryKey: ["workgroups"] });
@@ -480,10 +486,10 @@ export default function WorkgroupsPage() {
                           </Button>
                           {canEditOrDelete && (
                             <>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => openEdit(wg)}>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-white" onClick={() => openEdit(wg)}>
                                 <Edit className="h-3.5 w-3.5" />
                               </Button>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => setDeleteTarget(wg)}>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:bg-red-500/10 hover:text-destructive" onClick={() => setDeleteTarget(wg)}>
                                 <Trash2 className="h-3.5 w-3.5" />
                               </Button>
                             </>
@@ -633,7 +639,7 @@ export default function WorkgroupsPage() {
                           <Button 
                             variant="ghost" 
                             size="icon" 
-                            className="h-8 w-8 text-muted-foreground hover:text-primary" 
+                            className="h-8 w-8 text-muted-foreground hover:text-white" 
                             onClick={() => openEdit(wg)}
                           >
                             <Edit className="h-4 w-4" />
@@ -641,7 +647,7 @@ export default function WorkgroupsPage() {
                           <Button 
                             variant="ghost" 
                             size="icon" 
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive" 
+                            className="h-8 w-8 text-muted-foreground hover:bg-red-500/10 hover:text-destructive" 
                             onClick={() => setDeleteTarget(wg)}
                           >
                             <Trash2 className="h-4 w-4" />
@@ -659,7 +665,7 @@ export default function WorkgroupsPage() {
 
       {/* Create / Edit Dialog */}
       <Dialog open={showCreate || !!editing} onOpenChange={(open) => { if (!open) { setShowCreate(false); setEditing(null); setManageMembersUserId("none"); resetForm(); } }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[95vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Team" : "Create New Team"}</DialogTitle>
             <DialogDescription>
@@ -684,7 +690,7 @@ export default function WorkgroupsPage() {
                 <p className="text-sm font-medium text-foreground">Group Logo</p>
                 <p className="text-xs text-muted-foreground mb-1">Click the avatar to upload an image</p>
                 {avatarPreview && (
-                  <button type="button" className="text-xs text-destructive hover:underline" onClick={() => { setAvatarPreview(null); setAvatarFile(null); }}>Remove</button>
+                  <Button variant="outline" type="button" className="text-xs text-destructive h-8 w-14 border-red-500 hover:bg-red-500/10 hover:text-destructive" onClick={() => { setAvatarPreview(null); setAvatarFile(null); }}>Remove</Button>
                 )}
               </div>
               <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => {
