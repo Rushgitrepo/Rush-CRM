@@ -63,7 +63,8 @@ import {
   Copy,
   Forward,
   ChevronDown,
-  X, MessageCircle
+  X,
+  MessageCircle,
 } from "lucide-react";
 import {
   useWorkgroup,
@@ -128,18 +129,31 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
       const fallbackMessage = error?.message;
       toast.error(
         serverMessage ||
-        fallbackMessage ||
-        "Only team creator/owner can remove this team.",
+          fallbackMessage ||
+          "Only team creator/owner can remove this team.",
       );
     },
   });
-  const workgroupDisplayName = workgroup?.display_name || workgroup?.name || "Direct chat";
+  const workgroupDisplayName =
+    workgroup?.display_name || workgroup?.name || "Direct chat";
 
   // Listen to Socket.io real-time chat updates
   useWorkgroupRealtime(
     workgroupId,
     (newMessage) => {
-      // Invalidate the cache to trigger a fast refetch when a new post arrives
+      if (!newMessage?.id) return;
+      if (!newMessage.parent_id) {
+        // Root message: inject directly for instant display
+        queryClient.setQueriesData(
+          { queryKey: ["workgroup-posts", workgroupId] },
+          (prev: WorkgroupPost[] | undefined) => {
+            if (!Array.isArray(prev)) return prev;
+            if (prev.some((p) => p.id === newMessage.id)) return prev;
+            return [...prev, { ...newMessage, replies: [] }];
+          },
+        );
+      }
+      // Always refetch to sync replies, edits, and server state
       queryClient.invalidateQueries({
         queryKey: ["workgroup-posts", workgroupId],
       });
@@ -165,13 +179,13 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
           return prev.map((member) =>
             member.user_id === payload.userId
               ? {
-                ...member,
-                is_online: payload.is_online ?? member.is_online,
-                last_seen_at:
-                  payload.last_seen_at !== undefined
-                    ? payload.last_seen_at
-                    : member.last_seen_at,
-              }
+                  ...member,
+                  is_online: payload.is_online ?? member.is_online,
+                  last_seen_at:
+                    payload.last_seen_at !== undefined
+                      ? payload.last_seen_at
+                      : member.last_seen_at,
+                }
               : member,
           );
         },
@@ -189,7 +203,8 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
       workgroup_id?: string;
       workgroup?: Record<string, any>;
     }) => {
-      if (!payload?.workgroup_id || payload.workgroup_id !== workgroupId) return;
+      if (!payload?.workgroup_id || payload.workgroup_id !== workgroupId)
+        return;
       if (!payload.workgroup) return;
 
       queryClient.setQueryData(["workgroup", workgroupId], payload.workgroup);
@@ -205,11 +220,15 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
 
   useEffect(() => {
     const handleMemberAdded = () => {
-      queryClient.invalidateQueries({ queryKey: ["workgroup-members", workgroupId] });
+      queryClient.invalidateQueries({
+        queryKey: ["workgroup-members", workgroupId],
+      });
       queryClient.invalidateQueries({ queryKey: ["workgroups"] });
     };
     const handleMemberRemoved = () => {
-      queryClient.invalidateQueries({ queryKey: ["workgroup-members", workgroupId] });
+      queryClient.invalidateQueries({
+        queryKey: ["workgroup-members", workgroupId],
+      });
       queryClient.invalidateQueries({ queryKey: ["workgroups"] });
     };
     onRealtime("workgroup:member_added", handleMemberAdded);
@@ -240,21 +259,25 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showInputEmojiPicker, setShowInputEmojiPicker] = useState(false);
   const [isForwardSelectMode, setIsForwardSelectMode] = useState(false);
-  const [selectedForwardPostIds, setSelectedForwardPostIds] = useState<string[]>(
-    [],
-  );
+  const [selectedForwardPostIds, setSelectedForwardPostIds] = useState<
+    string[]
+  >([]);
   const [showForwardDialog, setShowForwardDialog] = useState(false);
   const [forwardSearch, setForwardSearch] = useState("");
   const [selectedForwardWorkgroupIds, setSelectedForwardWorkgroupIds] =
     useState<string[]>([]);
   const [isForwardingMessages, setIsForwardingMessages] = useState(false);
   const [isDeleteSelectMode, setIsDeleteSelectMode] = useState(false);
-  const [selectedDeletePostIds, setSelectedDeletePostIds] = useState<string[]>([]);
+  const [selectedDeletePostIds, setSelectedDeletePostIds] = useState<string[]>(
+    [],
+  );
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeletingMessages, setIsDeletingMessages] = useState(false);
   const [, setLastSeenTick] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
-  const [starredMessages, setStarredMessages] = useState<Set<string>>(new Set());
+  const [starredMessages, setStarredMessages] = useState<Set<string>>(
+    new Set(),
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
   const membersScrollRef = useRef<HTMLDivElement>(null);
   const composerEmojiRef = useRef<HTMLDivElement>(null);
@@ -266,7 +289,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   const [isSendingFile, setIsSendingFile] = useState(false);
   const dragCounterRef = useRef(0);
 
-const flatPosts = useMemo(() => {
+  const flatPosts = useMemo(() => {
     const all: WorkgroupPost[] = [];
     posts.forEach((p) => {
       all.push(p);
@@ -286,21 +309,25 @@ const flatPosts = useMemo(() => {
   // Filter posts based on search query
   const filteredPosts = useMemo(() => {
     if (!searchQuery.trim()) return flatPosts;
-    
+
     const query = searchQuery.toLowerCase().trim();
     return flatPosts.filter((post) => {
       // Search in message content
       if (post.content?.toLowerCase().includes(query)) return true;
-      
+
       // Search in author name
       if (post.author_name?.toLowerCase().includes(query)) return true;
-      
+
       // Search in attachments
-      if (post.attachments?.some(att => 
-        att.original_name?.toLowerCase().includes(query) ||
-        att.file_type?.toLowerCase().includes(query)
-      )) return true;
-      
+      if (
+        post.attachments?.some(
+          (att) =>
+            att.original_name?.toLowerCase().includes(query) ||
+            att.file_type?.toLowerCase().includes(query),
+        )
+      )
+        return true;
+
       return false;
     });
   }, [flatPosts, searchQuery]);
@@ -371,7 +398,6 @@ const flatPosts = useMemo(() => {
   const unreadCount = notificationsData?.unread_count || 0;
 
   // Flatten posts for WhatsApp-style stream
-  
 
   const forwardTargetWorkgroups = useMemo(
     () =>
@@ -409,8 +435,7 @@ const flatPosts = useMemo(() => {
   const canManageMembers = Boolean(
     !isDirectChat && (isOwner || isTeamCreator || isAssignedMemberManager),
   );
-  const canDeleteTeam =
-    Boolean(isOwner || isTeamCreator);
+  const canDeleteTeam = Boolean(isOwner || isTeamCreator);
   const canDeleteEveryoneForSelection = useMemo(() => {
     const hasElevatedRole = ["owner", "admin"].includes(
       currentUserMembership?.role || "",
@@ -430,7 +455,12 @@ const flatPosts = useMemo(() => {
     if (replyTo) {
       // Send as reply
       createPost.mutate(
-        { workgroupId, content: newPost, parentId: replyTo, mentions: mentionsToSend },
+        {
+          workgroupId,
+          content: newPost,
+          parentId: replyTo,
+          mentions: mentionsToSend,
+        },
         {
           onSuccess: () => {
             setNewPost("");
@@ -487,13 +517,20 @@ const flatPosts = useMemo(() => {
     const input = messageInputRef.current;
     if (!input) return;
 
-    const alreadySelected = selectedMentions.some((m) => m.id === member.user_id);
+    const alreadySelected = selectedMentions.some(
+      (m) => m.id === member.user_id,
+    );
     if (alreadySelected) {
       const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const mentionRegex = new RegExp(`@${escapedLabel}\\s?`, "g");
-      const cleaned = newPost.replace(mentionRegex, "").replace(/\s{2,}/g, " ").trimStart();
+      const cleaned = newPost
+        .replace(mentionRegex, "")
+        .replace(/\s{2,}/g, " ")
+        .trimStart();
       setNewPost(cleaned);
-      setSelectedMentions((prev) => prev.filter((m) => m.id !== member.user_id));
+      setSelectedMentions((prev) =>
+        prev.filter((m) => m.id !== member.user_id),
+      );
       setShowMentionSuggestions(true);
       setMentionQuery("");
       mentionStartRef.current = null;
@@ -511,7 +548,9 @@ const flatPosts = useMemo(() => {
       mentionStart !== null && mentionStart >= 0 && mentionStart <= cursorPos;
     const insertStart = canReplaceTypedQuery ? mentionStart : cursorPos;
     const before = newPost.slice(0, insertStart);
-    const after = canReplaceTypedQuery ? newPost.slice(cursorPos) : newPost.slice(cursorPos);
+    const after = canReplaceTypedQuery
+      ? newPost.slice(cursorPos)
+      : newPost.slice(cursorPos);
     const mentionToken = `@${label} `;
     const updated = `${before}${mentionToken}${after}`;
     const nextCursor = (before + mentionToken).length;
@@ -613,9 +652,7 @@ const flatPosts = useMemo(() => {
     setShowDeleteDialog(false);
   };
 
-  const handleDeleteSelectedMessages = async (
-    mode: "me" | "everyone",
-  ) => {
+  const handleDeleteSelectedMessages = async (mode: "me" | "everyone") => {
     if (selectedDeletePosts.length === 0) {
       toast.error("Please select at least one message");
       return;
@@ -647,7 +684,7 @@ const flatPosts = useMemo(() => {
   };
 
   const handleToggleStarMessage = (messageId: string) => {
-    setStarredMessages(prev => {
+    setStarredMessages((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(messageId)) {
         newSet.delete(messageId);
@@ -664,12 +701,13 @@ const flatPosts = useMemo(() => {
     setSearchQuery("");
   };
 
-  const getAuthedFileUrl = (fileId: string, mode: "view" | "download" = "download") => {
+  const getAuthedFileUrl = (
+    fileId: string,
+    mode: "view" | "download" = "download",
+  ) => {
     const token = api.getToken();
     const baseUrl = `${API_BASE_URL}/workgroups/${workgroupId}/files/${fileId}/${mode}`;
-    return token
-      ? `${baseUrl}?token=${encodeURIComponent(token)}`
-      : baseUrl;
+    return token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl;
   };
 
   useEffect(() => {
@@ -734,7 +772,9 @@ const flatPosts = useMemo(() => {
       setShowMentionSuggestions(false);
       toast.success("File sent successfully");
     } catch (error: any) {
-      toast.error(error?.response?.data?.error || error?.message || "Failed to send file");
+      toast.error(
+        error?.response?.data?.error || error?.message || "Failed to send file",
+      );
     } finally {
       setIsSendingFile(false);
     }
@@ -794,38 +834,38 @@ const flatPosts = useMemo(() => {
   };
 
   const handleStartMeeting = () => {
-    const otherMember = members.find(m => m.user_id !== user?.id);
+    const otherMember = members.find((m) => m.user_id !== user?.id);
     if (!otherMember) {
-      toast.error('No other member to call');
+      toast.error("No other member to call");
       return;
     }
-    if (callState !== 'idle') {
-      toast.error('You are already in a call');
+    if (callState !== "idle") {
+      toast.error("You are already in a call");
       return;
     }
     startVideoCall(
       otherMember.user_id,
-      otherMember.full_name || otherMember.email || 'Unknown',
+      otherMember.full_name || otherMember.email || "Unknown",
       otherMember.avatar_url || null,
-      'video'
+      "video",
     );
   };
 
   const handleStartCall = () => {
-    const otherMember = members.find(m => m.user_id !== user?.id);
+    const otherMember = members.find((m) => m.user_id !== user?.id);
     if (!otherMember) {
-      toast.error('No other member to call');
+      toast.error("No other member to call");
       return;
     }
-    if (callState !== 'idle') {
-      toast.error('You are already in a call');
+    if (callState !== "idle") {
+      toast.error("You are already in a call");
       return;
     }
     startVideoCall(
       otherMember.user_id,
-      otherMember.full_name || otherMember.email || 'Unknown',
+      otherMember.full_name || otherMember.email || "Unknown",
       otherMember.avatar_url || null,
-      'audio'
+      "audio",
     );
   };
 
@@ -928,7 +968,10 @@ const flatPosts = useMemo(() => {
   const handleRemoveMemberFromChat = async (memberUserId: string) => {
     const memberToRemove = members.find((m) => m.user_id === memberUserId);
     if (!memberToRemove) return;
-    if (memberToRemove.role === "owner" || memberToRemove.user_id === user?.id) {
+    if (
+      memberToRemove.role === "owner" ||
+      memberToRemove.user_id === user?.id
+    ) {
       return;
     }
 
@@ -948,10 +991,13 @@ const flatPosts = useMemo(() => {
   };
 
   const handleLeaveTeam = async (memberId: string) => {
-    const shouldLeave = await confirm("Are you sure you want to leave this team?", {
-      title: "Leave Team",
-      variant: "destructive",
-    });
+    const shouldLeave = await confirm(
+      "Are you sure you want to leave this team?",
+      {
+        title: "Leave Team",
+        variant: "destructive",
+      },
+    );
     if (!shouldLeave) return;
 
     removeMember.mutate(
@@ -995,7 +1041,12 @@ const flatPosts = useMemo(() => {
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <Avatar className="h-10 w-10">
-              <AvatarImage src={getAvatarUrl((workgroup as any).avatar_url || (workgroup as any).direct_peer_avatar_url)} />
+              <AvatarImage
+                src={getAvatarUrl(
+                  (workgroup as any).avatar_url ||
+                    (workgroup as any).direct_peer_avatar_url,
+                )}
+              />
               <AvatarFallback
                 className={`${workgroup.avatar_color} text-white font-semibold`}
               >
@@ -1020,25 +1071,34 @@ const flatPosts = useMemo(() => {
                 <DropdownMenuItem
                   onClick={async () => {
                     // Find another member to start direct chat with
-                    const otherMember = members.find(m => m.user_id !== user?.id);
+                    const otherMember = members.find(
+                      (m) => m.user_id !== user?.id,
+                    );
                     if (otherMember) {
                       try {
-                        console.log('Opening direct chat with user:', otherMember.user_id);
-                        const direct = await workgroupsApi.openDirectChat(otherMember.user_id);
-                        console.log('Direct chat response:', direct);
+                        console.log(
+                          "Opening direct chat with user:",
+                          otherMember.user_id,
+                        );
+                        const direct = await workgroupsApi.openDirectChat(
+                          otherMember.user_id,
+                        );
+                        console.log("Direct chat response:", direct);
                         if (direct?.id) {
-                          navigate(`/collaboration/workgroups?team=${direct.id}`);
+                          navigate(
+                            `/collaboration/workgroups?team=${direct.id}`,
+                          );
                         } else {
                           toast.error("No direct chat ID returned from server");
                         }
                       } catch (error: any) {
-                        console.error('Direct chat error:', error);
+                        console.error("Direct chat error:", error);
                         const serverMessage = error?.response?.data?.error;
                         const fallbackMessage = error?.message;
                         toast.error(
                           serverMessage ||
-                          fallbackMessage ||
-                          "Failed to open direct chat",
+                            fallbackMessage ||
+                            "Failed to open direct chat",
                         );
                       }
                     } else {
@@ -1117,10 +1177,11 @@ const flatPosts = useMemo(() => {
           </h3>
           <div className="space-y-1">
             <div
-              className={`flex items-center gap-2 px-3  py-2 rounded-lg cursor-pointer transition-colors ${activeTab === "posts"
-                ? "bg-blue-50 dark:bg-blue-900/20 text-primary dark:text-blue-300"
-                : "hover:bg-primary hover:text-white"
-                }`}
+              className={`flex items-center gap-2 px-3  py-2 rounded-lg cursor-pointer transition-colors ${
+                activeTab === "posts"
+                  ? "bg-blue-50 dark:bg-blue-900/20 text-primary dark:text-blue-300"
+                  : "hover:bg-primary hover:text-white"
+              }`}
               onClick={() => setActiveTab("posts")}
             >
               <Hash className="h-4 w-4" />
@@ -1130,10 +1191,11 @@ const flatPosts = useMemo(() => {
               </Badge>
             </div>
             <div
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${activeTab === "files"
-                ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                : "hover:bg-primary hover:text-white dark:hover:bg-primary"
-                }`}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
+                activeTab === "files"
+                  ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+                  : "hover:bg-primary hover:text-white dark:hover:bg-primary"
+              }`}
               onClick={() => setActiveTab("files")}
             >
               <Files className="h-4 w-4" />
@@ -1143,10 +1205,11 @@ const flatPosts = useMemo(() => {
               </Badge>
             </div>
             <div
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${activeTab === "wiki"
-                ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                : "hover:bg-primary hover:text-white dark:hover:bg-primary"
-                }`}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
+                activeTab === "wiki"
+                  ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+                  : "hover:bg-primary hover:text-white dark:hover:bg-primary"
+              }`}
               onClick={() => setActiveTab("wiki")}
             >
               <MessageSquare className="h-4 w-4" />
@@ -1162,7 +1225,9 @@ const flatPosts = useMemo(() => {
         <div className="p-4 flex-1 min-h-0 flex flex-col">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-              {isDirectChat ? "Chat participants" : `Members (${members.length})`}
+              {isDirectChat
+                ? "Chat participants"
+                : `Members (${members.length})`}
             </h3>
             {canManageMembers && (
               <Button
@@ -1219,10 +1284,11 @@ const flatPosts = useMemo(() => {
                       {member.role}
                     </span>
                     <span
-                      className={`text-xs font-medium ml-1 ${member.is_online
-                        ? "text-primary"
-                        : "text-red-500 dark:text-red-400"
-                        }`}
+                      className={`text-xs font-medium ml-1 ${
+                        member.is_online
+                          ? "text-primary"
+                          : "text-red-500 dark:text-red-400"
+                      }`}
                     >
                       {member.is_online ? "Online" : "Offline"}
                     </span>
@@ -1244,71 +1310,81 @@ const flatPosts = useMemo(() => {
                 </div>
                 {((member.user_id === user?.id && member.role !== "owner") ||
                   member.user_id !== user?.id) && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 shrink-0 text-gray-600 dark:text-gray-300 transition-colors group-hover:bg-primary group-hover:text-white hover:bg-primary hover:text-white"
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        {member.user_id !== user?.id && (
-                          <DropdownMenuItem
-                            onClick={async () => {
-                              try {
-                                console.log('Opening direct chat with user:', member.user_id);
-                                const direct = await workgroupsApi.openDirectChat(member.user_id);
-                                console.log('Direct chat response:', direct);
-                                if (direct?.id) {
-                                  navigate(`/collaboration/workgroups?team=${direct.id}`);
-                                } else {
-                                  toast.error("No direct chat ID returned from server");
-                                }
-                              } catch (error: any) {
-                                console.error('Direct chat error:', error);
-                                const serverMessage = error?.response?.data?.error;
-                                const fallbackMessage = error?.message;
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0 text-gray-600 dark:text-gray-300 transition-colors group-hover:bg-primary group-hover:text-white hover:bg-primary hover:text-white"
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {member.user_id !== user?.id && (
+                        <DropdownMenuItem
+                          onClick={async () => {
+                            try {
+                              console.log(
+                                "Opening direct chat with user:",
+                                member.user_id,
+                              );
+                              const direct = await workgroupsApi.openDirectChat(
+                                member.user_id,
+                              );
+                              console.log("Direct chat response:", direct);
+                              if (direct?.id) {
+                                navigate(
+                                  `/collaboration/workgroups?team=${direct.id}`,
+                                );
+                              } else {
                                 toast.error(
-                                  serverMessage ||
-                                  fallbackMessage ||
-                                  "Failed to open direct chat",
+                                  "No direct chat ID returned from server",
                                 );
                               }
-                            }}
-                          >
-                            <MessageCircle className="h-4 w-4 mr-2" /> Direct Chat
-                          </DropdownMenuItem>
-                        )}
-                        {member.user_id === user?.id ? (
+                            } catch (error: any) {
+                              console.error("Direct chat error:", error);
+                              const serverMessage =
+                                error?.response?.data?.error;
+                              const fallbackMessage = error?.message;
+                              toast.error(
+                                serverMessage ||
+                                  fallbackMessage ||
+                                  "Failed to open direct chat",
+                              );
+                            }
+                          }}
+                        >
+                          <MessageCircle className="h-4 w-4 mr-2" /> Direct Chat
+                        </DropdownMenuItem>
+                      )}
+                      {member.user_id === user?.id ? (
+                        <DropdownMenuItem
+                          className="text-red-600 dark:text-red-400"
+                          onClick={() => handleLeaveTeam(member.id)}
+                        >
+                          <UserMinus className="h-4 w-4 mr-2" />
+                          Leave Team
+                        </DropdownMenuItem>
+                      ) : (
+                        canManageMembers && (
                           <DropdownMenuItem
                             className="text-red-600 dark:text-red-400"
-                            onClick={() => handleLeaveTeam(member.id)}
+                            onClick={() =>
+                              removeMember.mutate({
+                                memberId: member.id,
+                                workgroupId,
+                              })
+                            }
                           >
                             <UserMinus className="h-4 w-4 mr-2" />
-                            Leave Team
+                            Remove Team Member
                           </DropdownMenuItem>
-                        ) : (
-                          canManageMembers && (
-                            <DropdownMenuItem
-                              className="text-red-600 dark:text-red-400"
-                              onClick={() =>
-                                removeMember.mutate({
-                                  memberId: member.id,
-                                  workgroupId,
-                                })
-                              }
-                            >
-                              <UserMinus className="h-4 w-4 mr-2" />
-                              Remove Team Member
-                            </DropdownMenuItem>
-                          )
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
+                        )
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </div>
             ))}
           </div>
@@ -1357,31 +1433,38 @@ const flatPosts = useMemo(() => {
                   </Button>
                 )}
               </div>
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 size="icon"
                 onClick={() => {
                   const starredCount = starredMessages.size;
                   if (starredCount === 0) {
-                    toast.info("No starred messages yet. Star messages by clicking the star icon on any message.");
+                    toast.info(
+                      "No starred messages yet. Star messages by clicking the star icon on any message.",
+                    );
                   } else {
-                    toast.info(`You have ${starredCount} starred message${starredCount !== 1 ? 's' : ''}`);
+                    toast.info(
+                      `You have ${starredCount} starred message${starredCount !== 1 ? "s" : ""}`,
+                    );
                   }
                 }}
                 className={starredMessages.size > 0 ? "text-yellow-500" : ""}
               >
-                <Star className={`h-4 w-4 ${starredMessages.size > 0 ? 'fill-current' : ''}`} />
+                <Star
+                  className={`h-4 w-4 ${starredMessages.size > 0 ? "fill-current" : ""}`}
+                />
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={() => setShowNotifications(true)}
-                className="relative"
+                className="relative group"
               >
                 <Bell className="h-4 w-4" />
+
                 {unreadCount > 0 && (
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full flex items-center justify-center">
-                    <span className="text-xs text-white font-bold">
+                  <div className="absolute top-1 -right-1 flex items-center justify-center min-w-[14px] h-[14px] px-1 rounded-full bg-transparent">
+                    <span className="text-xs text-primary font-bold group-hover:text-white transition-colors">
                       {unreadCount}
                     </span>
                   </div>
@@ -1428,8 +1511,12 @@ const flatPosts = useMemo(() => {
                     {isDragging && (
                       <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-primary/10 border-4 border-dashed border-primary rounded-xl backdrop-blur-sm pointer-events-none">
                         <Paperclip className="h-12 w-12 text-primary mb-3" />
-                        <p className="text-lg font-bold text-primary">Drop files to send</p>
-                        <p className="text-sm text-primary/70 mt-1">Release to upload and send</p>
+                        <p className="text-lg font-bold text-primary">
+                          Drop files to send
+                        </p>
+                        <p className="text-sm text-primary/70 mt-1">
+                          Release to upload and send
+                        </p>
                       </div>
                     )}
                     {postsLoading ? (
@@ -1475,10 +1562,9 @@ const flatPosts = useMemo(() => {
                           <div className="flex justify-center mb-4">
                             <div className="px-4 py-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg">
                               <p className="text-sm text-blue-700 dark:text-blue-300">
-                                {filteredPosts.length === 0 
-                                  ? `No messages found for "${searchQuery}"` 
-                                  : `Found ${filteredPosts.length} message${filteredPosts.length !== 1 ? 's' : ''} for "${searchQuery}"`
-                                }
+                                {filteredPosts.length === 0
+                                  ? `No messages found for "${searchQuery}"`
+                                  : `Found ${filteredPosts.length} message${filteredPosts.length !== 1 ? "s" : ""} for "${searchQuery}"`}
                               </p>
                             </div>
                           </div>
@@ -1491,7 +1577,8 @@ const flatPosts = useMemo(() => {
                               No messages found
                             </h3>
                             <p className="text-gray-600 dark:text-gray-400 mb-6">
-                              Try searching with different keywords or clear the search to see all messages.
+                              Try searching with different keywords or clear the
+                              search to see all messages.
                             </p>
                             <Button
                               size="sm"
@@ -1505,102 +1592,121 @@ const flatPosts = useMemo(() => {
                           </div>
                         ) : (
                           filteredPosts.map((post, index) => {
-                        const prevPost = index > 0 ? filteredPosts[index - 1] : null;
-                        const currentDate = new Date(
-                          post.created_at,
-                        ).toDateString();
-                        const prevDate = prevPost
-                          ? new Date(prevPost.created_at).toDateString()
-                          : null;
-                        const showDateSeparator = currentDate !== prevDate;
+                            const prevPost =
+                              index > 0 ? filteredPosts[index - 1] : null;
+                            const currentDate = new Date(
+                              post.created_at,
+                            ).toDateString();
+                            const prevDate = prevPost
+                              ? new Date(prevPost.created_at).toDateString()
+                              : null;
+                            const showDateSeparator = currentDate !== prevDate;
 
-                        const dateLabel = () => {
-                          const today = new Date().toDateString();
-                          const yesterday = new Date(
-                            Date.now() - 86400000,
-                          ).toDateString();
-                          if (currentDate === today) return "Today";
-                          if (currentDate === yesterday) return "Yesterday";
-                          return new Date(post.created_at).toLocaleDateString(
-                            undefined,
-                            {
-                              day: "numeric",
-                              month: "long",
-                              year: "numeric",
-                            },
-                          );
-                        };
+                            const dateLabel = () => {
+                              const today = new Date().toDateString();
+                              const yesterday = new Date(
+                                Date.now() - 86400000,
+                              ).toDateString();
+                              if (currentDate === today) return "Today";
+                              if (currentDate === yesterday) return "Yesterday";
+                              return new Date(
+                                post.created_at,
+                              ).toLocaleDateString(undefined, {
+                                day: "numeric",
+                                month: "long",
+                                year: "numeric",
+                              });
+                            };
 
-                        return (
-                          <div key={post.id}>
-                            {showDateSeparator && (
-                              <div className="flex justify-center my-6">
-                                <span className="px-3 py-1 bg-card/80 backdrop-blur-sm rounded-lg text-[11px] font-bold text-muted-foreground shadow-sm border border-border uppercase tracking-wider">
-                                  {dateLabel()}
-                                </span>
-                              </div>
-                            )}
-                            <PostCard
-                              post={post}
-                              allPosts={flatPosts}
-                              workgroupId={workgroupId}
-                              isGroupAdmin={canManageMembers}
-                              isMember={isMember}
-                              currentUserId={user?.id}
-                              memberDirectory={members}
-                              postAuthorRole={
-                                members.find((m) => m.user_id === post.user_id)?.role
-                              }
-                              onSetReplyTo={setReplyTo}
-                              onScrollToMessage={scrollToMessage}
-                              onRemoveMemberFromChat={handleRemoveMemberFromChat}
-                              isForwardSelectMode={isForwardSelectMode}
-                              isSelectedForForward={selectedForwardPostIds.includes(
-                                post.id,
-                              )}
-                              onToggleForwardSelection={handleToggleForwardPost}
-                              onStartForwardSelection={startForwardSelection}
-                              isDeleteSelectMode={isDeleteSelectMode}
-                              isSelectedForDelete={selectedDeletePostIds.includes(
-                                post.id,
-                              )}
-                              onToggleDeleteSelection={handleToggleDeletePost}
-                              onStartDeleteSelection={startDeleteSelection}
-                              onDelete={(postId) =>
-                                deletePost.mutate({ postId, workgroupId })
-                              }
-                              onTogglePin={(postId, isPinned) =>
-                                togglePin.mutate({ postId, isPinned, workgroupId })
-                              }
-                              isStarred={starredMessages.has(post.id)}
-                              onToggleStar={handleToggleStarMessage}
-                              searchQuery={searchQuery}
-                              onReaction={async (postId, emoji) => {
-                                try {
-                                  const response = await fetch(
-                                    `${import.meta.env.VITE_API_URL || "http://localhost:3001/api"}/workgroups/${workgroupId}/posts/${postId}/reactions`,
-                                    {
-                                      method: "POST",
-                                      headers: {
-                                        "Content-Type": "application/json",
-                                        Authorization: `Bearer ${localStorage.getItem("token")}`,
-                                      },
-                                      body: JSON.stringify({ reaction: emoji }),
-                                    },
-                                  );
-                                  if (response.ok) {
-                                    queryClient.invalidateQueries({
-                                      queryKey: ["workgroup-posts", workgroupId],
-                                    });
+                            return (
+                              <div key={post.id}>
+                                {showDateSeparator && (
+                                  <div className="flex justify-center my-6">
+                                    <span className="px-3 py-1 bg-card/80 backdrop-blur-sm rounded-lg text-[11px] font-bold text-muted-foreground shadow-sm border border-border uppercase tracking-wider">
+                                      {dateLabel()}
+                                    </span>
+                                  </div>
+                                )}
+                                <PostCard
+                                  post={post}
+                                  allPosts={flatPosts}
+                                  workgroupId={workgroupId}
+                                  isGroupAdmin={canManageMembers}
+                                  isMember={isMember}
+                                  currentUserId={user?.id}
+                                  memberDirectory={members}
+                                  postAuthorRole={
+                                    members.find(
+                                      (m) => m.user_id === post.user_id,
+                                    )?.role
                                   }
-                                } catch (err) {
-                                  console.error("Reaction failed:", err);
-                                }
-                              }}
-                            />
-                          </div>
-                        );
-                      })
+                                  onSetReplyTo={setReplyTo}
+                                  onScrollToMessage={scrollToMessage}
+                                  onRemoveMemberFromChat={
+                                    handleRemoveMemberFromChat
+                                  }
+                                  isForwardSelectMode={isForwardSelectMode}
+                                  isSelectedForForward={selectedForwardPostIds.includes(
+                                    post.id,
+                                  )}
+                                  onToggleForwardSelection={
+                                    handleToggleForwardPost
+                                  }
+                                  onStartForwardSelection={
+                                    startForwardSelection
+                                  }
+                                  isDeleteSelectMode={isDeleteSelectMode}
+                                  isSelectedForDelete={selectedDeletePostIds.includes(
+                                    post.id,
+                                  )}
+                                  onToggleDeleteSelection={
+                                    handleToggleDeletePost
+                                  }
+                                  onStartDeleteSelection={startDeleteSelection}
+                                  onDelete={(postId) =>
+                                    deletePost.mutate({ postId, workgroupId })
+                                  }
+                                  onTogglePin={(postId, isPinned) =>
+                                    togglePin.mutate({
+                                      postId,
+                                      isPinned,
+                                      workgroupId,
+                                    })
+                                  }
+                                  isStarred={starredMessages.has(post.id)}
+                                  onToggleStar={handleToggleStarMessage}
+                                  searchQuery={searchQuery}
+                                  onReaction={async (postId, emoji) => {
+                                    try {
+                                      const response = await fetch(
+                                        `${import.meta.env.VITE_API_URL || "http://localhost:3001/api"}/workgroups/${workgroupId}/posts/${postId}/reactions`,
+                                        {
+                                          method: "POST",
+                                          headers: {
+                                            "Content-Type": "application/json",
+                                            Authorization: `Bearer ${localStorage.getItem("token")}`,
+                                          },
+                                          body: JSON.stringify({
+                                            reaction: emoji,
+                                          }),
+                                        },
+                                      );
+                                      if (response.ok) {
+                                        queryClient.invalidateQueries({
+                                          queryKey: [
+                                            "workgroup-posts",
+                                            workgroupId,
+                                          ],
+                                        });
+                                      }
+                                    } catch (err) {
+                                      console.error("Reaction failed:", err);
+                                    }
+                                  }}
+                                />
+                              </div>
+                            );
+                          })
                         )}
                       </>
                     )}
@@ -1624,7 +1730,9 @@ const flatPosts = useMemo(() => {
                         {isSendingFile && (
                           <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 rounded-lg border border-primary/20 animate-in slide-in-from-bottom-2 duration-200">
                             <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin shrink-0" />
-                            <span className="text-xs font-medium text-primary">Uploading file...</span>
+                            <span className="text-xs font-medium text-primary">
+                              Uploading file...
+                            </span>
                           </div>
                         )}
                         {/* Reply Preview (WhatsApp style) */}
@@ -1657,18 +1765,24 @@ const flatPosts = useMemo(() => {
                             className="hidden"
                             onChange={handleAttachFromComposer}
                           />
-                          <div ref={composerEmojiRef} className="flex-1 relative">
+                          <div
+                            ref={composerEmojiRef}
+                            className="flex-1 relative"
+                          >
                             <Input
                               ref={messageInputRef}
                               value={newPost}
                               onChange={(e) =>
                                 handleComposerChange(
                                   e.target.value,
-                                  e.target.selectionStart ?? e.target.value.length,
+                                  e.target.selectionStart ??
+                                    e.target.value.length,
                                 )
                               }
                               placeholder={
-                                replyTo ? "Type a reply..." : "Type a message..."
+                                replyTo
+                                  ? "Type a reply..."
+                                  : "Type a message..."
                               }
                               className="w-full pl-4 pr-32 bg-muted border-none rounded-full h-11 focus-visible:ring-1 focus-visible:ring-primary shadow-inner"
                               onKeyDown={(e) => {
@@ -1696,7 +1810,11 @@ const flatPosts = useMemo(() => {
                                       />
                                       <Avatar className="h-7 w-7">
                                         <AvatarFallback className="text-[10px]">
-                                          {(member.full_name || member.email || "?")
+                                          {(
+                                            member.full_name ||
+                                            member.email ||
+                                            "?"
+                                          )
                                             .slice(0, 2)
                                             .toUpperCase()}
                                         </AvatarFallback>
@@ -1726,7 +1844,9 @@ const flatPosts = useMemo(() => {
                                 size="icon"
                                 className="h-8 w-8 text-gray-400 hover:text-blue-500 hover:bg-transparent"
                                 disabled={isSendingFile}
-                                onClick={() => attachmentInputRef.current?.click()}
+                                onClick={() =>
+                                  attachmentInputRef.current?.click()
+                                }
                               >
                                 {isSendingFile ? (
                                   <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -1736,11 +1856,14 @@ const flatPosts = useMemo(() => {
                               </Button>
                               <button
                                 onClick={handlePost}
-                                disabled={!newPost.trim() || createPost.isPending}
-                                className={`h-8 w-8 flex items-center justify-center rounded-full transition-all ${newPost.trim()
-                                  ? "bg-blue-600 text-white shadow-md hover:scale-105 active:scale-95"
-                                  : "bg-muted text-muted-foreground pointer-events-none"
-                                  }`}
+                                disabled={
+                                  !newPost.trim() || createPost.isPending
+                                }
+                                className={`h-8 w-8 flex items-center justify-center rounded-full transition-all ${
+                                  newPost.trim()
+                                    ? "bg-blue-600 text-white shadow-md hover:scale-105 active:scale-95"
+                                    : "bg-muted text-muted-foreground pointer-events-none"
+                                }`}
                               >
                                 <Send className="h-4 w-4" />
                               </button>
@@ -2104,7 +2227,9 @@ const flatPosts = useMemo(() => {
                 <p className="text-sm text-gray-500 p-2">No chats found.</p>
               ) : (
                 forwardTargetWorkgroups.map((target: any) => {
-                  const checked = selectedForwardWorkgroupIds.includes(target.id);
+                  const checked = selectedForwardWorkgroupIds.includes(
+                    target.id,
+                  );
                   return (
                     <label
                       key={target.id}
@@ -2117,7 +2242,9 @@ const flatPosts = useMemo(() => {
                         }
                       />
                       <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{target.name}</p>
+                        <p className="text-sm font-medium truncate">
+                          {target.name}
+                        </p>
                         <p className="text-xs text-gray-500">
                           {target.member_count || 0} members
                         </p>
@@ -2130,7 +2257,10 @@ const flatPosts = useMemo(() => {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowForwardDialog(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setShowForwardDialog(false)}
+            >
               Cancel
             </Button>
             <Button
@@ -2153,7 +2283,10 @@ const flatPosts = useMemo(() => {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteDialog(false)}
+            >
               Cancel
             </Button>
             <Button
@@ -2233,7 +2366,9 @@ const flatPosts = useMemo(() => {
                               <p className="font-medium text-white">
                                 {u.full_name || "Unknown"}
                               </p>
-                              <p className="text-sm dark:text-gray-400 text-gray-600">{u.email}</p>
+                              <p className="text-sm dark:text-gray-400 text-gray-600">
+                                {u.email}
+                              </p>
                             </div>
                           </div>
                         </SelectItem>
@@ -2435,15 +2570,16 @@ const flatPosts = useMemo(() => {
                       Joined{" "}
                       {member.joined_at
                         ? formatDistanceToNow(new Date(member.joined_at), {
-                          addSuffix: true,
-                        })
+                            addSuffix: true,
+                          })
                         : "recently"}
                     </p>
                     <p
-                      className={`text-xs font-medium ${member.is_online
-                        ? "text-primary"
-                        : "text-red-500 dark:text-red-400"
-                        }`}
+                      className={`text-xs font-medium ${
+                        member.is_online
+                          ? "text-primary"
+                          : "text-red-500 dark:text-red-400"
+                      }`}
                     >
                       {member.is_online ? "Online" : "Offline"}
                     </p>
@@ -2452,9 +2588,12 @@ const flatPosts = useMemo(() => {
                         {member.last_seen_at ? (
                           <>
                             Last seen{" "}
-                            {formatDistanceToNow(new Date(member.last_seen_at), {
-                              addSuffix: true,
-                            })}
+                            {formatDistanceToNow(
+                              new Date(member.last_seen_at),
+                              {
+                                addSuffix: true,
+                              },
+                            )}
                           </>
                         ) : (
                           <>Last seen recently</>
@@ -2472,46 +2611,57 @@ const flatPosts = useMemo(() => {
                       {member.role === "owner" && <Crown className="h-3 w-3" />}
                       {member.role}
                     </Badge>
-                    {((member.user_id === user?.id && member.role !== "owner") ||
+                    {((member.user_id === user?.id &&
+                      member.role !== "owner") ||
                       member.user_id !== user?.id) && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-gray-600 dark:text-gray-300 transition-colors group-hover:bg-primary group-hover:text-white hover:bg-primary hover:text-white"
-                          onClick={async () => {
-                            if (member.user_id === user?.id) {
-                              handleLeaveTeam(member.id);
-                            } else {
-                              try {
-                                console.log('Opening direct chat with user:', member.user_id);
-                                const direct = await workgroupsApi.openDirectChat(member.user_id);
-                                console.log('Direct chat response:', direct);
-                                if (direct?.id) {
-                                  setShowMembersList(false);
-                                  navigate(`/collaboration/workgroups?team=${direct.id}`);
-                                } else {
-                                  toast.error("No direct chat ID returned from server");
-                                }
-                              } catch (error: any) {
-                                console.error('Direct chat error:', error);
-                                const serverMessage = error?.response?.data?.error;
-                                const fallbackMessage = error?.message;
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-gray-600 dark:text-gray-300 transition-colors group-hover:bg-primary group-hover:text-white hover:bg-primary hover:text-white"
+                        onClick={async () => {
+                          if (member.user_id === user?.id) {
+                            handleLeaveTeam(member.id);
+                          } else {
+                            try {
+                              console.log(
+                                "Opening direct chat with user:",
+                                member.user_id,
+                              );
+                              const direct = await workgroupsApi.openDirectChat(
+                                member.user_id,
+                              );
+                              console.log("Direct chat response:", direct);
+                              if (direct?.id) {
+                                setShowMembersList(false);
+                                navigate(
+                                  `/collaboration/workgroups?team=${direct.id}`,
+                                );
+                              } else {
                                 toast.error(
-                                  serverMessage ||
-                                  fallbackMessage ||
-                                  "Failed to open direct chat",
+                                  "No direct chat ID returned from server",
                                 );
                               }
+                            } catch (error: any) {
+                              console.error("Direct chat error:", error);
+                              const serverMessage =
+                                error?.response?.data?.error;
+                              const fallbackMessage = error?.message;
+                              toast.error(
+                                serverMessage ||
+                                  fallbackMessage ||
+                                  "Failed to open direct chat",
+                              );
                             }
-                          }}
-                        >
-                          {member.user_id === user?.id ? (
-                            <UserMinus className="h-4 w-4" />
-                          ) : (
-                            <MessageCircle className="h-4 w-4" />
-                          )}
-                        </Button>
-                      )}
+                          }
+                        }}
+                      >
+                        {member.user_id === user?.id ? (
+                          <UserMinus className="h-4 w-4" />
+                        ) : (
+                          <MessageCircle className="h-4 w-4" />
+                        )}
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))
@@ -2559,10 +2709,11 @@ const flatPosts = useMemo(() => {
               notifications.map((notification) => (
                 <div
                   key={notification.id}
-                  className={`p-3 rounded-lg border cursor-pointer transition-colors ${notification.is_read
-                    ? "border-border bg-card"
-                    : "border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20"
-                    }`}
+                  className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                    notification.is_read
+                      ? "border-border bg-card"
+                      : "border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20"
+                  }`}
                   onClick={() => markNotificationAsRead(notification.id)}
                 >
                   <div className="flex items-start gap-3">
@@ -2617,19 +2768,52 @@ const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "🙏"];
 
 // Distinct bubble colors for group chat members (light bg + dark text + dark mode variant)
 const MEMBER_BUBBLE_COLORS = [
-  { bg: "bg-emerald-100 dark:bg-emerald-900/40", text: "text-emerald-900 dark:text-emerald-100", name: "text-emerald-600 dark:text-emerald-400" },
-  { bg: "bg-violet-100 dark:bg-violet-900/40", text: "text-violet-900 dark:text-violet-100", name: "text-violet-600 dark:text-violet-400" },
-  { bg: "bg-amber-100 dark:bg-amber-900/40", text: "text-amber-900 dark:text-amber-100", name: "text-amber-600 dark:text-amber-400" },
-  { bg: "bg-sky-100 dark:bg-sky-900/40", text: "text-sky-900 dark:text-sky-100", name: "text-sky-600 dark:text-sky-400" },
-  { bg: "bg-rose-100 dark:bg-rose-900/40", text: "text-rose-900 dark:text-rose-100", name: "text-rose-600 dark:text-rose-400" },
-  { bg: "bg-teal-100 dark:bg-teal-900/40", text: "text-teal-900 dark:text-teal-100", name: "text-teal-600 dark:text-teal-400" },
-  { bg: "bg-orange-100 dark:bg-orange-900/40", text: "text-orange-900 dark:text-orange-100", name: "text-orange-600 dark:text-orange-400" },
-  { bg: "bg-pink-100 dark:bg-pink-900/40", text: "text-pink-900 dark:text-pink-100", name: "text-pink-600 dark:text-pink-400" },
+  {
+    bg: "bg-emerald-100 dark:bg-emerald-900/40",
+    text: "text-emerald-900 dark:text-emerald-100",
+    name: "text-emerald-600 dark:text-emerald-400",
+  },
+  {
+    bg: "bg-violet-100 dark:bg-violet-900/40",
+    text: "text-violet-900 dark:text-violet-100",
+    name: "text-violet-600 dark:text-violet-400",
+  },
+  {
+    bg: "bg-amber-100 dark:bg-amber-900/40",
+    text: "text-amber-900 dark:text-amber-100",
+    name: "text-amber-600 dark:text-amber-400",
+  },
+  {
+    bg: "bg-sky-100 dark:bg-sky-900/40",
+    text: "text-sky-900 dark:text-sky-100",
+    name: "text-sky-600 dark:text-sky-400",
+  },
+  {
+    bg: "bg-rose-100 dark:bg-rose-900/40",
+    text: "text-rose-900 dark:text-rose-100",
+    name: "text-rose-600 dark:text-rose-400",
+  },
+  {
+    bg: "bg-teal-100 dark:bg-teal-900/40",
+    text: "text-teal-900 dark:text-teal-100",
+    name: "text-teal-600 dark:text-teal-400",
+  },
+  {
+    bg: "bg-orange-100 dark:bg-orange-900/40",
+    text: "text-orange-900 dark:text-orange-100",
+    name: "text-orange-600 dark:text-orange-400",
+  },
+  {
+    bg: "bg-pink-100 dark:bg-pink-900/40",
+    text: "text-pink-900 dark:text-pink-100",
+    name: "text-pink-600 dark:text-pink-400",
+  },
 ];
 
 function getMemberColor(userId: string) {
   let hash = 0;
-  for (let i = 0; i < userId.length; i++) hash = userId.charCodeAt(i) + ((hash << 5) - hash);
+  for (let i = 0; i < userId.length; i++)
+    hash = userId.charCodeAt(i) + ((hash << 5) - hash);
   return MEMBER_BUBBLE_COLORS[Math.abs(hash) % MEMBER_BUBBLE_COLORS.length];
 }
 
@@ -2647,7 +2831,11 @@ interface PostCardProps {
   onReaction?: (postId: string, emoji: string) => void;
   onScrollToMessage?: (id: string) => void;
   onRemoveMemberFromChat?: (memberUserId: string) => void;
-  memberDirectory?: Array<{ user_id: string; full_name?: string; email?: string }>;
+  memberDirectory?: Array<{
+    user_id: string;
+    full_name?: string;
+    email?: string;
+  }>;
   isForwardSelectMode?: boolean;
   isSelectedForForward?: boolean;
   onToggleForwardSelection?: (postId: string, checked: boolean) => void;
@@ -2708,9 +2896,10 @@ function PostCard({
     currentUserId && deletedForUsers.includes(currentUserId),
   );
   const isDeletedMessage = Boolean(post.is_deleted || isDeletedForMe);
-  const deletedPlaceholder = isDeletedForMe || (isDeletedMessage && isAuthor)
-    ? "You deleted this message"
-    : "This message was deleted";
+  const deletedPlaceholder =
+    isDeletedForMe || (isDeletedMessage && isAuthor)
+      ? "You deleted this message"
+      : "This message was deleted";
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showReactionsDialog, setShowReactionsDialog] = useState(false);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
@@ -2741,16 +2930,24 @@ function PostCard({
   // Function to highlight search terms
   const highlightSearchTerm = (text: string, searchTerm: string) => {
     if (!searchTerm.trim()) return text;
-    
-    const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+
+    const regex = new RegExp(
+      `(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`,
+      "gi",
+    );
     const parts = text.split(regex);
-    
-    return parts.map((part, index) => 
+
+    return parts.map((part, index) =>
       regex.test(part) ? (
-        <mark key={index} className="bg-yellow-200 dark:bg-yellow-800 px-0.5 rounded">
+        <mark
+          key={index}
+          className="bg-yellow-200 dark:bg-yellow-800 px-0.5 rounded"
+        >
           {part}
         </mark>
-      ) : part
+      ) : (
+        part
+      ),
     );
   };
 
@@ -2758,7 +2955,7 @@ function PostCard({
     onReaction?.(post.id, emoji);
     setShowEmojiPicker(false);
   };
-  
+
   const resolveUserName = (userId: string) => {
     if (userId === currentUserId) return "You";
     const member = memberDirectory.find((m) => m.user_id === userId);
@@ -2788,62 +2985,84 @@ function PostCard({
     // First apply search highlighting if there's a search query
     let processedText = text;
     let searchHighlightedParts: (string | JSX.Element)[] = [];
-    
+
     if (searchQuery.trim()) {
-      const searchRegex = new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+      const searchRegex = new RegExp(
+        `(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`,
+        "gi",
+      );
       const searchParts = text.split(searchRegex);
-      searchHighlightedParts = searchParts.map((part, index) => 
+      searchHighlightedParts = searchParts.map((part, index) =>
         searchRegex.test(part) ? (
-          <mark key={`search-${index}`} className="bg-yellow-200 dark:bg-yellow-800 px-0.5 rounded">
+          <mark
+            key={`search-${index}`}
+            className="bg-yellow-200 dark:bg-yellow-800 px-0.5 rounded"
+          >
             {part}
           </mark>
-        ) : part
+        ) : (
+          part
+        ),
       );
     } else {
       searchHighlightedParts = [text];
     }
-    
+
     // Then apply mention highlighting
     if (!mentionEntries.length || !text.includes("@")) {
-      return searchHighlightedParts.length === 1 && typeof searchHighlightedParts[0] === 'string' 
-        ? searchHighlightedParts[0] 
-        : <span>{searchHighlightedParts}</span>;
+      return searchHighlightedParts.length === 1 &&
+        typeof searchHighlightedParts[0] === "string" ? (
+        searchHighlightedParts[0]
+      ) : (
+        <span>{searchHighlightedParts}</span>
+      );
     }
-    
+
     const pattern = mentionEntries
       .map((entry) => escapeRegex(`@${entry.label}`))
       .join("|");
     if (!pattern) {
-      return searchHighlightedParts.length === 1 && typeof searchHighlightedParts[0] === 'string' 
-        ? searchHighlightedParts[0] 
-        : <span>{searchHighlightedParts}</span>;
+      return searchHighlightedParts.length === 1 &&
+        typeof searchHighlightedParts[0] === "string" ? (
+        searchHighlightedParts[0]
+      ) : (
+        <span>{searchHighlightedParts}</span>
+      );
     }
-    
+
     const mentionRegex = new RegExp(`(${pattern})`, "gi");
     const parts = text.split(mentionRegex);
-    
+
     return parts.map((part, idx) => {
       const targetUserId = mentionLookup.get(part.toLowerCase());
       if (!targetUserId) {
         // Apply search highlighting to non-mention parts
         if (searchQuery.trim()) {
-          const searchRegex = new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+          const searchRegex = new RegExp(
+            `(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`,
+            "gi",
+          );
           const searchParts = part.split(searchRegex);
           return (
             <span key={`txt-${idx}`}>
-              {searchParts.map((searchPart, searchIdx) => 
+              {searchParts.map((searchPart, searchIdx) =>
                 searchRegex.test(searchPart) ? (
-                  <mark key={`search-${idx}-${searchIdx}`} className="bg-yellow-200 dark:bg-yellow-800 px-0.5 rounded">
+                  <mark
+                    key={`search-${idx}-${searchIdx}`}
+                    className="bg-yellow-200 dark:bg-yellow-800 px-0.5 rounded"
+                  >
                     {searchPart}
                   </mark>
-                ) : searchPart
+                ) : (
+                  searchPart
+                ),
               )}
             </span>
           );
         }
         return <span key={`txt-${idx}`}>{part}</span>;
       }
-      
+
       return (
         <button
           key={`mention-${idx}`}
@@ -2872,9 +3091,9 @@ function PostCard({
 
   const timeString = post.created_at
     ? new Date(post.created_at).toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    })
+        hour: "2-digit",
+        minute: "2-digit",
+      })
     : "";
 
   const attachments = Array.isArray(post.attachments) ? post.attachments : [];
@@ -2886,9 +3105,7 @@ function PostCard({
   ) => {
     const token = api.getToken();
     const baseUrl = `${API_BASE_URL}/workgroups/${workgroupId}/files/${fileId}/${mode}`;
-    return token
-      ? `${baseUrl}?token=${encodeURIComponent(token)}`
-      : baseUrl;
+    return token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl;
   };
 
   return (
@@ -2989,8 +3206,10 @@ function PostCard({
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuItem onClick={() => onToggleStar?.(post.id)}>
-                      <Star className={`h-4 w-4 mr-2 ${isStarred ? 'fill-current text-yellow-500' : ''}`} /> 
-                      {isStarred ? 'Unstar' : 'Star'} Message
+                      <Star
+                        className={`h-4 w-4 mr-2 ${isStarred ? "fill-current text-yellow-500" : ""}`}
+                      />
+                      {isStarred ? "Unstar" : "Star"} Message
                     </DropdownMenuItem>
                     {isGroupAdmin && (
                       <DropdownMenuItem
@@ -3008,7 +3227,8 @@ function PostCard({
                           onClick={() => onRemoveMemberFromChat(post.user_id)}
                           className="text-red-600 dark:text-red-400"
                         >
-                          <UserMinus className="h-4 w-4 mr-2" /> Remove Team Member
+                          <UserMinus className="h-4 w-4 mr-2" /> Remove Team
+                          Member
                         </DropdownMenuItem>
                       )}
                     <DropdownMenuItem
@@ -3074,8 +3294,9 @@ function PostCard({
               createPortal(
                 <div
                   ref={emojiPickerRef}
-                  className={`fixed z-[999] ${isAuthor ? "right-20" : "left-4"
-                    } top-20 shadow-xl bg-card/80 backdrop-blur-md border border-border rounded-xl shadow-2xl`}
+                  className={`fixed z-[999] ${
+                    isAuthor ? "right-20" : "left-4"
+                  } top-20 shadow-xl bg-card/80 backdrop-blur-md border border-border rounded-xl shadow-2xl`}
                 >
                   <button
                     onClick={() => setShowEmojiPicker(false)}
@@ -3105,7 +3326,9 @@ function PostCard({
 
             {/* Author name for received */}
             {!isAuthor && (
-              <p className={`text-[11px] font-bold mb-0.5 ${memberColor!.name}`}>
+              <p
+                className={`text-[11px] font-bold mb-0.5 ${memberColor!.name}`}
+              >
                 {post.author_name || "Unknown"}
               </p>
             )}
@@ -3207,8 +3430,11 @@ function PostCard({
               </span>
               {isAuthor && (
                 <span
-                  className={`text-[9px] ${(post.seen_count || 0) > 0 ? "text-primary" : "text-gray-400"
-                    }`}
+                  className={`text-[9px] ${
+                    (post.seen_count || 0) > 0
+                      ? "text-primary"
+                      : "text-gray-400"
+                  }`}
                 >
                   ✓✓
                 </span>
@@ -3247,10 +3473,11 @@ function PostCard({
               <button
                 key={emoji}
                 onClick={() => setShowReactionsDialog(true)}
-                className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] font-medium shadow-sm transition-all ${isActive
-                  ? "bg-blue-100 border border-blue-300 text-blue-700"
-                  : "bg-card border border-border text-foreground hover:bg-muted/50"
-                  }`}
+                className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] font-medium shadow-sm transition-all ${
+                  isActive
+                    ? "bg-blue-100 border border-blue-300 text-blue-700"
+                    : "bg-card border border-border text-foreground hover:bg-muted/50"
+                }`}
               >
                 <span>{emoji}</span>
                 <span>{users.length}</span>
@@ -3283,10 +3510,11 @@ function PostCard({
                   <button
                     key={`dialog-${post.id}-${emoji}`}
                     onClick={() => handleEmojiClick(emoji)}
-                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium transition-colors ${isActive
-                      ? "border-blue-300 bg-blue-100 text-blue-700"
-                      : "border-border bg-muted/50 text-foreground hover:bg-muted"
-                      }`}
+                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium transition-colors ${
+                      isActive
+                        ? "border-blue-300 bg-blue-100 text-blue-700"
+                        : "border-border bg-muted/50 text-foreground hover:bg-muted"
+                    }`}
                     title={
                       isActive
                         ? "Click to remove your reaction"
@@ -3302,7 +3530,10 @@ function PostCard({
 
             <div className="mt-2 max-h-44 space-y-2 overflow-y-auto border-t border-gray-100 pt-2 dark:border-gray-700">
               {reactionEntries.map(([emoji, users]) => (
-                <div key={`names-${post.id}-${emoji}`} className="rounded-md bg-muted/50 px-2 py-1.5">
+                <div
+                  key={`names-${post.id}-${emoji}`}
+                  className="rounded-md bg-muted/50 px-2 py-1.5"
+                >
                   <p className="mb-1 text-xs font-semibold text-gray-700 dark:text-gray-200">
                     {emoji} {users.length}
                   </p>
