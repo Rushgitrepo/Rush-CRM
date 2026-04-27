@@ -185,8 +185,6 @@ const navigation: NavItem[] = [
     icon: Zap,
     children: [
       { title: "Workflows", href: "/automation/workflows", icon: Zap },
-      { title: "Integrations", href: "/automation/integrations", icon: Package },
-      { title: "Webhooks", href: "/automation/webhooks", icon: Zap },
     ],
   },
   {
@@ -533,8 +531,8 @@ export function AppSidebar({
             {teamWorkgroups.length > 0 && (
               <div className="space-y-0.5">
                 {teamWorkgroups.slice(0, 8).map((wg: any) => {
-                  const wgPath = `/collaboration/workgroups/${wg.id}`;
-                  const isWGActive = location.pathname.includes(`/workgroups/${wg.id}`);
+                  const wgPath = `/collaboration/workgroups?team=${wg.id}`;
+                  const isWGActive = location.pathname === '/collaboration/workgroups' && location.search.includes(`team=${wg.id}`);
                   const unreadCount = Number(wg.unread_count || 0);
                   const isStarred = Boolean(wg.is_starred);
                   
