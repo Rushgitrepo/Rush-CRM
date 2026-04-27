@@ -102,8 +102,8 @@ const create = async (req, res, next) => {
         description || null, 
         assignedTo || null, 
         dueDate || null, 
-        priority || 'medium', 
-        status || 'todo', 
+        priority || 'normal', 
+        status || 'new', 
         parentTaskId || null, 
         maxOrder.rows[0].next_order, 
         req.user.id,
@@ -155,7 +155,7 @@ const update = async (req, res, next) => {
     if (priority !== undefined) { fields.push(`priority = $${paramIndex++}`); values.push(priority); }
     if (status !== undefined) { 
       fields.push(`status = $${paramIndex++}`); values.push(status);
-      if (status === 'done') {
+      if (status === 'completed') {
         fields.push(`completed_at = now()`);
       }
     }
@@ -214,7 +214,7 @@ const updateStatus = async (req, res, next) => {
     const fields = [`status = $1`, `updated_at = now()`];
     const values = [status];
 
-    if (status === 'done') {
+    if (status === 'completed') {
       fields.push(`completed_at = now()`);
     }
 
@@ -234,7 +234,7 @@ const updateStatus = async (req, res, next) => {
     const doneTask = result.rows[0];
 
     // Notify creator when task is completed (if different from the one marking it done)
-    if (status === 'done' && doneTask.created_by && doneTask.created_by !== req.user.id) {
+    if (status === 'completed' && doneTask.created_by && doneTask.created_by !== req.user.id) {
       notificationService.notify(
         req.user.orgId,
         doneTask.created_by,

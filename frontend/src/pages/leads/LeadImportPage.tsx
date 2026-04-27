@@ -115,29 +115,29 @@ export default function LeadImportPage() {
   return (
     <div className="max-w-6xl mx-auto p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Import Leads</h1>
-        <p className="text-gray-600">Upload CSV or Excel file to import leads</p>
+        <h1 className="text-2xl font-bold text-foreground">Import Leads</h1>
+        <p className="text-muted-foreground">Upload CSV or Excel file to import leads</p>
       </div>
 
       {/* Progress Steps */}
       <div className="mb-8 flex items-center justify-center space-x-4">
-        <div className={`flex items-center ${step === 'upload' ? 'text-primary' : 'text-gray-400'}`}>
+        <div className={`flex items-center ${step === 'upload' ? 'text-primary' : 'text-muted-foreground'}`}>
           <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-            step === 'upload' ? 'bg-primary text-white' : 'bg-gray-200'
+            step === 'upload' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
           }`}>1</div>
           <span className="ml-2 font-medium">Upload File</span>
         </div>
-        <ArrowRight className="text-gray-400" />
-        <div className={`flex items-center ${step === 'mapping' ? 'text-primary' : 'text-gray-400'}`}>
+        <ArrowRight className="text-muted-foreground" />
+        <div className={`flex items-center ${step === 'mapping' ? 'text-primary' : 'text-muted-foreground'}`}>
           <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-            step === 'mapping' ? 'bg-primary text-white' : 'bg-gray-200'
+            step === 'mapping' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
           }`}>2</div>
           <span className="ml-2 font-medium">Map Fields</span>
         </div>
-        <ArrowRight className="text-gray-400" />
-        <div className={`flex items-center ${step === 'complete' ? 'text-green-600' : 'text-gray-400'}`}>
+        <ArrowRight className="text-muted-foreground" />
+        <div className={`flex items-center ${step === 'complete' ? 'text-green-600' : 'text-muted-foreground'}`}>
           <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-            step === 'complete' ? 'bg-green-600 text-white' : 'bg-gray-200'
+            step === 'complete' ? 'bg-green-600 text-white' : 'bg-muted text-muted-foreground'
           }`}>3</div>
           <span className="ml-2 font-medium">Complete</span>
         </div>
@@ -145,12 +145,12 @@ export default function LeadImportPage() {
 
       {/* Step 1: Upload */}
       {step === 'upload' && (
-        <div className="bg-white rounded-lg shadow p-8">
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center">
-            <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Upload your file</h3>
-            <p className="text-gray-600 mb-6 font-medium">CSV or Excel files up to 10MB</p>
-            <label className="inline-flex items-center px-6 py-2.5 bg-primary text-white rounded-lg cursor-pointer hover:bg-primary/90 transition-all shadow-md active:scale-95">
+        <div className="bg-card rounded-lg shadow border p-8">
+          <div className="border-2 border-dashed border-border rounded-lg p-12 text-center">
+            <Upload className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium text-foreground mb-2">Upload your file</h3>
+            <p className="text-muted-foreground mb-6 font-medium">CSV or Excel files up to 10MB</p>
+            <label className="inline-flex items-center px-6 py-2.5 bg-primary text-primary-foreground rounded-lg cursor-pointer hover:bg-primary/90 transition-all shadow-md active:scale-95">
               <FileSpreadsheet className="mr-2 h-5 w-5" />
               Choose File
               <input
@@ -161,21 +161,21 @@ export default function LeadImportPage() {
                 disabled={loading}
               />
             </label>
-            {loading && <p className="mt-4 text-gray-600">Processing file...</p>}
+            {loading && <p className="mt-4 text-muted-foreground">Processing file...</p>}
           </div>
         </div>
       )}
 
       {/* Step 2: Field Mapping */}
       {step === 'mapping' && detectedFields && (
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Map Your Fields</h2>
-          <p className="text-gray-600 mb-6">
+        <div className="bg-card rounded-lg shadow border p-6">
+          <h2 className="text-xl font-semibold mb-4 text-foreground">Map Your Fields</h2>
+          <p className="text-muted-foreground mb-6">
             Match your file columns to CRM fields. We've suggested mappings based on column names.
           </p>
 
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-foreground mb-2">
               Import to Workspace (Optional)
             </label>
             <input
@@ -183,30 +183,30 @@ export default function LeadImportPage() {
               placeholder="Leave empty for organization-wide"
               value={workspaceId}
               onChange={(e) => setWorkspaceId(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg"
+              className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground"
             />
           </div>
 
           <div className="space-y-4 mb-6 max-h-96 overflow-y-auto">
             {detectedFields.headers.map((header) => (
-              <div key={header} className="flex items-center space-x-4 p-3 bg-gray-50 rounded-lg">
+              <div key={header} className="flex items-center space-x-4 p-3 bg-muted/50 rounded-lg">
                 <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-foreground mb-1">
                     {header}
                   </label>
                   {detectedFields.sampleData[0]?.[header] && (
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-muted-foreground">
                       Example: {String(detectedFields.sampleData[0][header]).substring(0, 50)}
                       {String(detectedFields.sampleData[0][header]).length > 50 ? '...' : ''}
                     </p>
                   )}
                 </div>
-                <ArrowRight className="text-gray-400 flex-shrink-0" />
+                <ArrowRight className="text-muted-foreground flex-shrink-0" />
                 <div className="flex-1">
                     <select
                     value={fieldMapping[header] || ''}
                     onChange={(e) => setFieldMapping({ ...fieldMapping, [header]: e.target.value || null })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                    className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all bg-background text-foreground"
                   >
                     <option value="">Skip this field</option>
                     <optgroup label="Standard Fields">
@@ -230,21 +230,21 @@ export default function LeadImportPage() {
                 onChange={(e) => setSkipDuplicates(e.target.checked)}
                 className="mr-2"
               />
-              <span className="text-sm text-gray-700">Skip duplicate leads (based on email)</span>
+              <span className="text-sm text-foreground">Skip duplicate leads (based on email)</span>
             </label>
           </div>
 
           <div className="flex space-x-4">
             <button
               onClick={() => setStep('upload')}
-              className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+              className="px-4 py-2 border border-border rounded-lg hover:bg-muted text-foreground"
             >
               Back
             </button>
             <button
               onClick={handleImport}
               disabled={loading}
-              className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-all shadow-md active:scale-[0.98] font-semibold"
+              className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-all shadow-md active:scale-[0.98] font-semibold"
             >
               {loading ? 'Importing...' : 'Import Leads'}
             </button>
@@ -254,33 +254,33 @@ export default function LeadImportPage() {
 
       {/* Step 3: Complete */}
       {step === 'complete' && importResult && (
-        <div className="bg-white rounded-lg shadow p-8">
+        <div className="bg-card rounded-lg shadow border p-8">
           <div className="text-center mb-6">
             <CheckCircle className="mx-auto h-16 w-16 text-green-600 mb-4" />
-            <h2 className="text-2xl font-semibold mb-4">Import Complete!</h2>
+            <h2 className="text-2xl font-semibold mb-4 text-foreground">Import Complete!</h2>
           </div>
           
           <div className="grid grid-cols-3 gap-4 mb-6">
-            <div className="p-4 bg-green-50 rounded-lg">
+            <div className="p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
               <div className="text-3xl font-bold text-green-600">{importResult.successful}</div>
-              <div className="text-sm text-gray-600">Imported</div>
+              <div className="text-sm text-muted-foreground">Imported</div>
             </div>
-            <div className="p-4 bg-yellow-50 rounded-lg">
+            <div className="p-4 bg-yellow-50 dark:bg-yellow-950/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
               <div className="text-3xl font-bold text-yellow-600">{importResult.duplicates}</div>
-              <div className="text-sm text-gray-600">Duplicates Skipped</div>
+              <div className="text-sm text-muted-foreground">Duplicates Skipped</div>
             </div>
-            <div className="p-4 bg-red-50 rounded-lg">
+            <div className="p-4 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-200 dark:border-red-800">
               <div className="text-3xl font-bold text-red-600">{importResult.failed}</div>
-              <div className="text-sm text-gray-600">Failed</div>
+              <div className="text-sm text-muted-foreground">Failed</div>
             </div>
           </div>
 
           {importResult.errors && importResult.errors.length > 0 && (
             <div className="mb-6">
-              <h3 className="font-semibold mb-2 text-red-700">Errors:</h3>
-              <div className="bg-red-50 rounded-lg p-4 max-h-40 overflow-y-auto">
+              <h3 className="font-semibold mb-2 text-red-700 dark:text-red-400">Errors:</h3>
+              <div className="bg-red-50 dark:bg-red-950/20 rounded-lg p-4 max-h-40 overflow-y-auto border border-red-200 dark:border-red-800">
                 {importResult.errors.map((err: any, idx: number) => (
-                  <div key={idx} className="text-sm text-red-700 mb-1">
+                  <div key={idx} className="text-sm text-red-700 dark:text-red-400 mb-1">
                     Row {err.row}: {err.error}
                   </div>
                 ))}
@@ -290,12 +290,12 @@ export default function LeadImportPage() {
 
           {importResult.successful > 0 && (
             <div className="mb-6">
-              <h3 className="font-semibold mb-3 text-gray-900">Successfully Imported Leads</h3>
-              <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
-                <div className="text-sm text-gray-600 mb-2">
+              <h3 className="font-semibold mb-3 text-foreground">Successfully Imported Leads</h3>
+              <div className="bg-muted/50 rounded-lg p-4 max-h-96 overflow-y-auto border">
+                <div className="text-sm text-muted-foreground mb-2">
                   {importResult.successful} lead(s) have been imported with all their information including:
                 </div>
-                <ul className="list-disc list-inside text-sm text-gray-700 space-y-1 ml-2">
+                <ul className="list-disc list-inside text-sm text-foreground space-y-1 ml-2">
                   <li>Contact Information (Name, Email, Phone)</li>
                   <li>Company Details</li>
                   <li>Lead Status & Source</li>
@@ -320,13 +320,13 @@ export default function LeadImportPage() {
                 setDetectedFields(null);
                 setImportResult(null);
               }}
-              className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
+              className="flex-1 px-4 py-2 border border-border rounded-lg hover:bg-muted text-foreground"
             >
               Import More
             </button>
             <button
               onClick={() => navigate('/crm/leads')}
-              className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-all shadow-md active:scale-[0.98] font-semibold"
+              className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-all shadow-md active:scale-[0.98] font-semibold"
             >
               View All Leads
             </button>
