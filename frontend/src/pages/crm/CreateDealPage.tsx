@@ -245,7 +245,6 @@ export default function CreateDealPage() {
             <Button variant="outline" onClick={() => navigate(-1)} disabled={isSaving}>
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
-            {saveButton}
           </div>
         }
       />

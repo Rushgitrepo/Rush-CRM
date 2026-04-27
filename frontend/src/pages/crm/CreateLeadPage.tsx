@@ -327,15 +327,14 @@ export default function CreateLeadPage() {
             <Button variant="outline" onClick={() => navigate(-1)} disabled={isSaving}>
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
-            {saveButton}
           </div>
         }
       />
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-6">
-          <Card className="border border-slate-200 shadow-sm rounded-xl">
-            <CardHeader className="border-b border-slate-200 ">
+          <Card className="border shadow-sm rounded-xl">
+            <CardHeader className="border-b">
               <SectionTitle
                 icon={Building2}
                 title="Lead and Company Details"
@@ -343,11 +342,11 @@ export default function CreateLeadPage() {
               />
             </CardHeader>
             <CardContent className="space-y-5 p-6">
-              <div className="grid gap-5 md:grid-cols-2">
+              <div className="grid gap-5 md:grid-cols-3">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-foreground">Stage</Label>
                   <Select value={watch("stage")} onValueChange={v => { setValue("stage", v); setValue("status", v); }}>
-                    <SelectTrigger className="h-10 border-slate-200 ">
+                    <SelectTrigger className="h-10">
                       <SelectValue placeholder="Select stage" />
                     </SelectTrigger>
                     <SelectContent>
@@ -361,7 +360,7 @@ export default function CreateLeadPage() {
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-foreground">Customer Type</Label>
                   <Select value={watch("customerType")} onValueChange={v => setValue("customerType", v)}>
-                    <SelectTrigger className="h-10 border-slate-200 ">
+                    <SelectTrigger className="h-10">
                       <SelectValue placeholder="not selected" />
                     </SelectTrigger>
                     <SelectContent>
@@ -373,6 +372,9 @@ export default function CreateLeadPage() {
                 </div>
 
                 <LabeledInput label="Lead name" placeholder="Lead #" fieldProps={register("title")} />
+              </div>
+              
+              <div className="grid gap-5 md:grid-cols-2">
                 <LabeledInput label="Company name" placeholder="Company name" fieldProps={register("companyName")} />
                 <LabeledInput label="Designation" placeholder="Job title / designation" fieldProps={register("designation")} />
 
@@ -445,8 +447,8 @@ export default function CreateLeadPage() {
             </CardContent>
           </Card>
 
-          <Card className="border border-slate  shadow-sm rounded-xl">
-            <CardHeader className="border-b border-slate-200 ">
+          <Card className="border shadow-sm rounded-xl">
+            <CardHeader className="border-b">
               <SectionTitle
                 icon={CalendarDays}
                 title="Activity & Interaction Tracking"
@@ -457,11 +459,11 @@ export default function CreateLeadPage() {
               <div className="grid gap-5 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-foreground">Last Contacted Date</Label>
-                  <Input type="date" {...register("lastContactedDate")} className="h-10 border-slate-200 " />
+                  <Input type="date" {...register("lastContactedDate")} className="h-10" />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-foreground">Next Follow-up Date</Label>
-                  <Input type="date" {...register("nextFollowUpDate")} className="h-10 border-slate-200 " />
+                  <Input type="date" {...register("nextFollowUpDate")} className="h-10" />
                 </div>
               </div>
 
@@ -474,8 +476,8 @@ export default function CreateLeadPage() {
             </CardContent>
           </Card>
 
-          <Card className="border border-slate-200  shadow-sm rounded-xl">
-            <CardHeader className="border-b border-slate-200 ">
+          <Card className="border shadow-sm rounded-xl">
+            <CardHeader className="border-b">
               <SectionTitle
                 icon={Sparkles}
                 title="Qualification & Opportunity"
@@ -487,7 +489,7 @@ export default function CreateLeadPage() {
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-foreground">Service Interested</Label>
                   <Select value={watch("serviceInterested")} onValueChange={v => setValue("serviceInterested", v)}>
-                    <SelectTrigger className="h-10 border-slate-200 ">
+                    <SelectTrigger className="h-10">
                       <SelectValue placeholder="Select service..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -501,7 +503,7 @@ export default function CreateLeadPage() {
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-foreground">Company Size</Label>
                   <Select value={watch("companySize")} onValueChange={v => setValue("companySize", v)}>
-                    <SelectTrigger className="h-10 border-slate-200 ">
+                    <SelectTrigger className="h-10">
                       <SelectValue placeholder="Company Size" />
                     </SelectTrigger>
                     <SelectContent>
@@ -515,13 +517,13 @@ export default function CreateLeadPage() {
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-foreground">Estimated Opportunity Value</Label>
                   <div className="flex items-stretch gap-2">
-                    <Input type="number" placeholder="0" {...register("value")} className="h-10 flex-1 border-slate-200 " />
+                    <Input type="number" placeholder="0" {...register("value")} className="h-10 flex-1" />
                     <InlineSelect
                       value={watch("currency")}
                       onChange={v => setValue("currency", v)}
                       placeholder="US Dollar"
                       options={currencyOptions}
-                      className="w-[170px] h-10 border-slate-200 "
+                      className="w-[170px] h-10"
                     />
                   </div>
                 </div>
@@ -535,8 +537,8 @@ export default function CreateLeadPage() {
             </CardContent>
           </Card>
 
-          <Card className="border border-slate-200  shadow-sm rounded-xl">
-            <CardHeader className="border-b border-slate-200 ">
+          <Card className="border shadow-sm rounded-xl">
+            <CardHeader className="border-b">
               <SectionTitle
                 icon={Tag}
                 title="Source"
@@ -547,7 +549,7 @@ export default function CreateLeadPage() {
               <div className="grid gap-5 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-foreground">Created on</Label>
-                  <div className="h-10 rounded-md border border-dashed border-slate-200 bg-slate-50 px-3 text-sm text-slate-500 flex items-center">
+                  <div className="h-10 rounded-md border border-dashed bg-muted/50 px-3 text-sm text-muted-foreground flex items-center">
                     Will be set automatically
                   </div>
                 </div>
@@ -555,7 +557,7 @@ export default function CreateLeadPage() {
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-foreground">Source</Label>
                   <Select value={watch("source")} onValueChange={v => setValue("source", v)}>
-                    <SelectTrigger className="h-10 border-slate-200 ">
+                    <SelectTrigger className="h-10">
                       <SelectValue placeholder="Call" />
                     </SelectTrigger>
                     <SelectContent>
@@ -571,7 +573,7 @@ export default function CreateLeadPage() {
                   <Textarea
                     placeholder="Source Information"
                     {...register("sourceInfo")}
-                    className="min-h-[110px] border-slate-200 "
+                    className="min-h-[110px]"
                   />
                 </div>
 
@@ -580,7 +582,7 @@ export default function CreateLeadPage() {
                   <Textarea
                     placeholder="Add any extra context"
                     {...register("notes")}
-                    className="min-h-[110px] border-slate-200 "
+                    className="min-h-[110px]"
                   />
                 </div>
               </div>
@@ -594,8 +596,8 @@ export default function CreateLeadPage() {
         </div>
 
         <div className="space-y-6">
-          <Card className="border border-slate-200  shadow-sm sticky top-6 rounded-xl">
-            <CardHeader className="border-b border-slate-200 ">
+          <Card className="border shadow-sm sticky top-6 rounded-xl">
+            <CardHeader className="border-b">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <MessageSquare className="h-5 w-5 text-primary" />
                 Lead Preview
@@ -605,24 +607,24 @@ export default function CreateLeadPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 p-6">
-              <div className="rounded-lg border border-slate-200  p-4">
-                <p className="text-sm font-medium text-slate-900">Add a new activity</p>
-                <p className="mt-1 text-sm text-slate-600">
+              <div className="rounded-lg border p-4">
+                <p className="text-sm font-medium text-foreground">Add a new activity</p>
+                <p className="mt-1 text-sm text-muted-foreground">
                   Plan your next action on the lead to keep follow-up details in one place.
                 </p>
               </div>
 
-              <div className="space-y-3 rounded-lg border border-slate-200 p-4">
+              <div className="space-y-3 rounded-lg border p-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-500">Stage</span>
+                  <span className="text-sm text-muted-foreground">Stage</span>
                   <span className="text-sm font-medium">{watch("stage") || "new"}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-500">Source</span>
+                  <span className="text-sm text-muted-foreground">Source</span>
                   <span className="text-sm font-medium">{watch("source") || "call"}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-500">Opportunity</span>
+                  <span className="text-sm text-muted-foreground">Opportunity</span>
                   <span className="text-sm font-medium">
                     {watch("currency") || "USD"} {watch("value") || "0"}
                   </span>

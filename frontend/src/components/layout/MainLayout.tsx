@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Outlet } from "react-router-dom";
 import { AppSidebar } from "./AppSidebar";
 import { TopBar } from "./Header";
@@ -11,12 +12,22 @@ export function MainLayout() {
   // Keep app-level socket alive on all protected pages.
   useRealtime();
 
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const saved = localStorage.getItem('sidebar-width');
+    return saved ? parseInt(saved, 10) : 256;
+  });
+
+  const handleSidebarWidthChange = (width: number) => {
+    setSidebarWidth(width);
+    localStorage.setItem('sidebar-width', width.toString());
+  };
+
   return (
     <SoftphoneProvider>
       <VideoCallProvider>
         <div className="min-h-screen bg-background">
-          <AppSidebar />
-          <div className="pl-64">
+          <AppSidebar width={sidebarWidth} onWidthChange={handleSidebarWidthChange} />
+          <div style={{ paddingLeft: `${sidebarWidth}px` }}>
             <TopBar />
             <main className="p-6">
               <Outlet />

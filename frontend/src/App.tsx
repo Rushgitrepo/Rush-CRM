@@ -93,6 +93,7 @@ import CompanyDetailPage from "./pages/crm/CompanyDetailPage";
 import CustomerDetailPage from "./pages/crm/CustomerDetailPage";
 // Tasks & Automation
 import TasksPage from "./pages/tasks/TasksPage";
+import IssueDetailPage from "./pages/tasks/IssueDetailPage";
 import WorkflowsPage from "./pages/automation/WorkflowsPage";
 import IntegrationsPage from "./pages/automation/IntegrationsPage";
 import WebhooksPage from "./pages/automation/WebhooksPage";
@@ -243,6 +244,7 @@ const App = () => (
                       <Route path="/admin-dashboard" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />
                       {/* Tasks & Automation */}
                       <Route path="/tasks" element={<TasksPage />} />
+                      <Route path="/tasks/:id" element={<IssueDetailPage />} />
                       <Route path="/automation/workflows" element={<WorkflowsPage />} />
                       {/* Projects — /projects redirects to /tasks, detail page stays */}
                       <Route path="/projects/:id" element={<ProjectDetailPage />} />

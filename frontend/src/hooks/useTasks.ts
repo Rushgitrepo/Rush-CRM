@@ -10,6 +10,7 @@ export interface Task {
   description: string | null;
   status: string;
   priority: string;
+  type?: string;
   assigned_to: string | null;
   created_by: string;
   parent_task_id: string | null;
@@ -20,6 +21,7 @@ export interface Task {
   actual_hours: number | null;
   sort_order: number;
   tags: string[] | null;
+  labels?: string[] | null;
   entity_type: string | null;
   entity_id: string | null;
   created_at: string;

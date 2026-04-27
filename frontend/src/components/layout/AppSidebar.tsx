@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWorkgroups } from "@/hooks/useWorkgroups";
@@ -50,6 +50,7 @@ import {
   LogOut,
   HelpCircle,
   Star,
+  GripVertical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -206,7 +207,13 @@ const navigation: NavItem[] = [
   },
 ];
 
-export function AppSidebar() {
+export function AppSidebar({ 
+  width = 256, 
+  onWidthChange 
+}: { 
+  width?: number; 
+  onWidthChange?: (width: number) => void; 
+}) {
   const location = useLocation();
   const { userRole } = useAuth();
   const { data: workgroups = [] } = useWorkgroups();
@@ -348,6 +355,46 @@ export function AppSidebar() {
     );
   };
 
+  const [isResizing, setIsResizing] = useState(false);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsResizing(true);
+    e.preventDefault();
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!isResizing) return;
+    
+    const newWidth = Math.max(200, Math.min(400, e.clientX));
+    onWidthChange?.(newWidth);
+  };
+
+  const handleMouseUp = () => {
+    setIsResizing(false);
+  };
+
+  // Add event listeners for mouse move and up
+  useEffect(() => {
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    } else {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizing]);
+
   const renderSubItem = (child: NavSubItem, parentTitle?: string) => {
     const hasNestedChildren = child.nestedChildren && child.nestedChildren.length > 0;
     const isExpanded = expandedSubItems.includes(child.title);
@@ -465,6 +512,95 @@ export function AppSidebar() {
               >
                 <MessageSquare className="h-3.5 w-3.5" />
                 <span>View all chats</span>
+                <ArrowRight className="h-3 w-3 ml-auto" />
+              </NavLink>
+            )}
+          </div>
+
+          {/* Team Workgroups Section */}
+          <div className="mt-6 mb-2">
+            <div className="flex items-center justify-between px-9 mb-2.5">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Team Workgroups
+              </span>
+              {totalWorkgroupUnread > 0 && (
+                <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1.5 text-[9px] font-bold text-white">
+                  {totalWorkgroupUnread}
+                </span>
+              )}
+            </div>
+            
+            {teamWorkgroups.length > 0 && (
+              <div className="space-y-0.5">
+                {teamWorkgroups.slice(0, 8).map((wg: any) => {
+                  const wgPath = `/collaboration/workgroups/${wg.id}`;
+                  const isWGActive = location.pathname.includes(`/workgroups/${wg.id}`);
+                  const unreadCount = Number(wg.unread_count || 0);
+                  const isStarred = Boolean(wg.is_starred);
+                  
+                  return (
+                    <div
+                      key={wg.id}
+                      className="group/wg relative"
+                    >
+                      <NavLink
+                        to={wgPath}
+                        className={cn(
+                          "flex items-center gap-2 rounded-lg py-1.5 pl-9 pr-8 text-[13px] transition-all duration-200",
+                          isWGActive
+                            ? "bg-primary/10 text-white font-medium"
+                            : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
+                        )}
+                      >
+                        <div className="relative">
+                          <Avatar className="h-5 w-5">
+                            <AvatarImage src={getAvatarUrl(wg.avatar_url) || undefined} />
+                            <AvatarFallback className={`${wg.avatar_color || 'bg-primary'} text-white text-[10px]`}>
+                              {(wg.display_name || wg.name).slice(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          {wg.type === 'public' && (
+                            <span className="absolute -right-0.5 -bottom-0.5 h-2 w-2 rounded-full bg-green-500 border border-[#0c111d]" />
+                          )}
+                        </div>
+                        <span className="flex-1 truncate">{wg.display_name || wg.name}</span>
+                        {unreadCount > 0 && (
+                          <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-white">
+                            {unreadCount > 9 ? '9+' : unreadCount}
+                          </span>
+                        )}
+                      </NavLink>
+                      <button
+                        onClick={(e) => toggleStarChat(wg.id, e)}
+                        className={cn(
+                          "absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded transition-all",
+                          isStarred
+                            ? "text-yellow-500 opacity-100"
+                            : "text-slate-600 opacity-0 group-hover/wg:opacity-100 hover:text-yellow-500"
+                        )}
+                        title={isStarred ? "Unstar workgroup" : "Star workgroup"}
+                      >
+                        <Star className={cn("h-3.5 w-3.5", isStarred && "fill-yellow-500")} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            
+            {/* View All Workgroups Link */}
+            {teamWorkgroups.length > 0 && (
+              <NavLink
+                to="/collaboration/workgroups"
+                className={cn(
+                  "flex items-center gap-2 rounded-lg py-2 pl-9 pr-3 mt-2 text-[12px] transition-all duration-200",
+                  location.pathname === '/collaboration/workgroups' && !location.pathname.includes('/workgroups/')
+                    ? "text-primary font-medium"
+                    : "text-slate-500 hover:text-slate-300"
+                )}
+              >
+                <Users className="h-3.5 w-3.5" />
+                <span>View all workgroups</span>
                 <ArrowRight className="h-3 w-3 ml-auto" />
               </NavLink>
             )}
@@ -599,7 +735,10 @@ export function AppSidebar() {
   };
 
   return (
-    <aside className="fixed left-0 top-0 z-50 h-screen w-64 bg-[#0c111d] border-r border-white/5 flex flex-col">
+    <aside 
+      className="fixed left-0 top-0 z-50 h-screen bg-[#0c111d] border-r border-white/5 flex flex-col"
+      style={{ width: `${width}px` }}
+    >
       {/* Brand Header */}
       <div className="p-6">
         <div className="flex items-center gap-3 mb-6 focus-outline-none">
@@ -675,6 +814,19 @@ export function AppSidebar() {
               </NavLink>
             );
           })}
+        </div>
+      </div>
+
+      {/* Resize Handle */}
+      <div
+        className={cn(
+          "absolute right-0 top-0 w-1 h-full cursor-col-resize bg-transparent hover:bg-primary/20 transition-colors group",
+          isResizing && "bg-primary/30"
+        )}
+        onMouseDown={handleMouseDown}
+      >
+        <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <GripVertical className="h-4 w-4 text-slate-400" />
         </div>
       </div>
     </aside>
