@@ -7,7 +7,7 @@ const getEvents = async (req, res, next) => {
   try {
     const { startDate, endDate, search } = req.query;
 
-    let query = 'SELECT * FROM public.calendar_events WHERE org_id = $1';
+    let query = 'SELECT * FROM public.calendar_events WHERE org_id = $1 AND deleted_at IS NULL';
     const params = [req.user.orgId];
     let paramIndex = 2;
 
@@ -50,7 +50,7 @@ const getById = async (req, res, next) => {
     const { id } = req.params;
 
     const result = await db.query(
-      'SELECT * FROM public.calendar_events WHERE id = $1 AND org_id = $2',
+      'SELECT * FROM public.calendar_events WHERE id = $1 AND org_id = $2 AND deleted_at IS NULL',
       [id, req.user.orgId]
     );
 
@@ -258,7 +258,7 @@ const remove = async (req, res, next) => {
     const { id } = req.params;
 
     const result = await db.query(
-      'DELETE FROM public.calendar_events WHERE id = $1 AND org_id = $2 RETURNING id',
+      'UPDATE public.calendar_events SET deleted_at = now() WHERE id = $1 AND org_id = $2 RETURNING id',
       [id, req.user.orgId]
     );
 
@@ -447,9 +447,10 @@ const disconnect = async (req, res, next) => {
       );
     }
 
-    // Clean up local events that were synchronized from this provider
+    // Clean up local events that were synchronized from this provider, 
+    // but preserve the "deleted" markers so they don't come back on re-sync
     await db.query(
-      'DELETE FROM public.calendar_events WHERE external_provider = $1 AND org_id = $2 AND created_by = $3',
+      'DELETE FROM public.calendar_events WHERE external_provider = $1 AND org_id = $2 AND created_by = $3 AND deleted_at IS NULL',
       [deletedProvider, req.user.orgId, req.user.id]
     );
 
@@ -553,7 +554,8 @@ const syncEvents = async (req, res, next) => {
           start_time = EXCLUDED.start_time,
           end_time = EXCLUDED.end_time,
           is_all_day = EXCLUDED.is_all_day,
-          updated_at = now()`,
+          updated_at = now()
+        WHERE calendar_events.deleted_at IS NULL`,
         [
           req.user.orgId,
           req.user.id,

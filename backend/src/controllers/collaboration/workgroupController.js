@@ -828,45 +828,60 @@ const getWorkgroupPosts = async (req, res, next) => {
     if (accessResult.rows[0].is_private && !accessResult.rows[0].user_id) {
       return res.status(403).json({ error: 'Access denied to private workgroup' });
     }
-    
+
+    // Mark all messages from others as read whenever posts are fetched (workgroup is open)
+    await db.query(
+      `INSERT INTO workgroup_post_reads (post_id, user_id, read_at)
+       SELECT p.id, $2::uuid, CURRENT_TIMESTAMP
+       FROM workgroup_posts p
+       WHERE p.workgroup_id = $1
+         AND p.user_id <> $2
+         AND p.is_deleted = false
+         AND NOT ($2::uuid = ANY(COALESCE(p.deleted_for_users, '{}'::uuid[])))
+       ON CONFLICT (post_id, user_id) DO NOTHING`,
+      [id, req.user.id]
+    );
+
     let query = `
       WITH RECURSIVE post_tree AS (
         -- Get parent posts
-        SELECT 
+        SELECT
           p.*,
           u.full_name as author_name,
           u.avatar_url as author_avatar,
           0 as depth,
-          p.id as root_id
+          p.id as root_id,
+          p.created_at as root_created_at
         FROM workgroup_posts p
         JOIN users u ON p.user_id = u.id
-        WHERE p.workgroup_id = $1 
-          AND p.parent_id IS NULL 
+        WHERE p.workgroup_id = $1
+          AND p.parent_id IS NULL
           AND (
             p.is_deleted = false
             OR p.is_deleted = true
             OR $2::uuid = ANY(COALESCE(p.deleted_for_users, '{}'::uuid[]))
           )
     `;
-    
+
     const params = [id, req.user.id];
     let paramIndex = 3;
-    
+
     if (channel_id) {
       query += ` AND p.channel_id = $${paramIndex}`;
       params.push(channel_id);
       paramIndex++;
     }
-    
+
     query += `
         UNION ALL
         -- Get replies
-        SELECT 
+        SELECT
           p.*,
           u.full_name as author_name,
           u.avatar_url as author_avatar,
           pt.depth + 1,
-          pt.root_id
+          pt.root_id,
+          pt.root_created_at
         FROM workgroup_posts p
         JOIN users u ON p.user_id = u.id
         JOIN post_tree pt ON p.parent_id = pt.id
@@ -877,7 +892,7 @@ const getWorkgroupPosts = async (req, res, next) => {
         )
       )
       SELECT * FROM post_tree
-      ORDER BY root_id DESC, depth ASC, created_at ASC
+      ORDER BY root_created_at DESC, depth ASC, created_at ASC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
     
@@ -1340,7 +1355,15 @@ const getOrCreateDirectChatWorkgroup = async (req, res, next) => {
     await client.query('COMMIT');
     client.release();
     client = null;
-    res.status(201).json(createdResult.rows[0]);
+
+    const newWorkgroup = createdResult.rows[0];
+    realtimeService.emitWorkgroupUpdated(req.user.orgId, {
+      action: 'created',
+      workgroup_id: workgroupId,
+      workgroup: newWorkgroup,
+    });
+
+    res.status(201).json(newWorkgroup);
   } catch (err) {
     try {
       if (client) await client.query('ROLLBACK');
