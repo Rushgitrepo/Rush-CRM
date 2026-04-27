@@ -1,9 +1,10 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { useWorkgroups } from "@/hooks/useWorkgroups";
+import { useWorkgroups, useDeleteWorkgroup } from "@/hooks/useWorkgroups";
 import { api } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
+import { useRealtime } from "@/hooks/useRealtime";
 import {
   LayoutDashboard,
   LayoutGrid,
@@ -50,6 +51,7 @@ import {
   LogOut,
   HelpCircle,
   Star,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -59,6 +61,16 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface NestedChild {
   title: string;
@@ -214,6 +226,31 @@ export function AppSidebar() {
   const [openSections, setOpenSections] = useState<string[]>(["Collaboration", "CRM"]);
   const [expandedSubItems, setExpandedSubItems] = useState<string[]>([]);
   const [expandedNestedItems, setExpandedNestedItems] = useState<string[]>([]);
+  const deleteWg = useDeleteWorkgroup();
+  const [deleteChatId, setDeleteChatId] = useState<string | null>(null);
+  const { on: onRealtime, off: offRealtime } = useRealtime();
+
+  useEffect(() => {
+    const handleWorkgroupUpdated = (payload: any) => {
+      // Invalidate queries to refresh the list for all actions (created, updated, deleted)
+      queryClient.invalidateQueries({ queryKey: ["workgroups"] });
+    };
+
+    const handleNewNotification = (payload: any) => {
+      // Refresh workgroups whenever a new message notification arrives
+      queryClient.invalidateQueries({ queryKey: ["workgroups"] });
+    };
+
+    onRealtime("workgroup:updated", handleWorkgroupUpdated);
+    onRealtime("workgroup:notification", handleNewNotification);
+    onRealtime("workgroup_post:new", handleWorkgroupUpdated);
+
+    return () => {
+      offRealtime("workgroup:updated", handleWorkgroupUpdated);
+      offRealtime("workgroup:notification", handleNewNotification);
+      offRealtime("workgroup_post:new", handleWorkgroupUpdated);
+    };
+  }, [onRealtime, offRealtime, queryClient]);
 
   const isAdmin = userRole?.role === 'super_admin' || userRole?.role === 'admin';
 
@@ -407,7 +444,7 @@ export function AppSidebar() {
                       <NavLink
                         to={dmPath}
                         className={cn(
-                          "flex items-center gap-2 rounded-lg py-1.5 pl-9 pr-8 text-[13px] transition-all duration-200",
+                          "flex items-center gap-2 rounded-lg py-1.5 pl-9 pr-14 text-[13px] transition-all duration-200",
                           isDMActive
                             ? "bg-primary/10 text-white font-medium"
                             : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
@@ -415,9 +452,9 @@ export function AppSidebar() {
                       >
                         <div className="relative">
                           <Avatar className="h-5 w-5">
-                            <AvatarImage src={getAvatarUrl(dm.avatar_url) || undefined} />
-                            <AvatarFallback className={`${dm.avatar_color} text-white text-[10px]`}>
-                              {(dm.display_name || dm.name).slice(0, 2).toUpperCase()}
+                            <AvatarImage src={getAvatarUrl(dm.avatar_url || dm.direct_peer_avatar_url || dm.avatar) || undefined} />
+                            <AvatarFallback className={cn(dm.avatar_color, "text-white text-[10px]")}>
+                              {(dm.display_name || dm.name || "DM").slice(0, 2).toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
                           <span
@@ -430,7 +467,7 @@ export function AppSidebar() {
                         <span className="flex-1 truncate">{dm.display_name || dm.name}</span>
                         {unreadCount > 0 && (
                           <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-white">
-                            {unreadCount > 9 ? '9+' : unreadCount}
+                            {unreadCount > 99 ? '99+' : unreadCount}
                           </span>
                         )}
                       </NavLink>
@@ -445,6 +482,17 @@ export function AppSidebar() {
                         title={isStarred ? "Unstar chat" : "Star chat"}
                       >
                         <Star className={cn("h-3.5 w-3.5", isStarred && "fill-yellow-500")} />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setDeleteChatId(dm.id);
+                        }}
+                        className="absolute right-8 top-1/2 -translate-y-1/2 p-1 rounded transition-all text-slate-600 opacity-0 group-hover/dm:opacity-100 hover:text-destructive"
+                        title="Delete chat"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   );
@@ -677,6 +725,32 @@ export function AppSidebar() {
           })}
         </div>
       </div>
+
+      <AlertDialog open={!!deleteChatId} onOpenChange={(open) => !open && setDeleteChatId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Conversation?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this conversation and all its messages. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteChatId) {
+                  deleteWg.mutate(deleteChatId, {
+                    onSuccess: () => setDeleteChatId(null)
+                  });
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {deleteWg.isPending ? "Deleting..." : "Delete Permanently"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </aside>
   );
 }

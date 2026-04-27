@@ -342,6 +342,7 @@ CREATE TABLE IF NOT EXISTS calendar_events (
     created_by uuid,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    deleted_at timestamp without time zone,
     org_id uuid,
     color character varying(20),
     is_recurring boolean DEFAULT false,
