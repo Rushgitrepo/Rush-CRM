@@ -108,12 +108,12 @@ async function getAuthenticatedPlatform(orgId, userId) {
       const sdk = createSDK();
       const platform = sdk.platform();
 
-      platform.auth().setData({
-        tokenType: stored.token_type || 'bearer',
-        accessToken: stored.access_token,
-        refreshToken: stored.refresh_token,
-        expiresIn: 3600,
-        refreshTokenExpiresIn: 604800,
+      await platform.auth().setData({
+        token_type: stored.token_type || 'bearer',
+        access_token: stored.access_token,
+        refresh_token: stored.refresh_token,
+        expires_in: 3600,
+        refresh_token_expires_in: 604800,
       });
 
       // Let the SDK handle refresh automatically
@@ -333,9 +333,9 @@ async function enrichCallLogWithInsights(orgId, userId, callLogId, callId, exist
       lastError = err;
       const status = err?.response?.status;
       if (status === 429) {
-        // Rate limited — stop trying candidate IDs for this call
-        console.warn('[RC] RingSense rate limit hit; skipping remaining candidates for call:', callId);
-        break;
+        // Rate limited — re-throw so the parent sync loop can abort the entire batch
+        console.warn('[RC] RingSense rate limit hit for call:', callId);
+        throw err;
       }
       if (status !== 404 && status !== 400) {
         console.warn('[RC] Failed to fetch RingSense insights:', err.message || err);
@@ -396,6 +396,16 @@ async function syncCallLogs(orgId, userId, options = {}) {
   const records = data.records || [];
 
   let synced = 0;
+  let enriched_count = 0;
+  let rateLimitHit = false; // Global flag — stop ALL insight calls if rate-limited
+
+  // Pre-check: how many calls have recordings?
+  const withRecordings = records.filter(r => r.recording?.id);
+  console.log(`[RC] Sync: ${records.length} call records found, ${withRecordings.length} have recordings.`);
+  if (withRecordings.length === 0 && records.length > 0) {
+    console.log('[RC] ⚠ No calls have recordings. AI transcripts/notes require automatic call recording to be enabled in your RingCentral admin portal (Admin > Phone System > Call Recording).');
+  }
+
   for (const rec of records) {
     const sessionId = String(rec.sessionId || rec.id);
     const callId = String(rec.id || rec.sessionId || '');
@@ -410,31 +420,54 @@ async function syncCallLogs(orgId, userId, options = {}) {
       ? (rec.from?.phoneNumber || '')
       : (rec.to?.phoneNumber || '');
     const recordingUrl = rec.recording?.contentUri || rec.recording?.uri || null;
+    const recordingId = rec.recording?.id || null;
     const callResult = rec.result || rec.action || 'completed';
     const fromName = rec.from?.name || rec.from?.phoneNumber || null;
     const toName = rec.to?.name || rec.to?.phoneNumber || null;
     const fromNumber = rec.from?.phoneNumber || null;
     const toNumber = rec.to?.phoneNumber || null;
-    const insightIds = [telephonySessionId, sessionId, callId].filter(Boolean);
+
+    // Only attempt RingSense AI enrichment for calls that HAVE a recording.
+    // Without a recording, RingSense has no audio to transcribe and will always return 404.
+    const hasRecording = !!recordingId;
 
     if (existing.rows.length > 0) {
       const row = existing.rows[0];
-      // Treat both NULL and empty string as "needs enrichment"
-      const shouldEnrich =
-        !row.transcript || row.transcript.trim() === '' ||
-        !row.ai_summary || row.ai_summary.trim() === '' ||
-        !row.ai_recap   || row.ai_recap.trim() === '';
 
-      if (shouldEnrich) {
-        await sleep(RINGSENSE_THROTTLE_MS);
-        for (const insightId of insightIds) {
-          const enriched = await enrichCallLogWithInsights(orgId, userId, row.id, insightId, row.notes, platform);
-          if (enriched) break;
+      // Update recording URL if we now have one and didn't before
+      if (recordingUrl && !row.recording_url) {
+        await db.query('UPDATE call_logs SET recording_url = $1, updated_at = NOW() WHERE id = $2', [recordingUrl, row.id]);
+      }
+
+      // Only try AI enrichment if the call has a recording AND we haven't been rate-limited
+      if (hasRecording && !rateLimitHit) {
+        const shouldEnrich =
+          !row.transcript || row.transcript.trim() === '' ||
+          !row.ai_summary || row.ai_summary.trim() === '' ||
+          !row.ai_recap   || row.ai_recap.trim() === '';
+
+        if (shouldEnrich) {
+          await sleep(RINGSENSE_THROTTLE_MS);
+          // Use recording ID first (most reliable for RingSense), then fallback to others
+          const candidateIds = [recordingId, telephonySessionId, sessionId, callId].filter(Boolean);
+          for (const insightId of candidateIds) {
+            try {
+              const didEnrich = await enrichCallLogWithInsights(orgId, userId, row.id, insightId, row.notes, platform);
+              if (didEnrich) { enriched_count++; break; }
+            } catch (err) {
+              if (err?.response?.status === 429) {
+                console.warn('[RC] Rate limit hit during enrichment — stopping all AI calls for this sync batch.');
+                rateLimitHit = true;
+                break;
+              }
+            }
+          }
         }
       }
       continue;
     }
 
+    // --- INSERT new call log ---
     const insertResult = await db.query(
       `INSERT INTO call_logs (
         org_id, user_id, call_type, direction, phone_number, duration, status,
@@ -454,17 +487,29 @@ async function syncCallLogs(orgId, userId, options = {}) {
     );
 
     const callLogId = insertResult.rows[0]?.id;
-    if (callLogId && insightIds.length > 0) {
+
+    // Only attempt RingSense for new calls that have recordings
+    if (callLogId && hasRecording && !rateLimitHit) {
       await sleep(RINGSENSE_THROTTLE_MS);
-      for (const insightId of insightIds) {
-        const enriched = await enrichCallLogWithInsights(orgId, userId, callLogId, insightId, null, platform);
-        if (enriched) break;
+      const candidateIds = [recordingId, telephonySessionId, sessionId, callId].filter(Boolean);
+      for (const insightId of candidateIds) {
+        try {
+          const didEnrich = await enrichCallLogWithInsights(orgId, userId, callLogId, insightId, null, platform);
+          if (didEnrich) { enriched_count++; break; }
+        } catch (err) {
+          if (err?.response?.status === 429) {
+            console.warn('[RC] Rate limit hit during enrichment — stopping all AI calls for this sync batch.');
+            rateLimitHit = true;
+            break;
+          }
+        }
       }
     }
     synced++;
   }
 
-  return { total: records.length, synced };
+  console.log(`[RC] Sync complete: ${synced} new, ${enriched_count} enriched with AI insights, ${rateLimitHit ? '(rate limit hit — some skipped)' : ''}`);
+  return { total: records.length, synced, enriched: enriched_count, rateLimitHit };
 }
 
 // ---------------------------------------------------------------------------
