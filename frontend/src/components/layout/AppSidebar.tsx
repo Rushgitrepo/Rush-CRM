@@ -52,6 +52,7 @@ import {
   HelpCircle,
   Star,
   Trash2,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -71,6 +72,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 
 interface NestedChild {
   title: string;
@@ -218,10 +220,16 @@ const navigation: NavItem[] = [
 
 export function AppSidebar({ 
   width = 256, 
-  onWidthChange 
+  onWidthChange,
+  isMobile,
+  isOpen,
+  onClose
 }: { 
   width?: number; 
-  onWidthChange?: (width: number) => void; 
+  onWidthChange?: (width: number) => void;
+  isMobile?: boolean;
+  isOpen?: boolean;
+  onClose?: () => void;
 }) {
   const location = useLocation();
   const { userRole } = useAuth();
@@ -399,7 +407,7 @@ export function AppSidebar({
   const handleMouseMove = (e: MouseEvent) => {
     if (!isResizing) return;
     
-    const newWidth = Math.max(200, Math.min(400, e.clientX));
+    const newWidth = Math.max(200, Math.min(480, e.clientX));
     onWidthChange?.(newWidth);
   };
 
@@ -781,17 +789,26 @@ export function AppSidebar({
 
   return (
     <aside 
-      className="fixed left-0 top-0 z-50 h-screen bg-[#0c111d] border-r border-white/5 flex flex-col"
+      className={cn(
+        "fixed left-0 top-0 z-50 h-screen bg-[#0c111d] border-r border-white/5 flex flex-col transition-transform duration-300 ease-in-out",
+        isMobile ? (isOpen ? "translate-x-0" : "-translate-x-full") : "translate-x-0"
+      )}
       style={{ width: `${width}px` }}
     >
       {/* Brand Header */}
       <div className="p-6">
-        <div className="flex items-center gap-3 mb-6 focus-outline-none">
-
-          <div className="flex flex-col">
-            <span className="text-base font-bold tracking-tight text-white leading-none">Rush Management System</span>
-            <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-1.5">Enterprise Suite</span>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3 focus-outline-none">
+            <div className="flex flex-col">
+              <span className="text-base font-bold tracking-tight text-white leading-none">Rush CRM</span>
+              <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-1.5">Enterprise Suite</span>
+            </div>
           </div>
+          {isMobile && (
+            <Button variant="ghost" size="icon" onClick={onClose} className="text-slate-400">
+              <X className="h-5 w-5" />
+            </Button>
+          )}
         </div>
 
         <div className="h-px w-full bg-gradient-to-r from-white/[0.08] to-transparent" />
@@ -802,7 +819,7 @@ export function AppSidebar({
         <div className="space-y-1">
           {filteredNavigation.map((item) => {
             if (item.children) {
-              const isOpen = openSections.includes(item.title);
+              const isOpenSection = openSections.includes(item.title);
               const sectionActive = isSectionActive(item.children);
 
               return (
@@ -823,13 +840,28 @@ export function AppSidebar({
                     <ChevronDown
                       className={cn(
                         "h-3.5 w-3.5 transition-transform duration-500",
-                        isOpen && "rotate-180"
+                        isOpenSection && "rotate-180"
                       )}
                     />
                   </button>
-                  {isOpen && (
+                  {isOpenSection && (
                     <div className="mt-1 space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-300">
-                      {item.children.map((child) => renderSubItem(child, item.title))}
+                      {item.children.map((child) => (
+                        <NavLink
+                          key={child.href}
+                          to={child.href}
+                          onClick={() => isMobile && onClose?.()}
+                          className={cn(
+                            "flex items-center gap-3 rounded-lg py-2 pl-9 pr-3 text-[13px] transition-all duration-200",
+                            isActive(child.href)
+                              ? "bg-primary/10 text-white font-medium"
+                              : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
+                          )}
+                        >
+                          {child.icon && <child.icon className={cn("h-4 w-4", isActive(child.href) ? "text-primary" : "text-slate-500")} />}
+                          <span>{child.title}</span>
+                        </NavLink>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -840,6 +872,7 @@ export function AppSidebar({
               <NavLink
                 key={item.href}
                 to={item.href!}
+                onClick={() => isMobile && onClose?.()}
                 className={cn(
                   "flex items-center justify-between rounded-xl px-4 py-2.5 text-[13px] font-medium transition-all duration-200",
                   isActive(item.href!)
@@ -887,6 +920,17 @@ export function AppSidebar({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Resize Handle - Only for desktop */}
+      {!isMobile && (
+        <div
+          onMouseDown={handleMouseDown}
+          className={cn(
+            "absolute right-0 top-0 w-1 h-full cursor-col-resize transition-all duration-200 group-hover:bg-primary/20",
+            isResizing ? "bg-primary w-1.5 opacity-100" : "opacity-0 hover:opacity-100 hover:bg-primary/40"
+          )}
+        />
+      )}
     </aside>
   );
 }
