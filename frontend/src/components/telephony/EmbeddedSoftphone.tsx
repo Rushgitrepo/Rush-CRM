@@ -151,8 +151,8 @@ export function EmbeddedSoftphone() {
       const clientId = import.meta.env.VITE_RINGCENTRAL_CLIENT_ID || '';
       const redirectUri = import.meta.env.VITE_RINGCENTRAL_REDIRECT_URI || 'http://localhost:8080/redirect.html';
       const rcAppUrl = clientId
-        ? `https://apps.ringcentral.com/integration/ringcentral-embeddable/latest/app.html?clientId=${clientId}&appServer=https://platform.ringcentral.com&redirectUri=${encodeURIComponent(redirectUri)}&defaultAutoLogCallEnabled=1&defaultAutoLogSmsEnabled=1`
-        : `https://apps.ringcentral.com/integration/ringcentral-embeddable/latest/app.html?redirectUri=${encodeURIComponent(redirectUri)}&defaultAutoLogCallEnabled=1&defaultAutoLogSmsEnabled=1`;
+        ? `https://apps.ringcentral.com/integration/ringcentral-embeddable/latest/app.html?clientId=${clientId}&appServer=https://platform.ringcentral.com&redirectUri=${encodeURIComponent(redirectUri)}&defaultAutoLogCallEnabled=1&defaultAutoLogSmsEnabled=1&multipleTabsSupport=1&discovery=1`
+        : `https://apps.ringcentral.com/integration/ringcentral-embeddable/latest/app.html?redirectUri=${encodeURIComponent(redirectUri)}&defaultAutoLogCallEnabled=1&defaultAutoLogSmsEnabled=1&multipleTabsSupport=1&discovery=1`;
 
       return (
         <div className="relative h-full w-full flex flex-col">

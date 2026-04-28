@@ -7,6 +7,28 @@
 const SDK = require('@ringcentral/sdk').SDK;
 const db = require('../config/database');
 
+// ---------------------------------------------------------------------------
+// Rate-limit helpers
+// ---------------------------------------------------------------------------
+
+/** Pause execution for `ms` milliseconds */
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * How long to wait between consecutive RingSense API calls during a bulk sync.
+ * RingCentral's RingSense tier has a very low rate limit (~1 req/sec in sandbox).
+ * Tune this value based on your plan; 1500ms is conservative but safe.
+ */
+const RINGSENSE_THROTTLE_MS = 1500;
+
+/** 
+ * Map to track active token refreshes per user.
+ * Key: `${orgId}:${userId}`, Value: Promise<platform>
+ * Prevents "invalid_grant" race conditions where multiple concurrent requests
+ * try to refresh the same token simultaneously.
+ */
+const refreshQueue = new Map();
+
 const RC_CLIENT_ID = process.env.RC_CLIENT_ID;
 const RC_CLIENT_SECRET = process.env.RC_CLIENT_SECRET;
 const RC_SERVER_URL = process.env.RC_SERVER_URL || 'https://platform.ringcentral.com';
@@ -63,49 +85,75 @@ async function exchangeCodeForTokens(code, orgId, userId, redirectUri) {
  * Loads stored tokens and auto-refreshes if needed.
  */
 async function getAuthenticatedPlatform(orgId, userId) {
-  const { rows } = await db.query(
-    'SELECT * FROM ringcentral_tokens WHERE org_id = $1 AND user_id = $2',
-    [orgId, userId]
-  );
-
-  if (rows.length === 0) {
-    throw new Error('RingCentral account not connected. Please connect');
+  const queueKey = `${orgId}:${userId}`;
+  
+  // If a refresh is already in progress for this user, wait for it
+  if (refreshQueue.has(queueKey)) {
+    console.log(`[RC] Waiting for existing refresh promise for user ${userId}`);
+    return refreshQueue.get(queueKey);
   }
 
-  const stored = rows[0];
-  const sdk = createSDK();
-  const platform = sdk.platform();
-
-  // Feed stored tokens into the SDK auth cache (SDK expects camelCase internally usually)
-  platform.auth().setData({
-    tokenType: stored.token_type || 'bearer',
-    accessToken: stored.access_token,
-    refreshToken: stored.refresh_token,
-    expiresIn: 3600,
-    refreshTokenExpiresIn: 604800,
-  });
-
-  // Let the SDK handle refresh automatically
-  try {
-    await platform.ensureLoggedIn();
-  } catch (e) {
+  const refreshPromise = (async () => {
     try {
-      await platform.refresh();
-    } catch (refreshErr) {
-      await db.query('DELETE FROM ringcentral_tokens WHERE org_id = $1 AND user_id = $2', [orgId, userId]);
-      throw new Error('RingCentral session expired. Please re-authorize.');
+      const { rows } = await db.query(
+        'SELECT * FROM ringcentral_tokens WHERE org_id = $1 AND user_id = $2',
+        [orgId, userId]
+      );
+
+      if (rows.length === 0) {
+        throw new Error('RingCentral account not connected. Please connect');
+      }
+
+      const stored = rows[0];
+      const sdk = createSDK();
+      const platform = sdk.platform();
+
+      platform.auth().setData({
+        tokenType: stored.token_type || 'bearer',
+        accessToken: stored.access_token,
+        refreshToken: stored.refresh_token,
+        expiresIn: 3600,
+        refreshTokenExpiresIn: 604800,
+      });
+
+      // Let the SDK handle refresh automatically
+      try {
+        await platform.ensureLoggedIn();
+      } catch (e) {
+        try {
+          console.log(`[RC] Refreshing token for user ${userId}...`);
+          await platform.refresh();
+        } catch (refreshErr) {
+          const errorMsg = refreshErr.message || '';
+          const errorResponse = refreshErr.response ? await refreshErr.response.clone().json().catch(() => ({})) : {};
+          const errorCode = errorResponse.error || '';
+
+          console.error('[RC] Token refresh failed:', errorMsg, errorResponse);
+
+          if (errorCode === 'invalid_grant' || errorMsg.includes('invalid_grant')) {
+            console.warn('[RC] Refresh token is invalid/revoked. Deleting record for org/user:', orgId, userId);
+            await db.query('DELETE FROM ringcentral_tokens WHERE org_id = $1 AND user_id = $2', [orgId, userId]);
+            throw new Error('RingCentral session expired. Please re-authorize.');
+          }
+          
+          throw new Error(`RingCentral API error: ${errorMsg || 'Failed to refresh connection'}`);
+        }
+      }
+
+      const freshData = platform.auth().data();
+      if (freshData && (freshData.access_token || freshData.accessToken)) {
+        await upsertTokens(orgId, userId, freshData);
+      }
+
+      return platform;
+    } finally {
+      // Always clear the queue when done
+      refreshQueue.delete(queueKey);
     }
-  }
+  })();
 
-  // Persist refreshed tokens
-  const freshData = platform.auth().data();
-
-  // Only upsert if we actually have data, to avoid the sticky NULL error if data() is empty
-  if (freshData && (freshData.access_token || freshData.accessToken)) {
-    await upsertTokens(orgId, userId, freshData);
-  }
-
-  return platform;
+  refreshQueue.set(queueKey, refreshPromise);
+  return refreshPromise;
 }
 
 /** Upsert tokens into the DB */
@@ -225,6 +273,7 @@ function extractRingSenseFields(insights) {
     payload.speech_to_text ||
     payload.conversation ||
     payload.sessions ||
+    payload.segments ||
     [];
 
   const summarySource =
@@ -232,6 +281,7 @@ function extractRingSenseFields(insights) {
     payload.summary ||
     payload.callSummary ||
     payload.call_summaries ||
+    payload.ai_summary ||
     [];
 
   const recapSource =
@@ -241,6 +291,7 @@ function extractRingSenseFields(insights) {
     payload.actionItems ||
     payload.action_items ||
     payload.insights ||
+    payload.key_takeaways ||
     [];
 
   const transcript = extractInsightText(transcriptionSource);
@@ -281,6 +332,11 @@ async function enrichCallLogWithInsights(orgId, userId, callLogId, callId, exist
     } catch (err) {
       lastError = err;
       const status = err?.response?.status;
+      if (status === 429) {
+        // Rate limited — stop trying candidate IDs for this call
+        console.warn('[RC] RingSense rate limit hit; skipping remaining candidates for call:', callId);
+        break;
+      }
       if (status !== 404 && status !== 400) {
         console.warn('[RC] Failed to fetch RingSense insights:', err.message || err);
       }
@@ -295,19 +351,26 @@ async function enrichCallLogWithInsights(orgId, userId, callLogId, callId, exist
     return false;
   }
 
+  // Diagnostic: log the raw response shape once so we can verify the format
+  console.log('[RC] RingSense raw response keys for call', callId, ':', JSON.stringify(Object.keys(insights)));
+  if (insights.data) console.log('[RC] RingSense data keys:', JSON.stringify(Object.keys(insights.data)));
+
   const { transcript, summary, recap, notes } = extractRingSenseFields(insights);
   const resolvedNotes = existingNotes || notes || summary || recap || null;
 
   if (!resolvedNotes && !transcript && !summary && !recap) {
+    console.warn('[RC] RingSense returned data but extracted nothing for call:', callId, '— raw:', JSON.stringify(insights).slice(0, 300));
     return false;
   }
 
+  // Always overwrite AI-generated fields (transcript, summary, recap) with fresh data.
+  // Only protect user-editable `notes` with COALESCE so manual edits are preserved.
   await db.query(
     `UPDATE call_logs
-        SET notes = COALESCE(notes, $2),
-            transcript = COALESCE(transcript, $3),
-            ai_summary = COALESCE(ai_summary, $4),
-            ai_recap = COALESCE(ai_recap, $5),
+        SET notes      = COALESCE(NULLIF(notes, ''), $2),
+            transcript = $3,
+            ai_summary = $4,
+            ai_recap   = $5,
             updated_at = NOW()
       WHERE id = $1 AND org_id = $6`,
     [callLogId, resolvedNotes, transcript || null, summary || null, recap || null, orgId]
@@ -356,13 +419,14 @@ async function syncCallLogs(orgId, userId, options = {}) {
 
     if (existing.rows.length > 0) {
       const row = existing.rows[0];
+      // Treat both NULL and empty string as "needs enrichment"
       const shouldEnrich =
-        !row.transcript ||
-        !row.ai_summary ||
-        !row.ai_recap ||
-        !row.notes;
+        !row.transcript || row.transcript.trim() === '' ||
+        !row.ai_summary || row.ai_summary.trim() === '' ||
+        !row.ai_recap   || row.ai_recap.trim() === '';
 
       if (shouldEnrich) {
+        await sleep(RINGSENSE_THROTTLE_MS);
         for (const insightId of insightIds) {
           const enriched = await enrichCallLogWithInsights(orgId, userId, row.id, insightId, row.notes, platform);
           if (enriched) break;
@@ -391,6 +455,7 @@ async function syncCallLogs(orgId, userId, options = {}) {
 
     const callLogId = insertResult.rows[0]?.id;
     if (callLogId && insightIds.length > 0) {
+      await sleep(RINGSENSE_THROTTLE_MS);
       for (const insightId of insightIds) {
         const enriched = await enrichCallLogWithInsights(orgId, userId, callLogId, insightId, null, platform);
         if (enriched) break;
@@ -551,48 +616,25 @@ async function getConnectionStatus(orgId, userId) {
   if (rows.length === 0) return { connected: false };
 
   const token = rows[0];
-
-  try {
-    const platform = await getAuthenticatedPlatform(orgId, userId);
-    const [extResp, phoneResp] = await Promise.all([
-      platform.get('/restapi/v1.0/account/~/extension/~'),
-      platform.get('/restapi/v1.0/account/~/extension/~/phone-number')
-    ]);
-
-    const ext = await extResp.json();
-    const phoneData = await phoneResp.json();
-
-    // Find a suitable number for RingOut (DirectNumber, MainCompanyNumber, or any with E.164)
-    const primaryPhone = phoneData.records?.find(r => r.usageType === 'DirectNumber' || r.usageType === 'MainCompanyNumber' || r.type === 'VoiceFax') || phoneData.records?.[0];
-    const extensionNumber = primaryPhone?.phoneNumber || ext.extensionNumber;
-
-    if (ext.id) {
-      await db.query(
-        'UPDATE ringcentral_tokens SET rc_extension_id = $1, rc_account_id = $2 WHERE org_id = $3 AND user_id = $4',
-        [String(ext.id), String(ext.account?.id || ''), orgId, userId]
-      );
+  
+  // Lightweight check: if we have a token that hasn't expired yet (or is close), we are "connected".
+  // We don't need to hit the RC API on every single page reload.
+  const isExpired = token.expires_at && new Date(token.expires_at) < new Date();
+  
+  // If it's expired, we DO need to try a refresh to confirm the refresh token is still valid.
+  if (isExpired) {
+    try {
+      await getAuthenticatedPlatform(orgId, userId);
+    } catch (e) {
+      return { connected: false, error: e.message };
     }
-
-    // Filter for unique, valid voice numbers
-    const allNumbers = (phoneData.records || [])
-      .filter(r => r.phoneNumber && (r.features?.includes('SMS-Capable') || r.features?.includes('CallerId') || r.usageType === 'DirectNumber'))
-      .map(r => ({
-        phoneNumber: r.phoneNumber,
-        label: r.usageType === 'DirectNumber' ? 'Direct' : r.usageType === 'MainCompanyNumber' ? 'Company' : 'Additional',
-        type: r.type
-      }));
-
-    return {
-      connected: true,
-      extensionId: ext.id,
-      extensionName: ext.name,
-      extensionNumber: extensionNumber,
-      allNumbers: allNumbers,
-      lastSynced: token.updated_at,
-    };
-  } catch (e) {
-    return { connected: false, error: e.message };
   }
+
+  return {
+    connected: true,
+    extensionId: token.rc_extension_id,
+    lastSynced: token.updated_at,
+  };
 }
 
 async function disconnect(orgId, userId) {
