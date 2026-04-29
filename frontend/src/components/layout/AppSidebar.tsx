@@ -440,7 +440,232 @@ export function AppSidebar({
     const hasNestedChildren = child.nestedChildren && child.nestedChildren.length > 0;
     const isExpanded = expandedSubItems.includes(child.title);
 
-    // Standard rendering for other items
+    // Special rendering for Workgroups - add Direct Messages below it
+    if (child.title === "Workgroups" && parentTitle === "Collaboration") {
+      return (
+        <div key={child.href}>
+          {/* Workgroups Link */}
+          <NavLink
+            to={child.href}
+            onClick={() => isMobile && onClose?.()}
+            className={cn(
+              "flex items-center gap-3 rounded-lg py-2 pl-9 pr-3 text-[13px] transition-all duration-200",
+              isActive(child.href)
+                ? "bg-primary/10 text-white font-medium"
+                : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
+            )}
+          >
+            {child.icon && <child.icon className={cn("h-4 w-4", isActive(child.href) ? "text-primary" : "text-slate-500")} />}
+            <span className="flex items-center gap-2">
+              {child.title}
+              {totalWorkgroupUnread > 0 && (
+                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-bold text-white">
+                  {totalWorkgroupUnread}
+                </span>
+              )}
+            </span>
+          </NavLink>
+
+          {/* Direct Messages Section */}
+          <div className="mt-4 mb-2">
+            <div className="flex items-center justify-between px-9 mb-2.5">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Direct Messages
+              </span>
+              {totalDMUnread > 0 && (
+                <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1.5 text-[9px] font-bold text-white">
+                  {totalDMUnread}
+                </span>
+              )}
+            </div>
+
+            {directMessages.length > 0 && (
+              <div className="space-y-0.5">
+                {directMessages.map((dm: any) => {
+                  const dmPath = `/collaboration/direct-chats?chat=${dm.id}`;
+                  const isDMActive = location.pathname === '/collaboration/direct-chats' && location.search.includes(dm.id);
+                  const unreadCount = Number(dm.unread_count || 0);
+                  const isOnline = Boolean(dm.is_online);
+                  const isStarred = Boolean(dm.is_starred);
+
+                  return (
+                    <div
+                      key={dm.id}
+                      className="group/dm relative"
+                    >
+                      <NavLink
+                        to={dmPath}
+                        onClick={() => isMobile && onClose?.()}
+                        className={cn(
+                          "flex items-center gap-2 rounded-lg py-1.5 pl-9 pr-14 text-[13px] transition-all duration-200",
+                          isDMActive
+                            ? "bg-primary/10 text-white font-medium"
+                            : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
+                        )}
+                      >
+                        <div className="relative">
+                          <Avatar className="h-5 w-5">
+                            <AvatarImage src={getAvatarUrl(dm.avatar_url || dm.direct_peer_avatar_url || dm.avatar) || undefined} />
+                            <AvatarFallback className={cn(dm.avatar_color, "text-white text-[10px]")}>
+                              {(dm.display_name || dm.name || "DM").slice(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span
+                            className={cn(
+                              "absolute -right-0.5 -bottom-0.5 h-2 w-2 rounded-full border border-[#0c111d]",
+                              isOnline ? "bg-green-500" : "bg-slate-600"
+                            )}
+                          />
+                        </div>
+                        <span className="flex-1 truncate">{dm.display_name || dm.name}</span>
+                        {unreadCount > 0 && (
+                          <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-white">
+                            {unreadCount > 99 ? '99+' : unreadCount}
+                          </span>
+                        )}
+                      </NavLink>
+                      <button
+                        onClick={(e) => toggleStarChat(dm.id, e)}
+                        className={cn(
+                          "absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded transition-all",
+                          isStarred
+                            ? "text-yellow-500 opacity-100"
+                            : "text-slate-600 opacity-0 group-hover/dm:opacity-100 hover:text-yellow-500"
+                        )}
+                        title={isStarred ? "Unstar chat" : "Star chat"}
+                      >
+                        <Star className={cn("h-3.5 w-3.5", isStarred && "fill-yellow-500")} />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setDeleteChatId(dm.id);
+                        }}
+                        className="absolute right-8 top-1/2 -translate-y-1/2 p-1 rounded transition-all text-slate-600 opacity-0 group-hover/dm:opacity-100 hover:text-destructive"
+                        title="Delete chat"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* View All Direct Chats Link */}
+            {directMessages.length > 0 && (
+              <NavLink
+                to="/collaboration/direct-chats"
+                onClick={() => isMobile && onClose?.()}
+                className={cn(
+                  "flex items-center gap-2 rounded-lg py-2 pl-9 pr-3 mt-2 text-[12px] transition-all duration-200",
+                  location.pathname === '/collaboration/direct-chats' && !location.search
+                    ? "text-primary font-medium"
+                    : "text-slate-500 hover:text-slate-300"
+                )}
+              >
+                <MessageSquare className="h-3.5 w-3.5" />
+                <span>View all chats</span>
+                <ArrowRight className="h-3 w-3 ml-auto" />
+              </NavLink>
+            )}
+          </div>
+
+          {/* Team Workgroups Section */}
+          <div className="mt-6 mb-2">
+            <div className="flex items-center justify-between px-9 mb-2.5">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Team Workgroups
+              </span>
+              {totalWorkgroupUnread > 0 && (
+                <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1.5 text-[9px] font-bold text-white">
+                  {totalWorkgroupUnread}
+                </span>
+              )}
+            </div>
+
+            {teamWorkgroups.length > 0 && (
+              <div className="space-y-0.5">
+                {teamWorkgroups.slice(0, 8).map((wg: any) => {
+                  const wgPath = `/collaboration/workgroups?team=${wg.id}`;
+                  const isWGActive = location.pathname === '/collaboration/workgroups' && location.search.includes(`team=${wg.id}`);
+                  const unreadCount = Number(wg.unread_count || 0);
+                  const isStarred = Boolean(wg.is_starred);
+
+                  return (
+                    <div
+                      key={wg.id}
+                      className="group/wg relative"
+                    >
+                      <NavLink
+                        to={wgPath}
+                        onClick={() => isMobile && onClose?.()}
+                        className={cn(
+                          "flex items-center gap-2 rounded-lg py-1.5 pl-9 pr-8 text-[13px] transition-all duration-200",
+                          isWGActive
+                            ? "bg-primary/10 text-white font-medium"
+                            : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
+                        )}
+                      >
+                        <div className="relative">
+                          <Avatar className="h-5 w-5">
+                            <AvatarImage src={getAvatarUrl(wg.avatar_url) || undefined} />
+                            <AvatarFallback className={`${wg.avatar_color || 'bg-primary'} text-white text-[10px]`}>
+                              {(wg.display_name || wg.name).slice(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          {wg.type === 'public' && (
+                            <span className="absolute -right-0.5 -bottom-0.5 h-2 w-2 rounded-full bg-green-500 border border-[#0c111d]" />
+                          )}
+                        </div>
+                        <span className="flex-1 truncate">{wg.display_name || wg.name}</span>
+                        {unreadCount > 0 && (
+                          <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-white">
+                            {unreadCount > 9 ? '9+' : unreadCount}
+                          </span>
+                        )}
+                      </NavLink>
+                      <button
+                        onClick={(e) => toggleStarChat(wg.id, e)}
+                        className={cn(
+                          "absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded transition-all",
+                          isStarred
+                            ? "text-yellow-500 opacity-100"
+                            : "text-slate-600 opacity-0 group-hover/wg:opacity-100 hover:text-yellow-500"
+                        )}
+                        title={isStarred ? "Unstar workgroup" : "Star workgroup"}
+                      >
+                        <Star className={cn("h-3.5 w-3.5", isStarred && "fill-yellow-500")} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* View All Workgroups Link */}
+            {teamWorkgroups.length > 0 && (
+              <NavLink
+                to="/collaboration/workgroups"
+                onClick={() => isMobile && onClose?.()}
+                className={cn(
+                  "flex items-center gap-2 rounded-lg py-2 pl-9 pr-3 mt-2 text-[12px] transition-all duration-200",
+                  location.pathname === '/collaboration/workgroups' && !location.pathname.includes('/workgroups/')
+                    ? "text-primary font-medium"
+                    : "text-slate-500 hover:text-slate-300"
+                )}
+              >
+                <Users className="h-3.5 w-3.5" />
+                <span>View all workgroups</span>
+                <ArrowRight className="h-3 w-3 ml-auto" />
+              </NavLink>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     if (hasNestedChildren) {
       return (
         <div key={child.href} className="group/submenu">
@@ -546,6 +771,7 @@ export function AppSidebar({
       <NavLink
         key={child.href}
         to={child.href}
+        onClick={() => isMobile && onClose?.()}
         className={cn(
           "flex items-center gap-3 rounded-xl py-2 pl-9 pr-3 text-[13px] transition-all duration-200",
           isActive(child.href)
@@ -657,158 +883,6 @@ export function AppSidebar({
             );
           })}
         </div>
-
-        {/* Direct Messages Section */}
-        <div className="space-y-4 pt-4 border-t border-white/[0.05]">
-          <div className="px-4 flex items-center justify-between group">
-            <div className="flex items-center gap-2">
-              <div className="w-1 h-4 bg-primary rounded-full" />
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                Direct Messages
-              </span>
-            </div>
-            {totalDMUnread > 0 && (
-              <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1.5 text-[9px] font-bold text-white">
-                {totalDMUnread}
-              </span>
-            )}
-          </div>
-
-          <div className="px-2 space-y-0.5">
-            {directMessages.length > 0 ? (
-              <>
-                {directMessages.map((dm: any) => {
-                  const dmPath = `/collaboration/direct-chats?chat=${dm.id}`;
-                  const isDMActive = location.pathname === '/collaboration/direct-chats' && location.search.includes(dm.id);
-                  const unreadCount = Number(dm.unread_count || 0);
-                  const isOnline = Boolean(dm.is_online);
-                  const isStarred = Boolean(dm.is_starred);
-
-                  return (
-                    <div key={dm.id} className="group/dm relative">
-                      <NavLink
-                        to={dmPath}
-                        className={cn(
-                          "flex items-center gap-3 rounded-xl py-2 px-3 text-[13px] transition-all duration-200",
-                          isDMActive
-                            ? "bg-primary/10 text-white font-medium"
-                            : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
-                        )}
-                      >
-                        <div className="relative">
-                          <Avatar className="h-6 w-6">
-                            <AvatarImage src={getAvatarUrl(dm.avatar_url || dm.direct_peer_avatar_url || dm.avatar) || undefined} />
-                            <AvatarFallback className={cn(dm.avatar_color, "text-white text-[10px]")}>
-                              {(dm.display_name || dm.name || "DM").slice(0, 2).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span
-                            className={cn(
-                              "absolute -right-0.5 -bottom-0.5 h-2 w-2 rounded-full border-2 border-[#0c111d]",
-                              isOnline ? "bg-green-500" : "bg-slate-600"
-                            )}
-                          />
-                        </div>
-                        <span className="flex-1 truncate">{dm.display_name || dm.name}</span>
-                        {unreadCount > 0 && (
-                          <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-white">
-                            {unreadCount > 99 ? '99+' : unreadCount}
-                          </span>
-                        )}
-                      </NavLink>
-                      <button
-                        onClick={(e) => toggleStarChat(dm.id, e)}
-                        className={cn(
-                          "absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded transition-all",
-                          isStarred
-                            ? "text-yellow-500 opacity-100"
-                            : "text-slate-600 opacity-0 group-hover/dm:opacity-100 hover:text-yellow-500"
-                        )}
-                        title={isStarred ? "Unstar chat" : "Star chat"}
-                      >
-                        <Star className={cn("h-3.5 w-3.5", isStarred && "fill-yellow-500")} />
-                      </button>
-                    </div>
-                  );
-                })}
-                <NavLink
-                  to="/collaboration/direct-chats"
-                  className="flex items-center gap-2 rounded-lg py-2 px-3 mt-1 text-[12px] text-slate-500 hover:text-slate-300 transition-all"
-                >
-                  <MessageSquare className="h-3.5 w-3.5" />
-                  <span>All conversations</span>
-                  <ArrowRight className="h-3 w-3 ml-auto opacity-0 group-hover:opacity-100" />
-                </NavLink>
-              </>
-            ) : (
-              <p className="px-3 text-[11px] text-slate-600 italic">No recent chats</p>
-            )}
-          </div>
-        </div>
-
-        {/* Workgroups Section */}
-        <div className="space-y-4 pt-4 border-t border-white/[0.05]">
-          <div className="px-4 flex items-center justify-between group">
-            <div className="flex items-center gap-2">
-              <div className="w-1 h-4 bg-primary rounded-full" />
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                Workgroups
-              </span>
-            </div>
-            {totalWorkgroupUnread > 0 && (
-              <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1.5 text-[9px] font-bold text-white">
-                {totalWorkgroupUnread}
-              </span>
-            )}
-          </div>
-
-          <div className="px-2 space-y-0.5">
-            {teamWorkgroups.length > 0 ? (
-              <>
-                {teamWorkgroups.slice(0, 5).map((wg: any) => {
-                  const wgPath = `/collaboration/workgroups?team=${wg.id}`;
-                  const isWGActive = location.pathname === '/collaboration/workgroups' && location.search.includes(wg.id);
-                  const unreadCount = Number(wg.unread_count || 0);
-
-                  return (
-                    <NavLink
-                      key={wg.id}
-                      to={wgPath}
-                      className={cn(
-                        "flex items-center gap-3 rounded-xl py-2 px-3 text-[13px] transition-all duration-200",
-                        isWGActive
-                          ? "bg-primary/10 text-white font-medium"
-                          : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
-                      )}
-                    >
-                      <Avatar className="h-6 w-6">
-                        <AvatarImage src={getAvatarUrl(wg.avatar_url) || undefined} />
-                        <AvatarFallback className={cn(wg.avatar_color || 'bg-primary', "text-white text-[10px]")}>
-                          {(wg.display_name || wg.name).slice(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="flex-1 truncate">{wg.display_name || wg.name}</span>
-                      {unreadCount > 0 && (
-                        <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-white">
-                          {unreadCount > 9 ? '9+' : unreadCount}
-                        </span>
-                      )}
-                    </NavLink>
-                  );
-                })}
-                <NavLink
-                  to="/collaboration/workgroups"
-                  className="flex items-center gap-2 rounded-lg py-2 px-3 mt-1 text-[12px] text-slate-500 hover:text-slate-300 transition-all"
-                >
-                  <Users className="h-3.5 w-3.5" />
-                  <span>All workgroups</span>
-                  <ArrowRight className="h-3 w-3 ml-auto" />
-                </NavLink>
-              </>
-            ) : (
-              <p className="px-3 text-[11px] text-slate-600 italic">No workgroups</p>
-            )}
-          </div>
       </div>
 
       <AlertDialog open={!!deleteChatId} onOpenChange={(open) => !open && setDeleteChatId(null)}>
@@ -847,8 +921,6 @@ export function AppSidebar({
           )}
         />
       )}
-      </div>
     </aside>
   );
 }
-
