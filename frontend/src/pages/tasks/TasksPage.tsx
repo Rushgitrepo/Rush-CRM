@@ -302,20 +302,20 @@ export default function TasksPage() {
       <aside className="w-80 shrink-0 flex flex-col border-r border-border bg-card/50 overflow-hidden">
 
         {/* Sidebar header */}
-        <div className="px-6 pt-6 pb-4 border-b border-border/60">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700 flex items-center justify-center shadow-lg">
-                <CheckCircle2 className="h-5 w-5 text-white" />
+        <div className="px-4 pt-4 pb-2 border-b border-border/60">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700 flex items-center justify-center shadow-md">
+                <CheckCircle2 className="h-4 w-4 text-white" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-foreground">Tasks</h2>
-                <p className="text-xs text-muted-foreground">Project management</p>
+                <h2 className="text-base font-bold text-foreground">Tasks</h2>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Management</p>
               </div>
             </div>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg" onClick={() => setTaskDialog(true)}>
+                <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md" onClick={() => setTaskDialog(true)}>
                   <Plus className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
@@ -325,8 +325,8 @@ export default function TasksPage() {
         </div>
 
         {/* Quick filters */}
-        <div className="px-6 py-4 space-y-2">
-          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">My Tasks</div>
+        <div className="px-4 py-3 space-y-1">
+          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 px-2">Focus</div>
           <SidebarItem
             icon={<User className="h-4 w-4" />}
             label="My Tasks"
@@ -432,18 +432,18 @@ export default function TasksPage() {
       <div className="flex-1 flex flex-col overflow-hidden bg-background">
 
         {/* Enhanced Top toolbar */}
-        <div className="flex items-center justify-between px-8 py-6 border-b border-border/60 bg-gradient-to-r from-background via-background to-muted/20 backdrop-blur-sm shrink-0">
+        <div className="flex items-center justify-between px-6 py-3 border-b border-border/60 bg-gradient-to-r from-background via-background to-muted/10 backdrop-blur-sm shrink-0">
           {/* Enhanced Breadcrumb / title */}
-          <div className="flex items-center gap-6 min-w-0">
+          <div className="flex items-center gap-4 min-w-0">
             {currentProject ? (
               <>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className={cn("h-4 w-4 rounded-lg", getProjectColor(currentProject))} />
-                    <h1 className="text-2xl font-bold text-foreground truncate">{currentProject.name}</h1>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <div className={cn("h-3 w-3 rounded-full", getProjectColor(currentProject))} />
+                    <h1 className="text-lg font-bold text-foreground truncate">{currentProject.name}</h1>
                   </div>
-                  <Badge variant="outline" className="text-xs capitalize gap-2 px-3 py-1.5 bg-card border-border/60">
-                    <span className={cn("h-2 w-2 rounded-full", PROJECT_STATUS_COLOR[currentProject.status] ?? "bg-muted")} />
+                  <Badge variant="outline" className="text-[10px] uppercase font-bold gap-1.5 px-2 py-0.5 bg-card border-border/60">
+                    <span className={cn("h-1.5 w-1.5 rounded-full", PROJECT_STATUS_COLOR[currentProject.status] ?? "bg-muted")} />
                     {currentProject.status.replace(/_/g, " ")}
                   </Badge>
                 </div>
@@ -452,15 +452,15 @@ export default function TasksPage() {
                 </Button>
               </>
             ) : (
-              <div className="flex items-center gap-4">
-                <h1 className="text-2xl font-bold text-foreground">
+              <div className="flex items-center gap-3">
+                <h1 className="text-lg font-bold text-foreground">
                   {selectedProject === "my_tasks" ? "My Tasks" : 
                    selectedProject === "overdue" ? "Overdue Tasks" :
                    selectedProject === "completed" ? "Completed Tasks" :
                    selectedProject === "all_tasks" ? "All Tasks" :
                    selectedProject === "milestones" ? "Milestones" : "Tasks"}
                 </h1>
-                <Badge variant="secondary" className="text-xs px-3 py-1.5 bg-primary/10 text-primary border-primary/20">
+                <Badge variant="secondary" className="text-[10px] px-2 py-0.5 bg-primary/10 text-primary border-primary/20 uppercase font-bold">
                   {filteredTasks.length} tasks
                 </Badge>
               </div>
@@ -470,7 +470,7 @@ export default function TasksPage() {
           {/* Enhanced Right controls */}
           <div className="flex items-center gap-4 shrink-0">
             {/* Enhanced View switcher */}
-            <div className="flex items-center bg-muted/60 rounded-2xl p-1.5 gap-1 border border-border/40 shadow-sm">
+            <div className="flex items-center bg-muted/60 rounded-xl p-1 gap-1.5 border border-border/40 shadow-sm shrink-0">
               {([
                 { v: "list" as ViewMode,     icon: List,        tip: "List" },
                 { v: "board" as ViewMode,    icon: FolderKanban, tip: "Kanban" },
@@ -481,12 +481,12 @@ export default function TasksPage() {
                     <button
                       onClick={() => setView(v)}
                       className={cn(
-                        "px-4 py-2.5 rounded-xl transition-all duration-200 flex items-center gap-2 font-medium",
-                        view === v ? "bg-background shadow-md text-foreground border border-border/60" : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+                        "px-3 py-1.5 rounded-lg transition-all duration-200 flex items-center gap-2 font-medium whitespace-nowrap",
+                        view === v ? "bg-background shadow-sm text-foreground border border-border/60" : "text-muted-foreground hover:text-foreground hover:bg-background/50"
                       )}
                     >
-                      <Icon className="h-4 w-4" />
-                      <span className="text-sm hidden sm:block">{tip}</span>
+                      <Icon className="h-3.5 w-3.5" />
+                      <span className="text-xs hidden sm:block">{tip}</span>
                     </button>
                   </TooltipTrigger>
                   <TooltipContent>{tip}</TooltipContent>
@@ -496,9 +496,9 @@ export default function TasksPage() {
 
             {/* Enhanced Search */}
             <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
               <Input 
-                className="pl-12 h-11 w-96 text-sm bg-muted/40 border-border/60 focus:bg-background focus:border-primary focus:ring-primary/20 rounded-2xl shadow-sm" 
+                className="pl-10 h-9 w-64 text-xs bg-muted/40 border-border/60 focus:bg-background focus:border-primary focus:ring-primary/20 rounded-xl shadow-sm" 
                 placeholder="Search tasks..." 
                 value={search} 
                 onChange={(e) => setSearch(e.target.value)} 
@@ -508,8 +508,8 @@ export default function TasksPage() {
             {/* Enhanced Filters */}
             <div className="flex items-center gap-3">
               <Select value={filters.assignee || "all"} onValueChange={(v) => setFilters(f => ({ ...f, assignee: v === "all" ? "all" : v }))}>
-                <SelectTrigger className="h-11 w-40 text-sm border-border/60 rounded-2xl bg-background/50 shadow-sm">
-                  <User className="h-4 w-4 mr-2" />
+                <SelectTrigger className="h-9 w-36 text-xs border-border/60 rounded-xl bg-background/50 shadow-sm">
+                  <User className="h-3.5 w-3.5 mr-2" />
                   <SelectValue placeholder="Assignee" />
                 </SelectTrigger>
                 <SelectContent>
@@ -522,8 +522,8 @@ export default function TasksPage() {
               </Select>
 
               <Select value={filters.priority || "all"} onValueChange={(v) => setFilters(f => ({ ...f, priority: v === "all" ? "all" : v }))}>
-                <SelectTrigger className="h-11 w-36 text-sm border-border/60 rounded-2xl bg-background/50 shadow-sm">
-                  <Flag className="h-4 w-4 mr-2" />
+                <SelectTrigger className="h-9 w-32 text-xs border-border/60 rounded-xl bg-background/50 shadow-sm">
+                  <Flag className="h-3.5 w-3.5 mr-2" />
                   <SelectValue placeholder="Priority" />
                 </SelectTrigger>
                 <SelectContent>
@@ -535,21 +535,21 @@ export default function TasksPage() {
               </Select>
             </div>
 
-            <Button variant="outline" size="default" className="h-11 gap-2 text-sm border-border/60 rounded-2xl bg-background/50 shadow-sm" onClick={() => setTemplatesOpen(true)}>
-              <FileText className="h-4 w-4" /> Templates
+            <Button variant="outline" size="sm" className="h-9 gap-2 text-xs border-border/60 rounded-xl bg-background/50 shadow-sm" onClick={() => setTemplatesOpen(true)}>
+              <FileText className="h-3.5 w-3.5" /> Templates
             </Button>
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="default" className="h-11 px-4 border-border/60 rounded-2xl bg-background/50 shadow-sm" onClick={() => alert('Keyboard Shortcuts:\n\nC - Create Task\nP - Create Project\nCmd+K - Search\n1 - List View\n2 - Kanban View\n3 - Overview')}>
-                  <span className="text-sm font-medium">?</span>
+                <Button variant="outline" size="sm" className="h-9 w-9 border-border/60 rounded-xl bg-background/50 shadow-sm" onClick={() => alert('Keyboard Shortcuts:\n\nC - Create Task\nP - Create Project\nCmd+K - Search\n1 - List View\n2 - Kanban View\n3 - Overview')}>
+                  <span className="text-xs font-medium">?</span>
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Keyboard Shortcuts</TooltipContent>
             </Tooltip>
 
-            <Button size="default" className="h-11 gap-2 text-sm rounded-2xl shadow-md bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary" onClick={() => setTaskDialog(true)}>
-              <Plus className="h-4 w-4" /> New Task
+            <Button size="sm" className="h-9 gap-2 text-xs rounded-xl shadow-md bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary" onClick={() => setTaskDialog(true)}>
+              <Plus className="h-3.5 w-3.5" /> New Task
             </Button>
           </div>
         </div>
@@ -695,12 +695,12 @@ export default function TasksPage() {
                     <div className="h-2 w-2 rounded-full bg-green-500"></div>
                     Project
                   </Label>
-                  <Select value={newTask.project_id} onValueChange={(v) => setNewTask((t) => ({ ...t, project_id: v }))}>
+                  <Select value={newTask.project_id || "none"} onValueChange={(v) => setNewTask((t) => ({ ...t, project_id: v === "none" ? "" : v }))}>
                     <SelectTrigger className="h-11 border-border focus:border-primary focus:ring-primary/20 bg-background">
                       <SelectValue placeholder="Select project" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No Project</SelectItem>
+                      <SelectItem value="none">No Project</SelectItem>
                       {projects.map((project) => (
                         <SelectItem key={project.id} value={project.id}>
                           <div className="flex items-center gap-2">
@@ -719,12 +719,12 @@ export default function TasksPage() {
                     <div className="h-2 w-2 rounded-full bg-purple-500"></div>
                     Assignee
                   </Label>
-                  <Select value={newTask.assigned_to} onValueChange={(v) => setNewTask((t) => ({ ...t, assigned_to: v }))}>
+                  <Select value={newTask.assigned_to || "unassigned"} onValueChange={(v) => setNewTask((t) => ({ ...t, assigned_to: v === "unassigned" ? "" : v }))}>
                     <SelectTrigger className="h-11 border-border focus:border-primary focus:ring-primary/20 bg-background">
                       <SelectValue placeholder="Assign to..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Unassigned</SelectItem>
+                      <SelectItem value="unassigned">Unassigned</SelectItem>
                       {members.map((member) => (
                         <SelectItem key={member.id} value={member.id}>
                           <div className="flex items-center gap-2">
@@ -838,17 +838,17 @@ function SidebarItem({ icon, label, count, active, onClick }: {
     <button
       onClick={onClick}
       className={cn(
-        "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-200 text-left",
+        "w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm transition-all duration-200 text-left",
         active 
-          ? "bg-primary/10 text-primary font-medium border border-primary/20" 
+          ? "bg-primary/10 text-primary font-medium border border-primary/20 shadow-sm" 
           : "text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent hover:border-border"
       )}
     >
-      <span className={cn("shrink-0", active ? "text-primary" : "text-muted-foreground")}>{icon}</span>
-      <span className="flex-1 truncate">{label}</span>
+      <span className={cn("shrink-0 h-4 w-4 flex items-center justify-center", active ? "text-primary" : "text-muted-foreground")}>{icon}</span>
+      <span className="flex-1 truncate text-xs font-medium">{label}</span>
       {count !== undefined && count > 0 && (
         <span className={cn(
-          "text-xs tabular-nums px-1.5 py-0.5 rounded-full font-medium",
+          "text-[10px] tabular-nums px-1.5 py-0.5 rounded-md font-bold",
           active ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"
         )}>
           {count}
@@ -868,17 +868,17 @@ function SidebarProjectItem({ project, color, stats, active, onClick, onOpen }: 
       <button
         onClick={onClick}
         className={cn(
-          "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-200 text-left pr-8",
+          "w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm transition-all duration-200 text-left pr-8",
           active 
-            ? "bg-primary/10 text-primary font-medium border border-primary/20" 
+            ? "bg-primary/10 text-primary font-medium border border-primary/20 shadow-sm" 
             : "text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent hover:border-border"
         )}
       >
-        <span className={cn("h-2 w-2 rounded-full shrink-0", color)} />
-        <span className="flex-1 truncate">{project.name}</span>
+        <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", color)} />
+        <span className="flex-1 truncate text-xs font-medium">{project.name}</span>
         {stats.total > 0 && (
           <span className={cn(
-            "text-xs tabular-nums shrink-0 px-1.5 py-0.5 rounded-full font-medium",
+            "text-[10px] tabular-nums shrink-0 px-1.5 py-0.5 rounded-md font-bold",
             active ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"
           )}>
             {stats.done}/{stats.total}
@@ -1012,7 +1012,7 @@ function BoardView({ tasks, projects, members, onStatusChange, onDelete, onNewTa
 
               {/* Compact Tasks Container with Drop Zone */}
               <div className={cn(
-                "flex-1 space-y-2 overflow-y-auto pb-3 rounded-lg transition-all duration-200 min-h-24",
+                "flex-1 space-y-1.5 overflow-y-auto pb-3 rounded-lg transition-all duration-200 min-h-24",
                 isDropTarget && "bg-primary/5 border-2 border-dashed border-primary/30 p-2"
               )}>
                 {column.tasks.length === 0 && isDropTarget && (
@@ -1112,7 +1112,7 @@ function BoardTaskCard({ task, projects, getMember, onStatusChange, onDelete, sh
   return (
     <div 
       className={cn(
-        "bg-card border border-border rounded-lg p-3 transition-all duration-200 cursor-pointer group hover:border-primary/30 select-none",
+        "bg-card border border-border rounded-lg p-2.5 transition-all duration-200 cursor-pointer group hover:border-primary/30 select-none",
         isDragging ? "opacity-50 scale-95 rotate-1 shadow-xl z-50" : "hover:shadow-sm",
         "transform-gpu" // Enable GPU acceleration for smoother animations
       )}
@@ -1294,20 +1294,20 @@ function ListView({ tasks, projects, members, collapsedGroups, onToggleGroup, on
     <div className="h-full overflow-hidden bg-background">
       {/* Compact Table Header */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border/40">
-        <div className="flex items-center gap-3 px-6 py-3 text-xs text-muted-foreground font-medium">
+        <div className="flex items-center gap-2.5 px-4 py-2 text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
           <span className="w-5"></span> {/* Status */}
-          <span className="w-20 text-xs">ID</span>
-          <span className="flex-1 text-xs">Task Name</span>
-          <span className="w-24 text-center hidden lg:block text-xs">Assignee</span>
-          <span className="w-20 text-center hidden md:block text-xs">Priority</span>
-          <span className="w-20 text-center hidden sm:block text-xs">Due</span>
+          <span className="w-16">ID</span>
+          <span className="flex-1">Task Name</span>
+          <span className="w-24 text-center hidden lg:block">Assignee</span>
+          <span className="w-20 text-center hidden md:block">Priority</span>
+          <span className="w-20 text-center hidden sm:block">Due</span>
           <span className="w-8" />
         </div>
       </div>
 
       {/* Content */}
       <div className="overflow-y-auto h-full">
-        <div className="px-6 py-4 space-y-4">
+        <div className="px-6 py-2 space-y-3">
           {groups.map((group) => {
             const isCollapsed = collapsedGroups.has(group.value);
             const StatusIcon = group.icon;
@@ -1316,21 +1316,21 @@ function ListView({ tasks, projects, members, collapsedGroups, onToggleGroup, on
                 {/* Compact Group Header */}
                 <button
                   onClick={() => onToggleGroup(group.value)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-muted/30 transition-all duration-200 group/header border border-transparent hover:border-border/40 bg-card/30"
+                  className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg hover:bg-muted/30 transition-all duration-200 group/header border border-transparent hover:border-border/40 bg-card/30"
                 >
-                  <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform duration-200", isCollapsed && "-rotate-90")} />
-                  <div className={cn("p-1.5 rounded-lg", group.bg)}>
-                    <StatusIcon className={cn("h-4 w-4", group.color)} />
+                  <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform duration-200", isCollapsed && "-rotate-90")} />
+                  <div className={cn("p-1 rounded-md", group.bg)}>
+                    <StatusIcon className={cn("h-3.5 w-3.5", group.color)} />
                   </div>
                   <div className="flex-1 text-left">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-foreground">{group.label}</span>
-                      <Badge variant="secondary" className="text-xs font-medium px-2 py-0.5 h-5">
+                      <span className="text-xs font-bold text-foreground">{group.label}</span>
+                      <Badge variant="secondary" className="text-[10px] font-bold px-1.5 py-0 h-4 bg-muted border-border/40">
                         {group.tasks.length}
                       </Badge>
                     </div>
                   </div>
-                  <div className="text-xs text-muted-foreground/60 font-medium">
+                  <div className="text-[10px] text-muted-foreground/60 font-bold uppercase tracking-tighter">
                     {group.tasks.length > 0 && `${Math.round((group.tasks.filter(t => t.status === 'completed').length / group.tasks.length) * 100)}%`}
                   </div>
                 </button>
@@ -1412,7 +1412,7 @@ function TaskRow({ task, projects, getMember, onStatusChange, onDelete, showProj
   const ticketId = `${project?.name?.toUpperCase().slice(0, 3) || 'TSK'}-${task.id.slice(-4).toUpperCase()}`;
 
   return (
-    <div className="flex items-center gap-3 px-4 py-2 hover:bg-muted/20 transition-all duration-150 group/row border-b border-border/20 last:border-b-0">
+    <div className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-muted/20 transition-all duration-150 group/row border-b border-border/20 last:border-b-0">
       {/* Compact status toggle */}
       <Tooltip>
         <TooltipTrigger asChild>
@@ -1431,8 +1431,8 @@ function TaskRow({ task, projects, getMember, onStatusChange, onDelete, showProj
       </Tooltip>
 
       {/* Compact Task ID */}
-      <div className="w-20 shrink-0">
-        <span className="text-xs font-mono text-muted-foreground font-medium">{ticketId}</span>
+      <div className="w-16 shrink-0">
+        <span className="text-[10px] font-mono text-muted-foreground font-medium">{ticketId}</span>
       </div>
 
       {/* Compact Title with project */}
@@ -1447,8 +1447,8 @@ function TaskRow({ task, projects, getMember, onStatusChange, onDelete, showProj
           {task.title}
         </button>
         {showProject && project && (
-          <span className="hidden sm:inline-flex items-center gap-1 text-xs text-muted-foreground/70 shrink-0 bg-muted/40 px-1.5 py-0.5 rounded border border-border/30">
-            <span className={cn("h-1.5 w-1.5 rounded-sm", getProjectColor(project))} />
+          <span className="hidden sm:inline-flex items-center gap-1 text-[10px] text-muted-foreground/70 shrink-0 bg-muted/40 px-1.5 py-0.5 rounded border border-border/30 font-medium">
+            <span className={cn("h-1 w-1 rounded-full", getProjectColor(project))} />
             {project.name}
           </span>
         )}
@@ -1535,12 +1535,12 @@ function OverviewView({ projects, allTasks, getProjectStats, getProjectColor, on
 
   return (
     <div className="h-full overflow-y-auto bg-background">
-      <div className="max-w-7xl mx-auto p-8 space-y-8">
+      <div className="max-w-7xl mx-auto p-4 space-y-6">
         
         {/* Professional Header */}
-        <div className="text-center py-6">
-          <h1 className="text-2xl font-bold text-foreground mb-2">Workspace Overview</h1>
-          <p className="text-muted-foreground">Track progress and manage your work efficiently</p>
+        <div className="text-center py-4">
+          <h1 className="text-xl font-bold text-foreground mb-1">Workspace Overview</h1>
+          <p className="text-xs text-muted-foreground">Track progress and manage your work efficiently</p>
         </div>
 
         {/* Professional Stats Grid */}
@@ -1585,14 +1585,14 @@ function OverviewView({ projects, allTasks, getProjectStats, getProjectColor, on
           ].map((stat) => {
             const Icon = stat.icon;
             return (
-              <div key={stat.label} className="bg-card border border-border rounded-xl p-4 hover:shadow-sm transition-all">
-                <div className="flex items-center justify-between mb-2">
-                  <Icon className="h-4 w-4 text-muted-foreground" />
+              <div key={stat.label} className="bg-card border border-border rounded-xl p-3 hover:shadow-sm transition-all">
+                <div className="flex items-center justify-between mb-1.5">
+                  <Icon className="h-3.5 w-3.5 text-muted-foreground" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-foreground tabular-nums">{stat.value}</p>
-                  <p className="text-sm font-medium text-foreground">{stat.label}</p>
-                  <p className="text-xs text-muted-foreground">{stat.sub}</p>
+                  <p className="text-xl font-bold text-foreground tabular-nums leading-none mb-1">{stat.value}</p>
+                  <p className="text-[10px] font-bold text-foreground uppercase tracking-tight">{stat.label}</p>
+                  <p className="text-[10px] text-muted-foreground">{stat.sub}</p>
                 </div>
               </div>
             );

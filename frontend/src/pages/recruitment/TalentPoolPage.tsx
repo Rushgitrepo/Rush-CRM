@@ -420,14 +420,14 @@ export default function TalentPoolPage() {
                 <div>
                   <Label>Availability</Label>
                   <Select
-                    value={searchFilters.availability}
-                    onValueChange={(value) => setSearchFilters({ ...searchFilters, availability: value })}
+                    value={searchFilters.availability || "any"}
+                    onValueChange={(value) => setSearchFilters({ ...searchFilters, availability: value === "any" ? "" : value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Any" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Any</SelectItem>
+                      <SelectItem value="any">Any</SelectItem>
                       <SelectItem value="available">Available</SelectItem>
                       <SelectItem value="not_available">Not Available</SelectItem>
                       <SelectItem value="considering_offers">Considering Offers</SelectItem>
