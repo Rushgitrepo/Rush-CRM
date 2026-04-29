@@ -847,6 +847,8 @@ export function AppSidebar({
           )}
         />
       )}
+      </div>
     </aside>
   );
 }
+
