@@ -53,7 +53,26 @@ import {
   Star,
   Trash2,
   X,
+  GripVertical,
 } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { restrictToVerticalAxis, restrictToWindowEdges } from "@dnd-kit/modifiers";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getAvatarUrl } from "@/lib/utils";
@@ -241,6 +260,57 @@ export function AppSidebar({
   const deleteWg = useDeleteWorkgroup();
   const [deleteChatId, setDeleteChatId] = useState<string | null>(null);
   const { on: onRealtime, off: offRealtime } = useRealtime();
+  const [orderedNavigation, setOrderedNavigation] = useState<NavItem[]>(() => {
+    const savedOrder = typeof window !== 'undefined' ? localStorage.getItem("sidebar_module_order") : null;
+    if (savedOrder) {
+      try {
+        const parsedOrder = JSON.parse(savedOrder);
+        const reordered = parsedOrder
+          .map((title: string) => navigation.find((n) => n.title === title))
+          .filter(Boolean) as NavItem[];
+        
+        const missingItems = navigation.filter(
+          (item) => !parsedOrder.includes(item.title)
+        );
+        
+        return [...reordered, ...missingItems];
+      } catch (e) {
+        return navigation;
+      }
+    }
+    return navigation;
+  });
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // Avoid accidental drags on click
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      setOrderedNavigation((items) => {
+        const oldIndex = items.findIndex((i) => i.title === active.id);
+        const newIndex = items.findIndex((i) => i.title === over.id);
+        const newOrder = arrayMove(items, oldIndex, newIndex);
+        
+        // Save only titles to localStorage for persistence
+        localStorage.setItem(
+          "sidebar_module_order",
+          JSON.stringify(newOrder.map((item) => item.title))
+        );
+        
+        return newOrder;
+      });
+    }
+  };
 
   useEffect(() => {
     const handleWorkgroupUpdated = (payload: any) => {
@@ -341,11 +411,11 @@ export function AppSidebar({
   );
 
   const filteredNavigation = useMemo(() => {
-    return navigation.map(item => {
+    return orderedNavigation.map(item => {
       if (item.title === "Admin Portal" && !isAdmin) return null;
       return item;
     }).filter(Boolean) as NavItem[];
-  }, [isAdmin]);
+  }, [orderedNavigation, isAdmin]);
 
   const toggleSection = (title: string) => {
     setOpenSections((prev) =>
@@ -821,68 +891,33 @@ export function AppSidebar({
 
       {/* Navigation Content */}
       <div className="flex-1 overflow-y-auto custom-scrollbar px-4 pb-8 space-y-6">
-        <div className="space-y-1">
-          {filteredNavigation.map((item) => {
-            if (item.children) {
-              const isOpenSection = openSections.includes(item.title);
-              const sectionActive = isSectionActive(item.children);
-
-              return (
-                <div key={item.title} className="mb-2">
-                  <button
-                    onClick={() => toggleSection(item.title)}
-                    className={cn(
-                      "flex w-full items-center justify-between rounded-xl px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider transition-all duration-200",
-                      sectionActive
-                        ? "text-white"
-                        : "text-slate-500 hover:text-slate-300 hover:bg-white/[0.03]"
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <item.icon className={cn("h-4 w-4", sectionActive ? "text-primary" : "text-slate-500")} />
-                      <span>{item.title}</span>
-                    </div>
-                    <ChevronDown
-                      className={cn(
-                        "h-3.5 w-3.5 transition-transform duration-500",
-                        isOpenSection && "rotate-180"
-                      )}
-                    />
-                  </button>
-                  {isOpenSection && (
-                    <div className="mt-1 space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-300">
-                      {item.children.map((child) => renderSubItem(child, item.title))}
-                    </div>
-                  )}
-                </div>
-              );
-            }
-
-            return (
-              <NavLink
-                key={item.href}
-                to={item.href!}
-                onClick={() => isMobile && onClose?.()}
-                className={cn(
-                  "flex items-center justify-between rounded-xl px-4 py-2.5 text-[13px] font-medium transition-all duration-200",
-                  isActive(item.href!)
-                    ? "bg-primary/10 text-white"
-                    : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <item.icon className={cn("h-4 w-4", isActive(item.href!) ? "text-primary" : "text-slate-500")} />
-                  <span>{item.title}</span>
-                </div>
-                {item.badge && (
-                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[9px] font-black text-white shadow-lg shadow-primary/20">
-                    {item.badge}
-                  </span>
-                )}
-              </NavLink>
-            );
-          })}
-        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+          modifiers={[restrictToVerticalAxis, restrictToWindowEdges]}
+        >
+          <SortableContext
+            items={filteredNavigation.map(item => item.title)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="space-y-1">
+              {filteredNavigation.map((item) => (
+                <SortableNavItem
+                  key={item.title}
+                  item={item}
+                  isActive={isActive}
+                  isSectionActive={isSectionActive}
+                  openSections={openSections}
+                  toggleSection={toggleSection}
+                  renderSubItem={renderSubItem}
+                  isMobile={isMobile}
+                  onClose={onClose}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       </div>
 
       <AlertDialog open={!!deleteChatId} onOpenChange={(open) => !open && setDeleteChatId(null)}>
@@ -922,5 +957,128 @@ export function AppSidebar({
         />
       )}
     </aside>
+  );
+}
+
+function SortableNavItem({
+  item,
+  isActive,
+  isSectionActive,
+  openSections,
+  toggleSection,
+  renderSubItem,
+  isMobile,
+  onClose,
+}: {
+  item: NavItem;
+  isActive: (href: string) => boolean;
+  isSectionActive: (children?: { href: string }[]) => boolean | undefined;
+  openSections: string[];
+  toggleSection: (title: string) => void;
+  renderSubItem: (child: NavSubItem, parentTitle?: string) => JSX.Element;
+  isMobile?: boolean;
+  onClose?: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.title });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : undefined,
+    position: 'relative' as const,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  if (item.children) {
+    const isOpenSection = openSections.includes(item.title);
+    const sectionActive = isSectionActive(item.children);
+
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        className={cn("mb-2 group/sortable", isDragging && "pointer-events-none")}
+      >
+        <div className="flex items-center group">
+          <button
+            {...attributes}
+            {...listeners}
+            className="p-1 opacity-0 group-hover/sortable:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-slate-600 hover:text-slate-400"
+          >
+            <GripVertical className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={() => toggleSection(item.title)}
+            className={cn(
+              "flex flex-1 items-center justify-between rounded-xl px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider transition-all duration-200",
+              sectionActive
+                ? "text-white"
+                : "text-slate-500 hover:text-slate-300 hover:bg-white/[0.03]"
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <item.icon className={cn("h-4 w-4", sectionActive ? "text-primary" : "text-slate-500")} />
+              <span>{item.title}</span>
+            </div>
+            <ChevronDown
+              className={cn(
+                "h-3.5 w-3.5 transition-transform duration-500",
+                isOpenSection && "rotate-180"
+              )}
+            />
+          </button>
+        </div>
+        {isOpenSection && (
+          <div className="mt-1 space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-300 pl-6">
+            {item.children.map((child) => renderSubItem(child, item.title))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn("group/sortable", isDragging && "pointer-events-none")}
+    >
+      <div className="flex items-center group">
+        <button
+          {...attributes}
+          {...listeners}
+          className="p-1 opacity-0 group-hover/sortable:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-slate-600 hover:text-slate-400"
+        >
+          <GripVertical className="h-3.5 w-3.5" />
+        </button>
+        <NavLink
+          to={item.href!}
+          onClick={() => isMobile && onClose?.()}
+          className={cn(
+            "flex flex-1 items-center justify-between rounded-xl px-4 py-2.5 text-[13px] font-medium transition-all duration-200",
+            isActive(item.href!)
+              ? "bg-primary/10 text-white"
+              : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
+          )}
+        >
+          <div className="flex items-center gap-3">
+            <item.icon className={cn("h-4 w-4", isActive(item.href!) ? "text-primary" : "text-slate-500")} />
+            <span>{item.title}</span>
+          </div>
+          {item.badge && (
+            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[9px] font-black text-white shadow-lg shadow-primary/20">
+              {item.badge}
+            </span>
+          )}
+        </NavLink>
+      </div>
+    </div>
   );
 }
