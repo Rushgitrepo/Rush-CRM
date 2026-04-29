@@ -54,8 +54,7 @@ export default function DirectChatPage() {
         .filter(
           (wg) =>
             wg.type === "private" &&
-            Boolean((wg.settings as any)?.is_direct_chat) &&
-            Number(wg.message_count || 0) > 0,
+            Boolean((wg.settings as any)?.is_direct_chat),
         )
         .sort((a, b) => {
           const ta = new Date(
