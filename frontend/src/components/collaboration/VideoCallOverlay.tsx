@@ -426,6 +426,8 @@ export default function VideoCallOverlay() {
   const [isMinimized, setIsMinimized] = useState(false);
   const [mobilePosition, setMobilePosition] = useState({ x: 0, y: 0 });
   const [minimizedPosition, setMinimizedPosition] = useState({ x: 0, y: 0 });
+  const [pipPosition, setPipPosition] = useState({ x: 0, y: 0 });
+  const [pipMode, setPipMode] = useState<"local" | "remote">("local");
 
   const dragRef = useRef({
     startX: 0,
@@ -433,12 +435,12 @@ export default function VideoCallOverlay() {
     initX: 0,
     initY: 0,
     isDragging: false,
-    type: "mobile" as "mobile" | "minimized",
+    type: "mobile" as "mobile" | "minimized" | "pip",
   });
 
-  const handlePointerDown = (
-    e: React.PointerEvent<HTMLDivElement>,
-    type: "mobile" | "minimized",
+  const handleMouseDown = (
+    e: React.MouseEvent<HTMLDivElement>,
+    type: "mobile" | "minimized" | "pip",
   ) => {
     if (
       (e.target as HTMLElement).closest("button") ||
@@ -449,35 +451,29 @@ export default function VideoCallOverlay() {
     dragRef.current = {
       startX: e.clientX,
       startY: e.clientY,
-      initX: type === "mobile" ? mobilePosition.x : minimizedPosition.x,
-      initY: type === "mobile" ? mobilePosition.y : minimizedPosition.y,
+      initX: type === "mobile" ? mobilePosition.x : type === "minimized" ? minimizedPosition.x : pipPosition.x,
+      initY: type === "mobile" ? mobilePosition.y : type === "minimized" ? minimizedPosition.y : pipPosition.y,
       isDragging: true,
       type,
     };
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
   };
 
-  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!dragRef.current.isDragging) return;
     const dx = e.clientX - dragRef.current.startX;
     const dy = e.clientY - dragRef.current.startY;
     if (dragRef.current.type === "mobile") {
-      setMobilePosition({
-        x: dragRef.current.initX + dx,
-        y: dragRef.current.initY + dy,
-      });
-    } else {
-      setMinimizedPosition({
-        x: dragRef.current.initX + dx,
-        y: dragRef.current.initY + dy,
-      });
+      setMobilePosition({ x: dragRef.current.initX + dx, y: dragRef.current.initY + dy });
+    } else if (dragRef.current.type === "minimized") {
+      setMinimizedPosition({ x: dragRef.current.initX + dx, y: dragRef.current.initY + dy });
+    } else if (dragRef.current.type === "pip") {
+      setPipPosition({ x: dragRef.current.initX + dx, y: dragRef.current.initY + dy });
     }
   };
 
-  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+  const handleMouseUp = (e: React.MouseEvent<HTMLDivElement>) => {
     if (dragRef.current.isDragging) {
       dragRef.current.isDragging = false;
-      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
     }
   };
 
@@ -530,10 +526,7 @@ export default function VideoCallOverlay() {
       style={{
         transform: `translate3d(${mobilePosition.x}px, ${mobilePosition.y}px, 0)`,
       }}
-      onPointerDown={(e) => handlePointerDown(e, "mobile")}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerUp}
+      onMouseDown={(e) => handleMouseDown(e, "mobile")}
     >
       <div className="relative w-[310px] h-[480px] bg-zinc-950 rounded-[48px] border-[10px] border-zinc-900 shadow-[0_80px_160px_rgba(0,0,0,1)] overflow-hidden ring-1 ring-white/10 ring-inset">
         {/* Dynamic Island style Notch */}
@@ -697,7 +690,7 @@ export default function VideoCallOverlay() {
       <div
         className={cn(
           "w-full h-full relative bg-zinc-950 flex flex-col transition-all duration-500",
-          isGroupCall ? "p-0" : "pt-12 pb-24",
+          (isGroupCall || anyScreenSharing) ? "p-0" : "pt-5 pb-5",
         )}
       >
         {/* Main Viewing Area */}
@@ -710,7 +703,7 @@ export default function VideoCallOverlay() {
                   ref={screenVideoRef}
                   autoPlay
                   playsInline
-                  className="max-w-full max-h-full object-contain"
+                  className="w-full h-full object-contain"
                 />
               ) : (
                 <div className="w-full h-full relative">
@@ -751,6 +744,81 @@ export default function VideoCallOverlay() {
                     <RemotePeerVideo peer={p} />
                   </div>
                 ))}
+              </div>
+            </div>
+          ) : !isGroupCall && peerList.length === 1 ? (
+            /* 1-on-1 Picture-in-Picture Layout */
+            <div className="flex-1 relative bg-black overflow-hidden">
+              {/* Main Full-screen Video */}
+              <div className="absolute inset-0 z-0">
+                {pipMode === 'local' ? (
+                  <RemotePeerVideo peer={peerList[0]} fullScreen />
+                ) : (
+                  <div className="w-full h-full relative">
+                    {isVideoOff || !localStream ? (
+                      <div className="w-full h-full flex flex-col items-center justify-center gap-4 bg-zinc-900">
+                        <Avatar className="h-32 w-32 border-2 border-white/10">
+                          <AvatarFallback className="bg-zinc-800 text-4xl font-bold text-zinc-500">
+                            {currentUser?.full_name?.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-sm text-white/20 font-bold uppercase tracking-widest">
+                          You
+                        </span>
+                      </div>
+                    ) : (
+                      <video
+                        ref={(el) => { if (el && localStream) el.srcObject = localStream; }}
+                        autoPlay
+                        muted
+                        playsInline
+                        className="w-full h-full object-cover scale-x-[-1]"
+                      />
+                    )}
+                    <div className="absolute bottom-6 left-6 flex items-center gap-2 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full border border-white/5 z-10">
+                      <span className="text-xs text-white font-bold">You</span>
+                      {isMuted && <MicOff className="w-4 h-4 text-red-500" />}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* PiP Floating Video */}
+              <div 
+                className="absolute w-32 md:w-48 aspect-[3/4] bg-zinc-900 rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl z-50 cursor-move touch-none"
+                style={{ 
+                  transform: `translate3d(${pipPosition.x}px, ${pipPosition.y}px, 0)`,
+                  right: '24px',
+                  bottom: '24px'
+                }}
+                onMouseDown={(e) => handleMouseDown(e, 'pip')}
+                onClick={() => setPipMode(prev => prev === 'local' ? 'remote' : 'local')}
+              >
+                {pipMode === 'local' ? (
+                  <div className="w-full h-full relative pointer-events-none">
+                    {isVideoOff || !localStream ? (
+                      <div className="w-full h-full flex items-center justify-center bg-zinc-900">
+                        <Avatar className="h-12 w-12 border border-white/10">
+                          <AvatarFallback className="bg-zinc-800 text-lg font-bold text-zinc-500">
+                            {currentUser?.full_name?.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                      </div>
+                    ) : (
+                      <video
+                        ref={(el) => { if (el && localStream) el.srcObject = localStream; }}
+                        autoPlay
+                        muted
+                        playsInline
+                        className="w-full h-full object-cover scale-x-[-1]"
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <div className="w-full h-full relative pointer-events-none">
+                     <RemotePeerVideo peer={peerList[0]} fullScreen />
+                  </div>
+                )}
               </div>
             </div>
           ) : (
