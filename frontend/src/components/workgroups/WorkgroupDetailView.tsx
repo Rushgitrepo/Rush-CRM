@@ -134,8 +134,8 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
       const fallbackMessage = error?.message;
       toast.error(
         serverMessage ||
-          fallbackMessage ||
-          "Only team creator/owner can remove this team.",
+        fallbackMessage ||
+        "Only team creator/owner can remove this team.",
       );
     },
   });
@@ -184,13 +184,13 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
           return prev.map((member) =>
             member.user_id === payload.userId
               ? {
-                  ...member,
-                  is_online: payload.is_online ?? member.is_online,
-                  last_seen_at:
-                    payload.last_seen_at !== undefined
-                      ? payload.last_seen_at
-                      : member.last_seen_at,
-                }
+                ...member,
+                is_online: payload.is_online ?? member.is_online,
+                last_seen_at:
+                  payload.last_seen_at !== undefined
+                    ? payload.last_seen_at
+                    : member.last_seen_at,
+              }
               : member,
           );
         },
@@ -572,7 +572,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
       if (isOwner || isTeamCreator || isAssignedMemberManager) return true;
       return false;
     }
-    
+
     return true;
   }, [
     isChatLocked,
@@ -1228,6 +1228,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
     try {
       await workgroupsApi.markAllNotificationsAsRead(workgroupId);
       refetchNotifications();
+      setShowNotifications(false);
       toast.success("All notifications marked as read");
     } catch (error: any) {
       toast.error(
@@ -1377,7 +1378,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
               <AvatarImage
                 src={getAvatarUrl(
                   (workgroup as any).avatar_url ||
-                    (workgroup as any).direct_peer_avatar_url,
+                  (workgroup as any).direct_peer_avatar_url,
                 )}
               />
               <AvatarFallback
@@ -1430,8 +1431,8 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                         const fallbackMessage = error?.message;
                         toast.error(
                           serverMessage ||
-                            fallbackMessage ||
-                            "Failed to open direct chat",
+                          fallbackMessage ||
+                          "Failed to open direct chat",
                         );
                       }
                     } else {
@@ -1510,11 +1511,10 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
           </h3>
           <div className="space-y-1">
             <div
-              className={`flex items-center gap-2 px-3  py-2 rounded-lg cursor-pointer transition-colors ${
-                activeTab === "posts"
-                  ? "bg-blue-50 dark:bg-blue-900/20 text-primary dark:text-blue-300"
-                  : "hover:bg-primary hover:text-white"
-              }`}
+              className={`flex items-center gap-2 px-3  py-2 rounded-lg cursor-pointer transition-colors ${activeTab === "posts"
+                ? "bg-blue-50 dark:bg-blue-900/20 text-primary dark:text-blue-300"
+                : "hover:bg-primary hover:text-white"
+                }`}
               onClick={() => setActiveTab("posts")}
             >
               <Hash className="h-4 w-4" />
@@ -1524,11 +1524,10 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
               </Badge>
             </div>
             <div
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
-                activeTab === "files"
-                  ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                  : "hover:bg-primary hover:text-white dark:hover:bg-primary"
-              }`}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${activeTab === "files"
+                ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+                : "hover:bg-primary hover:text-white dark:hover:bg-primary"
+                }`}
               onClick={() => setActiveTab("files")}
             >
               <Files className="h-4 w-4" />
@@ -1538,11 +1537,10 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
               </Badge>
             </div>
             <div
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
-                activeTab === "wiki"
-                  ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                  : "hover:bg-primary hover:text-white dark:hover:bg-primary"
-              }`}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${activeTab === "wiki"
+                ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+                : "hover:bg-primary hover:text-white dark:hover:bg-primary"
+                }`}
               onClick={() => setActiveTab("wiki")}
             >
               <MessageSquare className="h-4 w-4" />
@@ -1612,7 +1610,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                     </p>
                     {assignedMemberManagerId &&
                       String(member.user_id || (member as any).id) ===
-                        String(assignedMemberManagerId) && (
+                      String(assignedMemberManagerId) && (
                         <Badge className="bg-indigo-600 hover:bg-indigo-600 text-white font-bold px-2 py-0.5 ml-8 text-[9px]">
                           Moderator
                         </Badge>
@@ -1626,11 +1624,10 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                       {member.role}
                     </span>
                     <span
-                      className={`text-xs font-medium ml-1 ${
-                        member.is_online
-                          ? "text-primary"
-                          : "text-red-500 dark:text-red-400"
-                      }`}
+                      className={`text-xs font-medium ml-1 ${member.is_online
+                        ? "text-primary"
+                        : "text-red-500 dark:text-red-400"
+                        }`}
                     >
                       {member.is_online ? "Online" : "Offline"}
                     </span>
@@ -1652,81 +1649,81 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                 </div>
                 {((member.user_id === user?.id && member.role !== "owner") ||
                   member.user_id !== user?.id) && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 shrink-0 text-gray-600 dark:text-gray-300 transition-colors group-hover:bg-primary group-hover:text-white hover:bg-primary hover:text-white"
-                      >
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {member.user_id !== user?.id && (
-                        <DropdownMenuItem
-                          onClick={async () => {
-                            try {
-                              console.log(
-                                "Opening direct chat with user:",
-                                member.user_id,
-                              );
-                              const direct = await workgroupsApi.openDirectChat(
-                                member.user_id,
-                              );
-                              console.log("Direct chat response:", direct);
-                              if (direct?.id) {
-                                navigate(
-                                  `/collaboration/workgroups?team=${direct.id}`,
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 shrink-0 text-gray-600 dark:text-gray-300 transition-colors group-hover:bg-primary group-hover:text-white hover:bg-primary hover:text-white"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {member.user_id !== user?.id && (
+                          <DropdownMenuItem
+                            onClick={async () => {
+                              try {
+                                console.log(
+                                  "Opening direct chat with user:",
+                                  member.user_id,
                                 );
-                              } else {
+                                const direct = await workgroupsApi.openDirectChat(
+                                  member.user_id,
+                                );
+                                console.log("Direct chat response:", direct);
+                                if (direct?.id) {
+                                  navigate(
+                                    `/collaboration/workgroups?team=${direct.id}`,
+                                  );
+                                } else {
+                                  toast.error(
+                                    "No direct chat ID returned from server",
+                                  );
+                                }
+                              } catch (error: any) {
+                                console.error("Direct chat error:", error);
+                                const serverMessage =
+                                  error?.response?.data?.error;
+                                const fallbackMessage = error?.message;
                                 toast.error(
-                                  "No direct chat ID returned from server",
-                                );
-                              }
-                            } catch (error: any) {
-                              console.error("Direct chat error:", error);
-                              const serverMessage =
-                                error?.response?.data?.error;
-                              const fallbackMessage = error?.message;
-                              toast.error(
-                                serverMessage ||
+                                  serverMessage ||
                                   fallbackMessage ||
                                   "Failed to open direct chat",
-                              );
-                            }
-                          }}
-                        >
-                          <MessageCircle className="h-4 w-4 mr-2" /> Direct Chat
-                        </DropdownMenuItem>
-                      )}
-                      {member.user_id === user?.id ? (
-                        <DropdownMenuItem
-                          className="text-red-600 dark:text-red-400"
-                          onClick={() => handleLeaveTeam(member.id)}
-                        >
-                          <UserMinus className="h-4 w-4 mr-2" />
-                          Leave Team
-                        </DropdownMenuItem>
-                      ) : (
-                        canRemoveMembers && (
+                                );
+                              }
+                            }}
+                          >
+                            <MessageCircle className="h-4 w-4 mr-2" /> Direct Chat
+                          </DropdownMenuItem>
+                        )}
+                        {member.user_id === user?.id ? (
                           <DropdownMenuItem
                             className="text-red-600 dark:text-red-400"
-                            onClick={() =>
-                              removeMember.mutate({
-                                memberId: member.id,
-                                workgroupId,
-                              })
-                            }
+                            onClick={() => handleLeaveTeam(member.id)}
                           >
                             <UserMinus className="h-4 w-4 mr-2" />
-                            Remove Team Member
+                            Leave Team
                           </DropdownMenuItem>
-                        )
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
+                        ) : (
+                          canRemoveMembers && (
+                            <DropdownMenuItem
+                              className="text-red-600 dark:text-red-400"
+                              onClick={() =>
+                                removeMember.mutate({
+                                  memberId: member.id,
+                                  workgroupId,
+                                })
+                              }
+                            >
+                              <UserMinus className="h-4 w-4 mr-2" />
+                              Remove Team Member
+                            </DropdownMenuItem>
+                          )
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
               </div>
             ))}
           </div>
@@ -2017,36 +2014,36 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                                   onToggleStar={handleToggleStarMessage}
                                   searchQuery={searchQuery}
                                   onReaction={async (postId, emoji) => {
-                                     if (isReactionsLocked && !isOwner && !isTeamCreator && !isAssignedMemberManager) {
-                                       toast.error("Reactions are locked for this group");
-                                       return;
-                                     }
-                                     try {
-                                       const response = await fetch(
-                                         `${import.meta.env.VITE_API_URL || "http://localhost:3001/api"}/workgroups/${workgroupId}/posts/${postId}/reactions`,
-                                         {
-                                           method: "POST",
-                                           headers: {
-                                             "Content-Type": "application/json",
-                                             Authorization: `Bearer ${localStorage.getItem("token")}`,
-                                           },
-                                           body: JSON.stringify({
-                                             reaction: emoji,
-                                           }),
-                                         },
-                                       );
-                                       if (response.ok) {
-                                         queryClient.invalidateQueries({
-                                           queryKey: [
-                                             "workgroup-posts",
-                                             workgroupId,
-                                           ],
-                                         });
-                                       }
-                                     } catch (err) {
-                                       console.error("Reaction failed:", err);
-                                     }
-                                   }}
+                                    if (isReactionsLocked && !isOwner && !isTeamCreator && !isAssignedMemberManager) {
+                                      toast.error("Reactions are locked for this group");
+                                      return;
+                                    }
+                                    try {
+                                      const response = await fetch(
+                                        `${import.meta.env.VITE_API_URL || "http://localhost:3001/api"}/workgroups/${workgroupId}/posts/${postId}/reactions`,
+                                        {
+                                          method: "POST",
+                                          headers: {
+                                            "Content-Type": "application/json",
+                                            Authorization: `Bearer ${localStorage.getItem("token")}`,
+                                          },
+                                          body: JSON.stringify({
+                                            reaction: emoji,
+                                          }),
+                                        },
+                                      );
+                                      if (response.ok) {
+                                        queryClient.invalidateQueries({
+                                          queryKey: [
+                                            "workgroup-posts",
+                                            workgroupId,
+                                          ],
+                                        });
+                                      }
+                                    } catch (err) {
+                                      console.error("Reaction failed:", err);
+                                    }
+                                  }}
                                 />
                               </div>
                             );
@@ -2135,15 +2132,15 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                                     handleComposerChange(
                                       e.target.value,
                                       e.target.selectionStart ??
-                                        e.target.value.length,
+                                      e.target.value.length,
                                     )
                                   }
                                   placeholder={
                                     !canSendMessages
                                       ? "This chat has been locked by an administrator"
                                       : replyTo
-                                      ? "Type a reply..."
-                                      : "Type a message..."
+                                        ? "Type a reply..."
+                                        : "Type a message..."
                                   }
                                   disabled={!canSendMessages}
                                   className="w-full pl-4 pr-32 bg-muted border-none rounded-full h-11 focus-visible:ring-1 focus-visible:ring-primary shadow-inner"
@@ -2224,11 +2221,10 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                                       !newPost.trim() ||
                                       createPost.isPending
                                     }
-                                    className={`h-8 w-8 flex items-center justify-center rounded-full transition-all ${
-                                      newPost.trim()
-                                        ? "bg-blue-600 text-white shadow-md hover:scale-105 active:scale-95"
-                                        : "bg-muted text-muted-foreground pointer-events-none"
-                                    }`}
+                                    className={`h-8 w-8 flex items-center justify-center rounded-full transition-all ${newPost.trim()
+                                      ? "bg-blue-600 text-white shadow-md hover:scale-105 active:scale-95"
+                                      : "bg-muted text-muted-foreground pointer-events-none"
+                                      }`}
                                   >
                                     <Send className="h-4 w-4" />
                                   </button>
@@ -2286,7 +2282,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                                 id="selectAllDelete"
                                 checked={
                                   selectedDeletePostIds.length ===
-                                    posts.length && posts.length > 0
+                                  posts.length && posts.length > 0
                                 }
                                 onCheckedChange={(val) =>
                                   handleSelectAllForDelete(Boolean(val))
@@ -3051,7 +3047,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                       </p>
                       {assignedMemberManagerId &&
                         String(member.user_id || (member as any).id) ===
-                          String(assignedMemberManagerId) && (
+                        String(assignedMemberManagerId) && (
                           <Badge className="bg-indigo-600 text-white font-bold px-2 py-0.5 ml-1 text-[10px]">
                             Moderator
                           </Badge>
@@ -3064,16 +3060,15 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                       Joined{" "}
                       {member.joined_at
                         ? formatDistanceToNow(new Date(member.joined_at), {
-                            addSuffix: true,
-                          })
+                          addSuffix: true,
+                        })
                         : "recently"}
                     </p>
                     <p
-                      className={`text-xs font-medium ${
-                        member.is_online
-                          ? "text-primary"
-                          : "text-red-500 dark:text-red-400"
-                      }`}
+                      className={`text-xs font-medium ${member.is_online
+                        ? "text-primary"
+                        : "text-red-500 dark:text-red-400"
+                        }`}
                     >
                       {member.is_online ? "Online" : "Offline"}
                     </p>
@@ -3108,54 +3103,54 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                     {((member.user_id === user?.id &&
                       member.role !== "owner") ||
                       member.user_id !== user?.id) && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-gray-600 dark:text-gray-300 transition-colors group-hover:bg-primary group-hover:text-white hover:bg-primary hover:text-white"
-                        onClick={async () => {
-                          if (member.user_id === user?.id) {
-                            handleLeaveTeam(member.id);
-                          } else {
-                            try {
-                              console.log(
-                                "Opening direct chat with user:",
-                                member.user_id,
-                              );
-                              const direct = await workgroupsApi.openDirectChat(
-                                member.user_id,
-                              );
-                              console.log("Direct chat response:", direct);
-                              if (direct?.id) {
-                                setShowMembersList(false);
-                                navigate(
-                                  `/collaboration/workgroups?team=${direct.id}`,
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-gray-600 dark:text-gray-300 transition-colors group-hover:bg-primary group-hover:text-white hover:bg-primary hover:text-white"
+                          onClick={async () => {
+                            if (member.user_id === user?.id) {
+                              handleLeaveTeam(member.id);
+                            } else {
+                              try {
+                                console.log(
+                                  "Opening direct chat with user:",
+                                  member.user_id,
                                 );
-                              } else {
+                                const direct = await workgroupsApi.openDirectChat(
+                                  member.user_id,
+                                );
+                                console.log("Direct chat response:", direct);
+                                if (direct?.id) {
+                                  setShowMembersList(false);
+                                  navigate(
+                                    `/collaboration/workgroups?team=${direct.id}`,
+                                  );
+                                } else {
+                                  toast.error(
+                                    "No direct chat ID returned from server",
+                                  );
+                                }
+                              } catch (error: any) {
+                                console.error("Direct chat error:", error);
+                                const serverMessage =
+                                  error?.response?.data?.error;
+                                const fallbackMessage = error?.message;
                                 toast.error(
-                                  "No direct chat ID returned from server",
-                                );
-                              }
-                            } catch (error: any) {
-                              console.error("Direct chat error:", error);
-                              const serverMessage =
-                                error?.response?.data?.error;
-                              const fallbackMessage = error?.message;
-                              toast.error(
-                                serverMessage ||
+                                  serverMessage ||
                                   fallbackMessage ||
                                   "Failed to open direct chat",
-                              );
+                                );
+                              }
                             }
-                          }
-                        }}
-                      >
-                        {member.user_id === user?.id ? (
-                          <UserMinus className="h-4 w-4" />
-                        ) : (
-                          <MessageCircle className="h-4 w-4" />
-                        )}
-                      </Button>
-                    )}
+                          }}
+                        >
+                          {member.user_id === user?.id ? (
+                            <UserMinus className="h-4 w-4" />
+                          ) : (
+                            <MessageCircle className="h-4 w-4" />
+                          )}
+                        </Button>
+                      )}
                   </div>
                 </div>
               ))
@@ -3194,20 +3189,19 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 max-h-96 overflow-y-auto py-4">
-            {notifications.length === 0 ? (
+            {notifications.filter((n: any) => !n.is_read).length === 0 ? (
               <div className="text-center py-8">
                 <Bell className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                <p className="text-gray-500">No notifications yet</p>
+                <p className="text-gray-500">No new notifications</p>
               </div>
             ) : (
-              notifications.map((notification) => (
+              notifications.filter((n: any) => !n.is_read).map((notification: any) => (
                 <div
                   key={notification.id}
-                  className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                    notification.is_read
-                      ? "border-border bg-card"
-                      : "border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20"
-                  }`}
+                  className={`p-3 rounded-lg border cursor-pointer transition-colors ${notification.is_read
+                    ? "border-border bg-card"
+                    : "border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20"
+                    }`}
                   onClick={() => markNotificationAsRead(notification.id)}
                 >
                   <div className="flex items-start gap-3">
@@ -3218,7 +3212,25 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                       <p
                         className={`text-sm ${notification.is_read ? "text-gray-600 dark:text-gray-400" : "text-gray-900 dark:text-white font-medium"}`}
                       >
-                        {notification.message}
+                        {(() => {
+                          const msg = notification.message || '';
+                          try {
+                            const parsed = JSON.parse(msg);
+                            if (parsed && parsed.type && parsed.status) {
+                              const isVideo = parsed.type === 'video';
+                              const isMissed = parsed.status === 'missed' || parsed.status === 'rejected';
+                              if (isMissed) return isVideo ? '📵 Missed video call' : '📵 Missed voice call';
+                              if (parsed.status === 'completed') {
+                                const dur = parsed.duration || 0;
+                                const m = Math.floor(dur / 60);
+                                const s = dur % 60;
+                                const durStr = dur > 0 ? ` (${m}:${s.toString().padStart(2, '0')})` : '';
+                                return isVideo ? `📹 Video call${durStr}` : `📞 Voice call${durStr}`;
+                              }
+                            }
+                          } catch (_) { }
+                          return msg;
+                        })()}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                         {new Date(notification.created_at).toLocaleString()}
@@ -3638,8 +3650,8 @@ function PostCard({
       // (This is the existing logic moved inside)
       const mentionPattern = mentionEntries.length
         ? mentionEntries
-            .map((entry) => escapeRegex(`@${entry.label}`))
-            .join("|")
+          .map((entry) => escapeRegex(`@${entry.label}`))
+          .join("|")
         : "";
 
       if (!mentionPattern || !urlPart.includes("@")) {
@@ -3707,11 +3719,10 @@ function PostCard({
                 );
               }
             }}
-            className={`font-semibold hover:underline ${
-              isAuthor
-                ? "text-emerald-700 dark:text-emerald-300"
-                : "text-primary"
-            }`}
+            className={`font-semibold hover:underline ${isAuthor
+              ? "text-emerald-700 dark:text-emerald-300"
+              : "text-primary"
+              }`}
           >
             {mPart}
           </button>
@@ -3722,9 +3733,9 @@ function PostCard({
 
   const timeString = post.created_at
     ? new Date(post.created_at).toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      })
+      hour: "2-digit",
+      minute: "2-digit",
+    })
     : "";
 
   const attachments = Array.isArray(post.attachments) ? post.attachments : [];
@@ -3804,11 +3815,10 @@ function PostCard({
 
           {/* The Actual Bubble */}
           <div
-            className={`relative min-w-[120px] order-1 ${
-              isAuthor
-                ? "bg-primary/10 text-foreground dark:bg-primary/20 rounded-2xl rounded-tr-sm"
-                : `${memberColor!.bg} ${memberColor!.text} rounded-2xl rounded-tl-sm`
-            } px-3 py-2 shadow-sm group/bubble border border-black/5`}
+            className={`relative min-w-[120px] order-1 ${isAuthor
+              ? "bg-primary/10 text-foreground dark:bg-primary/20 rounded-2xl rounded-tr-sm"
+              : `${memberColor!.bg} ${memberColor!.text} rounded-2xl rounded-tl-sm`
+              } px-3 py-2 shadow-sm group/bubble border border-black/5`}
           >
             {/* Dropdown Chevron - Inside Bubble top-right */}
             <div
@@ -3818,11 +3828,10 @@ function PostCard({
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button
-                      className={`transition-colors p-0.5 rounded ${
-                        isAuthor
-                          ? "text-gray-400 hover:text-gray-600 dark:text-white/70 dark:hover:text-white"
-                          : "text-gray-400 hover:text-gray-600 dark:text-white/70 dark:hover:text-white"
-                      }`}
+                      className={`transition-colors p-0.5 rounded ${isAuthor
+                        ? "text-gray-400 hover:text-gray-600 dark:text-white/70 dark:hover:text-white"
+                        : "text-gray-400 hover:text-gray-600 dark:text-white/70 dark:hover:text-white"
+                        }`}
                     >
                       <MoreVertical className="h-4 w-4" />
                     </button>
@@ -3928,9 +3937,8 @@ function PostCard({
               createPortal(
                 <div
                   ref={emojiPickerRef}
-                  className={`fixed z-[999] ${
-                    isAuthor ? "right-20" : "left-4"
-                  } top-20 shadow-xl bg-card/80 backdrop-blur-md border border-border rounded-xl shadow-2xl`}
+                  className={`fixed z-[999] ${isAuthor ? "right-20" : "left-4"
+                    } top-20 shadow-xl bg-card/80 backdrop-blur-md border border-border rounded-xl shadow-2xl`}
                 >
                   <button
                     onClick={() => setShowEmojiPicker(false)}
@@ -3971,11 +3979,10 @@ function PostCard({
             {isCallLog ? (
               <div className="flex items-center gap-3 py-1 pr-8">
                 <div
-                  className={`flex items-center justify-center h-10 w-10 rounded-full shrink-0 ${
-                    isMissedCall
-                      ? "bg-red-50 dark:bg-red-900/20"
-                      : "bg-emerald-50 dark:bg-emerald-900/20"
-                  }`}
+                  className={`flex items-center justify-center h-10 w-10 rounded-full shrink-0 ${isMissedCall
+                    ? "bg-red-50 dark:bg-red-900/20"
+                    : "bg-emerald-50 dark:bg-emerald-900/20"
+                    }`}
                 >
                   <CallIcon
                     className={`h-5 w-5 ${isMissedCall ? "text-red-500" : "text-emerald-600"}`}
@@ -3983,9 +3990,8 @@ function PostCard({
                 </div>
                 <div className="flex-1 min-w-0">
                   <p
-                    className={`text-sm font-semibold truncate ${
-                      isMissedCall ? "text-red-500" : "text-foreground"
-                    }`}
+                    className={`text-sm font-semibold truncate ${isMissedCall ? "text-red-500" : "text-foreground"
+                      }`}
                   >
                     {isMissedCall
                       ? isVideoCall
@@ -4005,9 +4011,8 @@ function PostCard({
               </div>
             ) : (
               <p
-                className={`text-[13px] leading-relaxed whitespace-pre-wrap break-words pr-6 text-gray-800 ${
-                  isAuthor ? "dark:text-white" : "dark:text-gray-200"
-                }`}
+                className={`text-[13px] leading-relaxed whitespace-pre-wrap break-words pr-6 text-gray-800 ${isAuthor ? "dark:text-white" : "dark:text-gray-200"
+                  }`}
               >
                 {isDeletedMessage ? (
                   <span className="italic text-gray-500 dark:text-gray-400">
@@ -4101,11 +4106,10 @@ function PostCard({
               </span>
               {isAuthor && (
                 <span
-                  className={`text-[9px] ${
-                    (post.seen_count || 0) > 0
-                      ? "text-primary"
-                      : "text-gray-400"
-                  }`}
+                  className={`text-[9px] ${(post.seen_count || 0) > 0
+                    ? "text-primary"
+                    : "text-gray-400"
+                    }`}
                 >
                   ✓✓
                 </span>
@@ -4140,11 +4144,10 @@ function PostCard({
             return (
               <button
                 onClick={() => setShowReactionsDialog(true)}
-                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium shadow-sm transition-all ${
-                  isMyReaction
-                    ? "bg-blue-100 border border-blue-300 text-blue-700"
-                    : "bg-card border border-border text-foreground hover:bg-muted/50"
-                }`}
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium shadow-sm transition-all ${isMyReaction
+                  ? "bg-blue-100 border border-blue-300 text-blue-700"
+                  : "bg-card border border-border text-foreground hover:bg-muted/50"
+                  }`}
                 title="View reactions"
               >
                 <span className="text-sm">{lastEmoji}</span>
@@ -4178,11 +4181,10 @@ function PostCard({
                   <button
                     key={`dialog-${post.id}-${emoji}`}
                     onClick={() => handleEmojiClick(emoji)}
-                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium transition-colors ${
-                      isActive
-                        ? "border-blue-300 bg-blue-100 text-blue-700"
-                        : "border-border bg-muted/50 text-foreground hover:bg-muted"
-                    }`}
+                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium transition-colors ${isActive
+                      ? "border-blue-300 bg-blue-100 text-blue-700"
+                      : "border-border bg-muted/50 text-foreground hover:bg-muted"
+                      }`}
                     title={
                       isActive
                         ? "Click to remove your reaction"
