@@ -1194,77 +1194,60 @@ export function AppSidebar({
           </Button>
         )}
 
-        <div className="space-y-1">
-          {filteredNavigation.mainItems.map((item) => {
-            // If a module is focused, only show that module's children
-            if (focusedModule && item.title !== focusedModule) {
-              return null;
-            }
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+          modifiers={[restrictToVerticalAxis, restrictToWindowEdges]}
+        >
+          <SortableContext
+            items={orderedNavigation.filter(item => 
+              filteredNavigation.mainItems.some(fi => fi.title === item.title)
+            ).map(item => item.title)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="space-y-1">
+              {orderedNavigation.filter(item => 
+                filteredNavigation.mainItems.some(fi => fi.title === item.title)
+              ).map((item) => {
+                // If a module is focused, only show that module's children
+                if (focusedModule && item.title !== focusedModule) {
+                  return null;
+                }
 
-            // If focused on this module, show its children directly
-            if (focusedModule === item.title && item.children) {
-              return (
-                <div key={item.title} className="space-y-1.5">
-                  {/* Module Header */}
-                  <div className="flex items-center gap-3 px-4 py-2 text-primary">
-                    <item.icon className="h-5 w-5" />
-                    <span className="text-sm font-bold uppercase tracking-wider">{item.title}</span>
-                  </div>
-                  {/* Sub-modules */}
-                  {item.children.map((child) => renderSubItem(child, item.title))}
-                </div>
-              );
-            }
+                // If focused on this module, show its children directly
+                if (focusedModule === item.title && item.children) {
+                  return (
+                    <div key={item.title} className="space-y-1.5">
+                      {/* Module Header */}
+                      <div className="flex items-center gap-3 px-4 py-2 text-primary">
+                        <item.icon className="h-5 w-5" />
+                        <span className="text-sm font-bold uppercase tracking-wider">{item.title}</span>
+                      </div>
+                      {/* Sub-modules */}
+                      {item.children.map((child) => renderSubItem(child, item.title))}
+                    </div>
+                  );
+                }
 
-            // Default view - show all modules as clickable items (no dropdown)
-            if (item.children) {
-              const sectionActive = isSectionActive(item.children);
-
-              return (
-                <button
-                  key={item.title}
-                  onClick={() => setFocusedModule(item.title)}
-                  className={cn(
-                    "flex w-full items-center justify-between rounded-xl px-4 py-2.5 text-[13px] font-medium transition-all duration-200",
-                    sectionActive
-                      ? "bg-primary/10 text-white"
-                      : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <item.icon className={cn("h-4 w-4", sectionActive ? "text-primary" : "text-slate-500")} />
-                    <span>{item.title}</span>
-                  </div>
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </button>
-              );
-            }
-
-            // Single items without children
-            return (
-              <NavLink
-                key={item.href}
-                to={item.href!}
-                className={cn(
-                  "flex items-center justify-between rounded-xl px-4 py-2.5 text-[13px] font-medium transition-all duration-200",
-                  isActive(item.href!)
-                    ? "bg-primary/10 text-white"
-                    : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <item.icon className={cn("h-4 w-4", isActive(item.href!) ? "text-primary" : "text-slate-500")} />
-                  <span>{item.title}</span>
-                </div>
-                {item.badge && (
-                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[9px] font-black text-white shadow-lg shadow-primary/20">
-                    {item.badge}
-                  </span>
-                )}
-              </NavLink>
-            );
-          })}
-        </div>
+                // Default view - show all modules as sortable items
+                return (
+                  <SortableNavItem
+                    key={item.title}
+                    item={item}
+                    isActive={isActive}
+                    isSectionActive={isSectionActive}
+                    openSections={openSections}
+                    toggleSection={setFocusedModule}
+                    renderSubItem={renderSubItem}
+                    isMobile={isMobile}
+                    onClose={onClose}
+                  />
+                );
+              })}
+            </div>
+          </SortableContext>
+        </DndContext>
       </div>
 
       {/* Bottom Fixed Items - Admin Portal & Settings */}
@@ -1395,7 +1378,6 @@ function SortableNavItem({
   };
 
   if (item.children) {
-    const isOpenSection = openSections.includes(item.title);
     const sectionActive = isSectionActive(item.children);
 
     return (
@@ -1403,7 +1385,7 @@ function SortableNavItem({
         ref={setNodeRef}
         style={style}
         className={cn(
-          "mb-2 group/sortable",
+          "group/sortable",
           isDragging && "pointer-events-none",
         )}
       >
@@ -1418,34 +1400,19 @@ function SortableNavItem({
           <button
             onClick={() => toggleSection(item.title)}
             className={cn(
-              "flex flex-1 items-center justify-between rounded-xl px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider transition-all duration-200",
+              "flex flex-1 items-center justify-between rounded-xl px-4 py-2.5 text-[13px] font-medium transition-all duration-200",
               sectionActive
-                ? "text-white"
-                : "text-slate-500 hover:text-slate-300 hover:bg-white/[0.03]",
+                ? "bg-primary/10 text-white"
+                : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
             )}
           >
             <div className="flex items-center gap-3">
-              <item.icon
-                className={cn(
-                  "h-4 w-4",
-                  sectionActive ? "text-primary" : "text-slate-500",
-                )}
-              />
+              <item.icon className={cn("h-4 w-4", sectionActive ? "text-primary" : "text-slate-500")} />
               <span>{item.title}</span>
             </div>
-            <ChevronDown
-              className={cn(
-                "h-3.5 w-3.5 transition-transform duration-500",
-                isOpenSection && "rotate-180",
-              )}
-            />
+            <ChevronRight className="h-3.5 w-3.5" />
           </button>
         </div>
-        {isOpenSection && (
-          <div className="mt-1 space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-300 pl-6">
-            {item.children.map((child) => renderSubItem(child, item.title))}
-          </div>
-        )}
       </div>
     );
   }
