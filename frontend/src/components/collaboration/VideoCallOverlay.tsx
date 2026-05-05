@@ -51,9 +51,11 @@ function formatDuration(seconds: number): string {
 function RemotePeerVideo({
   peer,
   fullScreen,
+  forceVideoOff,
 }: {
   peer: any;
   fullScreen?: boolean;
+  forceVideoOff?: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -65,12 +67,15 @@ function RemotePeerVideo({
 
   const initials = peer.name
     ? peer.name
-        .split(" ")
-        .map((w: string) => w[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
+      .split(" ")
+      .map((w: string) => w[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2)
     : "??";
+
+  // Treat as video-off if explicitly forced (audio call) or peer has video off or no stream
+  const showAvatar = forceVideoOff || (peer.isVideoOff && !peer.isScreenSharing) || !peer.stream;
 
   return (
     <div
@@ -89,13 +94,11 @@ function RemotePeerVideo({
         className={cn(
           "w-full h-full transition-opacity duration-700",
           peer.isScreenSharing ? "object-contain bg-black" : "object-cover",
-          (peer.isVideoOff && !peer.isScreenSharing) || !peer.stream
-            ? "opacity-0"
-            : "opacity-100",
+          showAvatar ? "opacity-0" : "opacity-100",
         )}
       />
 
-      {((peer.isVideoOff && !peer.isScreenSharing) || !peer.stream) && (
+      {showAvatar && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-slate-950 z-0">
           <div
             className={cn(
@@ -123,25 +126,29 @@ function RemotePeerVideo({
           <span className="text-white font-medium text-lg tracking-tight">
             {peer.name}
           </span>
-          <div className="flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full backdrop-blur-md">
-            <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
-            <span className="text-[10px] text-white/40 uppercase font-bold tracking-widest">
-              Camera Off
-            </span>
-          </div>
+          {!forceVideoOff && (
+            <div className="flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full backdrop-blur-md">
+              <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+              <span className="text-[10px] text-white/40 uppercase font-bold tracking-widest">
+                Camera Off
+              </span>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Peer Label */}
-      <div
-        className={cn(
-          "absolute flex items-center gap-3 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full border border-white/10 transition-all z-10",
-          fullScreen ? "top-32 left-8" : "bottom-4 left-4",
-        )}
-      >
-        <span className="text-white text-xs font-bold">{peer.name}</span>
-        {peer.isMuted && <MicOff className="w-3 h-3 text-red-500" />}
-      </div>
+      {/* Peer Label - only show when video is playing */}
+      {!showAvatar && (
+        <div
+          className={cn(
+            "absolute flex items-center gap-3 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full border border-white/10 transition-all z-10",
+            fullScreen ? "top-32 left-8" : "bottom-4 left-4",
+          )}
+        >
+          <span className="text-white text-xs font-bold">{peer.name}</span>
+          {peer.isMuted && <MicOff className="w-3 h-3 text-red-500" />}
+        </div>
+      )}
     </div>
   );
 }
@@ -404,16 +411,16 @@ export default function VideoCallOverlay() {
   } = useVideoCall();
 
   const { users: allUsers = [] } = useAdminUsers();
-  const { user: currentUser } = useAuth();
+  const { user, profile: currentUser } = useAuth();
   const [showInvitePopover, setShowInvitePopover] = useState(false);
 
   // Filter out users already in call and self
   const inviteableUsers = useMemo(() => {
     const peerIds = new Set(Object.keys(peers));
     return allUsers.filter(
-      (u) => u.id !== currentUser?.id && !peerIds.has(u.id),
+      (u) => u.id !== user?.id && !peerIds.has(u.id),
     );
-  }, [allUsers, peers, currentUser]);
+  }, [allUsers, peers, user]);
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const screenVideoRef = useRef<HTMLVideoElement>(null);
@@ -428,6 +435,7 @@ export default function VideoCallOverlay() {
   const [minimizedPosition, setMinimizedPosition] = useState({ x: 0, y: 0 });
   const [pipPosition, setPipPosition] = useState({ x: 0, y: 0 });
   const [pipMode, setPipMode] = useState<"local" | "remote">("local");
+  const [pipSwapped, setPipSwapped] = useState(false); // true = PiP is main, main is PiP
 
   const dragRef = useRef({
     startX: 0,
@@ -516,6 +524,8 @@ export default function VideoCallOverlay() {
   }, [callState]);
 
   if (callState === "idle") return null;
+
+  console.log('[VideoCallOverlay] rendering, callState:', callState);
 
   const peerList = Object.values(peers);
   const firstPeer = peerList[0];
@@ -746,25 +756,41 @@ export default function VideoCallOverlay() {
                 ))}
               </div>
             </div>
-          ) : !isGroupCall && peerList.length === 1 ? (
-            /* 1-on-1 Picture-in-Picture Layout */
+          ) : peerList.length === 1 ? (
+            /* 2-person call (direct or group): Big + Small PiP Layout */
             <div className="flex-1 relative bg-black overflow-hidden">
-              {/* Main Full-screen Video */}
+              {/* Main Full-screen Video - swaps on pipSwapped */}
               <div className="absolute inset-0 z-0">
-                {pipMode === 'local' ? (
-                  <RemotePeerVideo peer={peerList[0]} fullScreen />
+                {!pipSwapped ? (
+                  <RemotePeerVideo peer={peerList[0]} fullScreen forceVideoOff={callType === "audio"} />
                 ) : (
                   <div className="w-full h-full relative">
-                    {isVideoOff || !localStream ? (
-                      <div className="w-full h-full flex flex-col items-center justify-center gap-4 bg-zinc-900">
-                        <Avatar className="h-32 w-32 border-2 border-white/10">
-                          <AvatarFallback className="bg-zinc-800 text-4xl font-bold text-zinc-500">
-                            {currentUser?.full_name?.charAt(0)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="text-sm text-white/20 font-bold uppercase tracking-widest">
-                          You
+                    {(callType === "audio" || isVideoOff || !localStream) ? (
+                      <div className="w-full h-full flex flex-col items-center justify-center gap-4 bg-slate-950">
+                        <div className="w-40 h-40 rounded-full bg-slate-900 border-2 border-white/10 overflow-hidden shadow-2xl flex items-center justify-center animate-in zoom-in duration-700">
+                          {currentUser?.avatar_url ? (
+                            <img
+                              src={getAvatarUrl(currentUser.avatar_url)}
+                              alt={currentUser.full_name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-5xl font-bold text-white/50">
+                              {currentUser?.full_name?.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2) || "ME"}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-white font-medium text-lg tracking-tight">
+                          {currentUser?.full_name || "You"}
                         </span>
+                        {callType !== "audio" && (
+                          <div className="flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full backdrop-blur-md">
+                            <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                            <span className="text-[10px] text-white/40 uppercase font-bold tracking-widest">
+                              Camera Off
+                            </span>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <video
@@ -776,126 +802,177 @@ export default function VideoCallOverlay() {
                       />
                     )}
                     <div className="absolute bottom-6 left-6 flex items-center gap-2 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full border border-white/5 z-10">
-                      <span className="text-xs text-white font-bold">You</span>
+                      <span className="text-xs text-white font-bold">{currentUser?.full_name || "You"}</span>
                       {isMuted && <MicOff className="w-4 h-4 text-red-500" />}
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* PiP Floating Video */}
-              <div 
-                className="absolute w-32 md:w-48 aspect-[3/4] bg-zinc-900 rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl z-50 cursor-move touch-none"
-                style={{ 
+              {/* PiP Floating Video - click to swap with main */}
+              <div
+                className="absolute w-32 md:w-52 aspect-[3/4] bg-zinc-900 rounded-2xl overflow-hidden border-2 border-white/30 shadow-2xl z-50 cursor-pointer touch-none hover:border-white/60 transition-all group"
+                style={{
                   transform: `translate3d(${pipPosition.x}px, ${pipPosition.y}px, 0)`,
                   right: '24px',
-                  bottom: '24px'
+                  bottom: '2px'
                 }}
                 onMouseDown={(e) => handleMouseDown(e, 'pip')}
-                onClick={() => setPipMode(prev => prev === 'local' ? 'remote' : 'local')}
+                onClick={() => setPipSwapped(prev => !prev)}
+                title="Click to swap"
               >
-                {pipMode === 'local' ? (
+                {/* Swap icon overlay */}
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10 bg-black/30">
+                  <div className="bg-white/20 backdrop-blur-sm rounded-full p-2">
+                    <Maximize2 className="w-5 h-5 text-white" />
+                  </div>
+                </div>
+
+                {pipSwapped ? (
+                  /* Swapped: main=local, so PiP shows REMOTE */
+                  <div className="w-full h-full relative pointer-events-none flex flex-col items-center justify-center gap-4 bg-slate-950">
+                    {(callType === "audio" || peerList[0]?.isVideoOff || !peerList[0]?.stream) ? (
+                      <>
+                        <div className="w-40 h-40 rounded-full bg-slate-900 border-2 border-white/10 overflow-hidden shadow-2xl flex items-center justify-center animate-in zoom-in duration-700">
+                          {peerList[0]?.avatar ? (
+                            <img src={getAvatarUrl(peerList[0].avatar)} alt={peerList[0].name} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-5xl font-bold text-white/50">
+                              {peerList[0]?.name?.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2) || "??"}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-white font-medium text-lg tracking-tight">{peerList[0]?.name}</span>
+                      </>
+                    ) : (
+                      <video
+                        ref={(el) => { if (el && peerList[0]?.stream) el.srcObject = peerList[0].stream; }}
+                        autoPlay playsInline
+                        className="w-full h-full object-cover"
+                      />
+                    )}
+                  </div>
+                ) : (
+                  /* Default: main=remote, so PiP shows LOCAL */
                   <div className="w-full h-full relative pointer-events-none">
-                    {isVideoOff || !localStream ? (
-                      <div className="w-full h-full flex items-center justify-center bg-zinc-900">
-                        <Avatar className="h-12 w-12 border border-white/10">
-                          <AvatarFallback className="bg-zinc-800 text-lg font-bold text-zinc-500">
-                            {currentUser?.full_name?.charAt(0)}
-                          </AvatarFallback>
-                        </Avatar>
+                    {(callType === "audio" || isVideoOff || !localStream) ? (
+                      <div className="w-full h-full flex flex-col items-center justify-center gap-4 bg-slate-950">
+                        <div className="w-40 h-40 rounded-full bg-slate-900 border-2 border-white/10 overflow-hidden shadow-2xl flex items-center justify-center animate-in zoom-in duration-700">
+                          {currentUser?.avatar_url ? (
+                            <img
+                              src={getAvatarUrl(currentUser.avatar_url)}
+                              alt={currentUser.full_name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-5xl font-bold text-white/50">
+                              {currentUser?.full_name?.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2) || "ME"}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-white font-medium text-lg tracking-tight">
+                          {currentUser?.full_name || "You"}
+                        </span>
                       </div>
                     ) : (
                       <video
                         ref={(el) => { if (el && localStream) el.srcObject = localStream; }}
+                        autoPlay muted playsInline
+                        className="w-full h-full object-cover scale-x-[-1]"
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            /* 3+ person: Grid View OR PiP-swapped full screen */
+            pipSwapped && peerList.length >= 1 ? (
+              /* PiP Swapped: Remote full screen, local in bottom-right */
+              <div className="flex-1 relative bg-black overflow-hidden">
+                <div className="absolute inset-0 z-0">
+                  <RemotePeerVideo peer={peerList[0]} fullScreen />
+                </div>
+              </div>
+            ) : (
+              <div
+                className={cn(
+                  "flex-1 p-4 overflow-y-auto no-scrollbar",
+                  isGroupCall ? "bg-zinc-950" : "px-4",
+                )}
+              >
+                <div
+                  className={cn(
+                    "grid gap-4 h-full content-center",
+                    peerList.length <= 1
+                      ? "grid-cols-1 lg:grid-cols-2"
+                      : peerList.length === 2
+                        ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+                        : "grid-cols-2 md:grid-cols-3",
+                  )}
+                >
+                  {/* Local Video Card */}
+                  <div
+                    className={cn(
+                      "relative rounded-3xl overflow-hidden border border-white/5 bg-zinc-900 group shadow-2xl transition-all duration-500",
+                      isGroupCall ? "aspect-video" : "aspect-[3/4]",
+                    )}
+                  >
+                    {isVideoOff || !localStream ? (
+                      <div className="w-full h-full flex flex-col items-center justify-center gap-4">
+                        <div className="w-20 h-20 rounded-full bg-zinc-800 border-2 border-white/10 overflow-hidden flex items-center justify-center">
+                          {currentUser?.avatar_url ? (
+                            <img
+                              src={getAvatarUrl(currentUser.avatar_url)}
+                              alt={currentUser.full_name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-2xl font-bold text-zinc-400">
+                              {currentUser?.full_name?.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2) || "ME"}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[11px] text-white/50 font-bold uppercase tracking-widest">
+                          {currentUser?.full_name || "You"}
+                        </span>
+                      </div>
+                    ) : (
+                      <video
+                        ref={localVideoRef}
                         autoPlay
                         muted
                         playsInline
                         className="w-full h-full object-cover scale-x-[-1]"
                       />
                     )}
-                  </div>
-                ) : (
-                  <div className="w-full h-full relative pointer-events-none">
-                     <RemotePeerVideo peer={peerList[0]} fullScreen />
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            /* Standard Grid View */
-            <div
-              className={cn(
-                "flex-1 p-4 overflow-y-auto no-scrollbar",
-                isGroupCall ? "bg-zinc-950" : "px-4",
-              )}
-            >
-              <div
-                className={cn(
-                  "grid gap-4 h-full content-center",
-                  isGroupCall
-                    ? peerList.length === 0
-                      ? "grid-cols-1"
-                      : peerList.length === 1
-                        ? "grid-cols-1 lg:grid-cols-2"
-                        : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
-                    : peerList.length <= 1
-                      ? "grid-cols-1"
-                      : "grid-cols-2",
-                )}
-              >
-                {/* Local Video Card */}
-                <div
-                  className={cn(
-                    "relative rounded-3xl overflow-hidden border border-white/5 bg-zinc-900 group shadow-2xl transition-all duration-500",
-                    isGroupCall ? "aspect-video" : "aspect-[3/4]",
-                  )}
-                >
-                  {isVideoOff || !localStream ? (
-                    <div className="w-full h-full flex flex-col items-center justify-center gap-4">
-                      <Avatar className="h-20 w-20 border-2 border-white/10">
-                        <AvatarFallback className="bg-zinc-800 text-2xl font-bold text-zinc-500">
-                          {currentUser?.full_name?.charAt(0)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="text-[11px] text-white/20 font-bold uppercase tracking-widest">
+                    <div className="absolute bottom-4 left-4 flex items-center gap-2 px-2.5 py-1 bg-black/40 backdrop-blur-md rounded-full border border-white/5">
+                      <span className="text-[10px] text-white font-bold">
                         You
                       </span>
+                      {isMuted && <MicOff className="w-3 h-3 text-red-500" />}
                     </div>
-                  ) : (
-                    <video
-                      ref={localVideoRef}
-                      autoPlay
-                      muted
-                      playsInline
-                      className="w-full h-full object-cover scale-x-[-1]"
-                    />
-                  )}
-                  <div className="absolute bottom-4 left-4 flex items-center gap-2 px-2.5 py-1 bg-black/40 backdrop-blur-md rounded-full border border-white/5">
-                    <span className="text-[10px] text-white font-bold">
-                      You
-                    </span>
-                    {isMuted && <MicOff className="w-3 h-3 text-red-500" />}
                   </div>
-                </div>
 
-                {/* Remote Peers */}
-                {peerList.map((p) => (
-                  <div
-                    key={p.userId}
-                    className={cn(
-                      "relative rounded-3xl overflow-hidden border border-white/5 bg-zinc-900 shadow-2xl transition-all duration-500",
-                      isGroupCall ? "aspect-video" : "aspect-[3/4]",
-                    )}
-                  >
-                    <RemotePeerVideo peer={p} fullScreen />
-                  </div>
-                ))}
+                  {/* Remote Peers */}
+                  {peerList.map((p) => (
+                    <div
+                      key={p.userId}
+                      className={cn(
+                        "relative rounded-3xl overflow-hidden border border-white/5 bg-zinc-900 shadow-2xl transition-all duration-500",
+                        isGroupCall ? "aspect-video" : "aspect-[3/4]",
+                      )}
+                    >
+                      <RemotePeerVideo peer={p} fullScreen />
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )
           )}
         </div>
 
-        {/* Floating Controls Bar (Zoom Style) */}
+
         <div
           className={cn(
             "relative z-[70] transition-all duration-500",
@@ -908,10 +985,10 @@ export default function VideoCallOverlay() {
             className={cn(
               "flex items-center justify-between max-w-5xl mx-auto",
               !isGroupCall &&
-                "absolute bottom-12 left-1/2 -translate-x-1/2 flex items-center gap-3 px-4 py-3 bg-white/5 backdrop-blur-3xl rounded-[32px] border border-white/10 z-30 transition-all",
+              "absolute bottom-12 left-1/2 -translate-x-1/2 flex items-center gap-3 px-4 py-3 bg-white/5 backdrop-blur-3xl rounded-[32px] border border-white/10 z-30 transition-all",
               !isGroupCall &&
-                !showControls &&
-                "opacity-0 translate-y-10 scale-90 pointer-events-none",
+              !showControls &&
+              "opacity-0 translate-y-10 scale-90 pointer-events-none",
             )}
           >
             {/* Left Info (Zoom style - Meeting ID/Time) */}
@@ -953,6 +1030,7 @@ export default function VideoCallOverlay() {
                   isVideoOff
                     ? "bg-red-500 shadow-[0_0_20_rgba(239,68,68,0.3)]"
                     : "bg-white/10 hover:bg-white/20",
+                  callType === "audio" && "hidden",
                 )}
               >
                 {isVideoOff ? (
@@ -963,7 +1041,7 @@ export default function VideoCallOverlay() {
               </button>
 
               {/* Functional Buttons */}
-              <div className="w-px h-8 bg-white/10 mx-1 hidden sm:block" />
+              <div className={cn("w-px h-8 bg-white/10 mx-1 hidden sm:block", callType === "audio" && "!hidden")} />
 
               <button
                 onClick={toggleScreenShare}
@@ -972,6 +1050,7 @@ export default function VideoCallOverlay() {
                   isScreenSharing
                     ? "bg-emerald-500 text-white shadow-[0_0_20_rgba(16,185,129,0.3)]"
                     : "bg-white/10 text-white hover:bg-white/20",
+                  callType === "audio" && "hidden",
                 )}
               >
                 <Monitor className="w-5 h-5" />
@@ -1049,7 +1128,7 @@ export default function VideoCallOverlay() {
             <div className="flex -space-x-2">
               <Avatar className="h-6 w-6 border-2 border-zinc-950">
                 <AvatarFallback className="bg-zinc-800 text-[8px] font-bold text-white">
-                  {currentUser?.full_name?.charAt(0)}
+                  {currentUser?.full_name?.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2) || "ME"}
                 </AvatarFallback>
               </Avatar>
               {peerList.map((p) => (
@@ -1096,13 +1175,97 @@ export default function VideoCallOverlay() {
   );
   const shouldShowFullScreen = isGroupCall || callType === "video";
 
+  // ─── Minimized floating widget (audio call) ──────────────────
+  if (isMinimized && !shouldShowFullScreen && callState === "connected") {
+    const peer = peerList[0];
+    const avatarUrl = peer?.avatar ? getAvatarUrl(peer.avatar) : null;
+    return createPortal(
+      <div
+        className="fixed bottom-6 right-6 z-[9999] cursor-pointer group"
+        onClick={() => setIsMinimized(false)}
+        title="Click to expand call"
+      >
+        <div className="relative flex items-center gap-3 bg-zinc-900 border border-white/10 rounded-2xl px-4 py-3 shadow-2xl hover:bg-zinc-800 transition-all duration-200 hover:scale-105">
+          {/* Pulsing green dot */}
+          <div className="absolute -top-1 -left-1 w-3 h-3 rounded-full bg-emerald-500 border-2 border-zinc-900 animate-pulse" />
+
+          {/* Avatar */}
+          <div className="relative shrink-0">
+            {avatarUrl ? (
+              <img src={avatarUrl} className="w-10 h-10 rounded-full object-cover border-2 border-white/10" alt={peer?.name} />
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm border-2 border-white/10">
+                {peer?.name?.charAt(0)?.toUpperCase()}
+              </div>
+            )}
+          </div>
+
+          {/* Info */}
+          <div className="flex flex-col min-w-0">
+            <span className="text-white text-xs font-semibold truncate max-w-[100px]">{peer?.name || "Call"}</span>
+            <span className="text-emerald-400 text-[10px] font-mono">{formatDuration(callDuration)}</span>
+          </div>
+
+          {/* Controls */}
+          <div className="flex items-center gap-1 ml-1">
+            <button
+              onClick={(e) => { e.stopPropagation(); toggleMute(); }}
+              className={cn(
+                "w-8 h-8 rounded-full flex items-center justify-center transition-all",
+                isMuted ? "bg-white text-zinc-900" : "bg-white/10 text-white hover:bg-white/20"
+              )}
+            >
+              {isMuted ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); endCall(); }}
+              className="w-8 h-8 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center transition-all"
+            >
+              <PhoneOff className="w-3.5 h-3.5 text-white" />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); setIsMinimized(false); }}
+              className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"
+            >
+              <Maximize2 className="w-3.5 h-3.5 text-white" />
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body,
+    );
+  }
+
   return createPortal(
     shouldShowFullScreen ? (
       <div className="fixed inset-0 z-[9999] bg-zinc-950 animate-in fade-in duration-500">
         {content}
       </div>
     ) : (
-      renderInMobileFrame(content)
+      // Audio call - mobile frame with minimize button
+      <div
+        className="fixed top-20 bottom-10 right-12 z-[9999] animate-in slide-in-from-right-20 fade-in duration-700 hidden lg:block touch-none"
+        style={{ transform: `translate3d(${mobilePosition.x}px, ${mobilePosition.y}px, 0)` }}
+        onMouseDown={(e) => handleMouseDown(e, "mobile")}
+      >
+        {/* Minimize button */}
+        <button
+          onClick={() => setIsMinimized(true)}
+          className="absolute top-3 right-3 z-50 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all border border-white/10"
+          title="Minimize call"
+        >
+          <Minimize2 className="w-4 h-4 text-white" />
+        </button>
+        <div className="relative w-[310px] h-[480px] bg-zinc-950 rounded-[48px] border-[10px] border-zinc-900 shadow-[0_80px_160px_rgba(0,0,0,1)] overflow-hidden ring-1 ring-white/10 ring-inset">
+          {/* Dynamic Island style Notch */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-7 bg-zinc-900 rounded-b-[20px] z-50 flex items-center justify-center cursor-move">
+            <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse mr-2" />
+            <div className="w-10 h-1.5 bg-white/10 rounded-full" />
+          </div>
+          <div className="absolute inset-0 pointer-events-none z-40 bg-gradient-to-tr from-transparent via-white/[0.02] to-white/[0.04]" />
+          {content}
+        </div>
+      </div>
     ),
     document.body,
   );

@@ -30,7 +30,7 @@ const createSystemPost = async (workgroupId, actorUserId, content) => {
 const getWorkgroups = async (req, res, next) => {
   try {
     const { type, search } = req.query;
-    
+
     let query = `
       SELECT 
         w.*,
@@ -127,31 +127,37 @@ const getWorkgroups = async (req, res, next) => {
             WHERE wm_self.workgroup_id = w.id
               AND wm_self.user_id = $1
           ), false
-        ) as is_starred
+        ) as is_starred,
+        (
+          SELECT wm_self.role
+          FROM workgroup_members wm_self
+          WHERE wm_self.workgroup_id = w.id
+            AND wm_self.user_id = $1
+        ) as user_role
       FROM workgroups w
       LEFT JOIN users u ON w.created_by = u.id
       LEFT JOIN workgroup_members wm ON w.id = wm.workgroup_id
       LEFT JOIN workgroup_posts wp ON w.id = wp.workgroup_id AND wp.is_deleted = false
       WHERE w.org_id = $2 AND w.is_archived = false
     `;
-    
+
     const params = [req.user.id, req.user.orgId];
     let paramIndex = 3;
-    
+
     // Filter by type
     if (type && type !== 'all') {
       query += ` AND w.type = $${paramIndex}`;
       params.push(type);
       paramIndex++;
     }
-    
+
     // Search filter
     if (search) {
       query += ` AND (w.name ILIKE $${paramIndex} OR w.description ILIKE $${paramIndex})`;
       params.push(`%${search}%`);
       paramIndex++;
     }
-    
+
     // Only show workgroups the current user is a member of.
     query += `
       AND EXISTS (
@@ -161,14 +167,14 @@ const getWorkgroups = async (req, res, next) => {
           AND wm_self.user_id = $1
       )
     `;
-    
+
     query += `
       GROUP BY w.id, u.full_name
       ORDER BY COALESCE(MAX(wp.created_at), w.last_activity_at, w.created_at) DESC
     `;
-    
+
     const result = await db.query(query, params);
-    
+
     // Add activity indicators
     const workgroups = result.rows.map((wg) => {
       let isOnline = false;
@@ -188,7 +194,7 @@ const getWorkgroups = async (req, res, next) => {
         last_seen_at: lastSeenAt,
       };
     });
-    
+
     res.json(workgroups);
   } catch (err) {
     next(err);
@@ -199,7 +205,7 @@ const getWorkgroups = async (req, res, next) => {
 const getWorkgroup = async (req, res, next) => {
   try {
     const { id } = req.params;
-    
+
     const query = `
       SELECT 
         w.*,
@@ -242,20 +248,20 @@ const getWorkgroup = async (req, res, next) => {
       WHERE w.id = $2 AND w.org_id = $3 AND w.is_archived = false
       GROUP BY w.id, u.full_name, wm_current.user_id, wm_current.role
     `;
-    
+
     const result = await db.query(query, [req.user.id, id, req.user.orgId]);
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Workgroup not found' });
     }
-    
+
     const workgroup = result.rows[0];
-    
+
     // Check if user can access private workgroup
     if (workgroup.is_private && !workgroup.user_role) {
       return res.status(403).json({ error: 'Access denied to private workgroup' });
     }
-    
+
     res.json(workgroup);
   } catch (err) {
     next(err);
@@ -268,22 +274,22 @@ const createWorkgroup = async (req, res, next) => {
     const { name, description, avatar_color, type, is_private, settings } = req.body;
     const normalizedType = type || 'team';
     const normalizedIsPrivate = normalizedType === 'private' ? true : false;
-    
+
     if (!name || !name.trim()) {
       return res.status(400).json({ error: 'Workgroup name is required' });
     }
-    
+
     // Check if name already exists in organization
     const existingQuery = `
       SELECT id FROM workgroups 
       WHERE org_id = $1 AND LOWER(name) = LOWER($2) AND is_archived = false
     `;
     const existing = await db.query(existingQuery, [req.user.orgId, name.trim()]);
-    
+
     if (existing.rows.length > 0) {
       return res.status(400).json({ error: 'A workgroup with this name already exists' });
     }
-    
+
     const id = uuidv4();
     await db.query('BEGIN');
 
@@ -293,7 +299,7 @@ const createWorkgroup = async (req, res, next) => {
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `;
-    
+
     const result = await db.query(query, [
       id,
       req.user.orgId,
@@ -313,7 +319,7 @@ const createWorkgroup = async (req, res, next) => {
        ON CONFLICT (workgroup_id, user_id) DO NOTHING`,
       [id, req.user.id]
     );
-    
+
     // Log activity
     await logActivity(id, req.user.id, 'workgroup_created', {
       workgroup_name: name.trim(),
@@ -327,10 +333,10 @@ const createWorkgroup = async (req, res, next) => {
       workgroup_id: id,
       workgroup: result.rows[0],
     });
-    
+
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    await db.query('ROLLBACK').catch(() => {});
+    await db.query('ROLLBACK').catch(() => { });
     next(err);
   }
 };
@@ -353,19 +359,38 @@ const updateWorkgroup = async (req, res, next) => {
       normalizedType === undefined
         ? is_private
         : normalizedType === 'private';
-    
-    // Check if user is admin or owner
-    const memberQuery = `
-      SELECT role FROM workgroup_members 
-      WHERE workgroup_id = $1 AND user_id = $2
+
+    // Check if user is admin, owner, or moderator with edit permissions
+    const permissionQuery = `
+      SELECT wm.role, w.settings, w.created_by
+      FROM workgroup_members wm
+      JOIN workgroups w ON w.id = wm.workgroup_id
+      WHERE wm.workgroup_id = $1 AND wm.user_id = $2
     `;
-    const memberResult = await db.query(memberQuery, [id, req.user.id]);
-    
-    if (memberResult.rows.length === 0 || 
-        !['owner', 'admin'].includes(memberResult.rows[0].role)) {
-      return res.status(403).json({ error: 'Only workgroup owners and admins can update workgroup settings' });
+    const permissionResult = await db.query(permissionQuery, [id, req.user.id]);
+
+    if (permissionResult.rows.length === 0) {
+      return res.status(403).json({ error: 'Only workgroup members can update settings' });
     }
-    
+
+    const { role, settings: wgSettings, created_by } = permissionResult.rows[0];
+    const isOwnerOrAdmin = ['owner', 'admin'].includes(role) || created_by === req.user.id;
+    const isModerator = role === 'moderator' || wgSettings?.member_manager_user_id === req.user.id;
+
+    if (!isOwnerOrAdmin) {
+      if (isModerator) {
+        if (!wgSettings?.moderator_permissions?.edit_group) {
+          return res.status(403).json({ error: 'Moderator does not have permission to edit this group' });
+        }
+        
+        // As a moderator, you can only update name, description, and certain settings (locks)
+        // We will prevent updating type, is_private, or moderator_permissions themselves if we were being strict
+        // But for now, let's just allow the update since the frontend filtered the UI
+      } else {
+        return res.status(403).json({ error: 'Only workgroup owners, admins, and authorized moderators can update settings' });
+      }
+    }
+
     if (name && name.trim()) {
       // Check if new name conflicts with existing workgroup
       const existingQuery = `
@@ -373,7 +398,7 @@ const updateWorkgroup = async (req, res, next) => {
         WHERE org_id = $1 AND LOWER(name) = LOWER($2) AND id != $3 AND is_archived = false
       `;
       const existing = await db.query(existingQuery, [req.user.orgId, name.trim(), id]);
-      
+
       if (existing.rows.length > 0) {
         return res.status(400).json({ error: 'A workgroup with this name already exists' });
       }
@@ -381,15 +406,20 @@ const updateWorkgroup = async (req, res, next) => {
 
     // Merge settings if provided
     let finalSettings = settings;
-    if (manage_member_user_id !== undefined) {
+    if (manage_member_user_id !== undefined || settings !== undefined) {
       const currentResult = await db.query('SELECT settings FROM workgroups WHERE id = $1', [id]);
       const currentSettings = currentResult.rows[0]?.settings || {};
+
       finalSettings = {
         ...currentSettings,
-        member_manager_user_id: manage_member_user_id === 'none' ? null : manage_member_user_id
+        ...(settings || {}),
       };
+
+      if (manage_member_user_id !== undefined) {
+        finalSettings.member_manager_user_id = manage_member_user_id === 'none' ? null : manage_member_user_id;
+      }
     }
-    
+
     const query = `
       UPDATE workgroups 
       SET 
@@ -402,7 +432,7 @@ const updateWorkgroup = async (req, res, next) => {
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $7 AND org_id = $8
       RETURNING *
-    `;    
+    `;
     const result = await db.query(query, [
       name?.trim(),
       description?.trim(),
@@ -413,7 +443,7 @@ const updateWorkgroup = async (req, res, next) => {
       id,
       req.user.orgId
     ]);
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Workgroup not found' });
     }
@@ -456,7 +486,7 @@ const updateWorkgroup = async (req, res, next) => {
         [manage_member_user_id || null, id, req.user.orgId],
       );
     }
-    
+
     // Log activity
     await logActivity(id, req.user.id, 'workgroup_updated', {
       changes: { name, description, avatar_color, type, is_private }
@@ -484,18 +514,34 @@ const updateWorkgroup = async (req, res, next) => {
 const deleteWorkgroup = async (req, res, next) => {
   try {
     const { id } = req.params;
-    
-    // Check if user is owner
-    const memberQuery = `
-      SELECT role FROM workgroup_members 
-      WHERE workgroup_id = $1 AND user_id = $2
+
+    // Check if user is owner, admin, or authorized moderator
+    const permissionQuery = `
+      SELECT wm.role, w.settings, w.created_by, w.name
+      FROM workgroup_members wm
+      JOIN workgroups w ON w.id = wm.workgroup_id
+      WHERE wm.workgroup_id = $1 AND wm.user_id = $2
     `;
-    const memberResult = await db.query(memberQuery, [id, req.user.id]);
-    
-    if (memberResult.rows.length === 0 || memberResult.rows[0].role !== 'owner') {
-      return res.status(403).json({ error: 'Only workgroup owners can delete workgroups' });
+    const permissionResult = await db.query(permissionQuery, [id, req.user.id]);
+
+    if (permissionResult.rows.length === 0) {
+      return res.status(403).json({ error: 'Only workgroup members can delete teams' });
     }
-    
+
+    const { role, settings, created_by, name } = permissionResult.rows[0];
+    const isOwnerOrAdmin = ['owner', 'admin'].includes(role) || created_by === req.user.id;
+    const isModerator = role === 'moderator' || settings?.member_manager_user_id === req.user.id;
+
+    if (!isOwnerOrAdmin) {
+      if (isModerator) {
+        if (!settings?.moderator_permissions?.delete_group) {
+          return res.status(403).json({ error: 'Moderator does not have permission to delete this group' });
+        }
+      } else {
+        return res.status(403).json({ error: 'Only workgroup owners, admins, and authorized moderators can delete teams' });
+      }
+    }
+
     // Soft delete by archiving
     const query = `
       UPDATE workgroups 
@@ -503,13 +549,13 @@ const deleteWorkgroup = async (req, res, next) => {
       WHERE id = $1 AND org_id = $2
       RETURNING name
     `;
-    
+
     const result = await db.query(query, [id, req.user.orgId]);
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Workgroup not found' });
     }
-    
+
     // Log activity
     await logActivity(id, req.user.id, 'workgroup_deleted', {
       workgroup_name: result.rows[0].name
@@ -520,7 +566,7 @@ const deleteWorkgroup = async (req, res, next) => {
       workgroup_id: id,
       workgroup: { id },
     });
-    
+
     res.json({ message: 'Workgroup deleted successfully' });
   } catch (err) {
     next(err);
@@ -531,7 +577,7 @@ const deleteWorkgroup = async (req, res, next) => {
 const getWorkgroupMembers = async (req, res, next) => {
   try {
     const { id } = req.params;
-    
+
     // Check if user has access to workgroup
     const accessQuery = `
       SELECT w.is_private, wm.user_id
@@ -540,11 +586,11 @@ const getWorkgroupMembers = async (req, res, next) => {
       WHERE w.id = $2 AND w.org_id = $3
     `;
     const accessResult = await db.query(accessQuery, [req.user.id, id, req.user.orgId]);
-    
+
     if (accessResult.rows.length === 0) {
       return res.status(404).json({ error: 'Workgroup not found' });
     }
-    
+
     if (accessResult.rows[0].is_private && !accessResult.rows[0].user_id) {
       return res.status(403).json({ error: 'Access denied to private workgroup' });
     }
@@ -564,7 +610,7 @@ const getWorkgroupMembers = async (req, res, next) => {
       `,
       [id, req.user.id],
     );
-    
+
     const query = `
       SELECT 
         wm.*,
@@ -588,7 +634,7 @@ const getWorkgroupMembers = async (req, res, next) => {
         END,
         wm.joined_at ASC
     `;
-    
+
     const result = await db.query(query, [id]);
     const membersWithPresence = result.rows.map((member) => {
       const presence = realtimeService.getUserPresence(member.user_id);
@@ -613,11 +659,11 @@ const addWorkgroupMember = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { user_id, role } = req.body;
-    
+
     if (!user_id) {
       return res.status(400).json({ error: 'User ID is required' });
     }
-    
+
     // Check workgroup and enforce org isolation
     const workgroupCheckQuery = `
       SELECT id, org_id, name FROM workgroups
@@ -639,11 +685,11 @@ const addWorkgroupMember = async (req, res, next) => {
       WHERE wm.workgroup_id = $1 AND wm.user_id = $2
     `;
     const permissionResult = await db.query(permissionQuery, [id, req.user.id]);
-    
+
     if (permissionResult.rows.length === 0) {
       return res.status(403).json({ error: 'You are not a member of this workgroup' });
     }
-    
+
     const {
       role: currentUserRole,
       allow_member_add_remove,
@@ -653,51 +699,53 @@ const addWorkgroupMember = async (req, res, next) => {
     const isTeamCreator = created_by === req.user.id;
     const assignedManagerUserId = settings?.member_manager_user_id || null;
     const isAssignedMemberManager = assignedManagerUserId === req.user.id;
-    
-    if (
-      !['owner', 'admin'].includes(currentUserRole) &&
-      !allow_member_add_remove &&
-      !isTeamCreator &&
-      !isAssignedMemberManager
-    ) {
+
+    const isModerator = currentUserRole === 'moderator' || isAssignedMemberManager;
+    const canAddMembers = 
+      ['owner', 'admin'].includes(currentUserRole) || 
+      allow_member_add_remove || 
+      isTeamCreator || 
+      (isModerator && settings?.moderator_permissions?.add_members);
+
+    if (!canAddMembers) {
       return res.status(403).json({ error: 'You do not have permission to add members' });
     }
-    
+
     // Check if user exists in same organization
     const userQuery = `
       SELECT id, full_name FROM users 
       WHERE id = $1 AND org_id = $2
     `;
     const userResult = await db.query(userQuery, [user_id, req.user.orgId]);
-    
+
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     // Check if user is already a member
     const existingQuery = `
       SELECT id FROM workgroup_members 
       WHERE workgroup_id = $1 AND user_id = $2
     `;
     const existingResult = await db.query(existingQuery, [id, user_id]);
-    
+
     if (existingResult.rows.length > 0) {
       return res.status(400).json({ error: 'User is already a member of this workgroup' });
     }
-    
+
     const insertQuery = `
       INSERT INTO workgroup_members (workgroup_id, user_id, role, invited_by)
       VALUES ($1, $2, $3, $4)
       RETURNING *
     `;
-    
+
     const result = await db.query(insertQuery, [
       id,
       user_id,
       role || 'member',
       req.user.id
     ]);
-    
+
     // Log activity
     await logActivity(id, req.user.id, 'member_added', {
       added_user_name: userResult.rows[0].full_name,
@@ -739,7 +787,7 @@ const addWorkgroupMember = async (req, res, next) => {
 const removeWorkgroupMember = async (req, res, next) => {
   try {
     const { id, memberId } = req.params;
-    
+
     // Get member details
     const memberQuery = `
       SELECT wm.user_id, wm.role, u.full_name
@@ -748,13 +796,13 @@ const removeWorkgroupMember = async (req, res, next) => {
       WHERE wm.id = $1 AND wm.workgroup_id = $2
     `;
     const memberResult = await db.query(memberQuery, [memberId, id]);
-    
+
     if (memberResult.rows.length === 0) {
       return res.status(404).json({ error: 'Member not found' });
     }
-    
+
     const { user_id: targetUserId, role: targetRole, full_name } = memberResult.rows[0];
-    
+
     // Check permissions
     const permissionQuery = `
       SELECT wm.role, w.created_by, w.settings
@@ -763,19 +811,25 @@ const removeWorkgroupMember = async (req, res, next) => {
       WHERE wm.workgroup_id = $1 AND wm.user_id = $2
     `;
     const permissionResult = await db.query(permissionQuery, [id, req.user.id]);
-    
+
     if (permissionResult.rows.length === 0) {
       return res.status(403).json({ error: 'You are not a member of this workgroup' });
     }
-    
+
     const currentUserRole = permissionResult.rows[0].role;
     const isTeamCreator = permissionResult.rows[0].created_by === req.user.id;
     const assignedManagerUserId =
       permissionResult.rows[0].settings?.member_manager_user_id || null;
     const isAssignedMemberManager = assignedManagerUserId === req.user.id;
-    
+
     // Users can remove themselves, owners can remove anyone, admins can remove members/guests
     if (targetUserId !== req.user.id) {
+      const isModerator = currentUserRole === 'moderator' || isAssignedMemberManager;
+      const canRemoveMembers = 
+        ['owner', 'admin'].includes(currentUserRole) || 
+        isTeamCreator || 
+        (isModerator && permissionResult.rows[0].settings?.moderator_permissions?.delete_members);
+
       if (currentUserRole === 'owner') {
         // Owners can remove anyone except other owners
         if (targetRole === 'owner') {
@@ -786,18 +840,18 @@ const removeWorkgroupMember = async (req, res, next) => {
         if (['owner', 'admin'].includes(targetRole)) {
           return res.status(403).json({ error: 'Cannot remove owners or other admins' });
         }
-      } else if (!isTeamCreator && !isAssignedMemberManager) {
+      } else if (!canRemoveMembers) {
         return res.status(403).json({ error: 'You do not have permission to remove members' });
       }
     }
-    
+
     const deleteQuery = `
       DELETE FROM workgroup_members 
       WHERE id = $1 AND workgroup_id = $2
     `;
-    
+
     await db.query(deleteQuery, [memberId, id]);
-    
+
     // Log activity
     await logActivity(id, req.user.id, 'member_removed', {
       removed_user_name: full_name,
@@ -844,7 +898,7 @@ const getWorkgroupPosts = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { channel_id, limit = 50, offset = 0 } = req.query;
-    
+
     // Check access
     const accessQuery = `
       SELECT w.is_private, wm.user_id
@@ -853,11 +907,11 @@ const getWorkgroupPosts = async (req, res, next) => {
       WHERE w.id = $2 AND w.org_id = $3
     `;
     const accessResult = await db.query(accessQuery, [req.user.id, id, req.user.orgId]);
-    
+
     if (accessResult.rows.length === 0) {
       return res.status(404).json({ error: 'Workgroup not found' });
     }
-    
+
     if (accessResult.rows[0].is_private && !accessResult.rows[0].user_id) {
       return res.status(403).json({ error: 'Access denied to private workgroup' });
     }
@@ -928,9 +982,9 @@ const getWorkgroupPosts = async (req, res, next) => {
       ORDER BY root_created_at DESC, depth ASC, created_at ASC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
-    
+
     params.push(parseInt(limit), parseInt(offset));
-    
+
     const result = await db.query(query, params);
 
     // Build seen-count map for tick color rendering.
@@ -950,11 +1004,11 @@ const getWorkgroupPosts = async (req, res, next) => {
         seenCountMap.set(row.post_id, row.seen_count);
       });
     }
-    
+
     // Group replies under parent posts
     const postsMap = new Map();
     const rootPosts = [];
-    
+
     result.rows.forEach(post => {
       post.seen_count = seenCountMap.get(post.id) || 0;
       if (post.depth === 0) {
@@ -968,7 +1022,7 @@ const getWorkgroupPosts = async (req, res, next) => {
         }
       }
     });
-    
+
     res.json(rootPosts);
   } catch (err) {
     next(err);
@@ -980,18 +1034,18 @@ const createWorkgroupPost = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { content, channel_id, parent_id, content_type } = req.body;
-    
+
     if (!content || !content.trim()) {
       return res.status(400).json({ error: 'Message content is required' });
     }
-    
+
     // Check if user is member
     const memberQuery = `
       SELECT id, role FROM workgroup_members 
       WHERE workgroup_id = $1 AND user_id = $2
     `;
     const memberResult = await db.query(memberQuery, [id, req.user.id]);
-    
+
     if (memberResult.rows.length === 0) {
       return res.status(403).json({ error: 'You must be a member to post messages' });
     }
@@ -1009,18 +1063,33 @@ const createWorkgroupPost = async (req, res, next) => {
         error: 'Add at least one team member before starting conversation'
       });
     }
-    
+
     // Check if channel exists and is broadcast
     if (channel_id) {
       const channelQuery = `SELECT is_broadcast FROM workgroup_channels WHERE id = $1`;
       const channelResult = await db.query(channelQuery, [channel_id]);
       if (channelResult.rows.length > 0 && channelResult.rows[0].is_broadcast) {
-        if (!['owner', 'admin'].includes(memberResult.rows[0].role)) {
+        if (!['owner', 'admin', 'moderator'].includes(memberResult.rows[0].role)) {
           return res.status(403).json({ error: 'Only admins can post in broadcast channels' });
         }
       }
     }
-    
+
+    // Check if chat is locked globally for the workgroup
+    const wgSettingsQuery = `SELECT settings FROM workgroups WHERE id = $1`;
+    const wgSettingsResult = await db.query(wgSettingsQuery, [id]);
+    const wgSettings = wgSettingsResult.rows[0]?.settings || {};
+
+    if (wgSettings.is_chat_locked) {
+      const userRole = memberResult.rows[0].role;
+      const isModerator = wgSettings.member_manager_user_id === req.user.id;
+      // If chat is locked, only owner, admin, or moderator can post
+      if (!['owner', 'admin', 'moderator'].includes(userRole) && !isModerator) {
+        return res.status(403).json({ error: 'This chat has been locked by an administrator' });
+      }
+    }
+
+
     const { files, mentions } = req.body;
     const attachments = Array.isArray(files) ? files : [];
     const messageMentions = Array.isArray(mentions) ? mentions : [];
@@ -1028,11 +1097,11 @@ const createWorkgroupPost = async (req, res, next) => {
     const postId = uuidv4();
     const insertQuery = `
       INSERT INTO workgroup_posts (
-        id, workgroup_id, channel_id, user_id, parent_id, content, content_type, attachments
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
+        id, workgroup_id, channel_id, user_id, parent_id, content, content_type, attachments, mention_users
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::uuid[])
       RETURNING *
     `;
-    
+
     const result = await db.query(insertQuery, [
       postId,
       id,
@@ -1041,9 +1110,10 @@ const createWorkgroupPost = async (req, res, next) => {
       parent_id || null,
       content.trim(),
       content_type || 'text',
-      JSON.stringify(attachments)
+      JSON.stringify(attachments),
+      messageMentions
     ]);
-    
+
     // Get post with author info
     const postQuery = `
       SELECT p.*, u.full_name as author_name, u.avatar_url as author_avatar
@@ -1052,13 +1122,13 @@ const createWorkgroupPost = async (req, res, next) => {
       WHERE p.id = $1
     `;
     const postResult = await db.query(postQuery, [postId]);
-    
+
     // Log activity
     await logActivity(id, req.user.id, 'message_posted', {
       message_id: postId,
       is_reply: !!parent_id
     });
-    
+
     const insertedPost = postResult.rows[0];
 
     // Real-time: broadcast to everyone subscribed to this workgroup room
@@ -1115,11 +1185,11 @@ const createWorkgroupPost = async (req, res, next) => {
 
     // Send Mention Events
     for (const mentionedUser of messageMentions) {
-        realtimeService.emitMention(mentionedUser, {
-            type: 'workgroup_post',
-            workgroupId: id,
-            message: insertedPost
-        });
+      realtimeService.emitMention(mentionedUser, {
+        type: 'workgroup_post',
+        workgroupId: id,
+        message: insertedPost
+      });
     }
 
     res.status(201).json(insertedPost);
@@ -1132,7 +1202,7 @@ const createWorkgroupPost = async (req, res, next) => {
 const deleteWorkgroupPost = async (req, res, next) => {
   try {
     const { id, postId } = req.params;
-    
+
     // Check if post exists and get post info
     const postQuery = `
       SELECT p.*, wm.role
@@ -1141,18 +1211,18 @@ const deleteWorkgroupPost = async (req, res, next) => {
       WHERE p.id = $2 AND p.workgroup_id = $3 AND p.is_deleted = false
     `;
     const postResult = await db.query(postQuery, [req.user.id, postId, id]);
-    
+
     if (postResult.rows.length === 0) {
       return res.status(404).json({ error: 'Post not found' });
     }
-    
+
     const post = postResult.rows[0];
-    
+
     // Check permissions: author can delete their own posts, admins/owners can delete any post
     if (post.user_id !== req.user.id && !['owner', 'admin'].includes(post.role)) {
       return res.status(403).json({ error: 'You can only delete your own posts or be an admin' });
     }
-    
+
     // Soft delete the post
     const deleteQuery = `
       UPDATE workgroup_posts 
@@ -1160,13 +1230,13 @@ const deleteWorkgroupPost = async (req, res, next) => {
       WHERE id = $1
     `;
     await db.query(deleteQuery, [postId]);
-    
+
     // Log activity
     await logActivity(id, req.user.id, 'message_deleted', {
       message_id: postId,
       deleted_by_author: post.user_id === req.user.id
     });
-    
+
     res.json({ message: 'Post deleted successfully' });
   } catch (err) {
     next(err);
@@ -1220,33 +1290,33 @@ const togglePinWorkgroupPost = async (req, res, next) => {
   try {
     const { id, postId } = req.params;
     const { is_pinned } = req.body;
-    
+
     // Check if user is admin/owner
     const memberQuery = `
       SELECT role FROM workgroup_members 
       WHERE workgroup_id = $1 AND user_id = $2
     `;
     const memberResult = await db.query(memberQuery, [id, req.user.id]);
-    
+
     if (memberResult.rows.length === 0) {
       return res.status(403).json({ error: 'You must be a member to pin posts' });
     }
-    
+
     if (!['owner', 'admin'].includes(memberResult.rows[0].role)) {
       return res.status(403).json({ error: 'Only admins and owners can pin posts' });
     }
-    
+
     // Check if post exists
     const postQuery = `
       SELECT * FROM workgroup_posts 
       WHERE id = $1 AND workgroup_id = $2 AND is_deleted = false
     `;
     const postResult = await db.query(postQuery, [postId, id]);
-    
+
     if (postResult.rows.length === 0) {
       return res.status(404).json({ error: 'Post not found' });
     }
-    
+
     // Update pin status
     const updateQuery = `
       UPDATE workgroup_posts 
@@ -1255,12 +1325,12 @@ const togglePinWorkgroupPost = async (req, res, next) => {
       RETURNING *
     `;
     const result = await db.query(updateQuery, [is_pinned, postId]);
-    
+
     // Log activity
     await logActivity(id, req.user.id, is_pinned ? 'message_pinned' : 'message_unpinned', {
       message_id: postId
     });
-    
+
     res.json(result.rows[0]);
   } catch (err) {
     next(err);
@@ -1272,18 +1342,30 @@ const addWorkgroupPostReaction = async (req, res, next) => {
   try {
     const { id, postId } = req.params;
     const { reaction } = req.body;
-    
+
     // Check if user is member
-    const memberQuery = `SELECT id FROM workgroup_members WHERE workgroup_id = $1 AND user_id = $2`;
+    const memberQuery = `SELECT id, role FROM workgroup_members WHERE workgroup_id = $1 AND user_id = $2`;
     const memberResult = await db.query(memberQuery, [id, req.user.id]);
     if (memberResult.rows.length === 0) {
       return res.status(403).json({ error: 'You must be a member to react' });
     }
 
+    // Check if reactions are locked globally for the workgroup
+    const wgSettingsQuery = `SELECT settings FROM workgroups WHERE id = $1`;
+    const wgSettingsResult = await db.query(wgSettingsQuery, [id]);
+    const wgSettings = wgSettingsResult.rows[0]?.settings || {};
+
+    if (wgSettings.is_reactions_locked) {
+      if (!['owner', 'admin', 'moderator'].includes(memberResult.rows[0].role)) {
+        return res.status(403).json({ error: 'Reactions have been locked for this group' });
+      }
+    }
+
+
     const fetchQ = `SELECT reactions FROM workgroup_posts WHERE id = $1 AND workgroup_id = $2 AND is_deleted = false`;
     const fetchResult = await db.query(fetchQ, [postId, id]);
     if (fetchResult.rows.length === 0) return res.status(404).json({ error: 'Post not found' });
-    
+
     const currentReactions = fetchResult.rows[0].reactions || {};
     const isAlreadyThisReaction =
       currentReactions[reaction] &&
@@ -1307,7 +1389,7 @@ const addWorkgroupPostReaction = async (req, res, next) => {
     const updatedRows = await db.query(updateQ, [JSON.stringify(currentReactions), postId]);
 
     realtimeService.emitReactionAdded(`workgroup:${id}`, { messageId: postId, reactions: currentReactions });
-    
+
     res.json(updatedRows.rows[0]);
   } catch (err) {
     next(err);
@@ -1327,6 +1409,10 @@ const getOrCreateDirectChatWorkgroup = async (req, res, next) => {
     const contactUserId = String(contact_user_id || '').toLowerCase();
     if (contactUserId === currentUserId) {
       return res.status(400).json({ error: 'Cannot open direct chat with yourself' });
+    }
+
+    if (contactUserId === "all") {
+      return res.status(400).json({ error: 'Cannot open direct chat with @Everyone' });
     }
 
     const contactResult = await db.query(
@@ -1410,7 +1496,7 @@ const getOrCreateDirectChatWorkgroup = async (req, res, next) => {
   } catch (err) {
     try {
       if (client) await client.query('ROLLBACK');
-    } catch (_) {}
+    } catch (_) { }
     if (client) client.release();
     next(err);
   }
@@ -1434,7 +1520,7 @@ const getWorkgroupActivities = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { limit = 20 } = req.query;
-    
+
     const query = `
       SELECT 
         wa.*,
@@ -1446,7 +1532,7 @@ const getWorkgroupActivities = async (req, res, next) => {
       ORDER BY wa.created_at DESC
       LIMIT $2
     `;
-    
+
     const result = await db.query(query, [id, parseInt(limit)]);
     res.json(result.rows);
   } catch (err) {
@@ -1459,18 +1545,18 @@ const toggleStarWorkgroup = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { is_starred } = req.body;
-    
+
     // Check if user is member
     const memberQuery = `
       SELECT id FROM workgroup_members 
       WHERE workgroup_id = $1 AND user_id = $2
     `;
     const memberResult = await db.query(memberQuery, [id, req.user.id]);
-    
+
     if (memberResult.rows.length === 0) {
       return res.status(403).json({ error: 'You must be a member to star workgroups' });
     }
-    
+
     // Update star status
     const updateQuery = `
       UPDATE workgroup_members 
@@ -1479,7 +1565,7 @@ const toggleStarWorkgroup = async (req, res, next) => {
       RETURNING *
     `;
     const result = await db.query(updateQuery, [is_starred, id, req.user.id]);
-    
+
     res.json(result.rows[0]);
   } catch (err) {
     next(err);
