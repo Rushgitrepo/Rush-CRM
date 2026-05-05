@@ -67,6 +67,9 @@ import {
   MessageCircle,
   Shield,
   Plus,
+  PhoneMissed,
+  ArrowUpRight,
+  ArrowDownLeft,
 } from "lucide-react";
 import {
   useWorkgroup,
@@ -131,8 +134,8 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
       const fallbackMessage = error?.message;
       toast.error(
         serverMessage ||
-          fallbackMessage ||
-          "Only team creator/owner can remove this team.",
+        fallbackMessage ||
+        "Only team creator/owner can remove this team.",
       );
     },
   });
@@ -181,13 +184,13 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
           return prev.map((member) =>
             member.user_id === payload.userId
               ? {
-                  ...member,
-                  is_online: payload.is_online ?? member.is_online,
-                  last_seen_at:
-                    payload.last_seen_at !== undefined
-                      ? payload.last_seen_at
-                      : member.last_seen_at,
-                }
+                ...member,
+                is_online: payload.is_online ?? member.is_online,
+                last_seen_at:
+                  payload.last_seen_at !== undefined
+                    ? payload.last_seen_at
+                    : member.last_seen_at,
+              }
               : member,
           );
         },
@@ -275,6 +278,13 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   );
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeletingMessages, setIsDeletingMessages] = useState(false);
+  const [deleteFilters, setDeleteFilters] = useState({
+    image: true,
+    video: true,
+    document: true,
+    text: true,
+    call: true,
+  });
   const [, setLastSeenTick] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [starredMessages, setStarredMessages] = useState<Set<string>>(() => {
@@ -301,11 +311,26 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
 
   const flatPosts = useMemo(() => {
     const all: WorkgroupPost[] = [];
+    const currentUserId = user?.id;
+
+    const isHidden = (p: any) => {
+      const deletedForUsers = Array.isArray(p.deleted_for_users)
+        ? p.deleted_for_users
+        : [];
+      const isDeletedForMe =
+        currentUserId && deletedForUsers.includes(currentUserId);
+      return p.is_deleted || isDeletedForMe;
+    };
+
     posts.forEach((p) => {
-      all.push(p);
+      if (!isHidden(p)) {
+        all.push(p);
+      }
       if (p.replies) {
         p.replies.forEach((r) => {
-          all.push({ ...r, parent_id: r.parent_id || p.id });
+          if (!isHidden(r)) {
+            all.push({ ...r, parent_id: r.parent_id || p.id });
+          }
         });
       }
     });
@@ -314,7 +339,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
       (a, b) =>
         new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
     );
-  }, [posts]);
+  }, [posts, user?.id]);
 
   const starredMessagesList = useMemo(() => {
     return flatPosts.filter((p) => starredMessages.has(p.id));
@@ -492,18 +517,22 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   const isAssignedMemberManager =
     assignedMemberManagerId &&
     String(assignedMemberManagerId) === String(user?.id);
-  const moderatorPermissions = workgroupSettings?.moderator_permissions || {
-    add: true,
-    delete: true,
-    send: true,
+  const isChatLocked = !!workgroupSettings?.is_chat_locked;
+  const isReactionsLocked = !!workgroupSettings?.is_reactions_locked;
+  const modPerms = workgroupSettings?.moderator_permissions || {
+    edit_group: true,
+    delete_group: false,
+    lock_chat: true,
+    lock_reactions: true,
+    add_members: true,
+    delete_members: true,
   };
 
   const canAddMembers = useMemo(() => {
     if (isDirectChat) return false;
     if (isOwner || isTeamCreator) return true;
     if (isAssignedMemberManager) {
-      if (workgroup?.settings?.is_broadcast) return !!moderatorPermissions.add;
-      return true;
+      return !!modPerms.add_members;
     }
     return false;
   }, [
@@ -511,17 +540,14 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
     isOwner,
     isTeamCreator,
     isAssignedMemberManager,
-    workgroup?.settings?.is_broadcast,
-    moderatorPermissions.add,
+    modPerms.add_members,
   ]);
 
   const canRemoveMembers = useMemo(() => {
     if (isDirectChat) return false;
     if (isOwner || isTeamCreator) return true;
     if (isAssignedMemberManager) {
-      if (workgroup?.settings?.is_broadcast)
-        return !!moderatorPermissions.delete;
-      return true;
+      return !!modPerms.delete_members;
     }
     return false;
   }, [
@@ -529,25 +555,44 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
     isOwner,
     isTeamCreator,
     isAssignedMemberManager,
-    workgroup?.settings?.is_broadcast,
-    moderatorPermissions.delete,
+    modPerms.delete_members,
   ]);
 
   const canManageMembers = canAddMembers || canRemoveMembers;
 
   const canSendMessages = useMemo(() => {
-    if (workgroup?.settings?.is_broadcast !== true) return true;
-    if (isOwner || isTeamCreator) return true;
-    if (isAssignedMemberManager) return !!moderatorPermissions.send;
-    return false;
+    // If chat is locked, only owner/creator or moderator can send
+    if (isChatLocked) {
+      if (isOwner || isTeamCreator || isAssignedMemberManager) return true;
+      return false;
+    }
+
+    // Broadcast logic
+    if (isBroadcast) {
+      if (isOwner || isTeamCreator || isAssignedMemberManager) return true;
+      return false;
+    }
+
+    return true;
   }, [
-    workgroup?.settings?.is_broadcast,
+    isChatLocked,
+    isBroadcast,
     isOwner,
     isTeamCreator,
     isAssignedMemberManager,
-    moderatorPermissions.send,
   ]);
-  const canDeleteTeam = Boolean(isOwner || isTeamCreator);
+
+  const canEditTeam = useMemo(() => {
+    if (isOwner || isTeamCreator) return true;
+    if (isAssignedMemberManager) return !!modPerms.edit_group;
+    return false;
+  }, [isOwner, isTeamCreator, isAssignedMemberManager, modPerms.edit_group]);
+
+  const canDeleteTeam = useMemo(() => {
+    if (isOwner || isTeamCreator) return true;
+    if (isAssignedMemberManager) return !!modPerms.delete_group;
+    return false;
+  }, [isOwner, isTeamCreator, isAssignedMemberManager, modPerms.delete_group]);
   const canDeleteEveryoneForSelection = useMemo(() => {
     const hasElevatedRole = ["owner", "admin"].includes(
       currentUserMembership?.role || "",
@@ -565,9 +610,19 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   const availableUsers = orgUsers.filter((u) => !memberUserIds.has(u.id));
   const handlePost = () => {
     if (!newPost.trim() || !canStartConversation) return;
-    const mentionsToSend = selectedMentions
+    let mentionsToSend = selectedMentions
       .filter((m) => newPost.includes(`@${m.label}`))
       .map((m) => m.id);
+
+    // Expand "all" mention to actual member UUIDs
+    if (mentionsToSend.includes("all")) {
+      const allMemberIds = members
+        .map((m) => m.user_id)
+        .filter((id) => id !== user?.id);
+      mentionsToSend = Array.from(
+        new Set([...mentionsToSend, ...allMemberIds]),
+      ).filter((id) => id !== "all");
+    }
 
     if (replyTo) {
       // Send as reply
@@ -602,26 +657,55 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
     }
   };
 
-  const filteredMentionMembers = members
-    .filter((m) => m.user_id !== user?.id)
-    .filter((m) => {
-      const q = mentionQuery.trim().toLowerCase();
+  const filteredMentionMembers = useMemo(() => {
+    const q = mentionQuery.trim().toLowerCase();
+    const list = members.filter((m) => m.user_id !== user?.id);
+
+    const filtered = list.filter((m) => {
       if (!q) return true;
       return (
         (m.full_name || "").toLowerCase().includes(q) ||
         (m.email || "").toLowerCase().includes(q)
       );
-    })
-    .slice(0, 8);
+    });
+
+    // Add "Select All" as the first option if query is empty or matches
+    if (
+      !q ||
+      "everyone".includes(q) ||
+      "all".includes(q) ||
+      "select".includes(q)
+    ) {
+      const selectAll = {
+        user_id: "all",
+        full_name: "Select All (Everyone)",
+        email: "Notify all members",
+        is_special: true,
+      };
+      return [selectAll, ...filtered.slice(0, 7)];
+    }
+
+    return filtered.slice(0, 8);
+  }, [members, mentionQuery, user?.id]);
 
   const handleComposerChange = (value: string, cursorPos: number) => {
     setNewPost(value);
     const textBeforeCursor = value.slice(0, cursorPos);
     const mentionMatch = textBeforeCursor.match(/(?:^|\s)@([^\s@]*)$/);
     if (mentionMatch) {
-      mentionStartRef.current = cursorPos - mentionMatch[1].length - 1;
-      setMentionQuery(mentionMatch[1] || "");
+      const query = mentionMatch[1] || "";
+      mentionStartRef.current = cursorPos - query.length - 1;
+      setMentionQuery(query);
       setShowMentionSuggestions(true);
+
+      // Auto-insert Select All if query is "all" or "everyone"
+      if (query.toLowerCase() === "all" || query.toLowerCase() === "everyone") {
+        insertMention({
+          user_id: "all",
+          full_name: "Select All (Everyone)",
+          email: "all members",
+        });
+      }
     } else {
       mentionStartRef.current = null;
       setShowMentionSuggestions(false);
@@ -637,6 +721,45 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
     const alreadySelected = selectedMentions.some(
       (m) => m.id === member.user_id,
     );
+
+    if (member.user_id === "all") {
+      // Toggle Select All
+      if (alreadySelected) {
+        // Deselect all
+        const label = "Everyone";
+        const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const mentionRegex = new RegExp(`@${escapedLabel}\\s?`, "g");
+        const cleaned = newPost.replace(mentionRegex, "").trimStart();
+        setNewPost(cleaned);
+        setSelectedMentions([]);
+      } else {
+        // Select all members
+        const allLabels = members
+          .filter((m) => m.user_id !== user?.id)
+          .map((m) => ({ id: m.user_id, label: m.full_name || m.email }));
+
+        setSelectedMentions([...allLabels, { id: "all", label: "Everyone" }]);
+
+        // Update input text if needed, but usually just replace the @query with @Everyone
+        const cursorPos = input.selectionStart ?? newPost.length;
+        const mentionStart = mentionStartRef.current;
+        const canReplaceTypedQuery =
+          mentionStart !== null &&
+          mentionStart >= 0 &&
+          mentionStart <= cursorPos;
+        const insertStart = canReplaceTypedQuery ? mentionStart : cursorPos;
+        const before = newPost.slice(0, insertStart);
+        const after = newPost.slice(cursorPos);
+        const mentionToken = `@Everyone `;
+        const updated = `${before}${mentionToken}${after}`;
+        setNewPost(updated);
+      }
+      setShowMentionSuggestions(false);
+      setMentionQuery("");
+      mentionStartRef.current = null;
+      return;
+    }
+
     if (alreadySelected) {
       const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const mentionRegex = new RegExp(`@${escapedLabel}\\s?`, "g");
@@ -770,33 +893,74 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   };
 
   const handleDeleteSelectedMessages = async (mode: "me" | "everyone") => {
-    if (selectedDeletePosts.length === 0) {
-      toast.error("Please select at least one message");
-      return;
-    }
-
+    if (selectedDeletePostIds.length === 0) return;
     setIsDeletingMessages(true);
     try {
-      for (const post of selectedDeletePosts) {
-        if (mode === "me") {
-          await deletePostForMe.mutateAsync({ postId: post.id, workgroupId });
-        } else {
-          await deletePost.mutateAsync({ postId: post.id, workgroupId });
+      // Filter post IDs based on selected categories
+      const filteredPostIds = selectedDeletePostIds.filter((postId) => {
+        const post = posts.find((p) => p.id === postId);
+        if (!post) return false;
+
+        // Explicitly handle call logs first
+        if (post.content_type === "call") {
+          return deleteFilters.call;
         }
+
+        const hasAttachments =
+          Array.isArray(post.attachments) && post.attachments.length > 0;
+        if (!hasAttachments) {
+          return deleteFilters.text;
+        }
+
+        const types = post.attachments.map((a: any) =>
+          (a.file_type || "").toLowerCase(),
+        );
+        const isImage = types.some((t: string) => t.startsWith("image/"));
+        const isVideo = types.some((t: string) => t.startsWith("video/"));
+        const isDoc = types.some(
+          (t: string) => !t.startsWith("image/") && !t.startsWith("video/"),
+        );
+
+        if (isImage && !deleteFilters.image) return false;
+        if (isVideo && !deleteFilters.video) return false;
+        if (isDoc && !deleteFilters.document) return false;
+
+        return true;
+      });
+
+      if (filteredPostIds.length === 0) {
+        toast.info("No messages match the selected filters");
+        setIsDeletingMessages(false);
+        return;
       }
 
-      toast.success(
-        mode === "me"
-          ? "Selected messages deleted for you"
-          : "Selected messages deleted for everyone",
-      );
+      if (mode === "everyone") {
+        await Promise.all(
+          filteredPostIds.map((id) =>
+            deletePost.mutateAsync({ postId: id, workgroupId }),
+          ),
+        );
+      } else {
+        await Promise.all(
+          filteredPostIds.map((id) =>
+            deletePostForMe.mutateAsync({ postId: id, workgroupId }),
+          ),
+        );
+      }
+      toast.success("Messages deleted successfully");
       clearDeleteSelection();
     } catch (error: any) {
-      toast.error(
-        error?.response?.data?.error || "Failed to delete selected messages",
-      );
+      toast.error(error?.message || "Failed to delete messages");
     } finally {
       setIsDeletingMessages(false);
+    }
+  };
+
+  const handleSelectAllForDelete = (checked: boolean) => {
+    if (checked) {
+      setSelectedDeletePostIds(posts.map((p) => p.id));
+    } else {
+      setSelectedDeletePostIds([]);
     }
   };
 
@@ -926,43 +1090,83 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   };
 
   const handleStartMeeting = () => {
-    const otherMember = members.find((m) => m.user_id !== user?.id);
-    if (!otherMember) {
-      toast.error("No other member to call");
-      return;
-    }
     if (callState !== "idle") {
       toast.error("You are already in a call");
       return;
     }
-    startVideoCall(
-      otherMember.user_id,
-      otherMember.full_name || otherMember.email || "Unknown",
-      otherMember.avatar_url || null,
-      "video",
-      false,
-      isAssignedMemberManager,
-    );
+
+    const isGroup = workgroup?.type !== "direct";
+    const otherMembers = members.filter((m) => m.user_id !== user?.id);
+
+    if (otherMembers.length === 0) {
+      toast.error("No other members to call");
+      return;
+    }
+
+    if (isGroup) {
+      // Group Call: Signal all members
+      startVideoCall(
+        "", // No specific target, broadcast to room
+        workgroupDisplayName,
+        workgroup?.avatar_url || null,
+        "video",
+        workgroupId,
+        true, // forceGroupCall
+        isAssignedMemberManager,
+      );
+    } else {
+      // 1-on-1 Call: Target the specific member
+      const otherMember = otherMembers[0];
+      startVideoCall(
+        otherMember.user_id,
+        otherMember.full_name || otherMember.email || "Unknown",
+        otherMember.avatar_url || null,
+        "video",
+        workgroupId,
+        false, // forceGroupCall
+        isAssignedMemberManager,
+      );
+    }
   };
 
   const handleStartCall = () => {
-    const otherMember = members.find((m) => m.user_id !== user?.id);
-    if (!otherMember) {
-      toast.error("No other member to call");
-      return;
-    }
     if (callState !== "idle") {
       toast.error("You are already in a call");
       return;
     }
-    startVideoCall(
-      otherMember.user_id,
-      otherMember.full_name || otherMember.email || "Unknown",
-      otherMember.avatar_url || null,
-      "audio",
-      false,
-      isAssignedMemberManager,
-    );
+
+    const isGroup = workgroup?.type !== "direct";
+    const otherMembers = members.filter((m) => m.user_id !== user?.id);
+
+    if (otherMembers.length === 0) {
+      toast.error("No other members to call");
+      return;
+    }
+
+    if (isGroup) {
+      // Group Call: Signal all members
+      startVideoCall(
+        "",
+        workgroupDisplayName,
+        workgroup?.avatar_url || null,
+        "audio",
+        workgroupId,
+        true, // forceGroupCall
+        isAssignedMemberManager,
+      );
+    } else {
+      // 1-on-1 Call: Target the specific member
+      const otherMember = otherMembers[0];
+      startVideoCall(
+        otherMember.user_id,
+        otherMember.full_name || otherMember.email || "Unknown",
+        otherMember.avatar_url || null,
+        "audio",
+        workgroupId,
+        false, // forceGroupCall
+        isAssignedMemberManager,
+      );
+    }
   };
 
   const handleUploadFile = () => {
@@ -1024,6 +1228,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
     try {
       await workgroupsApi.markAllNotificationsAsRead(workgroupId);
       refetchNotifications();
+      setShowNotifications(false);
       toast.success("All notifications marked as read");
     } catch (error: any) {
       toast.error(
@@ -1114,24 +1319,34 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
     if (!members || !Array.isArray(members)) return [];
 
     return [...members].sort((a, b) => {
-      // 1. Owners first
-      if (a.role === "owner" && b.role !== "owner") return -1;
-      if (b.role === "owner" && a.role !== "owner") return 1;
-
-      // 2. Current User (You) next
       const isMeA = a.user_id === user?.id;
       const isMeB = b.user_id === user?.id;
-      if (isMeA && !isMeB) return -1;
-      if (!isMeA && isMeB) return 1;
+      const isModA =
+        assignedMemberManagerId &&
+        String(a.user_id) === String(assignedMemberManagerId);
+      const isModB =
+        assignedMemberManagerId &&
+        String(b.user_id) === String(assignedMemberManagerId);
 
-      // 3. Admins next
-      if (a.role === "admin" && b.role !== "admin") return -1;
-      if (b.role === "admin" && a.role !== "admin") return 1;
+      // Helper function to get priority
+      // 100: Owner, 90: Moderator, 80: Current User (Me), 70: Admin, 0: Others
+      const getPriority = (m: any, isMe: boolean, isMod: boolean) => {
+        if (m.role === "owner") return 100;
+        if (isMod) return 90;
+        if (isMe) return 80;
+        if (m.role === "admin") return 70;
+        return 0;
+      };
 
-      // 4. Default alphabetical
+      const pA = getPriority(a, isMeA, isModA);
+      const pB = getPriority(b, isMeB, isModB);
+
+      if (pA !== pB) return pB - pA;
+
+      // Default alphabetical
       return (a.full_name || "").localeCompare(b.full_name || "");
     });
-  }, [members, user?.id]);
+  }, [members, user?.id, assignedMemberManagerId]);
 
   if (!workgroup) {
     return (
@@ -1163,7 +1378,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
               <AvatarImage
                 src={getAvatarUrl(
                   (workgroup as any).avatar_url ||
-                    (workgroup as any).direct_peer_avatar_url,
+                  (workgroup as any).direct_peer_avatar_url,
                 )}
               />
               <AvatarFallback
@@ -1216,8 +1431,8 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                         const fallbackMessage = error?.message;
                         toast.error(
                           serverMessage ||
-                            fallbackMessage ||
-                            "Failed to open direct chat",
+                          fallbackMessage ||
+                          "Failed to open direct chat",
                         );
                       }
                     } else {
@@ -1227,7 +1442,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                 >
                   <MessageCircle className="h-4 w-4 mr-2" /> Direct Chat
                 </DropdownMenuItem>
-                {!isDirectChat && (
+                {!isDirectChat && canManageMembers && (
                   <DropdownMenuItem onClick={() => setShowMembersList(true)}>
                     <Users className="h-4 w-4 mr-2" /> Manage Members
                   </DropdownMenuItem>
@@ -1244,7 +1459,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                     </Badge>
                   )}
                 </DropdownMenuItem>
-                {!isDirectChat && (
+                {!isDirectChat && canEditTeam && (
                   <DropdownMenuItem>
                     <Settings className="h-4 w-4 mr-2" /> Team Settings
                   </DropdownMenuItem>
@@ -1296,11 +1511,10 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
           </h3>
           <div className="space-y-1">
             <div
-              className={`flex items-center gap-2 px-3  py-2 rounded-lg cursor-pointer transition-colors ${
-                activeTab === "posts"
-                  ? "bg-blue-50 dark:bg-blue-900/20 text-primary dark:text-blue-300"
-                  : "hover:bg-primary hover:text-white"
-              }`}
+              className={`flex items-center gap-2 px-3  py-2 rounded-lg cursor-pointer transition-colors ${activeTab === "posts"
+                ? "bg-blue-50 dark:bg-blue-900/20 text-primary dark:text-blue-300"
+                : "hover:bg-primary hover:text-white"
+                }`}
               onClick={() => setActiveTab("posts")}
             >
               <Hash className="h-4 w-4" />
@@ -1310,11 +1524,10 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
               </Badge>
             </div>
             <div
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
-                activeTab === "files"
-                  ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                  : "hover:bg-primary hover:text-white dark:hover:bg-primary"
-              }`}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${activeTab === "files"
+                ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+                : "hover:bg-primary hover:text-white dark:hover:bg-primary"
+                }`}
               onClick={() => setActiveTab("files")}
             >
               <Files className="h-4 w-4" />
@@ -1324,11 +1537,10 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
               </Badge>
             </div>
             <div
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
-                activeTab === "wiki"
-                  ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                  : "hover:bg-primary hover:text-white dark:hover:bg-primary"
-              }`}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${activeTab === "wiki"
+                ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+                : "hover:bg-primary hover:text-white dark:hover:bg-primary"
+                }`}
               onClick={() => setActiveTab("wiki")}
             >
               <MessageSquare className="h-4 w-4" />
@@ -1396,11 +1608,10 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                     <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                       {member.full_name || member.email || "Unknown"}
                     </p>
-                    {isBroadcast &&
-                      assignedMemberManagerId &&
+                    {assignedMemberManagerId &&
                       String(member.user_id || (member as any).id) ===
-                        String(assignedMemberManagerId) && (
-                        <Badge className="bg-indigo-600 text-white font-bold px-2 py-0.5 ml-1 text-[10px]">
+                      String(assignedMemberManagerId) && (
+                        <Badge className="bg-indigo-600 hover:bg-indigo-600 text-white font-bold px-2 py-0.5 ml-8 text-[9px]">
                           Moderator
                         </Badge>
                       )}
@@ -1413,11 +1624,10 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                       {member.role}
                     </span>
                     <span
-                      className={`text-xs font-medium ml-1 ${
-                        member.is_online
-                          ? "text-primary"
-                          : "text-red-500 dark:text-red-400"
-                      }`}
+                      className={`text-xs font-medium ml-1 ${member.is_online
+                        ? "text-primary"
+                        : "text-red-500 dark:text-red-400"
+                        }`}
                     >
                       {member.is_online ? "Online" : "Offline"}
                     </span>
@@ -1439,81 +1649,81 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                 </div>
                 {((member.user_id === user?.id && member.role !== "owner") ||
                   member.user_id !== user?.id) && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 shrink-0 text-gray-600 dark:text-gray-300 transition-colors group-hover:bg-primary group-hover:text-white hover:bg-primary hover:text-white"
-                      >
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {member.user_id !== user?.id && (
-                        <DropdownMenuItem
-                          onClick={async () => {
-                            try {
-                              console.log(
-                                "Opening direct chat with user:",
-                                member.user_id,
-                              );
-                              const direct = await workgroupsApi.openDirectChat(
-                                member.user_id,
-                              );
-                              console.log("Direct chat response:", direct);
-                              if (direct?.id) {
-                                navigate(
-                                  `/collaboration/workgroups?team=${direct.id}`,
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 shrink-0 text-gray-600 dark:text-gray-300 transition-colors group-hover:bg-primary group-hover:text-white hover:bg-primary hover:text-white"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {member.user_id !== user?.id && (
+                          <DropdownMenuItem
+                            onClick={async () => {
+                              try {
+                                console.log(
+                                  "Opening direct chat with user:",
+                                  member.user_id,
                                 );
-                              } else {
+                                const direct = await workgroupsApi.openDirectChat(
+                                  member.user_id,
+                                );
+                                console.log("Direct chat response:", direct);
+                                if (direct?.id) {
+                                  navigate(
+                                    `/collaboration/workgroups?team=${direct.id}`,
+                                  );
+                                } else {
+                                  toast.error(
+                                    "No direct chat ID returned from server",
+                                  );
+                                }
+                              } catch (error: any) {
+                                console.error("Direct chat error:", error);
+                                const serverMessage =
+                                  error?.response?.data?.error;
+                                const fallbackMessage = error?.message;
                                 toast.error(
-                                  "No direct chat ID returned from server",
-                                );
-                              }
-                            } catch (error: any) {
-                              console.error("Direct chat error:", error);
-                              const serverMessage =
-                                error?.response?.data?.error;
-                              const fallbackMessage = error?.message;
-                              toast.error(
-                                serverMessage ||
+                                  serverMessage ||
                                   fallbackMessage ||
                                   "Failed to open direct chat",
-                              );
-                            }
-                          }}
-                        >
-                          <MessageCircle className="h-4 w-4 mr-2" /> Direct Chat
-                        </DropdownMenuItem>
-                      )}
-                      {member.user_id === user?.id ? (
-                        <DropdownMenuItem
-                          className="text-red-600 dark:text-red-400"
-                          onClick={() => handleLeaveTeam(member.id)}
-                        >
-                          <UserMinus className="h-4 w-4 mr-2" />
-                          Leave Team
-                        </DropdownMenuItem>
-                      ) : (
-                        canRemoveMembers && (
+                                );
+                              }
+                            }}
+                          >
+                            <MessageCircle className="h-4 w-4 mr-2" /> Direct Chat
+                          </DropdownMenuItem>
+                        )}
+                        {member.user_id === user?.id ? (
                           <DropdownMenuItem
                             className="text-red-600 dark:text-red-400"
-                            onClick={() =>
-                              removeMember.mutate({
-                                memberId: member.id,
-                                workgroupId,
-                              })
-                            }
+                            onClick={() => handleLeaveTeam(member.id)}
                           >
                             <UserMinus className="h-4 w-4 mr-2" />
-                            Remove Team Member
+                            Leave Team
                           </DropdownMenuItem>
-                        )
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
+                        ) : (
+                          canRemoveMembers && (
+                            <DropdownMenuItem
+                              className="text-red-600 dark:text-red-400"
+                              onClick={() =>
+                                removeMember.mutate({
+                                  memberId: member.id,
+                                  workgroupId,
+                                })
+                              }
+                            >
+                              <UserMinus className="h-4 w-4 mr-2" />
+                              Remove Team Member
+                            </DropdownMenuItem>
+                          )
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
               </div>
             ))}
           </div>
@@ -1804,6 +2014,10 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                                   onToggleStar={handleToggleStarMessage}
                                   searchQuery={searchQuery}
                                   onReaction={async (postId, emoji) => {
+                                    if (isReactionsLocked && !isOwner && !isTeamCreator && !isAssignedMemberManager) {
+                                      toast.error("Reactions are locked for this group");
+                                      return;
+                                    }
                                     try {
                                       const response = await fetch(
                                         `${import.meta.env.VITE_API_URL || "http://localhost:3001/api"}/workgroups/${workgroupId}/posts/${postId}/reactions`,
@@ -1918,14 +2132,17 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                                     handleComposerChange(
                                       e.target.value,
                                       e.target.selectionStart ??
-                                        e.target.value.length,
+                                      e.target.value.length,
                                     )
                                   }
                                   placeholder={
-                                    replyTo
-                                      ? "Type a reply..."
-                                      : "Type a message..."
+                                    !canSendMessages
+                                      ? "This chat has been locked by an administrator"
+                                      : replyTo
+                                        ? "Type a reply..."
+                                        : "Type a message..."
                                   }
+                                  disabled={!canSendMessages}
                                   className="w-full pl-4 pr-32 bg-muted border-none rounded-full h-11 focus-visible:ring-1 focus-visible:ring-primary shadow-inner"
                                   onKeyDown={(e) => {
                                     if (e.key === "Enter" && !e.shiftKey) {
@@ -1975,6 +2192,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                                     variant="ghost"
                                     size="icon"
                                     className="h-8 w-8 text-gray-400 hover:text-blue-500 hover:bg-transparent"
+                                    disabled={!canSendMessages}
                                     onClick={() =>
                                       setShowInputEmojiPicker((prev) => !prev)
                                     }
@@ -1999,13 +2217,14 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                                   <button
                                     onClick={handlePost}
                                     disabled={
-                                      !newPost.trim() || createPost.isPending
+                                      !canSendMessages ||
+                                      !newPost.trim() ||
+                                      createPost.isPending
                                     }
-                                    className={`h-8 w-8 flex items-center justify-center rounded-full transition-all ${
-                                      newPost.trim()
-                                        ? "bg-blue-600 text-white shadow-md hover:scale-105 active:scale-95"
-                                        : "bg-muted text-muted-foreground pointer-events-none"
-                                    }`}
+                                    className={`h-8 w-8 flex items-center justify-center rounded-full transition-all ${newPost.trim()
+                                      ? "bg-blue-600 text-white shadow-md hover:scale-105 active:scale-95"
+                                      : "bg-muted text-muted-foreground pointer-events-none"
+                                      }`}
                                   >
                                     <Send className="h-4 w-4" />
                                   </button>
@@ -2055,27 +2274,145 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                   )}
                   {isDeleteSelectMode && (
                     <div className="flex-shrink-0 border-t border-border p-3 bg-card">
-                      <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
-                        <p className="text-sm text-foreground">
-                          {selectedDeletePostIds.length} message(s) selected
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={clearDeleteSelection}
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            disabled={selectedDeletePostIds.length === 0}
-                            onClick={() => setShowDeleteDialog(true)}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete
-                          </Button>
+                      <div className="max-w-5xl mx-auto flex flex-col gap-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1.5">
+                              <Checkbox
+                                id="selectAllDelete"
+                                checked={
+                                  selectedDeletePostIds.length ===
+                                  posts.length && posts.length > 0
+                                }
+                                onCheckedChange={(val) =>
+                                  handleSelectAllForDelete(Boolean(val))
+                                }
+                              />
+                              <label
+                                htmlFor="selectAllDelete"
+                                className="text-xs font-medium cursor-pointer"
+                              >
+                                Select All
+                              </label>
+                            </div>
+                            <span className="text-xs text-muted-foreground border-l pl-3">
+                              {selectedDeletePostIds.length} message(s) selected
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={clearDeleteSelection}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              disabled={selectedDeletePostIds.length === 0}
+                              onClick={() => setShowDeleteDialog(true)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Filters Row */}
+                        <div className="flex items-center gap-4 py-1.5 px-1 bg-muted/30 rounded-md border border-border/50">
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground ml-2">
+                            Include:
+                          </span>
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1.5">
+                              <Checkbox
+                                id="filterText"
+                                checked={deleteFilters.text}
+                                onCheckedChange={(v) =>
+                                  setDeleteFilters((f) => ({ ...f, text: !!v }))
+                                }
+                              />
+                              <label
+                                htmlFor="filterText"
+                                className="text-[11px] cursor-pointer"
+                              >
+                                Text
+                              </label>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <Checkbox
+                                id="filterImage"
+                                checked={deleteFilters.image}
+                                onCheckedChange={(v) =>
+                                  setDeleteFilters((f) => ({
+                                    ...f,
+                                    image: !!v,
+                                  }))
+                                }
+                              />
+                              <label
+                                htmlFor="filterImage"
+                                className="text-[11px] cursor-pointer"
+                              >
+                                Images
+                              </label>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <Checkbox
+                                id="filterVideo"
+                                checked={deleteFilters.video}
+                                onCheckedChange={(v) =>
+                                  setDeleteFilters((f) => ({
+                                    ...f,
+                                    video: !!v,
+                                  }))
+                                }
+                              />
+                              <label
+                                htmlFor="filterVideo"
+                                className="text-[11px] cursor-pointer"
+                              >
+                                Videos
+                              </label>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <Checkbox
+                                id="filterDoc"
+                                checked={deleteFilters.document}
+                                onCheckedChange={(v) =>
+                                  setDeleteFilters((f) => ({
+                                    ...f,
+                                    document: !!v,
+                                  }))
+                                }
+                              />
+                              <label
+                                htmlFor="filterDoc"
+                                className="text-[11px] cursor-pointer"
+                              >
+                                Documents
+                              </label>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <Checkbox
+                                id="filterCall"
+                                checked={deleteFilters.call}
+                                onCheckedChange={(v) =>
+                                  setDeleteFilters((f) => ({ ...f, call: !!v }))
+                                }
+                              />
+                              <label
+                                htmlFor="filterCall"
+                                className="text-[11px] cursor-pointer"
+                              >
+                                Calls
+                              </label>
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground italic ml-auto mr-2">
+                            * Uncheck to keep these items
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -2708,10 +3045,9 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                       <p className="font-medium text-gray-900 dark:text-white truncate">
                         {member.full_name || member.email || "Unknown User"}
                       </p>
-                      {isBroadcast &&
-                        assignedMemberManagerId &&
+                      {assignedMemberManagerId &&
                         String(member.user_id || (member as any).id) ===
-                          String(assignedMemberManagerId) && (
+                        String(assignedMemberManagerId) && (
                           <Badge className="bg-indigo-600 text-white font-bold px-2 py-0.5 ml-1 text-[10px]">
                             Moderator
                           </Badge>
@@ -2724,16 +3060,15 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                       Joined{" "}
                       {member.joined_at
                         ? formatDistanceToNow(new Date(member.joined_at), {
-                            addSuffix: true,
-                          })
+                          addSuffix: true,
+                        })
                         : "recently"}
                     </p>
                     <p
-                      className={`text-xs font-medium ${
-                        member.is_online
-                          ? "text-primary"
-                          : "text-red-500 dark:text-red-400"
-                      }`}
+                      className={`text-xs font-medium ${member.is_online
+                        ? "text-primary"
+                        : "text-red-500 dark:text-red-400"
+                        }`}
                     >
                       {member.is_online ? "Online" : "Offline"}
                     </p>
@@ -2768,54 +3103,54 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                     {((member.user_id === user?.id &&
                       member.role !== "owner") ||
                       member.user_id !== user?.id) && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-gray-600 dark:text-gray-300 transition-colors group-hover:bg-primary group-hover:text-white hover:bg-primary hover:text-white"
-                        onClick={async () => {
-                          if (member.user_id === user?.id) {
-                            handleLeaveTeam(member.id);
-                          } else {
-                            try {
-                              console.log(
-                                "Opening direct chat with user:",
-                                member.user_id,
-                              );
-                              const direct = await workgroupsApi.openDirectChat(
-                                member.user_id,
-                              );
-                              console.log("Direct chat response:", direct);
-                              if (direct?.id) {
-                                setShowMembersList(false);
-                                navigate(
-                                  `/collaboration/workgroups?team=${direct.id}`,
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-gray-600 dark:text-gray-300 transition-colors group-hover:bg-primary group-hover:text-white hover:bg-primary hover:text-white"
+                          onClick={async () => {
+                            if (member.user_id === user?.id) {
+                              handleLeaveTeam(member.id);
+                            } else {
+                              try {
+                                console.log(
+                                  "Opening direct chat with user:",
+                                  member.user_id,
                                 );
-                              } else {
+                                const direct = await workgroupsApi.openDirectChat(
+                                  member.user_id,
+                                );
+                                console.log("Direct chat response:", direct);
+                                if (direct?.id) {
+                                  setShowMembersList(false);
+                                  navigate(
+                                    `/collaboration/workgroups?team=${direct.id}`,
+                                  );
+                                } else {
+                                  toast.error(
+                                    "No direct chat ID returned from server",
+                                  );
+                                }
+                              } catch (error: any) {
+                                console.error("Direct chat error:", error);
+                                const serverMessage =
+                                  error?.response?.data?.error;
+                                const fallbackMessage = error?.message;
                                 toast.error(
-                                  "No direct chat ID returned from server",
-                                );
-                              }
-                            } catch (error: any) {
-                              console.error("Direct chat error:", error);
-                              const serverMessage =
-                                error?.response?.data?.error;
-                              const fallbackMessage = error?.message;
-                              toast.error(
-                                serverMessage ||
+                                  serverMessage ||
                                   fallbackMessage ||
                                   "Failed to open direct chat",
-                              );
+                                );
+                              }
                             }
-                          }
-                        }}
-                      >
-                        {member.user_id === user?.id ? (
-                          <UserMinus className="h-4 w-4" />
-                        ) : (
-                          <MessageCircle className="h-4 w-4" />
-                        )}
-                      </Button>
-                    )}
+                          }}
+                        >
+                          {member.user_id === user?.id ? (
+                            <UserMinus className="h-4 w-4" />
+                          ) : (
+                            <MessageCircle className="h-4 w-4" />
+                          )}
+                        </Button>
+                      )}
                   </div>
                 </div>
               ))
@@ -2854,20 +3189,19 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 max-h-96 overflow-y-auto py-4">
-            {notifications.length === 0 ? (
+            {notifications.filter((n: any) => !n.is_read).length === 0 ? (
               <div className="text-center py-8">
                 <Bell className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                <p className="text-gray-500">No notifications yet</p>
+                <p className="text-gray-500">No new notifications</p>
               </div>
             ) : (
-              notifications.map((notification) => (
+              notifications.filter((n: any) => !n.is_read).map((notification: any) => (
                 <div
                   key={notification.id}
-                  className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                    notification.is_read
-                      ? "border-border bg-card"
-                      : "border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20"
-                  }`}
+                  className={`p-3 rounded-lg border cursor-pointer transition-colors ${notification.is_read
+                    ? "border-border bg-card"
+                    : "border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20"
+                    }`}
                   onClick={() => markNotificationAsRead(notification.id)}
                 >
                   <div className="flex items-start gap-3">
@@ -2878,7 +3212,25 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                       <p
                         className={`text-sm ${notification.is_read ? "text-gray-600 dark:text-gray-400" : "text-gray-900 dark:text-white font-medium"}`}
                       >
-                        {notification.message}
+                        {(() => {
+                          const msg = notification.message || '';
+                          try {
+                            const parsed = JSON.parse(msg);
+                            if (parsed && parsed.type && parsed.status) {
+                              const isVideo = parsed.type === 'video';
+                              const isMissed = parsed.status === 'missed' || parsed.status === 'rejected';
+                              if (isMissed) return isVideo ? '📵 Missed video call' : '📵 Missed voice call';
+                              if (parsed.status === 'completed') {
+                                const dur = parsed.duration || 0;
+                                const m = Math.floor(dur / 60);
+                                const s = dur % 60;
+                                const durStr = dur > 0 ? ` (${m}:${s.toString().padStart(2, '0')})` : '';
+                                return isVideo ? `📹 Video call${durStr}` : `📞 Voice call${durStr}`;
+                              }
+                            }
+                          } catch (_) { }
+                          return msg;
+                        })()}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                         {new Date(notification.created_at).toLocaleString()}
@@ -3124,6 +3476,49 @@ function PostCard({
   }
 
   const isAuthor = post.user_id === currentUserId;
+
+  const isCallLog = post.content_type === "call";
+  let callData: any = {};
+  if (isCallLog) {
+    try {
+      callData = JSON.parse(post.content);
+    } catch (e) {
+      callData = {
+        type: "voice",
+        status: "missed",
+        duration: 0,
+        callerId: post.user_id,
+      };
+    }
+  }
+
+  const isMissedCall =
+    isCallLog &&
+    (callData.status === "missed" || callData.status === "rejected") &&
+    callData.duration === 0;
+  const isVideoCall = isCallLog && callData.type === "video";
+  const isOutgoingCall = isCallLog && callData.callerId === currentUserId;
+
+  const formatCallDuration = (s: number) => {
+    if (s === 0) return isOutgoingCall ? "No answer" : "Tap to call back";
+    const mins = Math.floor(s / 60);
+    const secs = s % 60;
+    if (mins > 0) return `${mins} min ${secs} sec`;
+    return `${secs} sec`;
+  };
+
+  const CallIcon = isVideoCall ? Video : Phone;
+  const CallStatusIcon = isMissedCall
+    ? PhoneMissed
+    : isOutgoingCall
+      ? ArrowUpRight
+      : ArrowDownLeft;
+  const callStatusColor = isMissedCall
+    ? "text-red-500"
+    : isOutgoingCall
+      ? "text-gray-500"
+      : "text-emerald-500";
+
   const memberColor = isAuthor ? null : getMemberColor(post.user_id);
   const deletedForUsers = Array.isArray((post as any).deleted_for_users)
     ? ((post as any).deleted_for_users as string[])
@@ -3207,17 +3602,19 @@ function PostCard({
     const member = memberDirectory.find((m) => m.user_id === userId);
     return member?.full_name?.trim() || member?.email || "Unknown user";
   };
-  const mentionEntries = useMemo(
-    () =>
-      (memberDirectory || [])
-        .map((member) => ({
-          userId: member.user_id,
-          label: (member.full_name || member.email || "").trim(),
-        }))
-        .filter((entry) => entry.label.length > 0)
-        .sort((a, b) => b.label.length - a.label.length),
-    [memberDirectory],
-  );
+  const mentionEntries = useMemo(() => {
+    const baseMentions = (memberDirectory || [])
+      .map((member) => ({
+        userId: member.user_id,
+        label: (member.full_name || member.email || "").trim(),
+      }))
+      .filter((entry) => entry.label.length > 0);
+
+    // Add virtual entry for "@Everyone" highlighting
+    baseMentions.push({ userId: "all", label: "Everyone" });
+
+    return baseMentions.sort((a, b) => b.label.length - a.label.length);
+  }, [memberDirectory]);
   const mentionLookup = useMemo(() => {
     const map = new Map<string, string>();
     mentionEntries.forEach((entry) => {
@@ -3228,118 +3625,117 @@ function PostCard({
   const escapeRegex = (value: string) =>
     value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const renderMessageWithMentions = (text: string) => {
-    // First apply search highlighting if there's a search query
-    let processedText = text;
-    let searchHighlightedParts: (string | JSX.Element)[] = [];
+    const urlRegex = /(https?:\/\/[^\s]+)/gi;
 
-    if (searchQuery.trim()) {
-      const searchRegex = new RegExp(
-        `(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`,
-        "gi",
-      );
-      const searchParts = text.split(searchRegex);
-      searchHighlightedParts = searchParts.map((part, index) =>
-        searchRegex.test(part) ? (
-          <mark
-            key={`search-${index}`}
-            className="bg-yellow-200 dark:bg-yellow-800 px-0.5 rounded"
+    // First, split by URL
+    const urlParts = text.split(urlRegex);
+
+    return urlParts.map((urlPart, urlIdx) => {
+      if (urlPart.match(urlRegex)) {
+        return (
+          <a
+            key={`link-${urlIdx}`}
+            href={urlPart}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 dark:text-blue-400 underline hover:no-underline break-all"
+            onClick={(e) => e.stopPropagation()}
           >
-            {part}
-          </mark>
-        ) : (
-          part
-        ),
-      );
-    } else {
-      searchHighlightedParts = [text];
-    }
-
-    // Then apply mention highlighting
-    if (!mentionEntries.length || !text.includes("@")) {
-      return searchHighlightedParts.length === 1 &&
-        typeof searchHighlightedParts[0] === "string" ? (
-        searchHighlightedParts[0]
-      ) : (
-        <span>{searchHighlightedParts}</span>
-      );
-    }
-
-    const pattern = mentionEntries
-      .map((entry) => escapeRegex(`@${entry.label}`))
-      .join("|");
-    if (!pattern) {
-      return searchHighlightedParts.length === 1 &&
-        typeof searchHighlightedParts[0] === "string" ? (
-        searchHighlightedParts[0]
-      ) : (
-        <span>{searchHighlightedParts}</span>
-      );
-    }
-
-    const mentionRegex = new RegExp(`(${pattern})`, "gi");
-    const parts = text.split(mentionRegex);
-
-    return parts.map((part, idx) => {
-      const targetUserId = mentionLookup.get(part.toLowerCase());
-      if (!targetUserId) {
-        // Apply search highlighting to non-mention parts
-        if (searchQuery.trim()) {
-          const searchRegex = new RegExp(
-            `(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`,
-            "gi",
-          );
-          const searchParts = part.split(searchRegex);
-          return (
-            <span key={`txt-${idx}`}>
-              {searchParts.map((searchPart, searchIdx) =>
-                searchRegex.test(searchPart) ? (
-                  <mark
-                    key={`search-${idx}-${searchIdx}`}
-                    className="bg-yellow-200 dark:bg-yellow-800 px-0.5 rounded"
-                  >
-                    {searchPart}
-                  </mark>
-                ) : (
-                  searchPart
-                ),
-              )}
-            </span>
-          );
-        }
-        return <span key={`txt-${idx}`}>{part}</span>;
+            {urlPart}
+          </a>
+        );
       }
 
-      return (
-        <button
-          key={`mention-${idx}`}
-          type="button"
-          onClick={async () => {
-            try {
-              const direct = await workgroupsApi.openDirectChat(targetUserId);
-              if (direct?.id) {
-                navigate(`/collaboration/workgroups?team=${direct.id}`);
+      // For non-URL parts, apply mentions and search highlighting
+      // (This is the existing logic moved inside)
+      const mentionPattern = mentionEntries.length
+        ? mentionEntries
+          .map((entry) => escapeRegex(`@${entry.label}`))
+          .join("|")
+        : "";
+
+      if (!mentionPattern || !urlPart.includes("@")) {
+        // Just search highlighting
+        if (searchQuery.trim()) {
+          const searchRegex = new RegExp(`(${escapeRegex(searchQuery)})`, "gi");
+          const searchParts = urlPart.split(searchRegex);
+          return searchParts.map((p, i) =>
+            searchRegex.test(p) ? (
+              <mark
+                key={i}
+                className="bg-yellow-200 dark:bg-yellow-800 px-0.5 rounded"
+              >
+                {p}
+              </mark>
+            ) : (
+              p
+            ),
+          );
+        }
+        return urlPart;
+      }
+
+      const mentionRegex = new RegExp(`(${mentionPattern})`, "gi");
+      const mentionParts = urlPart.split(mentionRegex);
+
+      return mentionParts.map((mPart, mIdx) => {
+        const targetUserId = mentionLookup.get(mPart.toLowerCase());
+        if (!targetUserId) {
+          // Search highlight in non-mention text
+          if (searchQuery.trim()) {
+            const sRegex = new RegExp(`(${escapeRegex(searchQuery)})`, "gi");
+            const sParts = mPart.split(sRegex);
+            return sParts.map((sp, si) =>
+              sRegex.test(sp) ? (
+                <mark
+                  key={si}
+                  className="bg-yellow-200 dark:bg-yellow-800 px-0.5 rounded"
+                >
+                  {sp}
+                </mark>
+              ) : (
+                sp
+              ),
+            );
+          }
+          return mPart;
+        }
+
+        return (
+          <button
+            key={`mention-${urlIdx}-${mIdx}`}
+            type="button"
+            onClick={async (e) => {
+              e.stopPropagation();
+              if (targetUserId === "all") return;
+              try {
+                const direct = await workgroupsApi.openDirectChat(targetUserId);
+                if (direct?.id) {
+                  navigate(`/collaboration/workgroups?team=${direct.id}`);
+                }
+              } catch (error: any) {
+                toast.error(
+                  error?.response?.data?.error || "Failed to open direct chat",
+                );
               }
-            } catch (error: any) {
-              toast.error(
-                error?.response?.data?.error || "Failed to open direct chat",
-              );
-            }
-          }}
-          className={`font-semibold hover:underline ${
-            isAuthor ? "text-emerald-700 dark:text-emerald-300" : "text-primary"
-          }`}
-        >
-          {part}
-        </button>
-      );
+            }}
+            className={`font-semibold hover:underline ${isAuthor
+              ? "text-emerald-700 dark:text-emerald-300"
+              : "text-primary"
+              }`}
+          >
+            {mPart}
+          </button>
+        );
+      });
     });
   };
 
   const timeString = post.created_at
     ? new Date(post.created_at).toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      })
+      hour: "2-digit",
+      minute: "2-digit",
+    })
     : "";
 
   const attachments = Array.isArray(post.attachments) ? post.attachments : [];
@@ -3419,25 +3815,23 @@ function PostCard({
 
           {/* The Actual Bubble */}
           <div
-            className={`relative min-w-[120px] order-1 ${
-              isAuthor
-                ? "bg-primary/10 text-foreground dark:bg-primary/20 rounded-2xl rounded-tr-sm"
-                : `${memberColor!.bg} ${memberColor!.text} rounded-2xl rounded-tl-sm`
-            } px-3 py-2 shadow-sm group/bubble border border-black/5`}
+            className={`relative min-w-[120px] order-1 ${isAuthor
+              ? "bg-primary/10 text-foreground dark:bg-primary/20 rounded-2xl rounded-tr-sm"
+              : `${memberColor!.bg} ${memberColor!.text} rounded-2xl rounded-tl-sm`
+              } px-3 py-2 shadow-sm group/bubble border border-black/5`}
           >
             {/* Dropdown Chevron - Inside Bubble top-right */}
             <div
-              className={`absolute top-1 right-1 z-10 opacity-0 group-hover/bubble:opacity-100 transition-opacity`}
+              className={`absolute top-1 right-1 z-[20] opacity-0 group-hover/bubble:opacity-100 transition-opacity`}
             >
               {!isDeletedMessage && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button
-                      className={`transition-colors p-0.5 rounded ${
-                        isAuthor
-                          ? "text-gray-400 hover:text-gray-600 dark:text-white/70 dark:hover:text-white"
-                          : "text-gray-400 hover:text-gray-600 dark:text-white/70 dark:hover:text-white"
-                      }`}
+                      className={`transition-colors p-0.5 rounded ${isAuthor
+                        ? "text-gray-400 hover:text-gray-600 dark:text-white/70 dark:hover:text-white"
+                        : "text-gray-400 hover:text-gray-600 dark:text-white/70 dark:hover:text-white"
+                        }`}
                     >
                       <MoreVertical className="h-4 w-4" />
                     </button>
@@ -3488,7 +3882,10 @@ function PostCard({
                         toast.success("Copied to clipboard");
                       }}
                     >
-                      <Copy className="h-4 w-4 mr-2" /> Copy Text
+                      <Copy className="h-4 w-4 mr-2" />{" "}
+                      {/(https?:\/\/[^\s]+)/gi.test(post.content || "")
+                        ? "Copy Link"
+                        : "Copy Text"}
                     </DropdownMenuItem>
                     {/* Quick emoji row inside dropdown */}
                     <div className="px-2 py-1.5 border-t border-gray-100 dark:border-gray-700">
@@ -3540,9 +3937,8 @@ function PostCard({
               createPortal(
                 <div
                   ref={emojiPickerRef}
-                  className={`fixed z-[999] ${
-                    isAuthor ? "right-20" : "left-4"
-                  } top-20 shadow-xl bg-card/80 backdrop-blur-md border border-border rounded-xl shadow-2xl`}
+                  className={`fixed z-[999] ${isAuthor ? "right-20" : "left-4"
+                    } top-20 shadow-xl bg-card/80 backdrop-blur-md border border-border rounded-xl shadow-2xl`}
                 >
                   <button
                     onClick={() => setShowEmojiPicker(false)}
@@ -3579,20 +3975,54 @@ function PostCard({
               </p>
             )}
 
-            {/* Message content */}
-            <p
-              className={`text-[13px] leading-relaxed whitespace-pre-wrap break-words pr-6 text-gray-800 ${
-                isAuthor ? "dark:text-white" : "dark:text-gray-200"
-              }`}
-            >
-              {isDeletedMessage ? (
-                <span className="italic text-gray-500 dark:text-gray-400">
-                  🚫 {deletedPlaceholder}
-                </span>
-              ) : (
-                renderMessageWithMentions(post.content)
-              )}
-            </p>
+            {/* Message content or Call Log */}
+            {isCallLog ? (
+              <div className="flex items-center gap-3 py-1 pr-8">
+                <div
+                  className={`flex items-center justify-center h-10 w-10 rounded-full shrink-0 ${isMissedCall
+                    ? "bg-red-50 dark:bg-red-900/20"
+                    : "bg-emerald-50 dark:bg-emerald-900/20"
+                    }`}
+                >
+                  <CallIcon
+                    className={`h-5 w-5 ${isMissedCall ? "text-red-500" : "text-emerald-600"}`}
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p
+                    className={`text-sm font-semibold truncate ${isMissedCall ? "text-red-500" : "text-foreground"
+                      }`}
+                  >
+                    {isMissedCall
+                      ? isVideoCall
+                        ? "Missed video call"
+                        : "Missed voice call"
+                      : isVideoCall
+                        ? "Video call"
+                        : "Voice call"}
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <CallStatusIcon className={`h-3 w-3 ${callStatusColor}`} />
+                    <p className="text-xs text-muted-foreground truncate">
+                      {formatCallDuration(callData.duration || 0)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p
+                className={`text-[13px] leading-relaxed whitespace-pre-wrap break-words pr-6 text-gray-800 ${isAuthor ? "dark:text-white" : "dark:text-gray-200"
+                  }`}
+              >
+                {isDeletedMessage ? (
+                  <span className="italic text-gray-500 dark:text-gray-400">
+                    🚫 {deletedPlaceholder}
+                  </span>
+                ) : (
+                  renderMessageWithMentions(post.content)
+                )}
+              </p>
+            )}
 
             {!isDeletedMessage && attachments.length > 0 && (
               <div className="mt-2 space-y-2">
@@ -3676,11 +4106,10 @@ function PostCard({
               </span>
               {isAuthor && (
                 <span
-                  className={`text-[9px] ${
-                    (post.seen_count || 0) > 0
-                      ? "text-primary"
-                      : "text-gray-400"
-                  }`}
+                  className={`text-[9px] ${(post.seen_count || 0) > 0
+                    ? "text-primary"
+                    : "text-gray-400"
+                    }`}
                 >
                   ✓✓
                 </span>
@@ -3715,11 +4144,10 @@ function PostCard({
             return (
               <button
                 onClick={() => setShowReactionsDialog(true)}
-                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium shadow-sm transition-all ${
-                  isMyReaction
-                    ? "bg-blue-100 border border-blue-300 text-blue-700"
-                    : "bg-card border border-border text-foreground hover:bg-muted/50"
-                }`}
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium shadow-sm transition-all ${isMyReaction
+                  ? "bg-blue-100 border border-blue-300 text-blue-700"
+                  : "bg-card border border-border text-foreground hover:bg-muted/50"
+                  }`}
                 title="View reactions"
               >
                 <span className="text-sm">{lastEmoji}</span>
@@ -3753,11 +4181,10 @@ function PostCard({
                   <button
                     key={`dialog-${post.id}-${emoji}`}
                     onClick={() => handleEmojiClick(emoji)}
-                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium transition-colors ${
-                      isActive
-                        ? "border-blue-300 bg-blue-100 text-blue-700"
-                        : "border-border bg-muted/50 text-foreground hover:bg-muted"
-                    }`}
+                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium transition-colors ${isActive
+                      ? "border-blue-300 bg-blue-100 text-blue-700"
+                      : "border-border bg-muted/50 text-foreground hover:bg-muted"
+                      }`}
                     title={
                       isActive
                         ? "Click to remove your reaction"

@@ -34,6 +34,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Switch,
+} from "@/components/ui/switch";
+import {
   Users,
   Plus,
   MessageSquare,
@@ -50,6 +66,8 @@ import {
   Pin,
   Megaphone,
   Send,
+  Check,
+  ChevronsUpDown,
 } from "lucide-react";
 import {
   useWorkgroups,
@@ -71,7 +89,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useRealtime } from "@/hooks/useRealtime";
 import { useAdminUsers } from "@/hooks/useAdminUsers";
 import { workgroupsApi } from "@/lib/api";
-import { getAvatarUrl } from "@/lib/utils";
+import { getAvatarUrl, cn } from "@/lib/utils";
 
 const WORKGROUP_TYPES = [
   { value: "team" as const, label: "Team", icon: Users },
@@ -111,8 +129,9 @@ export default function WorkgroupsPage() {
 
   const teamOnlyWorkgroups = visibleWorkgroups.filter(
     (wg) =>
-      !(wg.type === "private" && Boolean((wg.settings as any)?.is_direct_chat)) &&
-      !(wg.settings as any)?.is_broadcast,
+      !(
+        wg.type === "private" && Boolean((wg.settings as any)?.is_direct_chat)
+      ) && !(wg.settings as any)?.is_broadcast,
   );
 
   const totalMembers = teamOnlyWorkgroups.reduce(
@@ -140,6 +159,17 @@ export default function WorkgroupsPage() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [userSearch, setUserSearch] = useState("");
+  const [moderatorOpen, setModeratorOpen] = useState(false);
+  const [isChatLocked, setIsChatLocked] = useState(false);
+  const [isReactionsLocked, setIsReactionsLocked] = useState(false);
+  const [moderatorPermissions, setModeratorPermissions] = useState({
+    edit_group: true,
+    delete_group: false,
+    lock_chat: true,
+    lock_reactions: true,
+    add_members: true,
+    delete_members: true,
+  });
   const [pinnedTeams, setPinnedTeams] = useState<Set<string>>(() => {
     try {
       const saved = localStorage.getItem("workgroup_pinned_teams");
@@ -219,6 +249,16 @@ export default function WorkgroupsPage() {
       type: "team",
       is_private: false,
     });
+    setIsChatLocked(false);
+    setIsReactionsLocked(false);
+    setModeratorPermissions({
+      edit_group: true,
+      delete_group: false,
+      lock_chat: true,
+      lock_reactions: true,
+      add_members: true,
+      delete_members: true,
+    });
     setAvatarPreview(null);
     setAvatarFile(null);
     setSelectedUsers([]);
@@ -254,7 +294,14 @@ export default function WorkgroupsPage() {
   };
 
   const openEdit = (wg: Workgroup) => {
-    if (wg.user_role !== "owner" && wg.created_by !== user?.id) return;
+    const isModerator = 
+      wg.settings?.member_manager_user_id === user?.id ||
+      wg.settings?.manage_member_user_id === user?.id ||
+      (wg as any).manage_member_user_id === user?.id;
+
+    if (wg.user_role !== "owner" && wg.created_by !== user?.id && !(isModerator && wg.settings?.moderator_permissions?.edit_group)) {
+      return;
+    }
     setForm({
       name: wg.name,
       description: wg.description || "",
@@ -265,6 +312,16 @@ export default function WorkgroupsPage() {
     setManageMembersUserId(
       (wg.settings?.member_manager_user_id as string) || "none",
     );
+    setIsChatLocked(!!wg.settings?.is_chat_locked);
+    setIsReactionsLocked(!!wg.settings?.is_reactions_locked);
+    setModeratorPermissions(wg.settings?.moderator_permissions || {
+      edit_group: true,
+      delete_group: false,
+      lock_chat: true,
+      lock_reactions: true,
+      add_members: true,
+      delete_members: true,
+    });
     setAvatarPreview(
       wg.avatar_url ? getAvatarUrl(wg.avatar_url) || null : null,
     );
@@ -372,6 +429,12 @@ export default function WorkgroupsPage() {
         avatar_color: form.avatar_color,
         type: form.type,
         is_private: form.is_private,
+        settings: {
+          is_chat_locked: isChatLocked,
+          is_reactions_locked: isReactionsLocked,
+          moderator_permissions: moderatorPermissions,
+          member_manager_user_id: manageMembersUserId === "none" ? null : manageMembersUserId,
+        },
       },
       {
         onSuccess: async (newWg: any) => {
@@ -384,12 +447,20 @@ export default function WorkgroupsPage() {
           }
 
           // Add selected members
-          if (selectedUsers.length > 0 && newWg?.id) {
+          const membersToAdd = [...selectedUsers];
+          if (
+            manageMembersUserId !== "none" &&
+            !membersToAdd.includes(manageMembersUserId)
+          ) {
+            membersToAdd.push(manageMembersUserId);
+          }
+
+          if (membersToAdd.length > 0 && newWg?.id) {
             try {
-              for (const userId of selectedUsers) {
+              for (const userId of membersToAdd) {
                 await workgroupsApi.addMember(newWg.id, {
                   user_id: userId,
-                  role: "member",
+                  role: userId === manageMembersUserId ? "moderator" : "member",
                 });
               }
               queryClient.invalidateQueries({ queryKey: ["workgroups"] });
@@ -399,9 +470,10 @@ export default function WorkgroupsPage() {
           }
 
           setShowCreate(false);
+          setManageMembersUserId("none");
           resetForm();
           toast.success(
-            `"${form.name}" created with ${selectedUsers.length} member${selectedUsers.length !== 1 ? "s" : ""}!`,
+            `"${form.name}" created with ${membersToAdd.length} member${membersToAdd.length !== 1 ? "s" : ""}!`,
           );
         },
       },
@@ -418,8 +490,12 @@ export default function WorkgroupsPage() {
         avatar_color: form.avatar_color,
         type: form.type,
         is_private: form.is_private,
-        manage_member_user_id:
-          manageMembersUserId === "none" ? null : manageMembersUserId,
+        settings: {
+          is_chat_locked: isChatLocked,
+          is_reactions_locked: isReactionsLocked,
+          moderator_permissions: moderatorPermissions,
+          member_manager_user_id: manageMembersUserId === "none" ? null : manageMembersUserId,
+        },
       },
       {
         onSuccess: async () => {
@@ -572,7 +648,7 @@ export default function WorkgroupsPage() {
               icon={<Users className="h-6 w-6" />}
             />
           ) : viewMode === "grid" ? (
-            <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {filtered.map((wg, index) => {
                 console.log(
                   `Grid Card ${index}: ID=${wg.id}, Name=${wg.name}, isPinned=${pinnedTeams.has(wg.id)}`,
@@ -580,8 +656,22 @@ export default function WorkgroupsPage() {
                 const TypeIcon = getTypeIcon(wg.type);
                 const unreadCount =
                   selectedId === wg.id ? 0 : Number(wg.unread_count || 0);
-                const canEditOrDelete =
-                  wg.user_role === "owner" || wg.created_by === user?.id;
+                
+                const isModerator = 
+                  wg.settings?.member_manager_user_id === user?.id ||
+                  wg.settings?.manage_member_user_id === user?.id ||
+                  (wg as any).manage_member_user_id === user?.id;
+
+                const canEdit =
+                  wg.user_role === "owner" || 
+                  wg.created_by === user?.id ||
+                  (isModerator && wg.settings?.moderator_permissions?.edit_group);
+                
+                const canDelete =
+                  wg.user_role === "owner" || 
+                  wg.created_by === user?.id ||
+                  (isModerator && wg.settings?.moderator_permissions?.delete_group);
+
                 const isPinned = pinnedTeams.has(wg.id);
                 return (
                   <div
@@ -639,50 +729,62 @@ export default function WorkgroupsPage() {
                               className={`h-3.5 w-3.5 ${isPinned ? "fill-current" : ""}`}
                             />
                           </Button>
-                          {canEditOrDelete && (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-muted-foreground hover:text-white"
-                                onClick={() => openEdit(wg)}
-                              >
-                                <Edit className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-muted-foreground hover:bg-red-500/10 hover:text-destructive"
-                                onClick={() => setDeleteTarget(wg)}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </>
+                          {canEdit && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:text-white"
+                              onClick={() => openEdit(wg)}
+                            >
+                              <Edit className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          {canDelete && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:bg-red-500/10 hover:text-destructive"
+                              onClick={() => setDeleteTarget(wg)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
                           )}
                         </div>
                       </div>
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1 mb-0.5">
+                      {/* Top Row */}
+                      <div className="flex items-center justify-between gap-2">
                         <h3
-                          className={`font-bold truncate ${unreadCount > 0 ? "text-primary" : "text-foreground"}`}
+                          className={`font-bold truncate ${
+                            unreadCount > 0 ? "text-primary" : "text-foreground"
+                          }`}
                         >
                           {wg.name}
                         </h3>
-                        {isPinned && (
-                          <Pin className="h-3.5 w-3.5 text-yellow-500 fill-current shrink-0" />
+                        {isModerator && (
+                          <Badge className="shrink-0 text-[8px] px-1 py-0 bg-muted text-green-500 border-green-200 font-bold">
+                            Moderator
+                          </Badge>
+                        )}
+
+                      </div>
+
+                      {/* Bottom Row */}
+                      <div className="flex items-start justify-between gap-2">
+                        {unreadCount > 0 && wg.last_message_sender_name ? (
+                          <p className="text-xs font-semibold text-primary truncate mb-1 flex-1">
+                            💬 {wg.last_message_sender_name}: new message
+                          </p>
+                        ) : wg.description ? (
+                          <p className="text-xs text-muted-foreground line-clamp-2 mb-1 flex-1">
+                            {wg.description}
+                          </p>
+                        ) : (
+                          <div className="flex-1" />
                         )}
                       </div>
-                      {unreadCount > 0 && wg.last_message_sender_name ? (
-                        <p className="text-xs font-semibold text-primary truncate mb-1">
-                          💬 {wg.last_message_sender_name}: new message
-                        </p>
-                      ) : wg.description ? (
-                        <p className="text-xs text-muted-foreground line-clamp-2 mb-1">
-                          {wg.description}
-                        </p>
-                      ) : null}
                     </div>
 
                     <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/50">
@@ -713,8 +815,20 @@ export default function WorkgroupsPage() {
                 const TypeIcon = getTypeIcon(wg.type);
                 const unreadCount =
                   selectedId === wg.id ? 0 : Number(wg.unread_count || 0);
-                const canEditOrDelete =
-                  wg.user_role === "owner" || wg.created_by === user?.id;
+                const isModerator = 
+                  wg.settings?.member_manager_user_id === user?.id ||
+                  wg.settings?.manage_member_user_id === user?.id ||
+                  (wg as any).manage_member_user_id === user?.id;
+
+                const canEdit =
+                  wg.user_role === "owner" || 
+                  wg.created_by === user?.id ||
+                  (isModerator && wg.settings?.moderator_permissions?.edit_group);
+                
+                const canDelete =
+                  wg.user_role === "owner" || 
+                  wg.created_by === user?.id ||
+                  (isModerator && wg.settings?.moderator_permissions?.delete_group);
                 const isPinned = pinnedTeams.has(wg.id);
                 return (
                   <div
@@ -772,6 +886,11 @@ export default function WorkgroupsPage() {
                         </h3>
                         {wg.is_private && (
                           <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
+                        )}
+                        {isModerator && (
+                          <Badge className="shrink-0 text-[9px] px-1.5 py-0 bg-muted text-green-500 border-green-300 font-bold">
+                            Moderator
+                          </Badge>
                         )}
                       </div>
 
@@ -838,25 +957,25 @@ export default function WorkgroupsPage() {
                           className={`h-4 w-4 ${isPinned ? "fill-current" : ""}`}
                         />
                       </Button>
-                      {canEditOrDelete && (
-                        <>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-white"
-                            onClick={() => openEdit(wg)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:bg-red-500/10 hover:text-destructive"
-                            onClick={() => setDeleteTarget(wg)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </>
+                      {canEdit && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-white"
+                          onClick={() => openEdit(wg)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {canDelete && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:bg-red-500/10 hover:text-destructive"
+                          onClick={() => setDeleteTarget(wg)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       )}
                     </div>
                   </div>
@@ -880,6 +999,15 @@ export default function WorkgroupsPage() {
         }}
       >
         <DialogContent className="max-w-lg max-h-[95vh] overflow-y-auto">
+          {(() => {
+            const isAdminOrOwner = 
+              !editing || // Creating new team
+              editing.user_role === "owner" || 
+              editing.user_role === "admin" || 
+              editing.created_by === user?.id;
+
+            return (
+              <>
           <DialogHeader>
             <DialogTitle>
               {editing ? "Edit Team" : "Create New Team"}
@@ -892,61 +1020,63 @@ export default function WorkgroupsPage() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             {/* Avatar Upload */}
-            <div className="flex items-center gap-4">
-              <div
-                className="relative cursor-pointer group"
-                onClick={() => avatarInputRef.current?.click()}
-              >
-                <Avatar className="h-16 w-16">
-                  <AvatarImage src={avatarPreview || undefined} />
-                  <AvatarFallback
-                    className={`${form.avatar_color} text-white font-bold text-lg`}
-                  >
-                    {form.name ? (
-                      form.name.slice(0, 2).toUpperCase()
-                    ) : (
-                      <Camera className="h-5 w-5" />
-                    )}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Camera className="h-5 w-5 text-white" />
+            {isAdminOrOwner && (
+              <div className="flex items-center gap-4">
+                <div
+                  className="relative cursor-pointer group"
+                  onClick={() => avatarInputRef.current?.click()}
+                >
+                  <Avatar className="h-16 w-16">
+                    <AvatarImage src={avatarPreview || undefined} />
+                    <AvatarFallback
+                      className={`${form.avatar_color} text-white font-bold text-lg`}
+                    >
+                      {form.name ? (
+                        form.name.slice(0, 2).toUpperCase()
+                      ) : (
+                        <Camera className="h-5 w-5" />
+                      )}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Camera className="h-5 w-5 text-white" />
+                  </div>
                 </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground">
+                    Group Logo
+                  </p>
+                  <p className="text-xs text-muted-foreground mb-1">
+                    Click the avatar to upload an image
+                  </p>
+                  {avatarPreview && (
+                    <Button
+                      variant="outline"
+                      type="button"
+                      className="text-xs text-destructive h-8 w-14 border-red-500 hover:bg-red-500/10 hover:text-destructive"
+                      onClick={() => {
+                        setAvatarPreview(null);
+                        setAvatarFile(null);
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </div>
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setAvatarFile(file);
+                    setAvatarPreview(URL.createObjectURL(file));
+                  }}
+                />
               </div>
-              <div>
-                <p className="text-sm font-medium text-foreground">
-                  Group Logo
-                </p>
-                <p className="text-xs text-muted-foreground mb-1">
-                  Click the avatar to upload an image
-                </p>
-                {avatarPreview && (
-                  <Button
-                    variant="outline"
-                    type="button"
-                    className="text-xs text-destructive h-8 w-14 border-red-500 hover:bg-red-500/10 hover:text-destructive"
-                    onClick={() => {
-                      setAvatarPreview(null);
-                      setAvatarFile(null);
-                    }}
-                  >
-                    Remove
-                  </Button>
-                )}
-              </div>
-              <input
-                ref={avatarInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  setAvatarFile(file);
-                  setAvatarPreview(URL.createObjectURL(file));
-                }}
-              />
-            </div>
+            )}
             <div className="space-y-1.5">
               <Label htmlFor="name">Name *</Label>
               <Input
@@ -974,40 +1104,238 @@ export default function WorkgroupsPage() {
               />
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="type">Team Type</Label>
-              <Select
-                value={form.type}
-                onValueChange={(value: any) =>
-                  setForm({
-                    ...form,
-                    type: value,
-                    is_private: value === "private",
-                  })
-                }
-              >
-                <SelectTrigger id="type">
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {WORKGROUP_TYPES.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>
-                      <div className="flex items-center">
-                        <t.icon className="h-4 w-4 mr-2 text-muted-foreground" />
-                        {t.label}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {isAdminOrOwner && (
+              <div className="space-y-1.5">
+                <Label htmlFor="type">Team Type</Label>
+                <Select
+                  value={form.type}
+                  onValueChange={(value: any) =>
+                    setForm({
+                      ...form,
+                      type: value,
+                      is_private: value === "private",
+                    })
+                  }
+                >
+                  <SelectTrigger id="type">
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {WORKGROUP_TYPES.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        <div className="flex items-center">
+                          <t.icon className="h-4 w-4 mr-2 text-muted-foreground" />
+                          {t.label}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* modiator section  */}
+            {isAdminOrOwner && (
+              <div className="space-y-1.5 flex flex-col">
+                <Label htmlFor="assign-member-manager">Moderator</Label>
+                <Popover open={moderatorOpen} onOpenChange={setModeratorOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={moderatorOpen}
+                      className="justify-between font-normal h-10 w-full"
+                    >
+                      {manageMembersUserId === "none"
+                        ? "None (Owner/Admin only)"
+                        : orgMembers.find(
+                              (m: any) => m.id === manageMembersUserId,
+                            )
+                          ? orgMembers.find(
+                              (m: any) => m.id === manageMembersUserId,
+                            )?.full_name ||
+                            orgMembers.find(
+                              (m: any) => m.id === manageMembersUserId,
+                            )?.email
+                          : "Select a moderator"}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="w-[--radix-popover-trigger-width] p-0"
+                    align="start"
+                  >
+                    <Command>
+                      <CommandInput placeholder="Search a moderator..." />
+                      <CommandList>
+                        <CommandEmpty>No moderator found.</CommandEmpty>
+                        <CommandGroup>
+                          <CommandItem
+                            value="none"
+                            onSelect={() => {
+                              setManageMembersUserId("none");
+                              setModeratorOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                manageMembersUserId === "none"
+                                  ? "opacity-100"
+                                  : "opacity-0",
+                              )}
+                            />
+                            None (Owner/Admin only)
+                          </CommandItem>
+                          {orgMembers.map((member: any) => (
+                            <CommandItem
+                              key={member.id}
+                              value={member.full_name || member.email}
+                              onSelect={() => {
+                                setManageMembersUserId(member.id);
+                                setModeratorOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  manageMembersUserId === member.id
+                                    ? "opacity-100"
+                                    : "opacity-0",
+                                )}
+                              />
+                              {member.full_name || member.email}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Moderators can add/remove members but cannot delete the team.
+                </p>
+              </div>
+            )}
+            
+            {/* Global Permissions Section */}
+            <div className="space-y-4 p-4 rounded-xl border-2 border-blue-100">
+              <h4 className="text-sm font-bold text-blue-900 flex items-center gap-2">
+                <Lock className="h-4 w-4" />
+                Global Permissions
+              </h4>
+              
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-semibold">Lock Chat</Label>
+                  <p className="text-xs text-muted-foreground">Only Admins and Moderators can send messages</p>
+                </div>
+                <Switch checked={isChatLocked} onCheckedChange={setIsChatLocked} />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-semibold">Lock Reactions</Label>
+                  <p className="text-xs text-muted-foreground">Only Admins and Moderators can react with emojis</p>
+                </div>
+                <Switch checked={isReactionsLocked} onCheckedChange={setIsReactionsLocked} />
+              </div>
             </div>
 
+            {/* Moderator Permissions Section (if moderator selected) */}
+            {isAdminOrOwner && manageMembersUserId !== "none" && (
+              <div className="space-y-4 p-4 rounded-xl border-2 border-orange-100">
+                <h4 className="text-sm font-bold text-blue-900 flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Moderator Permissions
+                </h4>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="perm-edit" 
+                      checked={moderatorPermissions.edit_group}
+                      onCheckedChange={(val) => setModeratorPermissions(prev => ({ ...prev, edit_group: !!val }))}
+                    />
+                    <Label htmlFor="perm-edit" className="text-xs">Edit Group Name</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="perm-delete" 
+                      checked={moderatorPermissions.delete_group}
+                      onCheckedChange={(val) => setModeratorPermissions(prev => ({ ...prev, delete_group: !!val }))}
+                    />
+                    <Label htmlFor="perm-delete" className="text-xs">Delete Group</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="perm-lock-chat" 
+                      checked={moderatorPermissions.lock_chat}
+                      onCheckedChange={(val) => setModeratorPermissions(prev => ({ ...prev, lock_chat: !!val }))}
+                    />
+                    <Label htmlFor="perm-lock-chat" className="text-xs">Lock/Unlock Chat</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="perm-lock-reactions" 
+                      checked={moderatorPermissions.lock_reactions}
+                      onCheckedChange={(val) => setModeratorPermissions(prev => ({ ...prev, lock_reactions: !!val }))}
+                    />
+                    <Label htmlFor="perm-lock-reactions" className="text-xs">Lock Reactions</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="perm-add" 
+                      checked={moderatorPermissions.add_members}
+                      onCheckedChange={(val) => setModeratorPermissions(prev => ({ ...prev, add_members: !!val }))}
+                    />
+                    <Label htmlFor="perm-add" className="text-xs">Add Members</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="perm-remove" 
+                      checked={moderatorPermissions.delete_members}
+                      onCheckedChange={(val) => setModeratorPermissions(prev => ({ ...prev, delete_members: !!val }))}
+                    />
+                    <Label htmlFor="perm-remove" className="text-xs">Remove Members</Label>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* User Selection */}
-            <div className="space-y-3">
-              <Label>Team Members</Label>
-              <div className="space-y-2">
+            {isAdminOrOwner && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label>Team Members</Label>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="select-all-team-members"
+                      checked={
+                        orgMembers.length > 0 &&
+                        orgMembers.every((member: any) =>
+                          selectedUsers.includes(member.id),
+                        )
+                      }
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedUsers(orgMembers.map((m: any) => m.id));
+                        } else {
+                          setSelectedUsers([]);
+                        }
+                      }}
+                    />
+                    <Label
+                      htmlFor="select-all-team-members"
+                      className="text-xs font-medium cursor-pointer text-muted-foreground"
+                    >
+                      Select All
+                    </Label>
+                  </div>
+                </div>
+
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Search users..."
                     value={userSearch}
@@ -1015,49 +1343,50 @@ export default function WorkgroupsPage() {
                     className="pl-9"
                   />
                 </div>
-                <div className="max-h-48 overflow-y-auto border rounded-lg">
+
+                <div className="max-h-48 overflow-y-auto space-y-1 p-1 rounded-md border border-border bg-muted/30">
                   {orgMembers
                     .filter(
-                      (member: any) =>
-                        member.full_name
+                      (m: any) =>
+                        m.full_name
                           ?.toLowerCase()
                           .includes(userSearch.toLowerCase()) ||
-                        member.email
-                          ?.toLowerCase()
-                          .includes(userSearch.toLowerCase()),
+                        m.email?.toLowerCase().includes(userSearch.toLowerCase()),
                     )
                     .map((member: any) => (
                       <div
                         key={member.id}
-                        className="flex items-center space-x-3 p-3 hover:bg-muted/50"
+                        className="flex items-center space-x-3 p-2 rounded-md hover:bg-background transition-colors"
                       >
                         <Checkbox
                           id={`user-${member.id}`}
                           checked={selectedUsers.includes(member.id)}
                           onCheckedChange={(checked) => {
                             if (checked) {
-                              setSelectedUsers([...selectedUsers, member.id]);
+                              setSelectedUsers((prev) => [...prev, member.id]);
                             } else {
-                              setSelectedUsers(
-                                selectedUsers.filter((id) => id !== member.id),
+                              setSelectedUsers((prev) =>
+                                prev.filter((id) => id !== member.id),
                               );
                             }
                           }}
                         />
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={member.avatar_url} />
-                          <AvatarFallback className="text-xs">
-                            {member.full_name?.slice(0, 2).toUpperCase() ||
-                              member.email?.slice(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">
+                        <div className="flex items-center gap-2">
+                          <Avatar className="h-6 w-6">
+                            <AvatarImage
+                              src={member.avatar_url || undefined}
+                            />
+                            <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+                              {member.full_name?.slice(0, 2).toUpperCase() ||
+                                member.email?.slice(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <Label
+                            htmlFor={`user-${member.id}`}
+                            className="text-sm font-normal cursor-pointer flex-1"
+                          >
                             {member.full_name || member.email}
-                          </p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {member.email}
-                          </p>
+                          </Label>
                         </div>
                       </div>
                     ))}
@@ -1069,33 +1398,12 @@ export default function WorkgroupsPage() {
                   </p>
                 )}
               </div>
-            </div>
-            {editing && (
-              <div className="space-y-1.5">
-                <Label htmlFor="assign-member-manager">
-                  Member Management Permission
-                </Label>
-                <select
-                  id="assign-member-manager"
-                  value={manageMembersUserId}
-                  onChange={(e) => setManageMembersUserId(e.target.value)}
-                  className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
-                >
-                  <option value="none">None — only owner/admin</option>
-                  {assignableMembers.map((member) => (
-                    <option key={member.user_id} value={member.user_id}>
-                      {(member.full_name || "Unknown").trim()} — {member.email}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-muted-foreground">
-                  Selected member can add/remove members but cannot delete the
-                  team.
-                </p>
-              </div>
             )}
           </div>
-          <DialogFooter>
+        </>
+      );
+    })()}
+    <DialogFooter>
             <Button
               variant="outline"
               onClick={() => {

@@ -4,8 +4,6 @@ import { AppSidebar } from "./AppSidebar";
 import { TopBar } from "./Header";
 import { TelephonyOverlay } from "@/components/telephony/TelephonyProvider";
 import { SoftphoneProvider } from "@/contexts/SoftphoneContext";
-import { VideoCallProvider } from "@/contexts/VideoCallContext";
-import VideoCallOverlay from "@/components/collaboration/VideoCallOverlay";
 import { useRealtime } from "@/hooks/useRealtime";
 
 export function MainLayout() {
@@ -33,41 +31,37 @@ export function MainLayout() {
 
   return (
     <SoftphoneProvider>
-      <VideoCallProvider>
-        <div className="min-h-screen bg-background overflow-x-hidden">
-          {/* Overlay for mobile sidebar */}
-          {isMobile && isSidebarOpen && (
-            <div 
-              className="fixed inset-0 bg-black/50 z-40 animate-in fade-in duration-200" 
-              onClick={() => setIsSidebarOpen(false)}
-            />
-          )}
-
-          <AppSidebar 
-            width={isMobile ? 280 : sidebarWidth} 
-            onWidthChange={handleSidebarWidthChange} 
-            isMobile={isMobile}
-            isOpen={isSidebarOpen}
-            onClose={() => setIsSidebarOpen(false)}
+      <div className="min-h-screen bg-background overflow-x-hidden">
+        {/* Overlay for mobile sidebar */}
+        {isMobile && isSidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/50 z-40 animate-in fade-in duration-200"
+            onClick={() => setIsSidebarOpen(false)}
           />
+        )}
 
-          <div 
-            className="flex flex-col transition-all duration-300"
-            style={{ 
-              paddingLeft: isMobile ? '0' : `${sidebarWidth}px`,
-              width: '100%'
-            }}
-          >
-            <TopBar onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} isMobile={isMobile} />
-            <main className="p-4 md:p-6 lg:p-8">
-              <Outlet />
-            </main>
-          </div>
-          <TelephonyOverlay />
-          <VideoCallOverlay />
+        <AppSidebar
+          width={isMobile ? 280 : sidebarWidth}
+          onWidthChange={handleSidebarWidthChange}
+          isMobile={isMobile}
+          isOpen={isSidebarOpen}
+          onClose={() => setIsSidebarOpen(false)}
+        />
+
+        <div
+          className="flex flex-col transition-all duration-300"
+          style={{
+            paddingLeft: isMobile ? '0' : `${sidebarWidth}px`,
+            width: '100%'
+          }}
+        >
+          <TopBar onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} isMobile={isMobile} />
+          <main className="p-4 md:p-6 lg:p-8">
+            <Outlet />
+          </main>
         </div>
-      </VideoCallProvider>
+        <TelephonyOverlay />
+      </div>
     </SoftphoneProvider>
   );
 }
-

@@ -63,7 +63,7 @@ const handleBeforeUnload = () => {
 
 export const getSocket = (): Socket | null => {
   if (socketInstance) return socketInstance;
-  
+
   const token = localStorage.getItem('token');
   if (!token) return null;
 
@@ -104,16 +104,35 @@ export const getSocket = (): Socket | null => {
       if (isViewingWorkgroup(workgroupId) && document.visibilityState === 'visible') return;
 
       const title: string = msg?.title || msg?.author_name || 'Rush CRM';
-      const body: string = String(msg?.body || msg?.content || '').replace('[SYSTEM] ', '');
-      if (!body.trim()) return;
+      const rawBody: string = String(msg?.body || msg?.content || '').replace('[SYSTEM] ', '');
+      if (!rawBody.trim()) return;
       const isDirectChat: boolean = Boolean(msg?.is_direct_chat);
 
+      // Parse call log notifications and show a rich toast
+      let displayBody = rawBody;
+      try {
+        const parsed = JSON.parse(rawBody);
+        if (parsed && parsed.type && parsed.status) {
+          const isVideo = parsed.type === 'video';
+          const isMissed = parsed.status === 'missed' || parsed.status === 'rejected';
+          if (isMissed) {
+            displayBody = isVideo ? '📵 Missed video call' : '📵 Missed voice call';
+          } else if (parsed.status === 'completed') {
+            const dur = parsed.duration || 0;
+            const m = Math.floor(dur / 60);
+            const s = dur % 60;
+            const durStr = dur > 0 ? ` (${m}:${s.toString().padStart(2, '0')})` : '';
+            displayBody = isVideo ? `📹 Video call${durStr}` : `📞 Voice call${durStr}`;
+          }
+        }
+      } catch (_) {
+        // not JSON, use as-is
+      }
+
       if (document.visibilityState === 'hidden') {
-        // Tab minimized or in background — prefer desktop notification
-        showDesktopNotification(title, body, workgroupId, isDirectChat);
+        showDesktopNotification(title, displayBody, workgroupId, isDirectChat);
       } else {
-        // Tab visible but user is on a different page or different chat
-        toast(`${title}: ${body}`, { duration: 4000, position: 'bottom-right' });
+        toast(`${title}: ${displayBody}`, { duration: 4000, position: 'bottom-right' });
       }
     });
     workgroupNotificationListenerAttached = true;
@@ -158,7 +177,7 @@ export function useRealtime() {
 
   useEffect(() => {
     if (!socket) return;
-    
+
     connectionCount++;
     setIsConnected(socket.connected);
 
