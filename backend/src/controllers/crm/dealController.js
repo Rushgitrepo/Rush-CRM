@@ -145,6 +145,7 @@ const normalizeDealInput = (body = {}) => {
     lastContactedDate: getVal('lastContactedDate', 'last_contacted_date'),
     nextFollowUpDate: getVal('nextFollowUpDate', 'next_follow_up_date'),
     responsiblePerson: getVal('responsiblePerson', 'responsible_person'),
+    createdAt: getVal('createdAt', 'created_at'),
     customFields: getVal('customFields', 'custom_fields'),
   };
 };
@@ -232,6 +233,7 @@ const updateDealSchema = Joi.object({
   lastContactedDate: Joi.date().optional().allow(null),
   nextFollowUpDate: Joi.date().optional().allow(null),
   responsiblePerson: Joi.string().uuid().optional().allow(null),
+  createdAt: Joi.date().optional().allow(null),
   customFields: Joi.object().optional().allow(null),
 }).min(1);
 
@@ -532,6 +534,7 @@ const update = async (req, res, next) => {
       lastTouch: 'last_touch',
       lastContactedDate: 'last_contacted_date',
       nextFollowUpDate: 'next_follow_up_date',
+      createdAt: 'created_at',
     };
 
     for (const [key, val] of Object.entries(value)) {
