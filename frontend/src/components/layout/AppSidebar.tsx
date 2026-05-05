@@ -48,13 +48,16 @@ import {
   MessageSquare,
   Building,
   ArrowRight,
+  ArrowLeft,
   LogOut,
   HelpCircle,
   Star,
   Trash2,
+  GripVertical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import { getAvatarUrl } from "@/lib/utils";
 import {
   Collapsible,
@@ -230,6 +233,7 @@ export function AppSidebar({
   const [openSections, setOpenSections] = useState<string[]>(["Collaboration", "CRM"]);
   const [expandedSubItems, setExpandedSubItems] = useState<string[]>([]);
   const [expandedNestedItems, setExpandedNestedItems] = useState<string[]>([]);
+  const [focusedModule, setFocusedModule] = useState<string | null>(null);
   const deleteWg = useDeleteWorkgroup();
   const [deleteChatId, setDeleteChatId] = useState<string | null>(null);
   const { on: onRealtime, off: offRealtime } = useRealtime();
@@ -334,10 +338,20 @@ export function AppSidebar({
   );
 
   const filteredNavigation = useMemo(() => {
-    return navigation.map(item => {
+    const allItems = navigation.map(item => {
       if (item.title === "Admin Portal" && !isAdmin) return null;
       return item;
     }).filter(Boolean) as NavItem[];
+    
+    // Separate bottom items (Admin Portal and Settings)
+    const bottomItems = allItems.filter(item => 
+      item.title === "Admin Portal" || item.title === "Settings"
+    );
+    const mainItems = allItems.filter(item => 
+      item.title !== "Admin Portal" && item.title !== "Settings"
+    );
+    
+    return { mainItems, bottomItems };
   }, [isAdmin]);
 
   const toggleSection = (title: string) => {
@@ -798,44 +812,66 @@ export function AppSidebar({
       </div>
 
       {/* Navigation Content */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar px-4 pb-8 space-y-6">
-        <div className="space-y-1">
-          {filteredNavigation.map((item) => {
-            if (item.children) {
-              const isOpen = openSections.includes(item.title);
-              const sectionActive = isSectionActive(item.children);
+      <div className="flex-1 overflow-y-auto custom-scrollbar px-4 pb-4 space-y-6">
+        {/* Back to Dashboard Button - Show when a module is focused */}
+        {focusedModule && (
+          <Button
+            variant="outline"
+            className="w-full justify-start gap-2 mb-4"
+            onClick={() => setFocusedModule(null)}
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Dashboard
+          </Button>
+        )}
 
+        <div className="space-y-1">
+          {filteredNavigation.mainItems.map((item) => {
+            // If a module is focused, only show that module's children
+            if (focusedModule && item.title !== focusedModule) {
+              return null;
+            }
+
+            // If focused on this module, show its children directly
+            if (focusedModule === item.title && item.children) {
               return (
-                <div key={item.title} className="mb-2">
-                  <button
-                    onClick={() => toggleSection(item.title)}
-                    className={cn(
-                      "flex w-full items-center justify-between rounded-xl px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider transition-all duration-200",
-                      sectionActive
-                        ? "text-white"
-                        : "text-slate-500 hover:text-slate-300 hover:bg-white/[0.03]"
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <item.icon className={cn("h-4 w-4", sectionActive ? "text-primary" : "text-slate-500")} />
-                      <span>{item.title}</span>
-                    </div>
-                    <ChevronDown
-                      className={cn(
-                        "h-3.5 w-3.5 transition-transform duration-500",
-                        isOpen && "rotate-180"
-                      )}
-                    />
-                  </button>
-                  {isOpen && (
-                    <div className="mt-1 space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-300">
-                      {item.children.map((child) => renderSubItem(child, item.title))}
-                    </div>
-                  )}
+                <div key={item.title} className="space-y-1.5">
+                  {/* Module Header */}
+                  <div className="flex items-center gap-3 px-4 py-2 text-primary">
+                    <item.icon className="h-5 w-5" />
+                    <span className="text-sm font-bold uppercase tracking-wider">{item.title}</span>
+                  </div>
+                  {/* Sub-modules */}
+                  {item.children.map((child) => renderSubItem(child, item.title))}
                 </div>
               );
             }
 
+            // Default view - show all modules as clickable items (no dropdown)
+            if (item.children) {
+              const sectionActive = isSectionActive(item.children);
+
+              return (
+                <button
+                  key={item.title}
+                  onClick={() => setFocusedModule(item.title)}
+                  className={cn(
+                    "flex w-full items-center justify-between rounded-xl px-4 py-2.5 text-[13px] font-medium transition-all duration-200",
+                    sectionActive
+                      ? "bg-primary/10 text-white"
+                      : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <item.icon className={cn("h-4 w-4", sectionActive ? "text-primary" : "text-slate-500")} />
+                    <span>{item.title}</span>
+                  </div>
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              );
+            }
+
+            // Single items without children
             return (
               <NavLink
                 key={item.href}
@@ -861,6 +897,54 @@ export function AppSidebar({
           })}
         </div>
       </div>
+
+      {/* Bottom Fixed Items - Admin Portal & Settings */}
+      {!focusedModule && (
+        <div className="border-t border-white/5 px-4 py-3 space-y-1">
+          {filteredNavigation.bottomItems.map((item) => {
+            if (item.children) {
+              const sectionActive = isSectionActive(item.children);
+
+              return (
+                <button
+                  key={item.title}
+                  onClick={() => setFocusedModule(item.title)}
+                  className={cn(
+                    "flex w-full items-center justify-between rounded-xl px-4 py-2.5 text-[13px] font-medium transition-all duration-200",
+                    sectionActive
+                      ? "bg-primary/10 text-white"
+                      : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <item.icon className={cn("h-4 w-4", sectionActive ? "text-primary" : "text-slate-500")} />
+                    <span>{item.title}</span>
+                  </div>
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              );
+            }
+
+            return (
+              <NavLink
+                key={item.href}
+                to={item.href!}
+                className={cn(
+                  "flex items-center justify-between rounded-xl px-4 py-2.5 text-[13px] font-medium transition-all duration-200",
+                  isActive(item.href!)
+                    ? "bg-primary/10 text-white"
+                    : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <item.icon className={cn("h-4 w-4", isActive(item.href!) ? "text-primary" : "text-slate-500")} />
+                  <span>{item.title}</span>
+                </div>
+              </NavLink>
+            );
+          })}
+        </div>
+      )}
 
       <AlertDialog open={!!deleteChatId} onOpenChange={(open) => !open && setDeleteChatId(null)}>
         <AlertDialogContent>
