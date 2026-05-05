@@ -175,7 +175,7 @@ export default function CustomerDetailPage() {
   if (!customer && !isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary/5 flex items-center justify-center">
-        <div className="text-center bg-white p-8 rounded-2xl shadow-xl border border-slate-200 max-w-md">
+        <div className="text-center  p-8 rounded-2xl shadow-xl border border-slate-200 max-w-md">
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <AlertCircle className="h-8 w-8 text-red-600" />
           </div>
@@ -232,9 +232,9 @@ export default function CustomerDetailPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC]">
+    <div className="min-h-screen">
       {/* Enterprise Header with Breadcrumb Navigation */}
-      <div className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-40">
+      <div className=" border-b border-slate-200 shadow-sm sticky top-0 z-40">
         <div className="max-w-[1400px] mx-auto px-6 py-4">
           {/* Professional Breadcrumb */}
           <nav className="flex items-center gap-2 text-sm text-slate-500 mb-6">
@@ -365,7 +365,7 @@ export default function CustomerDetailPage() {
                         <span className="sr-only">More options</span>
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-72 p-2 rounded-xl shadow-xl border-slate-200 z-[100] bg-white pointer-events-auto max-h-[450px] overflow-y-auto">
+                    <DropdownMenuContent align="end" className="w-72 p-2 rounded-xl shadow-xl border-slate-200 z-[100]  pointer-events-auto max-h-[450px] overflow-y-auto">
                       <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Communication</DropdownMenuLabel>
                       {customer.email && (
                         <DropdownMenuItem onSelect={() => copyToClipboard(customer.email, 'Email')} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
@@ -464,7 +464,7 @@ export default function CustomerDetailPage() {
       <div className="max-w-[1400px] mx-auto px-6 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Left Column - Main Content */}
-          <div className="lg:col-span-8 space-y-8">
+          <div className="lg:col-span-7 space-y-8">
             {/* Enterprise Metrics Dashboard */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20 shadow-lg">
@@ -516,7 +516,7 @@ export default function CustomerDetailPage() {
             </div>
 
             {/* Content Tabs Refined - Only Overview here now */}
-            <Card className="shadow-xl border-0 bg-white overflow-hidden">
+            <Card className="shadow-xl border-0  overflow-hidden">
               <CardHeader className="bg-gradient-to-r from-primary/5 to-indigo-50 border-b border-slate-200">
                 <CardTitle className="flex items-center gap-3 text-xl">
                   <div className="p-2 bg-primary rounded-lg">
@@ -591,139 +591,114 @@ export default function CustomerDetailPage() {
           </div>
 
           {/* Sidebar Area */}
-          <div className="lg:col-span-4 space-y-8">
-            {/* Portfolio Metadata */}
-            <Card className="border-0 shadow-xl rounded-3xl bg-slate-900 text-white overflow-hidden relative">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/20 rounded-full -mr-16 -mt-16 blur-2xl"></div>
-              <CardHeader className="pb-4">
-                <CardTitle className="text-lg tracking-tight flex items-center gap-2">
-                  <Target className="h-5 w-5 text-blue-400" />
-                  Portfolio Metadata
+          <div className="lg:col-span-5 space-y-6 sticky top-24">
+            {/* Quick Actions Card */}
+            <Card className="shadow-lg border-0 bg-background/60 backdrop-blur-sm">
+              <CardHeader className="pb-3 border-b">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Zap className="h-5 w-5 text-primary" />
+                  Quick Actions
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="p-4 bg-white/5 rounded-2xl border border-white/10">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-xl bg-blue-600 flex items-center justify-center">
-                        <HistoryIcon className="h-5 w-5 text-white" />
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest leading-none mb-1">Onboarding Date</p>
-                        <p className="text-sm font-semibold">{customer.created_at ? format(new Date(customer.created_at), 'MMMM dd, yyyy') : 'N/A'}</p>
-                      </div>
-                    </div>
-                  </div>
-                  <Separator className="bg-white/5 my-4" />
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Last Interaction</p>
-                      <p className="text-xs font-medium">Recently</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Account Tier</p>
-                      <p className="text-xs font-medium text-emerald-400 capitalize">{customer.tier || 'Strategic'}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <h4 className="text-sm font-bold text-blue-400 uppercase tracking-widest">Linked Assets</h4>
-                  <div className="space-y-2">
-                    {customer.converted_from_deal_id && (
-                      <Button
-                        variant="ghost"
-                        onClick={() => navigate(`/crm/deals/${customer.converted_from_deal_id}`)}
-                        className="w-full justify-between h-12 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-semibold px-4 border border-white/5"
-                      >
-                        <span className="flex items-center gap-2">
-                          <Zap className="h-3.5 w-3.5 text-blue-400" />
-                          Originating Deal
-                        </span>
-                        <ChevronRight className="h-4 w-4 text-slate-500" />
+              <CardContent className="pt-4 grid grid-cols-2 gap-3">
+                {customer.phone && (
+                  <ClickToCall
+                    phoneNumber={customer.phone}
+                    entityType="customer"
+                    entityId={customer.id}
+                    className="w-full"
+                    customTrigger={
+                      <Button variant="outline" className="w-full justify-start gap-2 h-10 border hover:bg-muted/50">
+                        <Phone className="h-4 w-4 text-muted-foreground" />
+                        <span className="truncate">Call</span>
                       </Button>
-                    )}
-                    {customer.company_id && (
-                      <Button
-                        variant="ghost"
-                        onClick={() => navigate(`/crm/companies/${customer.company_id}`)}
-                        className="w-full justify-between h-12 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-semibold px-4 border border-white/5"
-                      >
-                        <span className="flex items-center gap-2">
-                          <Building2 className="h-3.5 w-3.5 text-indigo-400" />
-                          Parent Company
-                        </span>
-                        <ChevronRight className="h-4 w-4 text-slate-500" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
+                    }
+                  />
+                )}
+                {customer.email && (
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start gap-2 h-10 border hover:bg-muted/50"
+                    onClick={() => window.open(`mailto:${customer.email}`, '_blank')}
+                  >
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <span className="truncate">Email</span>
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2 h-10 border hover:bg-muted/50"
+                  onClick={() => handleScrollToActivity("activity", "booking")}
+                >
+                  <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                  <span className="truncate">Schedule</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2 h-10 border hover:bg-muted/50"
+                  onClick={handleExport}
+                >
+                  <Download className="h-4 w-4 text-muted-foreground" />
+                  <span className="truncate">Export</span>
+                </Button>
               </CardContent>
             </Card>
 
+
+            {/* Activity & Documents Section - Moved to Sidebar */}
+            <Card ref={activitySectionRef} className="shadow-lg border-0 overflow-hidden flex flex-col h-[650px]">
+              <CardHeader className="pb-0 border-b bg-muted/20">
+                <div className="flex items-center justify-between pb-4">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Activity className="h-5 w-5 text-primary" />
+                    Timeline & Files
+                  </CardTitle>
+                </div>
+                <Tabs value={sidebarTab} onValueChange={setSidebarTab} className="w-full">
+                  <TabsList className="grid grid-cols-2 w-full h-10 bg-muted/40 p-1">
+                    <TabsTrigger value="activity" className="text-xs font-semibold">Activity</TabsTrigger>
+                    <TabsTrigger value="files" className="text-xs font-semibold">Files</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </CardHeader>
+              <CardContent className="p-0 flex-1 overflow-hidden">
+                <Tabs value={sidebarTab} className="h-full flex flex-col">
+                  <TabsContent 
+                    value="activity" 
+                    forceMount={true}
+                    className={cn(
+                      "m-0 p-0 flex-1 overflow-y-auto",
+                      sidebarTab !== "activity" && "hidden"
+                    )}
+                  >
+                    <div className="p-4">
+                      <InteractionPanel
+                        entityType="customer"
+                        entityId={customer.id}
+                        activeTab={interactionTab}
+                        onTabChange={setInteractionTab}
+                      />
+                    </div>
+                  </TabsContent>
+                  <TabsContent 
+                    value="files" 
+                    forceMount={true}
+                    className={cn(
+                      "m-0 p-0 flex-1 overflow-y-auto",
+                      sidebarTab !== "files" && "hidden"
+                    )}
+                  >
+                    <div className="p-4">
+                      <EntityFilesSection entityType="customer" entityId={customer.id} />
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </CardContent>
+            </Card>
           </div>
         </div>
 
-        {/* Activity & Documents Section - Full width at bottom */}
-        <div className="mt-12 pb-12">
-          <Card ref={activitySectionRef} className="shadow-2xl border-0 bg-white overflow-hidden rounded-3xl scroll-mt-24 border-t-4 border-t-primary/20">
-            <CardHeader className="pb-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-8 py-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 bg-primary/10 rounded-2xl">
-                    <Activity className="h-6 w-6 text-primary" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-xl text-slate-900 font-bold">Activity, Timeline & Documents</CardTitle>
-                    <CardDescription className="text-slate-500 text-sm">Interaction history and shared resources for <strong>{customer.name}</strong></CardDescription>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">
-                    {sidebarTab === 'activity' ? 'Timeline View' : 'Files View'}
-                  </Badge>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Tabs value={sidebarTab} onValueChange={setSidebarTab} className="w-full">
-                <TabsList className="flex w-full justify-start gap-10 px-8 border-b border-slate-100 bg-slate-50/50 h-16 rounded-none">
-                  <TabsTrigger
-                    value="activity"
-                    className="relative px-4 h-full bg-transparent border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none rounded-none gap-2 text-base font-semibold transition-all hover:text-primary/70"
-                  >
-                    <Activity className="h-5 w-5" />
-                    Timeline & Interactions
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="files"
-                    className="relative px-4 h-full bg-transparent border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none rounded-none gap-2 text-base font-semibold transition-all hover:text-primary/70"
-                  >
-                    <FileText className="h-5 w-5" />
-                    Documents & Files
-                  </TabsTrigger>
-                </TabsList>
 
-                <TabsContent value="activity" className="mt-0 p-8">
-                  <div className="rounded-xl bg-white border border-slate-100 shadow-sm p-4 md:p-6 min-h-[500px]">
-                    <InteractionPanel
-                      entityType="customer"
-                      entityId={customer.id}
-                      activeTab={interactionTab}
-                      onTabChange={setInteractionTab}
-                    />
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="files" className="mt-0 p-8">
-                  <div className="rounded-xl bg-white border border-slate-100 shadow-sm p-4 md:p-6 min-h-[500px]">
-                    <EntityFilesSection entityType="customer" entityId={customer.id} />
-                  </div>
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
-        </div>
       </div>
     </div>
   );

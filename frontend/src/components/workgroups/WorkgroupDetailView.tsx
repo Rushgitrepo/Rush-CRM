@@ -65,6 +65,8 @@ import {
   ChevronDown,
   X,
   MessageCircle,
+  Shield,
+  Plus,
 } from "lucide-react";
 import {
   useWorkgroup,
@@ -205,10 +207,9 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
     }) => {
       if (!payload?.workgroup_id || payload.workgroup_id !== workgroupId)
         return;
-      if (!payload.workgroup) return;
 
-      queryClient.setQueryData(["workgroup", workgroupId], payload.workgroup);
-      // Keep workgroup list server-authoritative for privacy/member visibility.
+      // Invalidate both the specific workgroup and the list to ensure all permissions and settings are refreshed
+      queryClient.invalidateQueries({ queryKey: ["workgroup", workgroupId] });
       queryClient.invalidateQueries({ queryKey: ["workgroups"] });
     };
 
@@ -256,6 +257,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   const [newWikiPageTitle, setNewWikiPageTitle] = useState("");
   const [newWikiPageContent, setNewWikiPageContent] = useState("");
   const [showMembersList, setShowMembersList] = useState(false);
+  const [showStarredMessages, setShowStarredMessages] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showInputEmojiPicker, setShowInputEmojiPicker] = useState(false);
   const [isForwardSelectMode, setIsForwardSelectMode] = useState(false);
@@ -275,9 +277,17 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   const [isDeletingMessages, setIsDeletingMessages] = useState(false);
   const [, setLastSeenTick] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
-  const [starredMessages, setStarredMessages] = useState<Set<string>>(
-    new Set(),
-  );
+  const [starredMessages, setStarredMessages] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem(`starred_messages_${workgroupId}`);
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  });
+
+  useEffect(() => {
+    localStorage.setItem(
+      `starred_messages_${workgroupId}`,
+      JSON.stringify(Array.from(starredMessages)),
+    );
+  }, [starredMessages, workgroupId]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const membersScrollRef = useRef<HTMLDivElement>(null);
   const composerEmojiRef = useRef<HTMLDivElement>(null);
@@ -305,6 +315,10 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
         new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
     );
   }, [posts]);
+
+  const starredMessagesList = useMemo(() => {
+    return flatPosts.filter((p) => starredMessages.has(p.id));
+  }, [flatPosts, starredMessages]);
 
   // Filter posts based on search query
   const filteredPosts = useMemo(() => {
@@ -366,6 +380,33 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
     setShowScrollBottom(!isAtBottom);
   };
 
+  const handleToggleStarMessage = (postId: string) => {
+    setStarredMessages((prev) => {
+      const next = new Set(prev);
+      if (next.has(postId)) {
+        next.delete(postId);
+        toast.success("Removed from starred");
+      } else {
+        next.add(postId);
+        toast.success("Added to starred");
+      }
+      return next;
+    });
+  };
+
+  const scrollToMessage = (postId: string) => {
+    const el = document.getElementById(`msg-${postId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("ring-2", "ring-yellow-400", "ring-offset-2");
+      setTimeout(() => {
+        el.classList.remove("ring-2", "ring-yellow-400", "ring-offset-2");
+      }, 3000);
+    } else {
+      toast.error("Message not found");
+    }
+  };
+
   const scrollToBottom = () => {
     if (scrollRef.current) {
       scrollRef.current.scrollTo({
@@ -424,25 +465,101 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   const currentUserMembership = members.find((m) => m.user_id === user?.id);
   const isOwner = currentUserMembership?.role === "owner";
   const isTeamCreator = workgroup?.created_by === user?.id;
-  const workgroupSettings =
-    workgroup && typeof (workgroup as any).settings === "object"
-      ? (workgroup as any).settings
-      : {};
+  const workgroupSettings = useMemo(() => {
+    const rawSettings = (workgroup as any)?.settings;
+    if (!rawSettings) return {};
+    if (typeof rawSettings === "object") return rawSettings;
+    try {
+      return JSON.parse(rawSettings);
+    } catch (e) {
+      return {};
+    }
+  }, [workgroup]);
+
   const isDirectChat = Boolean(workgroupSettings?.is_direct_chat);
+  const isBroadcast =
+    Boolean(workgroupSettings?.is_broadcast) ||
+    workgroup?.type === "broadcast" ||
+    (workgroup as any)?.is_broadcast === true;
+
   const assignedMemberManagerId =
-    workgroupSettings?.member_manager_user_id || null;
-  const isAssignedMemberManager = assignedMemberManagerId === user?.id;
-  const canManageMembers = Boolean(
-    !isDirectChat && (isOwner || isTeamCreator || isAssignedMemberManager),
-  );
+    workgroupSettings?.member_manager_user_id ||
+    workgroupSettings?.manage_member_user_id ||
+    (workgroup as any)?.member_manager_user_id ||
+    (workgroup as any)?.manage_member_user_id ||
+    null;
+
+  const isAssignedMemberManager =
+    assignedMemberManagerId &&
+    String(assignedMemberManagerId) === String(user?.id);
+  const moderatorPermissions = workgroupSettings?.moderator_permissions || {
+    add: true,
+    delete: true,
+    send: true,
+  };
+
+  const canAddMembers = useMemo(() => {
+    if (isDirectChat) return false;
+    if (isOwner || isTeamCreator) return true;
+    if (isAssignedMemberManager) {
+      if (workgroup?.settings?.is_broadcast) return !!moderatorPermissions.add;
+      return true;
+    }
+    return false;
+  }, [
+    isDirectChat,
+    isOwner,
+    isTeamCreator,
+    isAssignedMemberManager,
+    workgroup?.settings?.is_broadcast,
+    moderatorPermissions.add,
+  ]);
+
+  const canRemoveMembers = useMemo(() => {
+    if (isDirectChat) return false;
+    if (isOwner || isTeamCreator) return true;
+    if (isAssignedMemberManager) {
+      if (workgroup?.settings?.is_broadcast)
+        return !!moderatorPermissions.delete;
+      return true;
+    }
+    return false;
+  }, [
+    isDirectChat,
+    isOwner,
+    isTeamCreator,
+    isAssignedMemberManager,
+    workgroup?.settings?.is_broadcast,
+    moderatorPermissions.delete,
+  ]);
+
+  const canManageMembers = canAddMembers || canRemoveMembers;
+
+  const canSendMessages = useMemo(() => {
+    if (workgroup?.settings?.is_broadcast !== true) return true;
+    if (isOwner || isTeamCreator) return true;
+    if (isAssignedMemberManager) return !!moderatorPermissions.send;
+    return false;
+  }, [
+    workgroup?.settings?.is_broadcast,
+    isOwner,
+    isTeamCreator,
+    isAssignedMemberManager,
+    moderatorPermissions.send,
+  ]);
   const canDeleteTeam = Boolean(isOwner || isTeamCreator);
   const canDeleteEveryoneForSelection = useMemo(() => {
     const hasElevatedRole = ["owner", "admin"].includes(
       currentUserMembership?.role || "",
     );
-    if (hasElevatedRole) return true;
+    if (hasElevatedRole || canRemoveMembers) return true;
     return selectedDeletePosts.every((post) => post.user_id === user?.id);
-  }, [currentUserMembership?.role, selectedDeletePosts, user?.id]);
+  }, [
+    currentUserMembership?.role,
+    canRemoveMembers,
+    selectedDeletePosts,
+    user?.id,
+  ]);
   const canStartConversation = members.length > 1;
   const memberUserIds = new Set(members.map((m) => m.user_id));
   const availableUsers = orgUsers.filter((u) => !memberUserIds.has(u.id));
@@ -683,20 +800,6 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
     }
   };
 
-  const handleToggleStarMessage = (messageId: string) => {
-    setStarredMessages((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(messageId)) {
-        newSet.delete(messageId);
-        toast.success("Message unstarred");
-      } else {
-        newSet.add(messageId);
-        toast.success("Message starred");
-      }
-      return newSet;
-    });
-  };
-
   const clearSearch = () => {
     setSearchQuery("");
   };
@@ -822,17 +925,6 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
     return null;
   };
 
-  const scrollToMessage = (id: string) => {
-    const element = document.getElementById(`msg-${id}`);
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth", block: "center" });
-      element.classList.add("ring-2", "ring-blue-400", "ring-offset-2");
-      setTimeout(() => {
-        element.classList.remove("ring-2", "ring-blue-400", "ring-offset-2");
-      }, 2000);
-    }
-  };
-
   const handleStartMeeting = () => {
     const otherMember = members.find((m) => m.user_id !== user?.id);
     if (!otherMember) {
@@ -848,6 +940,8 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
       otherMember.full_name || otherMember.email || "Unknown",
       otherMember.avatar_url || null,
       "video",
+      false,
+      isAssignedMemberManager,
     );
   };
 
@@ -866,6 +960,8 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
       otherMember.full_name || otherMember.email || "Unknown",
       otherMember.avatar_url || null,
       "audio",
+      false,
+      isAssignedMemberManager,
     );
   };
 
@@ -1013,6 +1109,29 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
       },
     );
   };
+
+  const sortedMembers = useMemo(() => {
+    if (!members || !Array.isArray(members)) return [];
+
+    return [...members].sort((a, b) => {
+      // 1. Owners first
+      if (a.role === "owner" && b.role !== "owner") return -1;
+      if (b.role === "owner" && a.role !== "owner") return 1;
+
+      // 2. Current User (You) next
+      const isMeA = a.user_id === user?.id;
+      const isMeB = b.user_id === user?.id;
+      if (isMeA && !isMeB) return -1;
+      if (!isMeA && isMeB) return 1;
+
+      // 3. Admins next
+      if (a.role === "admin" && b.role !== "admin") return -1;
+      if (b.role === "admin" && a.role !== "admin") return 1;
+
+      // 4. Default alphabetical
+      return (a.full_name || "").localeCompare(b.full_name || "");
+    });
+  }, [members, user?.id]);
 
   if (!workgroup) {
     return (
@@ -1229,7 +1348,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                 ? "Chat participants"
                 : `Members (${members.length})`}
             </h3>
-            {canManageMembers && (
+            {canAddMembers && (
               <Button
                 size="sm"
                 variant="ghost"
@@ -1243,7 +1362,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
           </div>
 
           {/* Add Member Quick Button */}
-          {canManageMembers && (
+          {canAddMembers && (
             <div className="mb-3">
               <Button
                 size="sm"
@@ -1261,7 +1380,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
             ref={membersScrollRef}
             className="space-y-2 flex-1 overflow-y-auto pr-1"
           >
-            {members.map((member) => (
+            {sortedMembers.map((member) => (
               <div
                 key={member.id}
                 className="group flex items-start gap-2 p-2.5 rounded-xl border border-border bg-background/60 hover:border-primary/30 hover:bg-primary/5 transition-colors"
@@ -1273,9 +1392,19 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                    {member.full_name || member.email || "Unknown"}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                      {member.full_name || member.email || "Unknown"}
+                    </p>
+                    {isBroadcast &&
+                      assignedMemberManagerId &&
+                      String(member.user_id || (member as any).id) ===
+                        String(assignedMemberManagerId) && (
+                        <Badge className="bg-indigo-600 text-white font-bold px-2 py-0.5 ml-1 text-[10px]">
+                          Moderator
+                        </Badge>
+                      )}
+                  </div>
                   <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
                     {member.role === "owner" && (
                       <Crown className="h-3 w-3 text-yellow-500" />
@@ -1367,7 +1496,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                           Leave Team
                         </DropdownMenuItem>
                       ) : (
-                        canManageMembers && (
+                        canRemoveMembers && (
                           <DropdownMenuItem
                             className="text-red-600 dark:text-red-400"
                             onClick={() =>
@@ -1437,15 +1566,12 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                 variant="ghost"
                 size="icon"
                 onClick={() => {
-                  const starredCount = starredMessages.size;
-                  if (starredCount === 0) {
+                  if (starredMessages.size === 0) {
                     toast.info(
                       "No starred messages yet. Star messages by clicking the star icon on any message.",
                     );
                   } else {
-                    toast.info(
-                      `You have ${starredCount} starred message${starredCount !== 1 ? "s" : ""}`,
-                    );
+                    setShowStarredMessages(true);
                   }
                 }}
                 className={starredMessages.size > 0 ? "text-yellow-500" : ""}
@@ -1541,7 +1667,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                               ? "This direct chat is not ready yet."
                               : "Conversation will start after you add at least one team member."}
                         </p>
-                        {canManageMembers && (
+                        {canAddMembers && (
                           <div className="mb-3 pt-20">
                             <Button
                               size="sm"
@@ -1631,8 +1757,9 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                                   post={post}
                                   allPosts={flatPosts}
                                   workgroupId={workgroupId}
-                                  isGroupAdmin={canManageMembers}
+                                  isGroupAdmin={canRemoveMembers}
                                   isMember={isMember}
+                                  canSendMessages={canSendMessages}
                                   currentUserId={user?.id}
                                   memberDirectory={members}
                                   postAuthorRole={
@@ -1726,160 +1853,177 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                   {isMember && canStartConversation && (
                     <div className="flex-shrink-0 border-t border-border p-3 bg-card">
                       <div className="max-w-5xl mx-auto w-full flex flex-col gap-2">
-                        {/* File uploading indicator */}
-                        {isSendingFile && (
-                          <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 rounded-lg border border-primary/20 animate-in slide-in-from-bottom-2 duration-200">
-                            <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin shrink-0" />
-                            <span className="text-xs font-medium text-primary">
-                              Uploading file...
-                            </span>
+                        {!canSendMessages ? (
+                          <div className="flex items-center justify-center p-3 bg-muted/30 rounded-xl border border-dashed border-border">
+                            <p className="text-sm text-muted-foreground flex items-center gap-2">
+                              <Shield className="h-4 w-4 text-indigo-500" />
+                              Only{" "}
+                              <span className="font-bold text-red-500">
+                                admins
+                              </span>{" "}
+                              can send messages to this broadcast channel.
+                            </p>
                           </div>
-                        )}
-                        {/* Reply Preview (WhatsApp style) */}
-                        {replyTo && (
-                          <div className="flex animate-in slide-in-from-bottom-2 duration-200">
-                            <div className="flex-1 flex gap-3 p-2 bg-muted/50 rounded-lg border-l-4 border-primary shadow-sm">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-[11px] font-bold text-primary uppercase tracking-tight">
-                                  Replying to{" "}
-                                  {findMessageById(replyTo)?.author_name}
-                                </p>
-                                <p className="text-xs text-gray-500 dark:text-gray-300 truncate mt-0.5">
-                                  {findMessageById(replyTo)?.content}
-                                </p>
-                              </div>
-                              <button
-                                onClick={() => setReplyTo(null)}
-                                className="h-6 w-6 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
-                              >
-                                <span className="text-gray-400 text-sm">✕</span>
-                              </button>
-                            </div>
-                          </div>
-                        )}
-
-                        <div className="flex items-center gap-2">
-                          <input
-                            ref={attachmentInputRef}
-                            type="file"
-                            className="hidden"
-                            onChange={handleAttachFromComposer}
-                          />
-                          <div
-                            ref={composerEmojiRef}
-                            className="flex-1 relative"
-                          >
-                            <Input
-                              ref={messageInputRef}
-                              value={newPost}
-                              onChange={(e) =>
-                                handleComposerChange(
-                                  e.target.value,
-                                  e.target.selectionStart ??
-                                    e.target.value.length,
-                                )
-                              }
-                              placeholder={
-                                replyTo
-                                  ? "Type a reply..."
-                                  : "Type a message..."
-                              }
-                              className="w-full pl-4 pr-32 bg-muted border-none rounded-full h-11 focus-visible:ring-1 focus-visible:ring-primary shadow-inner"
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" && !e.shiftKey) {
-                                  e.preventDefault();
-                                  handlePost();
-                                }
-                              }}
-                            />
-                            {showMentionSuggestions &&
-                              filteredMentionMembers.length > 0 && (
-                                <div className="absolute bottom-12 left-0 z-30 w-[60%] max-w-[92vw] rounded-xl border border-border bg-card shadow-lg max-h-56 overflow-y-auto">
-                                  {filteredMentionMembers.map((member) => (
-                                    <button
-                                      key={member.user_id}
-                                      type="button"
-                                      onClick={() => insertMention(member)}
-                                      className="w-full px-3 py-2 text-left hover:bg-muted/50 flex items-center gap-2"
-                                    >
-                                      <Checkbox
-                                        checked={selectedMentions.some(
-                                          (m) => m.id === member.user_id,
-                                        )}
-                                        className="pointer-events-none"
-                                      />
-                                      <Avatar className="h-7 w-7">
-                                        <AvatarFallback className="text-[10px]">
-                                          {(
-                                            member.full_name ||
-                                            member.email ||
-                                            "?"
-                                          )
-                                            .slice(0, 2)
-                                            .toUpperCase()}
-                                        </AvatarFallback>
-                                      </Avatar>
-                                      <div className="min-w-0">
-                                        <p className="text-sm font-medium truncate">
-                                          {member.full_name || member.email}
-                                        </p>
-                                      </div>
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-                            <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-gray-400 hover:text-blue-500 hover:bg-transparent"
-                                onClick={() =>
-                                  setShowInputEmojiPicker((prev) => !prev)
-                                }
-                              >
-                                <Smile className="h-5 w-5" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-gray-400 hover:text-blue-500 hover:bg-transparent"
-                                disabled={isSendingFile}
-                                onClick={() =>
-                                  attachmentInputRef.current?.click()
-                                }
-                              >
-                                {isSendingFile ? (
-                                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                                ) : (
-                                  <Paperclip className="h-5 w-5" />
-                                )}
-                              </Button>
-                              <button
-                                onClick={handlePost}
-                                disabled={
-                                  !newPost.trim() || createPost.isPending
-                                }
-                                className={`h-8 w-8 flex items-center justify-center rounded-full transition-all ${
-                                  newPost.trim()
-                                    ? "bg-blue-600 text-white shadow-md hover:scale-105 active:scale-95"
-                                    : "bg-muted text-muted-foreground pointer-events-none"
-                                }`}
-                              >
-                                <Send className="h-4 w-4" />
-                              </button>
-                            </div>
-                            {showInputEmojiPicker && (
-                              <div className="absolute bottom-12 right-2 z-20 shadow-xl rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
-                                <EmojiPicker
-                                  onEmojiClick={handleComposerEmojiSelect}
-                                  width={280}
-                                  height={360}
-                                  theme={Theme.AUTO}
-                                />
+                        ) : (
+                          <>
+                            {/* File uploading indicator */}
+                            {isSendingFile && (
+                              <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 rounded-lg border border-primary/20 animate-in slide-in-from-bottom-2 duration-200">
+                                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin shrink-0" />
+                                <span className="text-xs font-medium text-primary">
+                                  Uploading file...
+                                </span>
                               </div>
                             )}
-                          </div>
-                        </div>
+                            {/* Reply Preview (WhatsApp style) */}
+                            {replyTo && (
+                              <div className="flex animate-in slide-in-from-bottom-2 duration-200">
+                                <div className="flex-1 flex gap-3 p-2 bg-muted/50 rounded-lg border-l-4 border-primary shadow-sm">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-[11px] font-bold text-primary uppercase tracking-tight">
+                                      Replying to{" "}
+                                      {findMessageById(replyTo)?.author_name}
+                                    </p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-300 truncate mt-0.5">
+                                      {findMessageById(replyTo)?.content}
+                                    </p>
+                                  </div>
+                                  <button
+                                    onClick={() => setReplyTo(null)}
+                                    className="h-6 w-6 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
+                                  >
+                                    <span className="text-gray-400 text-sm">
+                                      ✕
+                                    </span>
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="flex items-center gap-2">
+                              <input
+                                ref={attachmentInputRef}
+                                type="file"
+                                className="hidden"
+                                onChange={handleAttachFromComposer}
+                              />
+                              <div
+                                ref={composerEmojiRef}
+                                className="flex-1 relative"
+                              >
+                                <Input
+                                  ref={messageInputRef}
+                                  value={newPost}
+                                  onChange={(e) =>
+                                    handleComposerChange(
+                                      e.target.value,
+                                      e.target.selectionStart ??
+                                        e.target.value.length,
+                                    )
+                                  }
+                                  placeholder={
+                                    replyTo
+                                      ? "Type a reply..."
+                                      : "Type a message..."
+                                  }
+                                  className="w-full pl-4 pr-32 bg-muted border-none rounded-full h-11 focus-visible:ring-1 focus-visible:ring-primary shadow-inner"
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter" && !e.shiftKey) {
+                                      e.preventDefault();
+                                      handlePost();
+                                    }
+                                  }}
+                                />
+                                {showMentionSuggestions &&
+                                  filteredMentionMembers.length > 0 && (
+                                    <div className="absolute bottom-12 left-0 z-30 w-[60%] max-w-[92vw] rounded-xl border border-border bg-card shadow-lg max-h-56 overflow-y-auto">
+                                      {filteredMentionMembers.map((member) => (
+                                        <button
+                                          key={member.user_id}
+                                          type="button"
+                                          onClick={() => insertMention(member)}
+                                          className="w-full px-3 py-2 text-left hover:bg-muted/50 flex items-center gap-2"
+                                        >
+                                          <Checkbox
+                                            checked={selectedMentions.some(
+                                              (m) => m.id === member.user_id,
+                                            )}
+                                            className="pointer-events-none"
+                                          />
+                                          <Avatar className="h-7 w-7">
+                                            <AvatarFallback className="text-[10px]">
+                                              {(
+                                                member.full_name ||
+                                                member.email ||
+                                                "?"
+                                              )
+                                                .slice(0, 2)
+                                                .toUpperCase()}
+                                            </AvatarFallback>
+                                          </Avatar>
+                                          <div className="min-w-0">
+                                            <p className="text-sm font-medium truncate">
+                                              {member.full_name || member.email}
+                                            </p>
+                                          </div>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+                                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-gray-400 hover:text-blue-500 hover:bg-transparent"
+                                    onClick={() =>
+                                      setShowInputEmojiPicker((prev) => !prev)
+                                    }
+                                  >
+                                    <Smile className="h-5 w-5" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-gray-400 hover:text-blue-500 hover:bg-transparent"
+                                    disabled={isSendingFile}
+                                    onClick={() =>
+                                      attachmentInputRef.current?.click()
+                                    }
+                                  >
+                                    {isSendingFile ? (
+                                      <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                                    ) : (
+                                      <Paperclip className="h-5 w-5" />
+                                    )}
+                                  </Button>
+                                  <button
+                                    onClick={handlePost}
+                                    disabled={
+                                      !newPost.trim() || createPost.isPending
+                                    }
+                                    className={`h-8 w-8 flex items-center justify-center rounded-full transition-all ${
+                                      newPost.trim()
+                                        ? "bg-blue-600 text-white shadow-md hover:scale-105 active:scale-95"
+                                        : "bg-muted text-muted-foreground pointer-events-none"
+                                    }`}
+                                  >
+                                    <Send className="h-4 w-4" />
+                                  </button>
+                                </div>
+                                {showInputEmojiPicker && (
+                                  <div className="absolute bottom-12 right-2 z-20 shadow-xl rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
+                                    <EmojiPicker
+                                      onEmojiClick={handleComposerEmojiSelect}
+                                      width={280}
+                                      height={360}
+                                      theme={Theme.AUTO}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
                   )}
@@ -2548,7 +2692,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                 <p className="text-gray-500">Loading members...</p>
               </div>
             ) : (
-              members.map((member) => (
+              sortedMembers.map((member) => (
                 <div
                   key={member.id}
                   className="group flex items-start gap-3 p-3 rounded-xl border border-border bg-card/70 hover:border-primary/30 hover:bg-primary/5 transition-colors"
@@ -2560,9 +2704,19 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 dark:text-white truncate">
-                      {member.full_name || member.email || "Unknown User"}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-gray-900 dark:text-white truncate">
+                        {member.full_name || member.email || "Unknown User"}
+                      </p>
+                      {isBroadcast &&
+                        assignedMemberManagerId &&
+                        String(member.user_id || (member as any).id) ===
+                          String(assignedMemberManagerId) && (
+                          <Badge className="bg-indigo-600 text-white font-bold px-2 py-0.5 ml-1 text-[10px]">
+                            Moderator
+                          </Badge>
+                        )}
+                    </div>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
                       {member.email}
                     </p>
@@ -2668,7 +2822,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
             )}
           </div>
           <DialogFooter>
-            {canManageMembers && (
+            {canAddMembers && (
               <Button
                 onClick={() => {
                   setShowMembersList(false);
@@ -2754,6 +2908,86 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
             <Button
               variant="outline"
               onClick={() => setShowNotifications(false)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Starred Messages Dialog */}
+      <Dialog open={showStarredMessages} onOpenChange={setShowStarredMessages}>
+        <DialogContent className="sm:max-w-[500px] max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Star className="h-5 w-5 text-yellow-500 fill-current" />
+              Starred Messages
+            </DialogTitle>
+            <DialogDescription>
+              Your saved and important messages.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto space-y-3 py-4">
+            {starredMessagesList.length === 0 ? (
+              <div className="text-center py-12">
+                <Star className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p className="text-gray-500">No starred messages</p>
+              </div>
+            ) : (
+              starredMessagesList.map((msg) => (
+                <div
+                  key={`starred-${msg.id}`}
+                  className="p-3 rounded-lg border border-border bg-card/50 hover:bg-card transition-colors group"
+                >
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-6 w-6">
+                        <AvatarImage src={getAvatarUrl(msg.author_avatar)} />
+                        <AvatarFallback className="text-[8px]">
+                          {(msg.author_name || "?").slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="text-xs font-bold text-gray-900 dark:text-white">
+                          {msg.author_name}
+                        </p>
+                        <p className="text-[10px] text-gray-500">
+                          {new Date(msg.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-yellow-500 hover:text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => handleToggleStarMessage(msg.id)}
+                    >
+                      <Star className="h-4 w-4 fill-current" />
+                    </Button>
+                  </div>
+                  <div className="text-sm text-gray-700 dark:text-gray-300 line-clamp-3">
+                    {msg.content}
+                  </div>
+                  <div className="mt-3 flex justify-end">
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 text-[11px] text-primary"
+                      onClick={() => {
+                        setShowStarredMessages(false);
+                        scrollToMessage(msg.id);
+                      }}
+                    >
+                      Jump to message
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowStarredMessages(false)}
             >
               Close
             </Button>
@@ -2847,6 +3081,7 @@ interface PostCardProps {
   isStarred?: boolean;
   onToggleStar?: (postId: string) => void;
   searchQuery?: string;
+  canSendMessages?: boolean;
 }
 
 function PostCard({
@@ -2875,6 +3110,7 @@ function PostCard({
   isStarred = false,
   onToggleStar,
   searchQuery = "",
+  canSendMessages = true,
 }: PostCardProps) {
   const navigate = useNavigate();
   if ((post.content || "").startsWith("[SYSTEM] ")) {
@@ -2909,6 +3145,16 @@ function PostCard({
     (sum, [, users]) => sum + users.length,
     0,
   );
+
+  const sortedReactionEntries = useMemo(() => {
+    return [...reactionEntries].sort((a, b) => {
+      const aHasMe = a[1].includes(currentUserId || "");
+      const bHasMe = b[1].includes(currentUserId || "");
+      if (aHasMe && !bHasMe) return -1;
+      if (!aHasMe && bHasMe) return 1;
+      return 0;
+    });
+  }, [reactionEntries, currentUserId]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -3200,7 +3446,7 @@ function PostCard({
                     align={isAuthor ? "end" : "start"}
                     className="w-48"
                   >
-                    {isMember && (
+                    {isMember && canSendMessages && (
                       <DropdownMenuItem onClick={() => onSetReplyTo(post.id)}>
                         <Reply className="h-4 w-4 mr-2" /> Reply
                       </DropdownMenuItem>
@@ -3459,31 +3705,28 @@ function PostCard({
         <div
           className={`flex flex-wrap gap-1 mt-0.5 mb-1 ${isAuthor ? "justify-end mr-9" : "justify-start ml-9"}`}
         >
-          <button
-            onClick={() => setShowReactionsDialog(true)}
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-muted border border-border text-muted-foreground hover:bg-muted/80 transition-colors"
-            title="Open reactions"
-          >
-            <Smile className="h-3 w-3" />
-            <span>{totalReactionCount}</span>
-          </button>
-          {reactionEntries.map(([emoji, users]) => {
-            const isActive = users.includes(currentUserId || "");
+          {(() => {
+            // Pick the last emoji type added to the object as a proxy for "latest"
+            const lastEmoji = reactionEntries[reactionEntries.length - 1][0];
+            const isMyReaction = reactionEntries.some(([, users]) =>
+              users.includes(currentUserId || ""),
+            );
+
             return (
               <button
-                key={emoji}
                 onClick={() => setShowReactionsDialog(true)}
-                className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] font-medium shadow-sm transition-all ${
-                  isActive
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium shadow-sm transition-all ${
+                  isMyReaction
                     ? "bg-blue-100 border border-blue-300 text-blue-700"
                     : "bg-card border border-border text-foreground hover:bg-muted/50"
                 }`}
+                title="View reactions"
               >
-                <span>{emoji}</span>
-                <span>{users.length}</span>
+                <span className="text-sm">{lastEmoji}</span>
+                <span className="font-bold">{totalReactionCount}</span>
               </button>
             );
-          })}
+          })()}
         </div>
       )}
 
@@ -3529,19 +3772,33 @@ function PostCard({
             </div>
 
             <div className="mt-2 max-h-44 space-y-2 overflow-y-auto border-t border-gray-100 pt-2 dark:border-gray-700">
-              {reactionEntries.map(([emoji, users]) => (
-                <div
-                  key={`names-${post.id}-${emoji}`}
-                  className="rounded-md bg-muted/50 px-2 py-1.5"
-                >
-                  <p className="mb-1 text-xs font-semibold text-gray-700 dark:text-gray-200">
-                    {emoji} {users.length}
-                  </p>
-                  <p className="text-[11px] text-gray-600 dark:text-gray-300 leading-relaxed">
-                    {users.map((uid) => resolveUserName(uid)).join(", ")}
-                  </p>
-                </div>
-              ))}
+              {sortedReactionEntries.map(([emoji, users]) => {
+                const isMyReaction = users.includes(currentUserId || "");
+                return (
+                  <div
+                    key={`names-${post.id}-${emoji}`}
+                    className={`rounded-md px-2 py-1.5 ${isMyReaction ? "bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30" : "bg-muted/50"}`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+                        {emoji} {users.length}
+                      </p>
+                      {isMyReaction && (
+                        <button
+                          onClick={() => handleEmojiClick(emoji)}
+                          className="p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                          title="Remove your reaction"
+                        >
+                          <Trash2 className="h-3 w-3 text-red-500" />
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-gray-600 dark:text-gray-300 leading-relaxed">
+                      {users.map((uid) => resolveUserName(uid)).join(", ")}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
 
             <div className="mt-3 border-t border-gray-100 pt-2 dark:border-gray-700">
@@ -3558,6 +3815,16 @@ function PostCard({
                     {emoji}
                   </button>
                 ))}
+                <button
+                  onClick={() => {
+                    setShowReactionsDialog(false);
+                    setShowEmojiPicker(true);
+                  }}
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-dashed border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                  title="More emojis"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
               </div>
             </div>
           </div>
