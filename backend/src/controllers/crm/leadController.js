@@ -1002,6 +1002,23 @@ const deleteStage = async (req, res, next) => {
   }
 };
 
+const updateStage_custom = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { stageName } = req.body;
+    if (!stageName) return res.status(400).json({ error: 'Stage name is required' });
+    const stageKey = stageName.toLowerCase().replace(/\s+/g, '_');
+    const { rows } = await db.query(
+      `UPDATE pipeline_stages SET stage_label = $1, stage_key = $2 WHERE id = $3 AND org_id = $4 RETURNING *`,
+      [stageName, stageKey, id, req.user.orgId]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Stage not found' });
+    res.json({ id: rows[0].id, stage_key: rows[0].stage_key, stage_label: rows[0].stage_label, sort_order: rows[0].sort_order, color: rows[0].color });
+  } catch (err) {
+    next(err);
+  }
+};
+
 const importLeads = async (req, res) => {
   try {
     const { leads: rows } = req.body;
@@ -1077,6 +1094,7 @@ module.exports = {
   getStats,
   getStages,
   createStage,
+  updateStage_custom,
   deleteStage,
   convertToDeal,
   importLeads,
