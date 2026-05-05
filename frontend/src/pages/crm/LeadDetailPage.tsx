@@ -378,6 +378,7 @@ export default function LeadDetailPage() {
         email_type: lead.email_type,
         website_type: lead.website_type,
         responsible_person: lead.responsible_person,
+        createdAt: lead.created_at ? format(new Date(lead.created_at), "yyyy-MM-dd'T'HH:mm") : "",
       });
 
       if (lead.custom_fields && typeof lead.custom_fields === 'object') {
@@ -460,7 +461,7 @@ export default function LeadDetailPage() {
   };
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary/5 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center  p-8 rounded-2xl shadow-xl border ">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
           <h3 className="text-lg font-semibold text-foreground mb-2">Loading Lead Details</h3>
@@ -572,7 +573,7 @@ export default function LeadDetailPage() {
                     {lead.created_at && (
                       <div className="flex items-center gap-1  whitespace-nowrap">
                         <CalendarIcon className="h-4 w-4" />
-                        <span>Created {format(new Date(lead.created_at), 'MMM d, yyyy')}</span>
+                        <span>Created {format(new Date(form.createdAt as string || lead.created_at), 'MMM d, yyyy')}</span>
                       </div>
                     )}
                   </div>
@@ -1011,6 +1012,16 @@ export default function LeadDetailPage() {
                     </div>
 
                     <Field
+                      label="Created Date"
+                      value={editing ? (form.createdAt as string) : (form.createdAt ? format(new Date(form.createdAt as string), 'MMM d, yyyy HH:mm') : 'Not specified')}
+                      onChange={(v) => set("createdAt", v)}
+                      editing={editing}
+                      type="datetime-local"
+                      icon={<CalendarIcon className="h-4 w-4" />}
+                      entityId={id}
+                    />
+
+                    <Field
                       label="Lead name"
                       value={form.title as string}
                       onChange={(v) => set("title", v)}
@@ -1324,12 +1335,15 @@ export default function LeadDetailPage() {
                 </CardHeader>
                 <CardContent className="p-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-foreground">Created on</Label>
-                      <div className="h-10 px-3 py-2 border border-dashed border-border rounded-lg bg-muted/40 flex items-center text-muted-foreground">
-                        {lead.created_at ? format(new Date(lead.created_at), "MMM d, yyyy") : "Will be set automatically"}
-                      </div>
-                    </div>
+                    <Field
+                      label="Created on"
+                      value={editing ? (form.createdAt as string) : (lead.created_at ? format(new Date(lead.created_at), "MMM d, yyyy") : "Not specified")}
+                      onChange={(v) => set("createdAt", v)}
+                      editing={editing}
+                      type="datetime-local"
+                      icon={<CalendarIcon className="h-4 w-4" />}
+                      entityId={id}
+                    />
 
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-foreground">Source</Label>
@@ -1367,6 +1381,7 @@ export default function LeadDetailPage() {
               <CustomFieldsSection
                 fields={customFields}
                 onChange={setCustomFields}
+                editing={editing}
                 className={!editing ? "opacity-90 pointer-events-none" : "animate-in fade-in slide-in-from-bottom-2 duration-300"}
               />
 

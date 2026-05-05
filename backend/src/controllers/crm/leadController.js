@@ -159,6 +159,7 @@ const normalizeLeadInput = (body = {}) => {
     responsiblePerson: getVal('responsiblePerson', 'responsible_person'),
     pipeline: getVal('pipeline', 'pipeline'),
     externalSourceId: getVal('externalSourceId', 'external_source_id'),
+    createdAt: getVal('createdAt', 'created_at'),
     customFields: getVal('customFields', 'custom_fields'),
   };
 };
@@ -204,6 +205,7 @@ const updateLeadSchema = Joi.object({
   responsiblePerson: Joi.string().optional().allow(null, ''),
   pipeline: Joi.string().optional().allow(null, ''),
   externalSourceId: Joi.string().optional().allow(null, ''),
+  createdAt: Joi.alternatives().try(Joi.date(), Joi.string().isoDate()).optional().allow(null, ''),
   customFields: Joi.object().optional().allow(null),
 }).min(1);
 
@@ -586,6 +588,7 @@ const update = async (req, res, next) => {
       responsiblePerson: 'responsible_person',
       pipeline: 'pipeline',
       externalSourceId: 'external_source_id',
+      createdAt: 'created_at',
       customFields: 'custom_fields'
     };
 

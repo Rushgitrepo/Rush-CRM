@@ -387,15 +387,17 @@ export default function DealDetailPage() {
 
   useEffect(() => {
     if (deal) {
-      setForm({ ...deal });
       if (deal.custom_fields && typeof deal.custom_fields === 'object') {
         const fields = Object.entries(deal.custom_fields).map(([k, v]) => ({ key: k, value: String(v) }));
         setCustomFields(fields);
       } else {
         setCustomFields([]);
       }
+      setForm({
+        ...deal,
+        createdAt: deal.created_at ? format(new Date(deal.created_at), "yyyy-MM-dd'T'HH:mm") : "",
+      });
     }
-
   }, [deal]);
 
   if (isLoading) {
@@ -627,7 +629,7 @@ export default function DealDetailPage() {
                     {deal.created_at && (
                       <div className="flex items-center gap-1 text-white whitespace-nowrap">
                         <CalendarIcon className="h-4 w-4" />
-                        <span>Created {format(new Date(deal.created_at), 'MMM d, yyyy')}</span>
+                        <span>Created {format(new Date(form.createdAt as string || deal.created_at), 'MMM d, yyyy')}</span>
                       </div>
                     )}
                   </div>
@@ -1028,6 +1030,15 @@ export default function DealDetailPage() {
                   icon={<Target className="h-4 w-4" />}
                   type="number"
                 />
+                <Field
+                  label="Created Date"
+                  value={editing ? (form.createdAt as string) : (form.createdAt ? format(new Date(form.createdAt as string), 'MMM d, yyyy HH:mm') : 'Not specified')}
+                  onChange={(v) => set("createdAt", v)}
+                  editing={editing}
+                  type="datetime-local"
+                  icon={<CalendarIcon className="h-4 w-4" />}
+                  entityId={id}
+                />
                 <div className="md:col-span-2">
                   <Field
                     label="Description"
@@ -1365,6 +1376,7 @@ export default function DealDetailPage() {
             <CustomFieldsSection
               fields={customFields}
               onChange={setCustomFields}
+              editing={editing}
               className={!editing ? "opacity-90 pointer-events-none" : "animate-in fade-in slide-in-from-bottom-2 duration-300"}
             />
 
