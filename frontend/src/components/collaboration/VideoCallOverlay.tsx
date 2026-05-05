@@ -65,11 +65,11 @@ function RemotePeerVideo({
 
   const initials = peer.name
     ? peer.name
-        .split(" ")
-        .map((w: string) => w[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
+      .split(" ")
+      .map((w: string) => w[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2)
     : "??";
 
   return (
@@ -517,6 +517,8 @@ export default function VideoCallOverlay() {
 
   if (callState === "idle") return null;
 
+  console.log('[VideoCallOverlay] rendering, callState:', callState);
+
   const peerList = Object.values(peers);
   const firstPeer = peerList[0];
 
@@ -784,9 +786,9 @@ export default function VideoCallOverlay() {
               </div>
 
               {/* PiP Floating Video */}
-              <div 
+              <div
                 className="absolute w-32 md:w-48 aspect-[3/4] bg-zinc-900 rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl z-50 cursor-move touch-none"
-                style={{ 
+                style={{
                   transform: `translate3d(${pipPosition.x}px, ${pipPosition.y}px, 0)`,
                   right: '24px',
                   bottom: '24px'
@@ -816,7 +818,7 @@ export default function VideoCallOverlay() {
                   </div>
                 ) : (
                   <div className="w-full h-full relative pointer-events-none">
-                     <RemotePeerVideo peer={peerList[0]} fullScreen />
+                    <RemotePeerVideo peer={peerList[0]} fullScreen />
                   </div>
                 )}
               </div>
@@ -908,10 +910,10 @@ export default function VideoCallOverlay() {
             className={cn(
               "flex items-center justify-between max-w-5xl mx-auto",
               !isGroupCall &&
-                "absolute bottom-12 left-1/2 -translate-x-1/2 flex items-center gap-3 px-4 py-3 bg-white/5 backdrop-blur-3xl rounded-[32px] border border-white/10 z-30 transition-all",
+              "absolute bottom-12 left-1/2 -translate-x-1/2 flex items-center gap-3 px-4 py-3 bg-white/5 backdrop-blur-3xl rounded-[32px] border border-white/10 z-30 transition-all",
               !isGroupCall &&
-                !showControls &&
-                "opacity-0 translate-y-10 scale-90 pointer-events-none",
+              !showControls &&
+              "opacity-0 translate-y-10 scale-90 pointer-events-none",
             )}
           >
             {/* Left Info (Zoom style - Meeting ID/Time) */}

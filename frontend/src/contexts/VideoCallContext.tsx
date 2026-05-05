@@ -9,6 +9,7 @@ import React, {
 import { useAuth } from "@/contexts/AuthContext";
 import { getSocket } from "@/hooks/useRealtime";
 import { toast } from "sonner";
+import { getAvatarUrl } from "@/lib/utils";
 
 // ─── Types ───────────────────────────────────────────────
 export type CallState =
@@ -55,6 +56,8 @@ interface VideoCallState {
   isGroupCall: boolean;
   workgroupId: string | null;
   isOutgoing: boolean;
+  groupName: string | null;
+  groupAvatar: string | null;
 }
 
 interface VideoCallContextType extends VideoCallState {
@@ -116,6 +119,8 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
     isGroupCall: false,
     workgroupId: null,
     isOutgoing: false,
+    groupName: null,
+    groupAvatar: null,
   });
 
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -132,10 +137,12 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
   );
   const loggedCallsRef = useRef<Set<string>>(new Set());
   const callStateRef = useRef(state.callState);
+  const stateRef = useRef(state);
 
   useEffect(() => {
     callStateRef.current = state.callState;
-  }, [state.callState]);
+    stateRef.current = state;
+  }, [state]);
 
   useEffect(() => {
     ringtoneRef.current = new Audio("/dial_tone.mp3");
@@ -222,6 +229,8 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
       isGroupCall: false,
       workgroupId: null,
       isOutgoing: false,
+      groupName: null,
+      groupAvatar: null,
     });
   }, [stopRingtone, stopCallTimer, cleanupMedia]);
 
@@ -622,6 +631,7 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
         targetUserId: peerIds.length === 1 ? peerIds[0] : undefined,
         workgroupId: state.workgroupId,
         isGroupCall: state.isGroupCall,
+        isOriginalCaller: state.isOutgoing,
         reason: "hangup",
       });
 
@@ -703,19 +713,31 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
     [state.callId, state.callType, profile],
   );
 
-  useEffect(() => {
-    const socket = getSocket();
-    if (!socket) return;
+  // ─── Stable incoming call listener ──────────────────────────────
+  // Kept in its own effect with NO state.callId dependency so it is
+  // never torn down / re-attached during an active call.  Using refs
+  // for everything that changes over time keeps the handler fresh.
+  const playRingtoneRef = useRef(playRingtone);
+  const stopRingtoneRef = useRef(stopRingtone);
+  const resetCallStateRef = useRef(resetCallState);
+  useEffect(() => { playRingtoneRef.current = playRingtone; }, [playRingtone]);
+  useEffect(() => { stopRingtoneRef.current = stopRingtone; }, [stopRingtone]);
+  useEffect(() => { resetCallStateRef.current = resetCallState; }, [resetCallState]);
 
+  useEffect(() => {
+    // Use a stable handler reference so socket.off works correctly
     const handleIncoming = (p: any) => {
+      console.log('[VideoCall] call:incoming received', p, 'callState:', callStateRef.current);
       if (callStateRef.current !== "idle") {
-        socket.emit("call:reject", {
+        console.log('[VideoCall] Rejecting - not idle, state:', callStateRef.current);
+        getSocket()?.emit("call:reject", {
           callId: p.callId,
           callerId: p.callerId,
           reason: "busy",
         });
         return;
       }
+      console.log('[VideoCall] Setting state to incoming');
       setState((prev) => ({
         ...prev,
         callState: "incoming",
@@ -725,6 +747,8 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
         workgroupId: p.workgroupId || null,
         isOutgoing: false,
         isGroupCall: !!p.isGroupCall,
+        groupName: p.groupName || null,
+        groupAvatar: p.groupAvatar || null,
         peers: {
           [p.callerId]: {
             userId: p.callerId,
@@ -738,8 +762,132 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
           },
         },
       }));
-      playRingtone("incoming");
+      playRingtoneRef.current("incoming");
     };
+
+    // ─── Stable call:end handler ─────────────────────────────────
+    const handleEnd = (p: any) => {
+      const s = stateRef.current;
+      if (p.callId !== s.callId) return;
+
+      // If the original caller drops → end for everyone
+      // If a non-caller member leaves in a group call → just remove them
+      const shouldEndForAll = !s.isGroupCall || p.isOriginalCaller || s.callState === "incoming";
+
+      if (shouldEndForAll) {
+        // Show missed call toast if we were ringing and never answered
+        if (s.callState === "incoming") {
+          const caller = Object.values(s.peers)[0];
+          const displayName = s.isGroupCall && s.groupName ? s.groupName : (caller?.name || "Someone");
+          const rawAvatar = s.isGroupCall && s.groupAvatar ? s.groupAvatar : (caller?.avatar || null);
+          const displayAvatar = rawAvatar ? getAvatarUrl(rawAvatar) : null;
+          const isVideo = s.callType === "video";
+          const label = isVideo ? "Missed video call" : "Missed voice call";
+
+          toast(
+            React.createElement("div", { className: "flex items-center gap-3" },
+              displayAvatar
+                ? React.createElement("img", {
+                  src: displayAvatar,
+                  className: "w-9 h-9 rounded-full object-cover shrink-0",
+                  alt: displayName,
+                })
+                : React.createElement("div", {
+                  className: "w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm shrink-0",
+                }, displayName.charAt(0).toUpperCase()),
+              React.createElement("div", { className: "flex flex-col min-w-0" },
+                React.createElement("span", { className: "font-semibold text-sm truncate" }, displayName),
+                React.createElement("span", { className: "text-xs text-muted-foreground" }, `📵 ${label}`)
+              )
+            ),
+            { duration: 5000, position: "bottom-right" }
+          );
+        }
+        resetCallStateRef.current();
+      } else {
+        // Group call: a non-initiating member left — just remove them
+        const targetId = p.userId || p.fromUserId;
+        if (targetId) {
+          setState((prev) => {
+            const newPeers = { ...prev.peers };
+            delete newPeers[targetId];
+            // If no peers left and we are connected, end the call
+            if (Object.keys(newPeers).length === 0 &&
+              (prev.callState === "connected" || prev.callState === "outgoing")) {
+              setTimeout(() => resetCallStateRef.current(), 500);
+            }
+            return { ...prev, peers: newPeers };
+          });
+        }
+      }
+    };
+
+    // ─── Stable call:rejected handler ────────────────────────────
+    const handleRejected = (p: any) => {
+      const s = stateRef.current;
+      if (p.callId !== s.callId) return;
+      stopRingtoneRef.current();
+      const reason = p.reason === "busy" ? "Busy" : "Declined";
+      if (!s.isGroupCall) {
+        setState((prev) => ({ ...prev, callStatus: reason }));
+        toast.error(`Call ${reason.toLowerCase()}`);
+        setTimeout(() => resetCallStateRef.current(), 3000);
+      } else {
+        toast.info(`${p.accepterName || "A member"} declined the call`);
+      }
+    };
+
+    const attach = () => {
+      const socket = getSocket();
+      console.log('[VideoCall] attach() called, socket:', socket?.id, 'connected:', socket?.connected);
+      if (!socket) {
+        console.log('[VideoCall] attach() - no socket yet, skipping');
+        return;
+      }
+      socket.off("call:incoming", handleIncoming);
+      socket.on("call:incoming", handleIncoming);
+      socket.off("call:end", handleEnd);
+      socket.on("call:end", handleEnd);
+      socket.off("call:rejected", handleRejected);
+      socket.on("call:rejected", handleRejected);
+      console.log('[VideoCall] stable listeners attached on socket:', socket.id);
+    };
+
+    attach();
+
+    let pollInterval: number | null = null;
+    const registerConnectListener = () => {
+      const socket = getSocket();
+      if (socket) {
+        socket.off("connect", attach);
+        socket.on("connect", attach);
+        if (socket.connected) attach();
+        if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+      }
+    };
+
+    registerConnectListener();
+    if (!getSocket()?.connected) {
+      pollInterval = window.setInterval(registerConnectListener, 100);
+    }
+
+    return () => {
+      if (pollInterval) clearInterval(pollInterval);
+      const s = getSocket();
+      s?.off("call:incoming", handleIncoming);
+      s?.off("call:end", handleEnd);
+      s?.off("call:rejected", handleRejected);
+      s?.off("connect", attach);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // stable: mount once only
+
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+
+    // handleIncoming is now handled by the stable effect above
+    const handleIncoming = (_p: any) => { /* handled above */ };
 
     const handleUserJoined = async (p: any) => {
       if (
@@ -916,63 +1064,9 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
       peerConnectionsRef.current.delete(targetId);
     };
 
-    const handleEnd = (p: any) => {
-      if (p.callId !== state.callId) return;
+    const handleEnd = (_p: any) => { /* handled by stable effect above */ };
+    const handleRejected = (_p: any) => { /* handled by stable effect above */ };
 
-      // In group calls, we don't automatically end unless we are the only ones left
-      // or if it's an incoming call and the caller ends it before we join.
-      const isCaller =
-        !state.isOutgoing &&
-        Object.keys(state.peers).length > 0 &&
-        p.fromUserId === Object.keys(state.peers)[0];
-
-      if (!state.isGroupCall || (state.callState === "incoming" && isCaller)) {
-        // Only caller logs to avoid duplicates
-        if (state.isOutgoing && state.workgroupId) {
-          if (state.callState === "connected") {
-            logCall(
-              state.workgroupId,
-              state.callType,
-              "completed",
-              state.callDuration,
-              user?.id || "",
-            );
-          }
-        }
-        resetCallState();
-      } else {
-        // Just treat it as a user leaving
-        handleUserLeft(p);
-      }
-    };
-
-    const handleRejected = (p: any) => {
-      if (p.callId !== state.callId) return;
-      stopRingtone();
-      const reason = p.reason === "busy" ? "Busy" : "Declined";
-
-      if (!state.isGroupCall) {
-        // 1-on-1: End the call
-        if (state.isOutgoing && state.workgroupId) {
-          logCall(
-            state.workgroupId,
-            state.callType,
-            "rejected",
-            0,
-            user?.id || "",
-          );
-        }
-        setState((prev) => ({ ...prev, callStatus: reason }));
-        toast.error(`Call ${reason.toLowerCase()}`);
-        setTimeout(() => resetCallState(), 3000);
-      } else {
-        // Group call: Remove the peer and only end if no one else is left
-        toast.info(`${p.accepterName || "A member"} declined the call`);
-        handleUserLeft({ userId: p.fromUserId });
-      }
-    };
-
-    socket.on("call:incoming", handleIncoming);
     socket.on("call:user-joined", handleUserJoined);
     socket.on("call:accepted", handleAccepted);
     socket.on("call:offer", handleOffer);
@@ -981,8 +1075,6 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
     socket.on("call:toggle-media", handleToggleMedia);
     socket.on("call:reaction", handleReaction);
     socket.on("call:user-left", handleUserLeft);
-    socket.on("call:end", handleEnd);
-    socket.on("call:rejected", handleRejected);
 
     return () => {
       socket.off("call:incoming", handleIncoming);
@@ -994,7 +1086,6 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
       socket.off("call:toggle-media", handleToggleMedia);
       socket.off("call:reaction", handleReaction);
       socket.off("call:user-left", handleUserLeft);
-      socket.off("call:end", handleEnd);
     };
   }, [
     state.callId,

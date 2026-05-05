@@ -11,6 +11,8 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AdminRoute } from "@/components/auth/AdminRoute";
 import { MainLayout } from "./components/layout/MainLayout";
 import Dashboard from "./pages/Dashboard";
+import { VideoCallProvider } from "@/contexts/VideoCallContext";
+import VideoCallOverlay from "@/components/collaboration/VideoCallOverlay";
 // Auth
 import AuthPage from "./pages/auth/AuthPage";
 import OnboardingPage from "./pages/auth/OnboardingPage";
@@ -152,135 +154,138 @@ const App = () => (
             <NotificationsProvider>
               <OrganizationProvider>
                 <DialogProvider>
-                  <Routes>
-                    {/* Public Pages (for Google OAuth verification) */}
-                    <Route path="/home" element={<HomePage />} />
-                    <Route path="/privacy" element={<PrivacyPolicyPage />} />
-                    <Route path="/terms" element={<TermsOfServicePage />} />
-                    <Route path="/project-report/:token" element={<ProjectReportPage />} />
-                    <Route path="/public/application-form/:token" element={<PublicApplicationForm />} />
-                    <Route path="/form-submitted" element={<FormSubmittedSuccess />} />
+                  <VideoCallProvider>
+                    <VideoCallOverlay />
+                    <Routes>
+                      {/* Public Pages (for Google OAuth verification) */}
+                      <Route path="/home" element={<HomePage />} />
+                      <Route path="/privacy" element={<PrivacyPolicyPage />} />
+                      <Route path="/terms" element={<TermsOfServicePage />} />
+                      <Route path="/project-report/:token" element={<ProjectReportPage />} />
+                      <Route path="/public/application-form/:token" element={<PublicApplicationForm />} />
+                      <Route path="/form-submitted" element={<FormSubmittedSuccess />} />
 
-                    {/* Public Auth Routes */}
-                    <Route path="/auth" element={<AuthPage />} />
-                    <Route path="/onboarding" element={<OnboardingPage />} />
-                    <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                    <Route path="/reset-password" element={<ResetPasswordPage />} />
-                    <Route path="/accept-invite" element={<AcceptInvitePage />} />
-                    <Route path="/force-password-change" element={<ForcePasswordChangePage />} />
-                    <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
-                    <Route path="/auth/microsoft/callback" element={<MicrosoftCallbackPage />} />
+                      {/* Public Auth Routes */}
+                      <Route path="/auth" element={<AuthPage />} />
+                      <Route path="/onboarding" element={<OnboardingPage />} />
+                      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                      <Route path="/reset-password" element={<ResetPasswordPage />} />
+                      <Route path="/accept-invite" element={<AcceptInvitePage />} />
+                      <Route path="/force-password-change" element={<ForcePasswordChangePage />} />
+                      <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
+                      <Route path="/auth/microsoft/callback" element={<MicrosoftCallbackPage />} />
 
-                    {/* Protected Routes */}
-                    <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
-                      <Route path="/" element={<Dashboard />} />
-                      {/* Collaboration Routes */}
-                      <Route path="/collaboration/calendar" element={<CalendarPage />} />
-                      <Route path="/collaboration/drive" element={<DrivePage />} />
-                      <Route path="/collaboration/drive/personal/:driveId" element={<DrivePage />} />
-                      <Route path="/collaboration/mail" element={<MailPage />} />
-                      <Route path="/crm/unibox" element={<UniboxPage />} />
-                      <Route path="/collaboration/workgroups" element={<WorkgroupsPage />} />
-                      <Route path="/collaboration/broadcast" element={<BroadcastPage />} />
-                      <Route path="/collaboration/direct-chats" element={<DirectChatPage />} />
-                      {/* CRM Routes */}
-                      <Route path="/crm/leads" element={<LeadsPage />} />
-                      <Route path="/crm/leads/create" element={<CreateLeadPage />} />
-                      <Route path="/crm/leads/import" element={<LeadImportPage />} />
-                      <Route path="/crm/leads/external-sources" element={<ExternalSourcesPage />} />
-                      <Route path="/crm/leads/:id" element={<LeadDetailPage />} />
-                      <Route path="/crm/leads/:id/edit" element={<LeadDetailPage />} />
-                      <Route path="/crm/unqualified" element={<UnqualifiedPage />} />
-                      <Route path="/workspaces/create" element={<CreateWorkspacePage />} />
-                      <Route path="/crm/deals" element={<DealsPage />} />
-                      <Route path="/crm/deals/create" element={<CreateDealPage />} />
-                      <Route path="/crm/deals/:id" element={<DealDetailPage />} />
-                      <Route path="/crm/deals/:id/edit" element={<DealDetailPage />} />
-                      <Route path="/crm/customers" element={<CustomersPage />} />
-                      <Route path="/crm/customers/:id" element={<CustomerDetailPage />} />
-                      <Route path="/crm/customers/contacts" element={<ContactsPage />} />
-                      <Route path="/crm/customers/contacts/import" element={<ContactImportPage />} />
-                      <Route path="/crm/customers/contacts/create" element={<CreateContactPage />} />
-                      <Route path="/crm/customers/contacts/:id" element={<ContactDetailPage />} />
-                      <Route path="/crm/customers/companies" element={<CompaniesPage />} />
-                      <Route path="/crm/customers/companies/create" element={<CreateCompanyPage />} />
-                      <Route path="/crm/customers/companies/:id" element={<CompanyDetailPage />} />
-                      <Route path="/crm/customers/signing-parties" element={<SignAndManagePage />} />
-                      <Route path="/crm/customers/signing-parties/vault" element={<MyVaultPage />} />
-                      <Route path="/crm/customers/signing-parties/contacts" element={<SigningPartiesContactsPage />} />
-                      <Route path="/crm/customers/signing-parties/contacts/create" element={<CreateSigningPartyContactPage />} />
-                      <Route path="/crm/sales" element={<SalesPage />} />
-                      <Route path="/crm/analytics" element={<AnalyticsPage />} />
-                      <Route path="/crm/communications" element={<CommunicationsPage />} />
-                      {/* HRMS Routes */}
-                      <Route path="/hrms" element={<HRMSDashboard />} />
-                      <Route path="/hrms/dashboard" element={<HRMSDashboard />} />
-                      <Route path="/hrms/attendance" element={<AttendancePage />} />
-                      <Route path="/hrms/employees" element={<EmployeesPage />} />
-                      <Route path="/hrms/employees/create" element={<CreateEmployeePage />} />
-                      <Route path="/hrms/employees/:id/edit" element={<EditEmployeePage />} />
-                      <Route path="/hrms/employees/:id" element={<EmployeeDetailPage />} />
-                      <Route path="/hrms/leave" element={<LeaveManagementPage />} />
-                      <Route path="/hrms/payroll" element={<PayrollPage />} />
-                      <Route path="/hrms/payroll/generate" element={<GenerateSalarySlipPage />} />
-                      <Route path="/hrms/payroll/view/:id" element={<ViewSalarySlipPage />} />
-                      <Route path="/hrms/notifications" element={<NotificationsPage />} />
-                      {/* Inventory Routes */}
-                      <Route path="/inventory" element={<InventoryDashboard />} />
-                      <Route path="/inventory/products" element={<ProductsPage />} />
-                      <Route path="/inventory/stock" element={<StockPage />} />
-                      <Route path="/inventory/purchase-orders" element={<PurchaseOrdersPage />} />
-                      <Route path="/inventory/vendors" element={<VendorsPage />} />
-                      <Route path="/inventory/warehouse" element={<WarehousePage />} />
-                      <Route path="/inventory/warehouses" element={<WarehousePage />} />
-                      <Route path="/inventory/assignments" element={<EmployeeAssignmentsPage />} />
-                      <Route path="/inventory/cars" element={<CarInventoryPage />} />
-                      <Route path="/inventory/cars/new" element={<CarFormPage />} />
-                      <Route path="/inventory/cars/:id/edit" element={<CarFormPage />} />
-                      {/* Admin Routes - restricted to admin users */}
-                      <Route path="/admin/users" element={<AdminRoute><UsersPage /></AdminRoute>} />
-                      <Route path="/admin/roles" element={<AdminRoute><RolesPage /></AdminRoute>} />
-                      <Route path="/admin/permissions" element={<AdminRoute><PermissionCenter /></AdminRoute>} />
-                      <Route path="/admin/settings" element={<AdminRoute><AdminSettingsPage /></AdminRoute>} />
-                      <Route path="/admin/join-requests" element={<AdminRoute><JoinRequestsPage /></AdminRoute>} />
-                      <Route path="/admin-dashboard" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />
-                      {/* Tasks & Automation */}
-                      <Route path="/tasks" element={<TasksPage />} />
-                      <Route path="/tasks/:id" element={<IssueDetailPage />} />
-                      <Route path="/automation/workflows" element={<WorkflowsPage />} />
-                      {/* Projects — /projects redirects to /tasks, detail page stays */}
-                      <Route path="/projects/:id" element={<ProjectDetailPage />} />
-                      {/* Marketing */}
-                      <Route path="/marketing" element={<MarketingDashboardPage />} />
-                      <Route path="/marketing/campaigns" element={<CampaignsPage />} />
-                      <Route path="/marketing/campaigns/create" element={<CreateCampaignPage />} />
-                      <Route path="/marketing/campaigns/builder" element={<VisualCampaignBuilder />} />
-                      <Route path="/marketing/lists" element={<EnhancedListsPage />} />
-                      <Route path="/marketing/forms" element={<EnhancedFormsPage />} />
-                      <Route path="/marketing/sequences" element={<EnhancedSequencesPage />} />
-                      <Route path="/marketing/analytics" element={<EnhancedAnalyticsPage />} />
-                      {/* Recruitment */}
-                      <Route path="/recruitment" element={<RecruitmentDashboard />} />
-                      <Route path="/recruitment/requisitions" element={<RequisitionsListPage />} />
-                      <Route path="/recruitment/requisitions/new" element={<RequisitionRequestPage />} />
-                      <Route path="/recruitment/requisitions/:id" element={<RequisitionDetailPage />} />
-                      <Route path="/recruitment/requisitions/:id/advertise" element={<AdvertisementPage />} />
-                      <Route path="/recruitment/approvals" element={<ApprovalWorkflowPage />} />
-                      <Route path="/recruitment/candidates" element={<CandidatesPage />} />
-                      <Route path="/recruitment/candidates/:id" element={<CandidateDetailPage />} />
-                      <Route path="/recruitment/candidates/:id/application-form" element={<ApplicationFormPage />} />
-                      <Route path="/recruitment/interviews" element={<InterviewsPage />} />
-                      <Route path="/recruitment/candidates/:candidateId/interview" element={<InterviewPage />} />
-                      <Route path="/recruitment/offers" element={<OffersPage />} />
-                      <Route path="/recruitment/scoring" element={<ScoringPage />} />
-                      {/* <Route path="/recruitment/talent-pool" element={<TalentPoolPage />} /> */}
-                      <Route path="/recruitment/analytics" element={<RecruitmentAnalyticsPage />} />
-                      {/* Other Routes */}
-                      <Route path="/settings" element={<SettingsPage />} />
-                    </Route>
-                    {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
+                      {/* Protected Routes */}
+                      <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
+                        <Route path="/" element={<Dashboard />} />
+                        {/* Collaboration Routes */}
+                        <Route path="/collaboration/calendar" element={<CalendarPage />} />
+                        <Route path="/collaboration/drive" element={<DrivePage />} />
+                        <Route path="/collaboration/drive/personal/:driveId" element={<DrivePage />} />
+                        <Route path="/collaboration/mail" element={<MailPage />} />
+                        <Route path="/crm/unibox" element={<UniboxPage />} />
+                        <Route path="/collaboration/workgroups" element={<WorkgroupsPage />} />
+                        <Route path="/collaboration/broadcast" element={<BroadcastPage />} />
+                        <Route path="/collaboration/direct-chats" element={<DirectChatPage />} />
+                        {/* CRM Routes */}
+                        <Route path="/crm/leads" element={<LeadsPage />} />
+                        <Route path="/crm/leads/create" element={<CreateLeadPage />} />
+                        <Route path="/crm/leads/import" element={<LeadImportPage />} />
+                        <Route path="/crm/leads/external-sources" element={<ExternalSourcesPage />} />
+                        <Route path="/crm/leads/:id" element={<LeadDetailPage />} />
+                        <Route path="/crm/leads/:id/edit" element={<LeadDetailPage />} />
+                        <Route path="/crm/unqualified" element={<UnqualifiedPage />} />
+                        <Route path="/workspaces/create" element={<CreateWorkspacePage />} />
+                        <Route path="/crm/deals" element={<DealsPage />} />
+                        <Route path="/crm/deals/create" element={<CreateDealPage />} />
+                        <Route path="/crm/deals/:id" element={<DealDetailPage />} />
+                        <Route path="/crm/deals/:id/edit" element={<DealDetailPage />} />
+                        <Route path="/crm/customers" element={<CustomersPage />} />
+                        <Route path="/crm/customers/:id" element={<CustomerDetailPage />} />
+                        <Route path="/crm/customers/contacts" element={<ContactsPage />} />
+                        <Route path="/crm/customers/contacts/import" element={<ContactImportPage />} />
+                        <Route path="/crm/customers/contacts/create" element={<CreateContactPage />} />
+                        <Route path="/crm/customers/contacts/:id" element={<ContactDetailPage />} />
+                        <Route path="/crm/customers/companies" element={<CompaniesPage />} />
+                        <Route path="/crm/customers/companies/create" element={<CreateCompanyPage />} />
+                        <Route path="/crm/customers/companies/:id" element={<CompanyDetailPage />} />
+                        <Route path="/crm/customers/signing-parties" element={<SignAndManagePage />} />
+                        <Route path="/crm/customers/signing-parties/vault" element={<MyVaultPage />} />
+                        <Route path="/crm/customers/signing-parties/contacts" element={<SigningPartiesContactsPage />} />
+                        <Route path="/crm/customers/signing-parties/contacts/create" element={<CreateSigningPartyContactPage />} />
+                        <Route path="/crm/sales" element={<SalesPage />} />
+                        <Route path="/crm/analytics" element={<AnalyticsPage />} />
+                        <Route path="/crm/communications" element={<CommunicationsPage />} />
+                        {/* HRMS Routes */}
+                        <Route path="/hrms" element={<HRMSDashboard />} />
+                        <Route path="/hrms/dashboard" element={<HRMSDashboard />} />
+                        <Route path="/hrms/attendance" element={<AttendancePage />} />
+                        <Route path="/hrms/employees" element={<EmployeesPage />} />
+                        <Route path="/hrms/employees/create" element={<CreateEmployeePage />} />
+                        <Route path="/hrms/employees/:id/edit" element={<EditEmployeePage />} />
+                        <Route path="/hrms/employees/:id" element={<EmployeeDetailPage />} />
+                        <Route path="/hrms/leave" element={<LeaveManagementPage />} />
+                        <Route path="/hrms/payroll" element={<PayrollPage />} />
+                        <Route path="/hrms/payroll/generate" element={<GenerateSalarySlipPage />} />
+                        <Route path="/hrms/payroll/view/:id" element={<ViewSalarySlipPage />} />
+                        <Route path="/hrms/notifications" element={<NotificationsPage />} />
+                        {/* Inventory Routes */}
+                        <Route path="/inventory" element={<InventoryDashboard />} />
+                        <Route path="/inventory/products" element={<ProductsPage />} />
+                        <Route path="/inventory/stock" element={<StockPage />} />
+                        <Route path="/inventory/purchase-orders" element={<PurchaseOrdersPage />} />
+                        <Route path="/inventory/vendors" element={<VendorsPage />} />
+                        <Route path="/inventory/warehouse" element={<WarehousePage />} />
+                        <Route path="/inventory/warehouses" element={<WarehousePage />} />
+                        <Route path="/inventory/assignments" element={<EmployeeAssignmentsPage />} />
+                        <Route path="/inventory/cars" element={<CarInventoryPage />} />
+                        <Route path="/inventory/cars/new" element={<CarFormPage />} />
+                        <Route path="/inventory/cars/:id/edit" element={<CarFormPage />} />
+                        {/* Admin Routes - restricted to admin users */}
+                        <Route path="/admin/users" element={<AdminRoute><UsersPage /></AdminRoute>} />
+                        <Route path="/admin/roles" element={<AdminRoute><RolesPage /></AdminRoute>} />
+                        <Route path="/admin/permissions" element={<AdminRoute><PermissionCenter /></AdminRoute>} />
+                        <Route path="/admin/settings" element={<AdminRoute><AdminSettingsPage /></AdminRoute>} />
+                        <Route path="/admin/join-requests" element={<AdminRoute><JoinRequestsPage /></AdminRoute>} />
+                        <Route path="/admin-dashboard" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />
+                        {/* Tasks & Automation */}
+                        <Route path="/tasks" element={<TasksPage />} />
+                        <Route path="/tasks/:id" element={<IssueDetailPage />} />
+                        <Route path="/automation/workflows" element={<WorkflowsPage />} />
+                        {/* Projects — /projects redirects to /tasks, detail page stays */}
+                        <Route path="/projects/:id" element={<ProjectDetailPage />} />
+                        {/* Marketing */}
+                        <Route path="/marketing" element={<MarketingDashboardPage />} />
+                        <Route path="/marketing/campaigns" element={<CampaignsPage />} />
+                        <Route path="/marketing/campaigns/create" element={<CreateCampaignPage />} />
+                        <Route path="/marketing/campaigns/builder" element={<VisualCampaignBuilder />} />
+                        <Route path="/marketing/lists" element={<EnhancedListsPage />} />
+                        <Route path="/marketing/forms" element={<EnhancedFormsPage />} />
+                        <Route path="/marketing/sequences" element={<EnhancedSequencesPage />} />
+                        <Route path="/marketing/analytics" element={<EnhancedAnalyticsPage />} />
+                        {/* Recruitment */}
+                        <Route path="/recruitment" element={<RecruitmentDashboard />} />
+                        <Route path="/recruitment/requisitions" element={<RequisitionsListPage />} />
+                        <Route path="/recruitment/requisitions/new" element={<RequisitionRequestPage />} />
+                        <Route path="/recruitment/requisitions/:id" element={<RequisitionDetailPage />} />
+                        <Route path="/recruitment/requisitions/:id/advertise" element={<AdvertisementPage />} />
+                        <Route path="/recruitment/approvals" element={<ApprovalWorkflowPage />} />
+                        <Route path="/recruitment/candidates" element={<CandidatesPage />} />
+                        <Route path="/recruitment/candidates/:id" element={<CandidateDetailPage />} />
+                        <Route path="/recruitment/candidates/:id/application-form" element={<ApplicationFormPage />} />
+                        <Route path="/recruitment/interviews" element={<InterviewsPage />} />
+                        <Route path="/recruitment/candidates/:candidateId/interview" element={<InterviewPage />} />
+                        <Route path="/recruitment/offers" element={<OffersPage />} />
+                        <Route path="/recruitment/scoring" element={<ScoringPage />} />
+                        {/* <Route path="/recruitment/talent-pool" element={<TalentPoolPage />} /> */}
+                        <Route path="/recruitment/analytics" element={<RecruitmentAnalyticsPage />} />
+                        {/* Other Routes */}
+                        <Route path="/settings" element={<SettingsPage />} />
+                      </Route>
+                      {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
+                  </VideoCallProvider>
                 </DialogProvider>
               </OrganizationProvider>
             </NotificationsProvider>

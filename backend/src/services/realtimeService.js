@@ -107,10 +107,28 @@ class RealtimeService {
       });
 
       // ─── WebRTC Call Signaling ───────────────────────────────
-      socket.on('call:initiate', (payload) => {
+      socket.on('call:initiate', async (payload) => {
         // payload: { callId, targetUserId, callerName, callerAvatar, callType, workgroupId, isGroupCall }
         console.log(`[WebRTC] Call initiated: ${socket.userId} -> ${payload.isGroupCall ? 'Group ' + payload.workgroupId : payload.targetUserId} (${payload.callType})`);
         
+        // For group calls, fetch group name and avatar from DB
+        let groupName = null;
+        let groupAvatar = null;
+        if (payload.isGroupCall && payload.workgroupId) {
+          try {
+            const wgResult = await db.query(
+              `SELECT name, avatar_url FROM workgroups WHERE id = $1`,
+              [payload.workgroupId]
+            );
+            if (wgResult.rows.length > 0) {
+              groupName = wgResult.rows[0].name;
+              groupAvatar = wgResult.rows[0].avatar_url;
+            }
+          } catch (err) {
+            console.error('[WebRTC] Failed to fetch workgroup info:', err);
+          }
+        }
+
         const incomingPayload = {
           callId: payload.callId,
           callerId: socket.userId,
@@ -118,14 +136,33 @@ class RealtimeService {
           callerAvatar: payload.callerAvatar,
           callType: payload.callType,
           isGroupCall: payload.isGroupCall,
-          workgroupId: payload.workgroupId
+          workgroupId: payload.workgroupId,
+          groupName,
+          groupAvatar,
         };
 
         if (payload.isGroupCall && payload.workgroupId) {
-          // Broadcast to all workgroup members except the caller
           socket.to(`workgroup:${payload.workgroupId}`).emit('call:incoming', incomingPayload);
+          
+          try {
+            const membersResult = await db.query(
+              `SELECT user_id FROM workgroup_members WHERE workgroup_id = $1 AND user_id != $2`,
+              [payload.workgroupId, socket.userId]
+            );
+            for (const member of membersResult.rows) {
+              const targetRoom = `user:${member.user_id}`;
+              const socketsInRoom = this.io.sockets.adapter.rooms.get(targetRoom);
+              console.log(`[WebRTC] Group call - emitting to ${targetRoom}, sockets:`, socketsInRoom ? [...socketsInRoom] : 'EMPTY');
+              this.io.to(targetRoom).emit('call:incoming', incomingPayload);
+            }
+          } catch (err) {
+            console.error('[WebRTC] Failed to fetch workgroup members for direct emit:', err);
+          }
         } else if (payload.targetUserId) {
-          this.io.to(`user:${payload.targetUserId}`).emit('call:incoming', incomingPayload);
+          const targetRoom = `user:${payload.targetUserId}`;
+          const socketsInRoom = this.io.sockets.adapter.rooms.get(targetRoom);
+          console.log(`[WebRTC] Emitting call:incoming to room ${targetRoom}, sockets in room:`, socketsInRoom ? [...socketsInRoom] : 'EMPTY/NOT FOUND');
+          this.io.to(targetRoom).emit('call:incoming', incomingPayload);
         }
       });
 
@@ -199,7 +236,7 @@ class RealtimeService {
         }
       });
 
-      socket.on('call:end', (payload) => {
+      socket.on('call:end', async (payload) => {
         // payload: { callId, targetUserId, workgroupId, isGroupCall, reason }
         console.log(`[WebRTC] Call ended: ${socket.userId} in ${payload.isGroupCall ? 'Group ' + payload.workgroupId : '1-on-1'}`);
         
@@ -207,11 +244,25 @@ class RealtimeService {
           callId: payload.callId,
           fromUserId: socket.userId,
           reason: payload.reason || 'hangup',
+          isOriginalCaller: !!payload.isOriginalCaller,
         };
 
         if (payload.isGroupCall && payload.workgroupId) {
-          // Broadcast to all workgroup members
+          // Broadcast to workgroup room (for subscribed members)
           socket.to(`workgroup:${payload.workgroupId}`).emit('call:end', endPayload);
+          
+          // Also emit directly to each member's user room (for members on other pages)
+          try {
+            const membersResult = await db.query(
+              `SELECT user_id FROM workgroup_members WHERE workgroup_id = $1 AND user_id != $2`,
+              [payload.workgroupId, socket.userId]
+            );
+            for (const member of membersResult.rows) {
+              this.io.to(`user:${member.user_id}`).emit('call:end', endPayload);
+            }
+          } catch (err) {
+            console.error('[WebRTC] Failed to fetch workgroup members for call:end emit:', err);
+          }
         } else if (payload.targetUserId) {
           this.io.to(`user:${payload.targetUserId}`).emit('call:end', endPayload);
         }
