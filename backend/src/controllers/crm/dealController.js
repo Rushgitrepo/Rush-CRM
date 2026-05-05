@@ -395,16 +395,16 @@ const create = async (req, res, next) => {
       return res.status(400).json({ error: error.details[0].message });
     }
 
-    const { 
-      title, contactId, companyId, stage, status, value: dealValue, currency, 
-      probability, notes, tags, expectedCloseDate, 
+    const {
+      title, contactId, companyId, stage, status, value: dealValue, currency,
+      probability, notes, tags, expectedCloseDate,
       contactName, companyName, phone, email, priority, source, description,
       designation, website, address, companyPhone, companyEmail, companySize,
-      availableToEveryone, clientType, projectType, scope, agentName, decisionMaker, serviceInterested, interactionNotes, 
+      availableToEveryone, clientType, projectType, scope, agentName, decisionMaker, serviceInterested, interactionNotes,
       feedback, feedbackDetails, paymentMethod, invoiceLink, qaStatus, quotationReceived,
       hoursOfWork, hourlyRate, hourlyRateCurrency, proposalAmount, proposalCurrency, invoiceAmount, invoiceCurrency,
       firstMessage, lastTouch, workspaceId, sourceInfo, projectBlueprints,
-      phoneType, emailType, websiteType, customerType, 
+      phoneType, emailType, websiteType, customerType,
       lastContactedDate, nextFollowUpDate, responsiblePerson, customFields
     } = value;
 
@@ -431,15 +431,15 @@ const create = async (req, res, next) => {
        )
        RETURNING *`,
       [
-        req.user.orgId, req.user.id, title, contactId, companyId, stage, status, 
-        dealValue, currency, probability, notes, tags, expectedCloseDate, 
+        req.user.orgId, req.user.id, title, contactId, companyId, stage, status,
+        dealValue, currency, probability, notes, tags, expectedCloseDate,
         contactName, companyName, phone, email, priority, source, description,
         designation, website, address, companyPhone, companyEmail, companySize,
-        availableToEveryone, clientType, projectType, scope, agentName, decisionMaker, serviceInterested, interactionNotes, 
+        availableToEveryone, clientType, projectType, scope, agentName, decisionMaker, serviceInterested, interactionNotes,
         feedback, feedbackDetails, paymentMethod, invoiceLink, qaStatus, quotationReceived,
         hoursOfWork, hourlyRate, hourlyRateCurrency, proposalAmount, proposalCurrency, invoiceAmount, invoiceCurrency,
-        firstMessage, lastTouch, workspaceId, sourceInfo, serializeBlueprintsField(projectBlueprints), 
-        phoneType, emailType, websiteType, customerType, 
+        firstMessage, lastTouch, workspaceId, sourceInfo, serializeBlueprintsField(projectBlueprints),
+        phoneType, emailType, websiteType, customerType,
         lastContactedDate, nextFollowUpDate, responsiblePerson,
         customFields ? JSON.stringify(customFields) : '{}'
       ]

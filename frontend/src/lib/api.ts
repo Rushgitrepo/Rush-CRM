@@ -532,7 +532,7 @@ export const workgroupsApi = {
   deletePost: (id: string, postId: string) => api.delete(`/workgroups/${id}/posts/${postId}`),
   deletePostForMe: (id: string, postId: string) =>
     api.delete(`/workgroups/${id}/posts/${postId}/me`),
-  togglePinPost: (id: string, postId: string, isPinned: boolean) => 
+  togglePinPost: (id: string, postId: string, isPinned: boolean) =>
     api.put<any>(`/workgroups/${id}/posts/${postId}/pin`, { is_pinned: !isPinned }),
 
   // Activities
