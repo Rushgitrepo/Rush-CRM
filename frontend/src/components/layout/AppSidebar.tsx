@@ -478,15 +478,15 @@ export function AppSidebar({
       if (item.title === "Admin Portal" && !isAdmin) return null;
       return item;
     }).filter(Boolean) as NavItem[];
-    
+
     // Separate bottom items (Admin Portal and Settings)
-    const bottomItems = allItems.filter(item => 
+    const bottomItems = allItems.filter(item =>
       item.title === "Admin Portal" || item.title === "Settings"
     );
-    const mainItems = allItems.filter(item => 
+    const mainItems = allItems.filter(item =>
       item.title !== "Admin Portal" && item.title !== "Settings"
     );
-    
+
     return { mainItems, bottomItems };
   }, [isAdmin]);
 
@@ -631,12 +631,12 @@ export function AppSidebar({
               {child.title}
               {totalWorkgroupUnread + totalBroadcastUnread + totalDMUnread >
                 0 && (
-                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-bold text-white">
-                  {totalWorkgroupUnread +
-                    totalBroadcastUnread +
-                    totalDMUnread}
-                </span>
-              )}
+                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-bold text-white">
+                    {totalWorkgroupUnread +
+                      totalBroadcastUnread +
+                      totalDMUnread}
+                  </span>
+                )}
             </span>
           </NavLink>
 
@@ -693,8 +693,8 @@ export function AppSidebar({
                               src={
                                 getAvatarUrl(
                                   dm.avatar_url ||
-                                    dm.direct_peer_avatar_url ||
-                                    dm.avatar,
+                                  dm.direct_peer_avatar_url ||
+                                  dm.avatar,
                                 ) || undefined
                               }
                             />
@@ -1162,7 +1162,7 @@ export function AppSidebar({
             <div className="flex flex-col">
               <span className="text-base font-bold tracking-tight text-white leading-none">
                 Rush Management System
-              </span>             
+              </span>
             </div>
           </div>
           {isMobile && (
@@ -1201,13 +1201,13 @@ export function AppSidebar({
           modifiers={[restrictToVerticalAxis, restrictToWindowEdges]}
         >
           <SortableContext
-            items={orderedNavigation.filter(item => 
+            items={orderedNavigation.filter(item =>
               filteredNavigation.mainItems.some(fi => fi.title === item.title)
             ).map(item => item.title)}
             strategy={verticalListSortingStrategy}
           >
             <div className="space-y-1">
-              {orderedNavigation.filter(item => 
+              {orderedNavigation.filter(item =>
                 filteredNavigation.mainItems.some(fi => fi.title === item.title)
               ).map((item) => {
                 // If a module is focused, only show that module's children

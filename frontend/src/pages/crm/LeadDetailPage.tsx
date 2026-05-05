@@ -20,7 +20,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { InteractionPanel } from "@/components/crm/InteractionPanel";
 import { CreatableSelect } from "@/components/crm/CreatableSelect";
 import { EntityFilesSection } from "@/components/crm/EntityFilesSection";
-import { CustomFieldsSection } from "@/components/crm/CustomFieldsSection";
+import { CustomFieldsSection, DraggableFieldItem } from "@/components/crm/CustomFieldsSection";
+import { GripVertical } from "lucide-react";
+import { FieldDragWrapper } from "@/components/crm/FieldDragWrapper";
+import { DroppableSection } from "@/components/crm/DroppableSection";
 
 import { WorkspaceShareModal } from "@/components/crm/leads/WorkspaceShareModal";
 import { useLead, useInteractionHistory } from "@/hooks/useCrmInteractions";
@@ -306,7 +309,7 @@ export default function LeadDetailPage() {
 
   const [editing, setEditing] = useState(() => window.location.pathname.endsWith('/edit'));
   const [form, setForm] = useState<Record<string, unknown>>({});
-  const [customFields, setCustomFields] = useState<{ key: string; value: string }[]>([]);
+  const [customFields, setCustomFields] = useState<{ id: string; key: string; value: string; sectionId?: string }[]>([]);
 
   const [showWorkspaceModal, setShowWorkspaceModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -382,7 +385,12 @@ export default function LeadDetailPage() {
       });
 
       if (lead.custom_fields && typeof lead.custom_fields === 'object') {
-        const fields = Object.entries(lead.custom_fields).map(([k, v]) => ({ key: k, value: String(v) }));
+        const fields = Object.entries(lead.custom_fields).map(([k, v]) => {
+          if (v && typeof v === 'object' && 'value' in v) {
+            return { id: k, key: k, value: String((v as any).value), sectionId: (v as any).sectionId };
+          }
+          return { id: k, key: k, value: String(v), sectionId: 'custom-fields' };
+        });
         setCustomFields(fields);
       }
 
@@ -401,16 +409,15 @@ export default function LeadDetailPage() {
     }
 
     const customFieldsObj = customFields.reduce((acc, field) => {
-      if (field.key.trim()) acc[field.key.trim()] = field.value;
+      if (field.key.trim()) acc[field.key.trim()] = { value: field.value, sectionId: field.sectionId };
       return acc;
-    }, {} as Record<string, string>);
+    }, {} as Record<string, { value: string; sectionId?: string }>);
 
     updateLead.mutate({
       id: lead.id,
       ...changes,
       customFields: customFieldsObj
     }, {
-
       onSuccess: () => {
         setEditing(false);
       },
@@ -454,6 +461,45 @@ export default function LeadDetailPage() {
   };
 
   const set = (key: string, val: unknown) => setForm(prev => ({ ...prev, [key]: val }));
+
+  const handleFieldDropToSection = (fieldKey: string, fieldValue: string, sectionId: string) => {
+    // State is already updated by FieldDragWrapper
+    console.log(`Field ${fieldKey} moved to ${sectionId}`);
+  };
+
+  const renderDroppedFields = (sectionId: string) => {
+    const sectionFields = customFields.filter(f => f.sectionId === sectionId);
+    if (sectionFields.length === 0) return null;
+
+    return (
+      <div className="mt-6 pt-6 border-t border-dashed border-border space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Badge variant="outline" className="text-[10px] uppercase tracking-wider bg-primary/5 text-primary border-primary/20">
+            Custom Fields
+          </Badge>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {sectionFields.map((field) => (
+            <div key={field.key} className="group relative">
+              <div className="flex items-center justify-between mb-1.5">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{field.key}</Label>
+                {editing && (
+                  <DraggableFieldItem fieldKey={field.id}>
+                    <div className="p-1 cursor-grab active:cursor-grabbing text-primary hover:text-primary-foreground hover:bg-primary rounded transition-all">
+                      <GripVertical className="h-3.5 w-3.5" />
+                    </div>
+                  </DraggableFieldItem>
+                )}
+              </div>
+              <div className="min-h-[2.5rem] px-3 py-2 border border-border rounded-lg bg-primary/5 flex items-center">
+                <span className="text-foreground font-medium">{field.value}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -907,7 +953,7 @@ export default function LeadDetailPage() {
                   <Activity className="h-6 w-6 text-purple-600" />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-purple-600 uppercase tracking-widest mb-1">Last Touch</p>
+                  <p className="text-xs font-bold text-purple-600 uppercase tracking-widest mb-1">Last Update</p>
                   <p className="text-sm font-medium">{lead.last_touch ? format(new Date(lead.last_touch), 'MMM d, yyyy') : 'No interactions'}</p>
                 </div>
               </div>
@@ -923,9 +969,16 @@ export default function LeadDetailPage() {
           <div className="lg:col-span-7 space-y-8">
 
             {/* Professional Form Sections */}
-            <div className="space-y-8">
+            <FieldDragWrapper 
+              customFields={customFields}
+              onCustomFieldsChange={setCustomFields}
+              onFieldDropToSection={handleFieldDropToSection}
+              editing={editing}
+            >
+              <div className="space-y-8">
               {/* Lead and Company Details */}
-              <Card className="border   shadow-sm">
+              <DroppableSection id="lead-company-details" editing={editing}>
+                <Card className="border   shadow-sm">
                 <CardHeader className="border-b bg-muted/30 rounded-t-lg">
                   <CardTitle className="flex items-center gap-3 text-xl">
                     Lead and Company Details
@@ -1190,10 +1243,13 @@ export default function LeadDetailPage() {
                       entityId={id}
                     />
                   </div>
+                  {renderDroppedFields("lead-company-details")}
                 </CardContent>
-              </Card>
+                </Card>
+              </DroppableSection>
               {/* Activity & Interaction Tracking */}
-              <Card className="border   shadow-sm">
+              <DroppableSection id="activity-tracking" editing={editing}>
+                <Card className="border   shadow-sm">
                 <CardHeader className="border-b bg-muted/30 rounded-t-lg">
                   <CardTitle className="flex items-center gap-3 text-xl">
                     Activity & Interaction Tracking
@@ -1233,11 +1289,14 @@ export default function LeadDetailPage() {
                       />
                     </div>
                   </div>
+                  {renderDroppedFields("activity-tracking")}
                 </CardContent>
-              </Card>
+                </Card>
+              </DroppableSection>
 
               {/* Qualification & Opportunity */}
-              <Card className="border   shadow-sm">
+              <DroppableSection id="qualification-opportunity" editing={editing}>
+                <Card className="border   shadow-sm">
                 <CardHeader className="border-b bg-muted/30 rounded-t-lg">
                   <CardTitle className="flex items-center gap-3 text-xl">
 
@@ -1322,11 +1381,14 @@ export default function LeadDetailPage() {
                       entityId={id}
                     />
                   </div>
+                  {renderDroppedFields("qualification-opportunity")}
                 </CardContent>
-              </Card>
+                </Card>
+              </DroppableSection>
 
               {/* Source */}
-              <Card className="border   shadow-sm">
+              <DroppableSection id="source-section" editing={editing}>
+                <Card className="border   shadow-sm">
                 <CardHeader className="border-b bg-muted/30 rounded-t-lg">
                   <CardTitle className="flex items-center gap-3 text-xl">
                     Source
@@ -1375,8 +1437,10 @@ export default function LeadDetailPage() {
                       )}
                     </div>
                   </div>
+                  {renderDroppedFields("source-section")}
                 </CardContent>
-              </Card>
+                </Card>
+              </DroppableSection>
 
               <CustomFieldsSection
                 fields={customFields}
@@ -1385,7 +1449,8 @@ export default function LeadDetailPage() {
                 className={!editing ? "opacity-90 pointer-events-none" : "animate-in fade-in slide-in-from-bottom-2 duration-300"}
               />
 
-            </div>
+              </div>
+            </FieldDragWrapper>
           </div>
 
           {/* Right Sidebar - Activity & Actions */}

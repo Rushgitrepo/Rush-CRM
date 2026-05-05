@@ -26,7 +26,10 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { InteractionPanel } from "@/components/crm/InteractionPanel";
 import { CreatableSelect } from "@/components/crm/CreatableSelect";
 import { EntityFilesSection } from "@/components/crm/EntityFilesSection";
-import { CustomFieldsSection } from "@/components/crm/CustomFieldsSection";
+import { CustomFieldsSection, DraggableFieldItem } from "@/components/crm/CustomFieldsSection";
+import { FieldDragWrapper } from "@/components/crm/FieldDragWrapper";
+import { DroppableSection } from "@/components/crm/DroppableSection";
+import { GripVertical } from "lucide-react";
 
 import { EntitySearchSelect } from "@/components/crm/EntitySearchSelect";
 import { InlineContactDialog } from "@/components/crm/InlineContactDialog";
@@ -317,7 +320,7 @@ export default function DealDetailPage() {
 
   const [editing, setEditing] = useState(() => window.location.pathname.endsWith('/edit'));
   const [form, setForm] = useState<Record<string, unknown>>({});
-  const [customFields, setCustomFields] = useState<{ key: string; value: string }[]>([]);
+  const [customFields, setCustomFields] = useState<{ id: string; key: string; value: string; sectionId?: string }[]>([]);
 
   const [contactDialogOpen, setContactDialogOpen] = useState(false);
   const [companyDialogOpen, setCompanyDialogOpen] = useState(false);
@@ -388,7 +391,12 @@ export default function DealDetailPage() {
   useEffect(() => {
     if (deal) {
       if (deal.custom_fields && typeof deal.custom_fields === 'object') {
-        const fields = Object.entries(deal.custom_fields).map(([k, v]) => ({ key: k, value: String(v) }));
+        const fields = Object.entries(deal.custom_fields).map(([k, v]) => {
+          if (v && typeof v === 'object' && 'value' in v) {
+            return { id: k, key: k, value: String((v as any).value), sectionId: (v as any).sectionId };
+          }
+          return { id: k, key: k, value: String(v), sectionId: 'custom-fields' };
+        });
         setCustomFields(fields);
       } else {
         setCustomFields([]);
@@ -440,9 +448,9 @@ export default function DealDetailPage() {
     }
 
     const customFieldsObj = customFields.reduce((acc, field) => {
-      if (field.key.trim()) acc[field.key.trim()] = field.value;
+      if (field.key.trim()) acc[field.key.trim()] = { value: field.value, sectionId: field.sectionId };
       return acc;
-    }, {} as Record<string, string>);
+    }, {} as Record<string, { value: string; sectionId?: string }>);
 
     updateDeal.mutate({
       id: deal.id,
@@ -514,6 +522,44 @@ export default function DealDetailPage() {
   };
 
   const set = (key: string, val: unknown) => setForm(prev => ({ ...prev, [key]: val }));
+
+  const handleFieldDropToSection = (fieldKey: string, fieldValue: string, sectionId: string) => {
+    console.log(`Field ${fieldKey} moved to ${sectionId}`);
+  };
+
+  const renderDroppedFields = (sectionId: string) => {
+    const sectionFields = customFields.filter(f => f.sectionId === sectionId);
+    if (sectionFields.length === 0) return null;
+
+    return (
+      <div className="mt-6 pt-6 border-t border-dashed border-border space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Badge variant="outline" className="text-[10px] uppercase tracking-wider bg-primary/5 text-primary border-primary/20">
+            Custom Fields
+          </Badge>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {sectionFields.map((field) => (
+            <div key={field.key} className="group relative">
+              <div className="flex items-center justify-between mb-1.5">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{field.key}</Label>
+                {editing && (
+                  <DraggableFieldItem fieldKey={field.id}>
+                    <div className="p-1 cursor-grab active:cursor-grabbing text-primary hover:text-primary-foreground hover:bg-primary rounded transition-all">
+                      <GripVertical className="h-3.5 w-3.5" />
+                    </div>
+                  </DraggableFieldItem>
+                )}
+              </div>
+              <div className="min-h-[2.5rem] px-3 py-2 border border-border rounded-lg bg-primary/5 flex items-center">
+                <span className="text-foreground font-medium">{field.value}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -975,7 +1021,15 @@ export default function DealDetailPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Professional Form Sections */}
           <div className="lg:col-span-7 space-y-6">
+            <FieldDragWrapper 
+              customFields={customFields}
+              onCustomFieldsChange={setCustomFields}
+              onFieldDropToSection={handleFieldDropToSection}
+              editing={editing}
+            >
+              <div className="space-y-6">
             {/* Deal Information Card */}
+            <DroppableSection id="deal-info" editing={editing}>
             <Card className="shadow-lg border-0  backdrop-blur-sm">
               <CardHeader className="pb-4">
                 <div className="flex items-center gap-3">
@@ -1050,10 +1104,13 @@ export default function DealDetailPage() {
                     placeholder="Describe the deal details..."
                   />
                 </div>
+                {renderDroppedFields("deal-info")}
               </CardContent>
             </Card>
+            </DroppableSection>
 
             {/* Contact Information Card */}
+            <DroppableSection id="contact-info" editing={editing}>
             <Card className="shadow-lg border-0  backdrop-blur-sm">
               <CardHeader className="pb-4">
                 <div className="flex items-center gap-3">
@@ -1139,10 +1196,13 @@ export default function DealDetailPage() {
                     placeholder="Full address"
                   />
                 </div>
+                {renderDroppedFields("contact-info")}
               </CardContent>
             </Card>
+            </DroppableSection>
 
             {/* Company Information Card */}
+            <DroppableSection id="company-info" editing={editing}>
             <Card className="shadow-lg border-0  backdrop-blur-sm">
               <CardHeader className="pb-4">
                 <div className="flex items-center gap-3">
@@ -1224,8 +1284,11 @@ export default function DealDetailPage() {
                   placeholder="e.g., 50-100 employees"
                 />
               </CardContent>
+              {renderDroppedFields("company-info")}
             </Card>
+            </DroppableSection>
 
+            <DroppableSection id="about-deal" editing={editing}>
             <Card className="border   shadow-sm rounded-xl">
               <CardHeader className="border-b  bg-muted/30">
                 <CardTitle className="text-base text-foreground">About Deal</CardTitle>
@@ -1285,9 +1348,12 @@ export default function DealDetailPage() {
                     </div>
                   )}
                 </div>
+                {renderDroppedFields("about-deal")}
               </CardContent>
             </Card>
+            </DroppableSection>
 
+            <DroppableSection id="more-section" editing={editing}>
             <Card className="border   shadow-sm rounded-xl">
               <CardHeader className="border-b  bg-muted/30">
                 <CardTitle className="text-base text-foreground">More</CardTitle>
@@ -1370,17 +1436,12 @@ export default function DealDetailPage() {
                     placeholder="Project feedback details"
                   />
                 </div>
+                {renderDroppedFields("more-section")}
               </CardContent>
             </Card>
+            </DroppableSection>
 
-            <CustomFieldsSection
-              fields={customFields}
-              onChange={setCustomFields}
-              editing={editing}
-              className={!editing ? "opacity-90 pointer-events-none" : "animate-in fade-in slide-in-from-bottom-2 duration-300"}
-            />
-
-
+            <DroppableSection id="budget-payment" editing={editing}>
             <Card className="border   shadow-sm rounded-xl">
               <CardHeader className="border-b  bg-muted/30">
                 <CardTitle className="text-base text-foreground">Budget & Payment</CardTitle>
@@ -1466,9 +1527,11 @@ export default function DealDetailPage() {
                     </Select>
                   </div>
                 </div>
+                {renderDroppedFields("budget-payment")}
               </CardContent>
             </Card>
-
+            </DroppableSection>
+            <DroppableSection id="project-details" editing={editing}>
             <Card className="border   shadow-sm rounded-xl">
               <CardHeader className="border-b  bg-muted/40/80">
                 <CardTitle className="text-base text-foreground">Project Details</CardTitle>
@@ -1495,10 +1558,12 @@ export default function DealDetailPage() {
                     placeholder="Drop your files here"
                   />
                 </div>
+                {renderDroppedFields("project-details")}
               </CardContent>
             </Card>
+            </DroppableSection>
 
-            {/* Marketing & Qualification Card */}
+            <DroppableSection id="marketing-qualification" editing={editing}>
             <Card className="shadow-lg border-0  backdrop-blur-sm">
               <CardHeader className="pb-4">
                 <div className="flex items-center gap-3">
@@ -1582,9 +1647,19 @@ export default function DealDetailPage() {
                   icon={<Search className="h-4 w-4" />}
                   placeholder="Campaign details, UTM params, etc."
                 />
+                {renderDroppedFields("marketing-qualification")}
               </CardContent>
             </Card>
+            </DroppableSection>
 
+            <CustomFieldsSection
+              fields={customFields}
+              onChange={setCustomFields}
+              editing={editing}
+              className={!editing ? "opacity-90 pointer-events-none" : "animate-in fade-in slide-in-from-bottom-2 duration-300"}
+            />
+            </div>
+            </FieldDragWrapper>
           </div>
 
           {/* Right Sidebar - Activity & Actions */}
@@ -1704,7 +1779,7 @@ export default function DealDetailPage() {
               <CardContent className="p-4 space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <p className="text-[10px] uppercase text-muted-foreground font-bold">Last Touch</p>
+                    <p className="text-[10px] uppercase text-muted-foreground font-bold">Last Update</p>
                     <p className="text-xs font-medium">{form.last_touch ? format(new Date(form.last_touch as string), 'MMM d, yyyy') : '—'}</p>
                   </div>
                   <div className="space-y-1">
