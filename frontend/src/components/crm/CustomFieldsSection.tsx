@@ -40,7 +40,7 @@ export function CustomFieldsSection({
   };
 
   return (
-    <Card className="border border-white-200 shadow-sm rounded-xl overflow-hidden">
+    <Card className="border overflow-hidden">
       <CardHeader className="border-b border-white-200  p-4 md:p-6">
         <div className="flex items-start gap-4">
           <div className="flex-1">
@@ -63,7 +63,7 @@ export function CustomFieldsSection({
       </CardHeader>
       <CardContent className="p-4 md:p-6 space-y-4">
         {fields.length === 0 ? (
-          <div className="text-center py-8 px-4 rounded-lg border-2 border-dashed border-slate-100 bg-white-50/50">
+          <div className="text-center py-8 px-4 rounded-lg">
             <p className="text-sm text-slate-500 italic">No custom fields added yet.</p>
             <Button 
               type="button" 
@@ -79,7 +79,7 @@ export function CustomFieldsSection({
             {fields.map((field, index) => (
               <div 
                 key={index} 
-                className="group flex flex-col sm:flex-row items-start sm:items-end gap-3 p-3 rounded-lg border border-slate-100 bg-slate-50/30 hover:border-primary/20 hover:bg-white transition-all duration-200"
+                className="group flex flex-col sm:flex-row items-start sm:items-end gap-3 p-3 rounded-lg border border-slate-100 hover:border-primary/20  transition-all duration-200"
               >
                 <div className="flex-1 w-full space-y-1.5">
                   <Label className="text-xs font-medium text-slate-500 uppercase tracking-wider ml-1">Field Name</Label>
