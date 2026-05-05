@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 
 const SOCKET_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || "http://localhost:4000";
 
@@ -153,6 +154,7 @@ export const closeSocket = () => {
 export function useRealtime() {
   const [isConnected, setIsConnected] = useState(socketInstance?.connected || false);
   const socket = getSocket();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!socket) return;
@@ -163,16 +165,29 @@ export function useRealtime() {
     const onConnect = () => setIsConnected(true);
     const onDisconnect = () => setIsConnected(false);
 
+    // Global listeners to keep workgroups/broadcasts in sync app-wide
+    const handleGlobalWorkgroupSync = () => {
+      queryClient.invalidateQueries({ queryKey: ["workgroups"] });
+    };
+
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
+    socket.on('workgroup:updated', handleGlobalWorkgroupSync);
+    socket.on('workgroup:member_added', handleGlobalWorkgroupSync);
+    socket.on('workgroup:member_removed', handleGlobalWorkgroupSync);
+    socket.on('workgroup:notification', handleGlobalWorkgroupSync);
 
     return () => {
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
+      socket.off('workgroup:updated', handleGlobalWorkgroupSync);
+      socket.off('workgroup:member_added', handleGlobalWorkgroupSync);
+      socket.off('workgroup:member_removed', handleGlobalWorkgroupSync);
+      socket.off('workgroup:notification', handleGlobalWorkgroupSync);
       connectionCount--;
       if (connectionCount === 0) closeSocket();
     };
-  }, [socket]);
+  }, [socket, queryClient]);
 
   const subscribeToCampaign = (campaignId: string) => {
     socket?.emit('subscribe:campaign', campaignId);

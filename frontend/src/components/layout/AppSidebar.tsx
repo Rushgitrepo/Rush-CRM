@@ -54,7 +54,29 @@ import {
   Star,
   Trash2,
   GripVertical,
+  X,
 } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
+  restrictToVerticalAxis,
+  restrictToWindowEdges,
+} from "@dnd-kit/modifiers";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -133,9 +155,13 @@ const navigation: NavItem[] = [
         nestedChildren: [
           { title: "Contacts", href: "/crm/customers/contacts" },
           { title: "Companies", href: "/crm/customers/companies" },
-          { title: "Signing parties", href: "/crm/customers/signing-parties", hasNested: true },
+          {
+            title: "Signing parties",
+            href: "/crm/customers/signing-parties",
+            hasNested: true,
+          },
           { title: "Vendors", href: "/inventory/vendors", hasNested: false },
-        ]
+        ],
       },
       { title: "Sales", href: "/crm/sales", icon: DollarSign },
       { title: "Analytics", href: "/crm/analytics", icon: BarChart3 },
@@ -160,9 +186,17 @@ const navigation: NavItem[] = [
     children: [
       { title: "Dashboard", href: "/recruitment", icon: LayoutDashboard },
       { title: "Approvals", href: "/recruitment/approvals", icon: CheckCircle },
-      { title: "Requisitions", href: "/recruitment/requisitions", icon: FileText },
+      {
+        title: "Requisitions",
+        href: "/recruitment/requisitions",
+        icon: FileText,
+      },
       { title: "Candidates", href: "/recruitment/candidates", icon: Users },
-      { title: "Interviews", href: "/recruitment/interviews", icon: MessageSquare },
+      {
+        title: "Interviews",
+        href: "/recruitment/interviews",
+        icon: MessageSquare,
+      },
       { title: "Offers", href: "/recruitment/offers", icon: DollarSign },
       { title: "Scoring", href: "/recruitment/scoring", icon: Target },
       // { title: "Talent Pool", href: "/recruitment/talent-pool", icon: UsersRound },
@@ -177,9 +211,17 @@ const navigation: NavItem[] = [
       { title: "Products", href: "/inventory/products", icon: ShoppingCart },
       { title: "Stock Tracking", href: "/inventory/stock", icon: Package },
       { title: "Vendors", href: "/inventory/vendors", icon: Truck },
-      { title: "Purchase Orders", href: "/inventory/purchase-orders", icon: FileText },
+      {
+        title: "Purchase Orders",
+        href: "/inventory/purchase-orders",
+        icon: FileText,
+      },
       { title: "Warehouses", href: "/inventory/warehouses", icon: Warehouse },
-      { title: "Product Assignments", href: "/inventory/assignments", icon: Users },
+      {
+        title: "Product Assignments",
+        href: "/inventory/assignments",
+        icon: Users,
+      },
     ],
   },
   {
@@ -219,24 +261,90 @@ const navigation: NavItem[] = [
   },
 ];
 
-export function AppSidebar({ 
-  width = 256, 
-  onWidthChange 
-}: { 
-  width?: number; 
-  onWidthChange?: (width: number) => void; 
+export function AppSidebar({
+  width = 256,
+  onWidthChange,
+  isMobile,
+  isOpen,
+  onClose,
+}: {
+  width?: number;
+  onWidthChange?: (width: number) => void;
+  isMobile?: boolean;
+  isOpen?: boolean;
+  onClose?: () => void;
 }) {
   const location = useLocation();
   const { userRole } = useAuth();
   const { data: workgroups = [] } = useWorkgroups();
   const queryClient = useQueryClient();
-  const [openSections, setOpenSections] = useState<string[]>(["Collaboration", "CRM"]);
+  const [openSections, setOpenSections] = useState<string[]>([
+    "Collaboration",
+    "CRM",
+  ]);
+  const [openCollaborationSections, setOpenCollaborationSections] = useState<
+    string[]
+  >(["Direct Messages", "Team Groups", "Broadcasts"]);
   const [expandedSubItems, setExpandedSubItems] = useState<string[]>([]);
   const [expandedNestedItems, setExpandedNestedItems] = useState<string[]>([]);
   const [focusedModule, setFocusedModule] = useState<string | null>(null);
   const deleteWg = useDeleteWorkgroup();
   const [deleteChatId, setDeleteChatId] = useState<string | null>(null);
   const { on: onRealtime, off: offRealtime } = useRealtime();
+  const [orderedNavigation, setOrderedNavigation] = useState<NavItem[]>(() => {
+    const savedOrder =
+      typeof window !== "undefined"
+        ? localStorage.getItem("sidebar_module_order")
+        : null;
+    if (savedOrder) {
+      try {
+        const parsedOrder = JSON.parse(savedOrder);
+        const reordered = parsedOrder
+          .map((title: string) => navigation.find((n) => n.title === title))
+          .filter(Boolean) as NavItem[];
+
+        const missingItems = navigation.filter(
+          (item) => !parsedOrder.includes(item.title),
+        );
+
+        return [...reordered, ...missingItems];
+      } catch (e) {
+        return navigation;
+      }
+    }
+    return navigation;
+  });
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // Avoid accidental drags on click
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      setOrderedNavigation((items) => {
+        const oldIndex = items.findIndex((i) => i.title === active.id);
+        const newIndex = items.findIndex((i) => i.title === over.id);
+        const newOrder = arrayMove(items, oldIndex, newIndex);
+
+        // Save only titles to localStorage for persistence
+        localStorage.setItem(
+          "sidebar_module_order",
+          JSON.stringify(newOrder.map((item) => item.title)),
+        );
+
+        return newOrder;
+      });
+    }
+  };
 
   useEffect(() => {
     const handleWorkgroupUpdated = (payload: any) => {
@@ -260,81 +368,109 @@ export function AppSidebar({
     };
   }, [onRealtime, offRealtime, queryClient]);
 
-  const isAdmin = userRole?.role === 'super_admin' || userRole?.role === 'admin';
+  const isAdmin =
+    userRole?.role === "super_admin" || userRole?.role === "admin";
 
   const toggleStarChat = async (workgroupId: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     const workgroup = workgroups.find((wg: any) => wg.id === workgroupId);
     if (!workgroup) return;
-    
+
     const newStarredState = !workgroup.is_starred;
-    
+
     try {
       await api.put(`/workgroups/${workgroupId}/star`, {
-        is_starred: newStarredState
+        is_starred: newStarredState,
       });
       // Invalidate and refetch workgroups to update the UI immediately
-      queryClient.invalidateQueries({ queryKey: ['workgroups'] });
+      queryClient.invalidateQueries({ queryKey: ["workgroups"] });
     } catch (error) {
-      console.error('Failed to toggle star:', error);
+      console.error("Failed to toggle star:", error);
     }
   };
 
   // Direct Messages from workgroups - show starred first, then recent, max 5
-  const directMessages = useMemo(
-    () => {
-      const dms = workgroups
-        .filter(
-          (wg: any) =>
-            wg.type === "private" &&
-            Boolean(wg.settings?.is_direct_chat) &&
-            Number(wg.message_count || 0) > 0
-        );
-      
-      // Separate starred and non-starred
-      const starred = dms.filter((wg: any) => wg.is_starred);
-      const nonStarred = dms.filter((wg: any) => !wg.is_starred);
-      
-      // Sort both by recent activity
-      const sortByRecent = (a: any, b: any) => {
-        const ta = new Date(a.last_message_at || a.updated_at || a.created_at).getTime();
-        const tb = new Date(b.last_message_at || b.updated_at || b.created_at).getTime();
-        return tb - ta;
-      };
-      
-      starred.sort(sortByRecent);
-      nonStarred.sort(sortByRecent);
-      
-      // Combine starred first, then non-starred, limit to 5 total
-      return [...starred, ...nonStarred].slice(0, 5);
-    },
-    [workgroups]
-  );
+  const directMessages = useMemo(() => {
+    const dms = workgroups.filter(
+      (wg: any) =>
+        wg.type === "private" && Boolean(wg.settings?.is_direct_chat),
+    );
 
-  // Team Workgroups (non-DM)
+    // Separate starred and non-starred
+    const starred = dms.filter((wg: any) => wg.is_starred);
+    const nonStarred = dms.filter((wg: any) => !wg.is_starred);
+
+    // Sort both by recent activity
+    const sortByRecent = (a: any, b: any) => {
+      const ta = new Date(
+        a.last_message_at || a.updated_at || a.created_at,
+      ).getTime();
+      const tb = new Date(
+        b.last_message_at || b.updated_at || b.created_at,
+      ).getTime();
+      return tb - ta;
+    };
+
+    starred.sort(sortByRecent);
+    nonStarred.sort(sortByRecent);
+
+    // Combine starred first, then non-starred, limit to 5 total
+    return [...starred, ...nonStarred].slice(0, 5);
+  }, [workgroups]);
+
+  // Team Workgroups (non-DM, non-Broadcast)
   const teamWorkgroups = useMemo(
     () =>
       workgroups
         .filter(
           (wg: any) =>
-            !(wg.type === "private" && Boolean(wg.settings?.is_direct_chat))
+            !(wg.type === "private" && Boolean(wg.settings?.is_direct_chat)) &&
+            !Boolean(wg.settings?.is_broadcast),
         )
         .sort((a: any, b: any) => {
-          const ta = new Date(a.last_message_at || a.updated_at || a.created_at).getTime();
-          const tb = new Date(b.last_message_at || b.updated_at || b.created_at).getTime();
+          const ta = new Date(
+            a.last_message_at || a.updated_at || a.created_at,
+          ).getTime();
+          const tb = new Date(
+            b.last_message_at || b.updated_at || b.created_at,
+          ).getTime();
           return tb - ta;
         }),
-    [workgroups]
+    [workgroups],
+  );
+
+  // Broadcasts
+  const broadcasts = useMemo(
+    () =>
+      workgroups.filter(
+        (wg: any) => wg.type === "private" && Boolean(wg.settings?.is_broadcast),
+      ),
+    [workgroups],
+  );
+
+  const totalBroadcastUnread = useMemo(
+    () =>
+      broadcasts.reduce(
+        (sum: number, wg: any) => sum + Number(wg?.unread_count || 0),
+        0,
+      ),
+    [broadcasts],
   );
 
   const totalDMUnread = useMemo(
     () =>
       workgroups
-        .filter((wg: any) => wg.type === 'private' && Boolean(wg.settings?.is_direct_chat))
-        .reduce((sum: number, wg: any) => sum + Number(wg?.unread_count || 0), 0),
-    [workgroups]
+        .filter(
+          (wg: any) =>
+            wg.type === "private" && Boolean(wg.settings?.is_direct_chat),
+        )
+        .reduce(
+          (sum: number, wg: any) => sum + Number(wg?.unread_count || 0),
+          0,
+        ),
+    [workgroups],
   );
 
   const filteredNavigation = useMemo(() => {
@@ -356,13 +492,13 @@ export function AppSidebar({
 
   const toggleSection = (title: string) => {
     setOpenSections((prev) =>
-      prev.includes(title) ? prev.filter((t) => t !== title) : [...prev, title]
+      prev.includes(title) ? prev.filter((t) => t !== title) : [...prev, title],
     );
   };
 
   const toggleSubItem = (title: string) => {
     setExpandedSubItems((prev) =>
-      prev.includes(title) ? prev.filter((t) => t !== title) : [...prev, title]
+      prev.includes(title) ? prev.filter((t) => t !== title) : [...prev, title],
     );
   };
 
@@ -372,7 +508,11 @@ export function AppSidebar({
   const totalWorkgroupUnread = useMemo(
     () =>
       workgroups
-        .filter((wg: any) => !((wg.type === 'private') && Boolean(wg.settings?.is_direct_chat)))
+        .filter(
+          (wg: any) =>
+            !(wg.type === "private" && Boolean(wg.settings?.is_direct_chat)) &&
+            !Boolean(wg.settings?.is_broadcast),
+        )
         .reduce(
           (sum: number, wg: any) => sum + Number(wg?.unread_count || 0),
           0,
@@ -380,11 +520,22 @@ export function AppSidebar({
     [workgroups],
   );
 
+  const toggleCollaborationSection = (title: string) => {
+    setOpenCollaborationSections((prev) =>
+      prev.includes(title) ? prev.filter((t) => t !== title) : [...prev, title],
+    );
+  };
+
   // Define nested submenus for items that have hasNested flag
   const getDeepNestedItems = (title: string): NestedChild[] => {
     switch (title) {
       case "Signing parties":
-        return [{ title: "Contacts", href: "/crm/customers/signing-parties/contacts" }];
+        return [
+          {
+            title: "Contacts",
+            href: "/crm/customers/signing-parties/contacts",
+          },
+        ];
       case "Vendors":
         // Redirect to main inventory vendors page instead of non-existent CRM routes
         return [
@@ -399,7 +550,7 @@ export function AppSidebar({
 
   const toggleNestedItem = (title: string) => {
     setExpandedNestedItems((prev) =>
-      prev.includes(title) ? prev.filter((t) => t !== title) : [...prev, title]
+      prev.includes(title) ? prev.filter((t) => t !== title) : [...prev, title],
     );
   };
 
@@ -412,8 +563,8 @@ export function AppSidebar({
 
   const handleMouseMove = (e: MouseEvent) => {
     if (!isResizing) return;
-    
-    const newWidth = Math.max(200, Math.min(400, e.clientX));
+
+    const newWidth = Math.max(200, Math.min(480, e.clientX));
     onWidthChange?.(newWidth);
   };
 
@@ -424,49 +575,66 @@ export function AppSidebar({
   // Add event listeners for mouse move and up
   useEffect(() => {
     if (isResizing) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = 'col-resize';
-      document.body.style.userSelect = 'none';
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
     } else {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
     }
 
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
     };
   }, [isResizing]);
 
   const renderSubItem = (child: NavSubItem, parentTitle?: string) => {
-    const hasNestedChildren = child.nestedChildren && child.nestedChildren.length > 0;
+    const hasNestedChildren =
+      child.nestedChildren && child.nestedChildren.length > 0;
     const isExpanded = expandedSubItems.includes(child.title);
 
     // Special rendering for Workgroups - add Direct Messages below it
     if (child.title === "Workgroups" && parentTitle === "Collaboration") {
+      const isDMOpen = openCollaborationSections.includes("Direct Messages");
+      const isTeamOpen = openCollaborationSections.includes("Team Groups");
+      const isBroadcastOpen =
+        openCollaborationSections.includes("Broadcasts");
+
       return (
         <div key={child.href}>
           {/* Workgroups Link */}
           <NavLink
             to={child.href}
+            onClick={() => isMobile && onClose?.()}
             className={cn(
               "flex items-center gap-3 rounded-lg py-2 pl-9 pr-3 text-[13px] transition-all duration-200",
               isActive(child.href)
                 ? "bg-primary/10 text-white font-medium"
-                : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
+                : "text-slate-400 hover:text-white hover:bg-white/[0.03]",
             )}
           >
-            {child.icon && <child.icon className={cn("h-4 w-4", isActive(child.href) ? "text-primary" : "text-slate-500")} />}
+            {child.icon && (
+              <child.icon
+                className={cn(
+                  "h-4 w-4",
+                  isActive(child.href) ? "text-primary" : "text-slate-500",
+                )}
+              />
+            )}
             <span className="flex items-center gap-2">
               {child.title}
-              {totalWorkgroupUnread > 0 && (
+              {totalWorkgroupUnread + totalBroadcastUnread + totalDMUnread >
+                0 && (
                 <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-bold text-white">
-                  {totalWorkgroupUnread}
+                  {totalWorkgroupUnread +
+                    totalBroadcastUnread +
+                    totalDMUnread}
                 </span>
               )}
             </span>
@@ -474,58 +642,86 @@ export function AppSidebar({
 
           {/* Direct Messages Section */}
           <div className="mt-4 mb-2">
-            <div className="flex items-center justify-between px-9 mb-2.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Direct Messages
-              </span>
-              {totalDMUnread > 0 && (
-                <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1.5 text-[9px] font-bold text-white">
-                  {totalDMUnread}
+            <button
+              onClick={() => toggleCollaborationSection("Direct Messages")}
+              className="flex w-full items-center justify-between px-9 mb-2.5 group/header"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 group-hover/header:text-slate-300">
+                  Direct Messages
                 </span>
-              )}
-            </div>
-            
-{directMessages.length > 0 && (
-              <div className="space-y-0.5">
+                {totalDMUnread > 0 && (
+                  <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1.5 text-[9px] font-bold text-white">
+                    {totalDMUnread}
+                  </span>
+                )}
+              </div>
+              <ChevronDown
+                className={cn(
+                  "h-3 w-3 text-slate-600 transition-transform duration-200 group-hover/header:text-slate-400",
+                  !isDMOpen && "-rotate-90",
+                )}
+              />
+            </button>
+
+            {isDMOpen && directMessages.length > 0 && (
+              <div className="space-y-0.5 animate-in fade-in slide-in-from-top-1 duration-200">
                 {directMessages.map((dm: any) => {
                   const dmPath = `/collaboration/direct-chats?chat=${dm.id}`;
-                  const isDMActive = location.pathname === '/collaboration/direct-chats' && location.search.includes(dm.id);
+                  const isDMActive =
+                    location.pathname === "/collaboration/direct-chats" &&
+                    location.search.includes(dm.id);
                   const unreadCount = Number(dm.unread_count || 0);
                   const isOnline = Boolean(dm.is_online);
                   const isStarred = Boolean(dm.is_starred);
-                  
+
                   return (
-                    <div
-                      key={dm.id}
-                      className="group/dm relative"
-                    >
+                    <div key={dm.id} className="group/dm relative">
                       <NavLink
                         to={dmPath}
+                        onClick={() => isMobile && onClose?.()}
                         className={cn(
                           "flex items-center gap-2 rounded-lg py-1.5 pl-9 pr-14 text-[13px] transition-all duration-200",
                           isDMActive
                             ? "bg-primary/10 text-white font-medium"
-                            : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
+                            : "text-slate-400 hover:text-white hover:bg-white/[0.03]",
                         )}
                       >
                         <div className="relative">
                           <Avatar className="h-5 w-5">
-                            <AvatarImage src={getAvatarUrl(dm.avatar_url || dm.direct_peer_avatar_url || dm.avatar) || undefined} />
-                            <AvatarFallback className={cn(dm.avatar_color, "text-white text-[10px]")}>
-                              {(dm.display_name || dm.name || "DM").slice(0, 2).toUpperCase()}
+                            <AvatarImage
+                              src={
+                                getAvatarUrl(
+                                  dm.avatar_url ||
+                                    dm.direct_peer_avatar_url ||
+                                    dm.avatar,
+                                ) || undefined
+                              }
+                            />
+                            <AvatarFallback
+                              className={cn(
+                                dm.avatar_color,
+                                "text-white text-[10px]",
+                              )}
+                            >
+                              {(dm.display_name || dm.name || "DM")
+                                .slice(0, 2)
+                                .toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
                           <span
                             className={cn(
                               "absolute -right-0.5 -bottom-0.5 h-2 w-2 rounded-full border border-[#0c111d]",
-                              isOnline ? "bg-green-500" : "bg-slate-600"
+                              isOnline ? "bg-green-500" : "bg-slate-600",
                             )}
                           />
                         </div>
-                        <span className="flex-1 truncate">{dm.display_name || dm.name}</span>
+                        <span className="flex-1 truncate">
+                          {dm.display_name || dm.name}
+                        </span>
                         {unreadCount > 0 && (
                           <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-white">
-                            {unreadCount > 99 ? '99+' : unreadCount}
+                            {unreadCount > 99 ? "99+" : unreadCount}
                           </span>
                         )}
                       </NavLink>
@@ -535,11 +731,16 @@ export function AppSidebar({
                           "absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded transition-all",
                           isStarred
                             ? "text-yellow-500 opacity-100"
-                            : "text-slate-600 opacity-0 group-hover/dm:opacity-100 hover:text-yellow-500"
+                            : "text-slate-600 opacity-0 group-hover/dm:opacity-100 hover:text-yellow-500",
                         )}
                         title={isStarred ? "Unstar chat" : "Star chat"}
                       >
-                        <Star className={cn("h-3.5 w-3.5", isStarred && "fill-yellow-500")} />
+                        <Star
+                          className={cn(
+                            "h-3.5 w-3.5",
+                            isStarred && "fill-yellow-500",
+                          )}
+                        />
                       </button>
                       <button
                         onClick={(e) => {
@@ -557,16 +758,18 @@ export function AppSidebar({
                 })}
               </div>
             )}
-            
+
             {/* View All Direct Chats Link */}
-            {directMessages.length > 0 && (
+            {isDMOpen && directMessages.length > 0 && (
               <NavLink
                 to="/collaboration/direct-chats"
+                onClick={() => isMobile && onClose?.()}
                 className={cn(
-                  "flex items-center gap-2 rounded-lg py-2 pl-9 pr-3 mt-2 text-[12px] transition-all duration-200",
-                  location.pathname === '/collaboration/direct-chats' && !location.search
+                  "flex items-center gap-2 rounded-lg py-2 pl-9 pr-3 mt-1 text-[12px] transition-all duration-200",
+                  location.pathname === "/collaboration/direct-chats" &&
+                    !location.search
                     ? "text-primary font-medium"
-                    : "text-slate-500 hover:text-slate-300"
+                    : "text-slate-500 hover:text-slate-300",
                 )}
               >
                 <MessageSquare className="h-3.5 w-3.5" />
@@ -578,54 +781,73 @@ export function AppSidebar({
 
           {/* Team Workgroups Section */}
           <div className="mt-6 mb-2">
-            <div className="flex items-center justify-between px-9 mb-2.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Team Workgroups
-              </span>
-              {totalWorkgroupUnread > 0 && (
-                <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1.5 text-[9px] font-bold text-white">
-                  {totalWorkgroupUnread}
+            <button
+              onClick={() => toggleCollaborationSection("Team Groups")}
+              className="flex w-full items-center justify-between px-9 mb-2.5 group/header"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 group-hover/header:text-slate-300">
+                  Team Groups
                 </span>
-              )}
-            </div>
-            
-            {teamWorkgroups.length > 0 && (
-              <div className="space-y-0.5">
+                {totalWorkgroupUnread > 0 && (
+                  <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1.5 text-[9px] font-bold text-white">
+                    {totalWorkgroupUnread}
+                  </span>
+                )}
+              </div>
+              <ChevronDown
+                className={cn(
+                  "h-3 w-3 text-slate-600 transition-transform duration-200 group-hover/header:text-slate-400",
+                  !isTeamOpen && "-rotate-90",
+                )}
+              />
+            </button>
+
+            {isTeamOpen && teamWorkgroups.length > 0 && (
+              <div className="space-y-0.5 animate-in fade-in slide-in-from-top-1 duration-200">
                 {teamWorkgroups.slice(0, 8).map((wg: any) => {
                   const wgPath = `/collaboration/workgroups?team=${wg.id}`;
-                  const isWGActive = location.pathname === '/collaboration/workgroups' && location.search.includes(`team=${wg.id}`);
+                  const isWGActive =
+                    location.pathname === "/collaboration/workgroups" &&
+                    location.search.includes(`team=${wg.id}`);
                   const unreadCount = Number(wg.unread_count || 0);
                   const isStarred = Boolean(wg.is_starred);
-                  
+
                   return (
-                    <div
-                      key={wg.id}
-                      className="group/wg relative"
-                    >
+                    <div key={wg.id} className="group/wg relative">
                       <NavLink
                         to={wgPath}
+                        onClick={() => isMobile && onClose?.()}
                         className={cn(
                           "flex items-center gap-2 rounded-lg py-1.5 pl-9 pr-8 text-[13px] transition-all duration-200",
                           isWGActive
                             ? "bg-primary/10 text-white font-medium"
-                            : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
+                            : "text-slate-400 hover:text-white hover:bg-white/[0.03]",
                         )}
                       >
                         <div className="relative">
                           <Avatar className="h-5 w-5">
-                            <AvatarImage src={getAvatarUrl(wg.avatar_url) || undefined} />
-                            <AvatarFallback className={`${wg.avatar_color || 'bg-primary'} text-white text-[10px]`}>
-                              {(wg.display_name || wg.name).slice(0, 2).toUpperCase()}
+                            <AvatarImage
+                              src={getAvatarUrl(wg.avatar_url) || undefined}
+                            />
+                            <AvatarFallback
+                              className={`${wg.avatar_color || "bg-primary"} text-white text-[10px]`}
+                            >
+                              {(wg.display_name || wg.name)
+                                .slice(0, 2)
+                                .toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
-                          {wg.type === 'public' && (
+                          {wg.type === "public" && (
                             <span className="absolute -right-0.5 -bottom-0.5 h-2 w-2 rounded-full bg-green-500 border border-[#0c111d]" />
                           )}
                         </div>
-                        <span className="flex-1 truncate">{wg.display_name || wg.name}</span>
+                        <span className="flex-1 truncate">
+                          {wg.display_name || wg.name}
+                        </span>
                         {unreadCount > 0 && (
                           <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-white">
-                            {unreadCount > 9 ? '9+' : unreadCount}
+                            {unreadCount > 9 ? "9+" : unreadCount}
                           </span>
                         )}
                       </NavLink>
@@ -635,33 +857,137 @@ export function AppSidebar({
                           "absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded transition-all",
                           isStarred
                             ? "text-yellow-500 opacity-100"
-                            : "text-slate-600 opacity-0 group-hover/wg:opacity-100 hover:text-yellow-500"
+                            : "text-slate-600 opacity-0 group-hover/wg:opacity-100 hover:text-yellow-500",
                         )}
-                        title={isStarred ? "Unstar workgroup" : "Star workgroup"}
+                        title={
+                          isStarred ? "Unstar workgroup" : "Star workgroup"
+                        }
                       >
-                        <Star className={cn("h-3.5 w-3.5", isStarred && "fill-yellow-500")} />
+                        <Star
+                          className={cn(
+                            "h-3.5 w-3.5",
+                            isStarred && "fill-yellow-500",
+                          )}
+                        />
                       </button>
                     </div>
                   );
                 })}
               </div>
             )}
-            
+
             {/* View All Workgroups Link */}
-            {teamWorkgroups.length > 0 && (
+            {isTeamOpen && teamWorkgroups.length > 0 && (
               <NavLink
                 to="/collaboration/workgroups"
+                onClick={() => isMobile && onClose?.()}
                 className={cn(
-                  "flex items-center gap-2 rounded-lg py-2 pl-9 pr-3 mt-2 text-[12px] transition-all duration-200",
-                  location.pathname === '/collaboration/workgroups' && !location.pathname.includes('/workgroups/')
+                  "flex items-center gap-2 rounded-lg py-2 pl-9 pr-3 mt-1 text-[12px] transition-all duration-200",
+                  location.pathname === "/collaboration/workgroups" &&
+                    !location.pathname.includes("/workgroups/")
                     ? "text-primary font-medium"
-                    : "text-slate-500 hover:text-slate-300"
+                    : "text-slate-500 hover:text-slate-300",
                 )}
               >
                 <Users className="h-3.5 w-3.5" />
                 <span>View all workgroups</span>
                 <ArrowRight className="h-3 w-3 ml-auto" />
               </NavLink>
+            )}
+          </div>
+
+          {/* Broadcasts Section */}
+          <div className="mt-6 mb-2">
+            <button
+              onClick={() => toggleCollaborationSection("Broadcasts")}
+              className="flex w-full items-center justify-between px-9 mb-2.5 group/header"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 group-hover/header:text-slate-300">
+                  Broadcasts
+                </span>
+                {totalBroadcastUnread > 0 && (
+                  <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1.5 text-[9px] font-bold text-white">
+                    {totalBroadcastUnread}
+                  </span>
+                )}
+              </div>
+              <ChevronDown
+                className={cn(
+                  "h-3 w-3 text-slate-600 transition-transform duration-200 group-hover/header:text-slate-400",
+                  !isBroadcastOpen && "-rotate-90",
+                )}
+              />
+            </button>
+
+            {isBroadcastOpen && (
+              <div className="space-y-0.5 animate-in fade-in slide-in-from-top-1 duration-200">
+                {broadcasts.length > 0 ? (
+                  broadcasts.map((bc: any) => {
+                    const bcPath = `/collaboration/broadcast?team=${bc.id}`;
+                    const isBCActive =
+                      location.pathname === "/collaboration/broadcast" &&
+                      location.search.includes(`team=${bc.id}`);
+                    const unreadCount = Number(bc.unread_count || 0);
+
+                    return (
+                      <div key={bc.id} className="group/bc relative">
+                        <NavLink
+                          to={bcPath}
+                          onClick={() => isMobile && onClose?.()}
+                          className={cn(
+                            "flex items-center gap-2 rounded-lg py-1.5 pl-9 pr-8 text-[13px] transition-all duration-200",
+                            isBCActive
+                              ? "bg-primary/10 text-white font-medium"
+                              : "text-slate-400 hover:text-white hover:bg-white/[0.03]",
+                          )}
+                        >
+                          <Avatar className="h-5 w-5">
+                            <AvatarImage
+                              src={getAvatarUrl(bc.avatar_url) || undefined}
+                            />
+                            <AvatarFallback
+                              className={`${bc.avatar_color || "bg-indigo-500"} text-white text-[10px]`}
+                            >
+                              {(bc.display_name || bc.name)
+                                .slice(0, 2)
+                                .toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="flex-1 truncate">
+                            {bc.display_name || bc.name}
+                          </span>
+                          {unreadCount > 0 && (
+                            <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-white">
+                              {unreadCount > 9 ? "9+" : unreadCount}
+                            </span>
+                          )}
+                        </NavLink>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <p className="px-9 py-2 text-[11px] text-slate-600 italic">
+                    No active broadcasts
+                  </p>
+                )}
+
+                <NavLink
+                  to="/collaboration/broadcast"
+                  onClick={() => isMobile && onClose?.()}
+                  className={cn(
+                    "flex items-center gap-2 rounded-lg py-2 pl-9 pr-3 mt-1 text-[12px] transition-all duration-200",
+                    location.pathname === "/collaboration/broadcast" &&
+                      !location.search
+                      ? "text-primary font-medium"
+                      : "text-slate-500 hover:text-slate-300",
+                  )}
+                >
+                  <Megaphone className="h-3.5 w-3.5" />
+                  <span>View all broadcasts</span>
+                  <ArrowRight className="h-3 w-3 ml-auto" />
+                </NavLink>
+              </div>
             )}
           </div>
         </div>
@@ -683,17 +1009,27 @@ export function AppSidebar({
               "flex w-full items-center justify-between gap-3 rounded-xl py-2 pl-9 pr-3 text-[13px] transition-all duration-200",
               isActive(child.href) || location.pathname.startsWith(child.href)
                 ? "bg-primary/10 text-white font-medium"
-                : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
+                : "text-slate-400 hover:text-white hover:bg-white/[0.03]",
             )}
           >
             <div className="flex items-center gap-3">
-              {child.icon && <child.icon className={cn("h-4 w-4", (isActive(child.href) || location.pathname.startsWith(child.href)) ? "text-primary" : "text-slate-500")} />}
+              {child.icon && (
+                <child.icon
+                  className={cn(
+                    "h-4 w-4",
+                    isActive(child.href) ||
+                      location.pathname.startsWith(child.href)
+                      ? "text-primary"
+                      : "text-slate-500",
+                  )}
+                />
+              )}
               <span>{child.title}</span>
             </div>
             <ChevronRight
               className={cn(
                 "h-3 w-3 transition-transform duration-300 text-slate-600",
-                isExpanded && "rotate-90 text-white"
+                isExpanded && "rotate-90 text-white",
               )}
             />
           </NavLink>
@@ -701,9 +1037,13 @@ export function AppSidebar({
           {isExpanded && (
             <div className="ml-6 mt-1.5 space-y-1.5 border-l border-white/5 pl-4 animate-in slide-in-from-left-2 duration-300">
               {child.nestedChildren!.map((nested) => {
-                const deepNested = nested.hasNested ? getDeepNestedItems(nested.title) : [];
+                const deepNested = nested.hasNested
+                  ? getDeepNestedItems(nested.title)
+                  : [];
                 const hasDeepNested = deepNested.length > 0;
-                const isNestedExpanded = expandedNestedItems.includes(nested.title);
+                const isNestedExpanded = expandedNestedItems.includes(
+                  nested.title,
+                );
 
                 if (hasDeepNested) {
                   return (
@@ -714,14 +1054,14 @@ export function AppSidebar({
                           "flex w-full items-center justify-between rounded-lg py-1.5 pl-3 pr-2 text-[12px] font-medium transition-all",
                           isActive(nested.href)
                             ? "text-primary bg-primary/10"
-                            : "text-slate-500 hover:text-slate-300 hover:bg-white/5"
+                            : "text-slate-500 hover:text-slate-300 hover:bg-white/5",
                         )}
                       >
                         <span>{nested.title}</span>
                         <ChevronRight
                           className={cn(
                             "h-3 w-3 transition-transform duration-300",
-                            isNestedExpanded && "rotate-90"
+                            isNestedExpanded && "rotate-90",
                           )}
                         />
                       </button>
@@ -736,7 +1076,7 @@ export function AppSidebar({
                                 "flex items-center rounded-lg py-1.5 pl-3 pr-2 text-[11px] transition-all",
                                 isActive(deep.href)
                                   ? "text-white font-bold"
-                                  : "text-slate-500 hover:text-slate-300"
+                                  : "text-slate-500 hover:text-slate-300",
                               )}
                             >
                               {deep.title}
@@ -756,7 +1096,7 @@ export function AppSidebar({
                       "flex items-center rounded-lg py-1.5 pl-3 pr-2 text-[12px] transition-all",
                       isActive(nested.href)
                         ? "text-primary font-bold"
-                        : "text-slate-500 hover:text-slate-300"
+                        : "text-slate-500 hover:text-slate-300",
                     )}
                   >
                     {nested.title}
@@ -773,14 +1113,24 @@ export function AppSidebar({
       <NavLink
         key={child.href}
         to={child.href}
+        onClick={() => isMobile && onClose?.()}
         className={cn(
           "flex items-center gap-3 rounded-xl py-2 pl-9 pr-3 text-[13px] transition-all duration-200",
           isActive(child.href)
             ? "bg-primary/10 text-white font-medium"
-            : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
+            : "text-slate-400 hover:text-white hover:bg-white/[0.03]",
         )}
       >
-        {child.icon && <child.icon className={cn("h-4 w-4", isActive(child.href) ? "text-primary" : "text-slate-500 group-hover:text-slate-300")} />}
+        {child.icon && (
+          <child.icon
+            className={cn(
+              "h-4 w-4",
+              isActive(child.href)
+                ? "text-primary"
+                : "text-slate-500 group-hover:text-slate-300",
+            )}
+          />
+        )}
         <span className="flex items-center gap-2">
           {child.title}
           {child.title === "Workgroups" && totalWorkgroupUnread > 0 && (
@@ -794,18 +1144,40 @@ export function AppSidebar({
   };
 
   return (
-    <aside 
-      className="fixed left-0 top-0 z-50 h-screen bg-[#0c111d] border-r border-white/5 flex flex-col"
+    <aside
+      className={cn(
+        "fixed left-0 top-0 z-50 h-screen bg-[#0c111d] border-r border-white/5 flex flex-col transition-transform duration-300 ease-in-out",
+        isMobile
+          ? isOpen
+            ? "translate-x-0"
+            : "-translate-x-full"
+          : "translate-x-0",
+      )}
       style={{ width: `${width}px` }}
     >
       {/* Brand Header */}
       <div className="p-6">
-        <div className="flex items-center gap-3 mb-6 focus-outline-none">
-
-          <div className="flex flex-col">
-            <span className="text-base font-bold tracking-tight text-white leading-none">Rush Management System</span>
-            <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-1.5">Enterprise Suite</span>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3 focus-outline-none">
+            <div className="flex flex-col">
+              <span className="text-base font-bold tracking-tight text-white leading-none">
+                Rush CRM
+              </span>
+              <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-1.5">
+                Enterprise Suite
+              </span>
+            </div>
           </div>
+          {isMobile && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              className="text-slate-400"
+            >
+              <X className="h-5 w-5" />
+            </Button>
+          )}
         </div>
 
         <div className="h-px w-full bg-gradient-to-r from-white/[0.08] to-transparent" />
@@ -951,7 +1323,8 @@ export function AppSidebar({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Conversation?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this conversation and all its messages. This action cannot be undone.
+              This will permanently delete this conversation and all its
+              messages. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -960,7 +1333,7 @@ export function AppSidebar({
               onClick={() => {
                 if (deleteChatId) {
                   deleteWg.mutate(deleteChatId, {
-                    onSuccess: () => setDeleteChatId(null)
+                    onSuccess: () => setDeleteChatId(null),
                   });
                 }
               }}
@@ -971,6 +1344,155 @@ export function AppSidebar({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Resize Handle - Only for desktop */}
+      {!isMobile && (
+        <div
+          onMouseDown={handleMouseDown}
+          className={cn(
+            "absolute right-0 top-0 w-1 h-full cursor-col-resize transition-all duration-200 group-hover:bg-primary/20",
+            isResizing
+              ? "bg-primary w-1.5 opacity-100"
+              : "opacity-0 hover:opacity-100 hover:bg-primary/40",
+          )}
+        />
+      )}
     </aside>
+  );
+}
+
+function SortableNavItem({
+  item,
+  isActive,
+  isSectionActive,
+  openSections,
+  toggleSection,
+  renderSubItem,
+  isMobile,
+  onClose,
+}: {
+  item: NavItem;
+  isActive: (href: string) => boolean;
+  isSectionActive: (children?: { href: string }[]) => boolean | undefined;
+  openSections: string[];
+  toggleSection: (title: string) => void;
+  renderSubItem: (child: NavSubItem, parentTitle?: string) => JSX.Element;
+  isMobile?: boolean;
+  onClose?: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.title });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : undefined,
+    position: "relative" as const,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  if (item.children) {
+    const isOpenSection = openSections.includes(item.title);
+    const sectionActive = isSectionActive(item.children);
+
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        className={cn(
+          "mb-2 group/sortable",
+          isDragging && "pointer-events-none",
+        )}
+      >
+        <div className="flex items-center group">
+          <button
+            {...attributes}
+            {...listeners}
+            className="p-1 opacity-0 group-hover/sortable:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-slate-600 hover:text-slate-400"
+          >
+            <GripVertical className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={() => toggleSection(item.title)}
+            className={cn(
+              "flex flex-1 items-center justify-between rounded-xl px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider transition-all duration-200",
+              sectionActive
+                ? "text-white"
+                : "text-slate-500 hover:text-slate-300 hover:bg-white/[0.03]",
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <item.icon
+                className={cn(
+                  "h-4 w-4",
+                  sectionActive ? "text-primary" : "text-slate-500",
+                )}
+              />
+              <span>{item.title}</span>
+            </div>
+            <ChevronDown
+              className={cn(
+                "h-3.5 w-3.5 transition-transform duration-500",
+                isOpenSection && "rotate-180",
+              )}
+            />
+          </button>
+        </div>
+        {isOpenSection && (
+          <div className="mt-1 space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-300 pl-6">
+            {item.children.map((child) => renderSubItem(child, item.title))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn("group/sortable", isDragging && "pointer-events-none")}
+    >
+      <div className="flex items-center group">
+        <button
+          {...attributes}
+          {...listeners}
+          className="p-1 opacity-0 group-hover/sortable:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-slate-600 hover:text-slate-400"
+        >
+          <GripVertical className="h-3.5 w-3.5" />
+        </button>
+        <NavLink
+          to={item.href!}
+          onClick={() => isMobile && onClose?.()}
+          className={cn(
+            "flex flex-1 items-center justify-between rounded-xl px-4 py-2.5 text-[13px] font-medium transition-all duration-200",
+            isActive(item.href!)
+              ? "bg-primary/10 text-white"
+              : "text-slate-400 hover:text-white hover:bg-white/[0.03]",
+          )}
+        >
+          <div className="flex items-center gap-3">
+            <item.icon
+              className={cn(
+                "h-4 w-4",
+                isActive(item.href!) ? "text-primary" : "text-slate-500",
+              )}
+            />
+            <span>{item.title}</span>
+          </div>
+          {item.badge && (
+            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[9px] font-black text-white shadow-lg shadow-primary/20">
+              {item.badge}
+            </span>
+          )}
+        </NavLink>
+      </div>
+    </div>
   );
 }

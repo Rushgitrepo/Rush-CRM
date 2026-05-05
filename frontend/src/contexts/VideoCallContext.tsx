@@ -17,6 +17,7 @@ interface RemotePeer extends CallPeer {
   isMuted: boolean;
   isVideoOff: boolean;
   isScreenSharing: boolean;
+  isModerator?: boolean;
   stream: MediaStream | null;
 }
 
@@ -45,7 +46,7 @@ interface VideoCallState {
 interface VideoCallContextType extends VideoCallState {
   localStream: MediaStream | null;
   screenStream: MediaStream | null;
-  startCall: (targetUserId: string, targetName: string, targetAvatar: string | null, callType: CallType) => void;
+  startCall: (targetUserId: string, targetName: string, targetAvatar: string | null, callType: CallType, forceGroupCall?: boolean, isModerator?: boolean) => void;
   joinRoom: (roomId: string, callType: CallType) => void;
   acceptCall: () => void;
   rejectCall: () => void;
@@ -370,7 +371,7 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
     }, 5000);
   }, [state.callId, profile, user?.id]);
 
-  const startCall = useCallback(async (targetUserId: string, targetName: string, targetAvatar: string | null, callType: CallType, forceGroupCall: boolean = false) => {
+  const startCall = useCallback(async (targetUserId: string, targetName: string, targetAvatar: string | null, callType: CallType, forceGroupCall: boolean = false, isModerator: boolean = false) => {
     if (callStateRef.current !== 'idle') return;
     const socket = getSocket();
     if (!socket || !profile) return;
@@ -391,7 +392,15 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
     playRingtone('outgoing');
     try {
       await getUserMedia(callType);
-      socket.emit('call:initiate', { callId, targetUserId, callerName: profile.full_name, callerAvatar: profile.avatar_url, callType, isGroupCall: forceGroupCall });
+      socket.emit('call:initiate', { 
+        callId, 
+        targetUserId, 
+        callerName: profile.full_name, 
+        callerAvatar: profile.avatar_url, 
+        callType, 
+        isGroupCall: forceGroupCall,
+        callerIsModerator: isModerator 
+      });
       socket.emit('call:join-room', { roomId: callId, userId: user?.id, name: profile.full_name, avatar: profile.avatar_url });
     } catch (err) { resetCallState(); }
   }, [profile, user?.id, playRingtone, getUserMedia, resetCallState]);
@@ -469,7 +478,7 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
         callId: p.callId,
         isGroupCall: p.isGroupCall || false,
         callStatus: null,
-        peers: { [p.callerId]: { userId: p.callerId, name: p.callerName, avatar: p.callerAvatar, isMuted: false, isVideoOff: false, isScreenSharing: false, stream: null } }
+        peers: { [p.callerId]: { userId: p.callerId, name: p.callerName, avatar: p.callerAvatar, isMuted: false, isVideoOff: false, isScreenSharing: false, isModerator: p.callerIsModerator, stream: null } }
       }));
       playRingtone('incoming');
     };

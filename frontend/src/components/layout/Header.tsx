@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, Search, Plus, ChevronDown, Loader2, ArrowLeft } from "lucide-react";
+import { Bell, Search, Plus, ChevronDown, Loader2, ArrowLeft, Menu } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { SoftphoneToggleButton } from "@/components/telephony/SoftphoneToggleButton";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,13 @@ import { Card } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationsPopover } from "@/components/notifications/NotificationsPopover";
 
-export function TopBar() {
+export function TopBar({ 
+  onToggleSidebar, 
+  isMobile 
+}: { 
+  onToggleSidebar?: () => void; 
+  isMobile?: boolean; 
+}) {
   const navigate = useNavigate();
   const { profile, userRole, signOut } = useAuth();
   const { organization } = useOrganization();
@@ -75,19 +81,29 @@ export function TopBar() {
   const resultsVisible = searchFocused && searchTerm.trim().length > 1;
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-card px-6">
-      {/* Organization Name + Search */}
-      <div className="flex items-center gap-4 flex-1 max-w-xl">
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={() => navigate(-1)}
-          className="text-muted-foreground hover:text-foreground md:flex"
-          title="Go Back"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        {organization && (
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-card px-4 md:px-6">
+      <div className="flex items-center gap-2 md:gap-4 flex-1 max-w-xl">
+        {isMobile ? (
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={onToggleSidebar}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+        ) : (
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => navigate(-1)}
+            className="text-muted-foreground hover:text-foreground"
+            title="Go Back"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+        )}
+        {organization && !isMobile && (
           <span className="text-sm font-medium text-muted-foreground hidden md:block">
             {organization.name}
           </span>

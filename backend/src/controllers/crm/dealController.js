@@ -75,10 +75,17 @@ const normalizeDealInput = (body = {}) => {
     return undefined;
   };
 
+  // Helper for UUID fields to ensure empty strings are treated as null
+  const getUuid = (camel, snake) => {
+    const val = getVal(camel, snake);
+    if (val === '' || val === null || val === 'null' || val === 'undefined') return null;
+    return val;
+  };
+
   return {
     title: getVal('title', 'title'),
-    contactId: getVal('contactId', 'contact_id'),
-    companyId: getVal('companyId', 'company_id'),
+    contactId: getUuid('contactId', 'contact_id'),
+    companyId: getUuid('companyId', 'company_id'),
     stage: getVal('stage', 'stage'),
     status: getVal('status', 'status'),
     value: Number.isNaN(valueNumber) ? undefined : valueNumber,
@@ -87,8 +94,10 @@ const normalizeDealInput = (body = {}) => {
     notes: getVal('notes', 'notes'),
     tags: getVal('tags', 'tags'),
     expectedCloseDate: getVal('expectedCloseDate', 'expected_close_date'),
-    assignedTo: getVal('assignedTo', 'assigned_to'),
+    assignedTo: getUuid('assignedTo', 'assigned_to'),
     lostReason: getVal('lostReason', 'lost_reason'),
+    workspaceId: getUuid('workspaceId', 'workspace_id'),
+    responsiblePerson: getUuid('responsiblePerson', 'responsible_person'),
     // Additional marketing and contact fields
     contactName: getVal('contactName', 'contact_name'),
     companyName: getVal('companyName', 'company_name'),

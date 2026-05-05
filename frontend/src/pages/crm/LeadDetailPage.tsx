@@ -5,7 +5,7 @@ import {
   MapPin, Building2, User, Calendar, DollarSign, Tag, FileText,
   Activity, MessageSquare, Clock, Star, MoreHorizontal, Copy,
   CheckCircle, XCircle, AlertCircle, Zap, ChevronRight,
-  TrendingUp, Users, Target, Award, Briefcase, Calendar as CalendarIcon, Edit3, Send, PhoneCall, Eye, Filter, Search, Settings, Share2, Printer, Download
+  TrendingUp, Users, Target, Award, Check, Briefcase, Calendar as CalendarIcon, Edit3, Send, PhoneCall, Eye, Filter, Search, Settings, Share2, Printer, Download
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,10 +23,11 @@ import { EntityFilesSection } from "@/components/crm/EntityFilesSection";
 import { CustomFieldsSection } from "@/components/crm/CustomFieldsSection";
 
 import { WorkspaceShareModal } from "@/components/crm/leads/WorkspaceShareModal";
-import { useLead } from "@/hooks/useCrmInteractions";
+import { useLead, useInteractionHistory } from "@/hooks/useCrmInteractions";
 import { useUpdateLead, useDeleteLead, useConvertLeadToDeal } from "@/hooks/useCrmMutations";
 import { useCreateActivity } from "@/hooks/useCrmInteractions";
 import { useLeadStats } from "@/hooks/useCrmData";
+import { useOrganizationProfiles } from "@/hooks/useTenantQuery";
 import { useSoftphone } from "@/contexts/SoftphoneContext";
 import { ClickToCall } from "@/components/telephony/ClickToCall";
 import { toast } from "sonner";
@@ -301,6 +302,7 @@ export default function LeadDetailPage() {
   const createActivity = useCreateActivity();
   const { dialNumber } = useSoftphone();
   const { data: leadStats } = useLeadStats();
+  const { data: members = [] } = useOrganizationProfiles();
 
   const [editing, setEditing] = useState(() => window.location.pathname.endsWith('/edit'));
   const [form, setForm] = useState<Record<string, unknown>>({});
@@ -524,11 +526,37 @@ export default function LeadDetailPage() {
                 </div>
                 <div>
                   <div className="flex flex-wrap items-center gap-3 mb-1">
-                    <h1 className="text-xl md:text-2xl font-bold text-white-900 break-words max-w-[200px] sm:max-w-none">{lead.title}</h1>
+                    <h1 className="text-xl md:text-2xl font-bold text-white break-words max-w-[200px] sm:max-w-none">{lead.title}</h1>
                     <Badge className={cn("gap-1 px-3 py-1 font-medium whitespace-nowrap", getStatusColor(lead.status))}>
                       {getStatusIcon(lead.status)}
                       {lead.status || 'New Lead'}
                     </Badge>
+                    
+                    {!editing && (
+                      <div className="flex items-center gap-2 ml-2">
+                        {lead.phone && (
+                          <ClickToCall
+                            phoneNumber={lead.phone}
+                            entityType="lead"
+                            entityId={id}
+                            className="h-8 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white border-none shadow-sm transition-all hover:scale-105 active:scale-95"
+                          />
+                        )}
+                        {lead.email && (
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="h-8 gap-1.5 bg-primary hover:bg-primary/90 text-white text-xs shadow-sm transition-all hover:scale-105 active:scale-95"
+                            asChild
+                          >
+                            <a href={`mailto:${lead.email}`}>
+                              <Mail className="h-3.5 w-3.5" />
+                              Email
+                            </a>
+                          </Button>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
                     <div className="flex items-center gap-2 text-white-600">
@@ -573,28 +601,6 @@ export default function LeadDetailPage() {
                 </>
               ) : (
                 <>
-                  {lead.phone && (
-                    <ClickToCall
-                      phoneNumber={lead.phone}
-                      entityType="lead"
-                      entityId={id}
-                      className="px-3 py-1 text-sm border-emerald-200 text-emerald-600  hover:bg-emerald-50 rounded-md border"
-                    />
-                  )}
-                  {lead.email && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2 text-primary border-primary/20"
-                      asChild
-                    >
-                      <a href={`mailto:${lead.email}`}>
-                        <Mail className="h-4 w-4" />
-                        Email
-                      </a>
-                    </Button>
-                  )}
-
                   <Button
                     variant="outline"
                     onClick={() => setEditing(true)}
@@ -834,68 +840,92 @@ export default function LeadDetailPage() {
           </div>
         </div>
       </div>
+
+
+      {/* Enterprise Metrics Dashboard - Full Width Above Grid */}
+      <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="border shadow-sm bg-gradient-to-br from-primary/5 to-transparent">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-primary/10 rounded-xl">
+                  <TrendingUp className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-primary uppercase tracking-widest mb-1">Total Leads</p>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-bold text-foreground">{leadStats?.overview?.total_leads ?? '—'}</span>
+                    <span className="text-xs text-muted-foreground">{leadStats?.overview?.qualified_leads ?? 0} qualified</span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border shadow-sm">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-blue-100 rounded-xl">
+                  <Target className="h-6 w-6 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-1">Pipeline Value</p>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-bold text-foreground">
+                      ${leadStats?.overview?.total_value ? Number(leadStats.overview.total_value).toLocaleString() : '0'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border shadow-sm">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-amber-100 rounded-xl">
+                  <Clock className="h-6 w-6 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-amber-600 uppercase tracking-widest mb-1">Days Active</p>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-bold text-foreground">
+                      {lead.created_at ? Math.floor((new Date().getTime() - new Date(lead.created_at).getTime()) / (1000 * 60 * 60 * 24)) : 0}
+                    </span>
+                    <span className="text-xs text-muted-foreground">days</span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border shadow-sm">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-purple-100 rounded-xl">
+                  <Activity className="h-6 w-6 text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-purple-600 uppercase tracking-widest mb-1">Last Touch</p>
+                  <p className="text-sm font-medium">{lead.last_touch ? format(new Date(lead.last_touch), 'MMM d, yyyy') : 'No interactions'}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
       {/* Main Content Area */}
-      <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Left Column - Lead Details */}
-          <div className="lg:col-span-8 space-y-8">
-            {/* Enterprise Metrics Dashboard */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card className="border shadow-sm">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-muted rounded-lg">
-                      <TrendingUp className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs text-primary font-medium uppercase tracking-wide truncate">Total Leads</p>
-                      <p className="text-2xl font-bold text-foreground">{leadStats?.overview?.total_leads ?? '—'}</p>
-                      <p className="text-xs text-muted-foreground truncate">{leadStats?.overview?.qualified_leads ?? 0} qualified</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border shadow-sm">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-muted rounded-lg">
-                      <Target className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs text-primary font-medium uppercase tracking-wide truncate">Pipeline Value</p>
-                      <p className="text-2xl font-bold text-primary">
-                        ${leadStats?.overview?.total_value ? Number(leadStats.overview.total_value).toLocaleString() : '0'}
-                      </p>
-                      <p className="text-xs text-muted-foreground truncate">Active leads</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border shadow-sm">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-muted rounded-lg">
-                      <Clock className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs text-primary font-medium uppercase tracking-wide truncate">Days Active</p>
-                      <p className="text-2xl font-bold text-primary">
-                        {lead.created_at ? Math.floor((new Date().getTime() - new Date(lead.created_at).getTime()) / (1000 * 60 * 60 * 24)) : 0}
-                      </p>
-                      <p className="text-xs text-muted-foreground truncate">Since created</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+          <div className="lg:col-span-7 space-y-8">
 
             {/* Professional Form Sections */}
             <div className="space-y-8">
               {/* Lead and Company Details */}
               <Card className="border   shadow-sm">
-                <CardHeader className="border-b  /80 rounded-t-lg">
+                <CardHeader className="border-b bg-muted/30 rounded-t-lg">
                   <CardTitle className="flex items-center gap-3 text-xl">
                     Lead and Company Details
                   </CardTitle>
@@ -931,14 +961,54 @@ export default function LeadDetailPage() {
                       </Select>
                     </div>
 
-                    <Field
-                      label="Lead owner"
-                      value={form.assigned_to as string}
-                      onChange={(v) => set("assigned_to", v)}
-                      editing={editing}
-                      icon={<Users className="h-4 w-4" />}
-                      entityId={id}
-                    />
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                        <Users className="h-4 w-4" />
+                        Lead owner
+                      </label>
+                      {editing ? (
+                        <Select
+                          value={form.assigned_to || "unassigned"}
+                          onValueChange={(v) => set("assigned_to", v === "unassigned" ? null : v)}
+                        >
+                          <SelectTrigger className="bg-background border-border">
+                            <SelectValue placeholder="Select owner..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="unassigned">Unassigned</SelectItem>
+                            {members.map((m) => (
+                              <SelectItem key={m.id} value={m.id}>
+                                <div className="flex items-center gap-2">
+                                  <Avatar className="h-5 w-5">
+                                    <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+                                      {m.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  {m.full_name}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <div className="h-10 px-3 py-2 border rounded-lg bg-muted/40 flex items-center gap-2">
+                          {form.assigned_to ? (
+                            <>
+                              <Avatar className="h-6 w-6">
+                                <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+                                  {members.find(m => m.id === form.assigned_to)?.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className="text-foreground font-medium">
+                                {members.find(m => m.id === form.assigned_to)?.full_name || 'Assigned User'}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-muted-foreground italic">Unassigned</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
 
                     <Field
                       label="Lead name"
@@ -1113,7 +1183,7 @@ export default function LeadDetailPage() {
               </Card>
               {/* Activity & Interaction Tracking */}
               <Card className="border   shadow-sm">
-                <CardHeader className="border-b  /80 rounded-t-lg">
+                <CardHeader className="border-b bg-muted/30 rounded-t-lg">
                   <CardTitle className="flex items-center gap-3 text-xl">
                     Activity & Interaction Tracking
                   </CardTitle>
@@ -1157,7 +1227,7 @@ export default function LeadDetailPage() {
 
               {/* Qualification & Opportunity */}
               <Card className="border   shadow-sm">
-                <CardHeader className="border-b  /80 rounded-t-lg">
+                <CardHeader className="border-b bg-muted/30 rounded-t-lg">
                   <CardTitle className="flex items-center gap-3 text-xl">
 
                     Qualification & Opportunity
@@ -1246,7 +1316,7 @@ export default function LeadDetailPage() {
 
               {/* Source */}
               <Card className="border   shadow-sm">
-                <CardHeader className="border-b  /80 rounded-t-lg">
+                <CardHeader className="border-b bg-muted/30 rounded-t-lg">
                   <CardTitle className="flex items-center gap-3 text-xl">
                     Source
                   </CardTitle>
@@ -1302,203 +1372,118 @@ export default function LeadDetailPage() {
 
             </div>
           </div>
-          {/* Right Sidebar - Enterprise Dashboard */}
-          <div className="lg:col-span-4 space-y-8">
-            {/* Lead Summary Dashboard */}
-            <Card className="border   shadow-sm">
-              <CardHeader className="pb-4 border-b  /80">
-                <CardTitle className="text-2xl flex items-center gap-3">
-                  <div className="p-2 bg-muted rounded-lg">
-                    <Award className="h-6 w-6 text-muted-foreground" />
-                  </div>
-                  Lead Overview
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="text-center pb-6 border-b ">
-                  <Avatar className="h-20 w-20 mx-auto mb-4 ring-2 ring-white shadow-sm">
-                    <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${lead.title}`} />
-                    <AvatarFallback className="bg-foreground text-white text-2xl font-bold">
-                      {lead.title?.split(' ').map(n => n[0]).join('').toUpperCase() || 'L'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <h3 className="font-bold text-xl text-foreground mb-1 break-words">{lead.title}</h3>
-                  <p className="text-muted-foreground font-medium break-words">{lead.company_name}</p>
-                  <p className="text-sm  break-words">{lead.designation}</p>
-                </div>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4  rounded-lg border ">
-                    <span className="text-sm font-semibold text-muted-foreground">Current Status</span>
-                    <Badge className={cn("gap-1 px-3 py-1", getStatusColor(lead.status))}>
-                      {getStatusIcon(lead.status)}
-                      {lead.status || 'New Lead'}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center justify-between p-4  rounded-lg border ">
-                    <span className="text-sm font-semibold text-muted-foreground">Potential Value</span>
-                    <span className="font-bold text-lg text-emerald-600">
-                      {lead.value ? `$${Number(lead.value).toLocaleString()}` : 'Not specified'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between p-4  rounded-lg border ">
-                    <span className="text-sm font-semibold text-muted-foreground">Source</span>
-                    <span className="text-sm font-semibold text-foreground">{lead.source || 'Unknown'}</span>
-                  </div>
-                  <div className="flex items-center justify-between p-4  rounded-lg border ">
-                    <span className="text-sm font-semibold text-muted-foreground">Date Created</span>
-                    <span className="text-sm font-medium text-muted-foreground">
-                      {lead.created_at ? format(new Date(lead.created_at), 'MMM d, yyyy') : 'Unknown'}
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
 
-            {/* Enterprise Quick Actions */}
-            <Card className="border   shadow-sm">
-              <CardHeader className="border-b  /80">
-                <CardTitle className="text-xl flex items-center gap-3">
-                  <div className="p-2 bg-muted rounded-lg">
-                    <Zap className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  Quick Actions
+          {/* Right Sidebar - Activity & Actions */}
+          <div className="lg:col-span-5 space-y-6 sticky top-24">
+            {/* Quick Actions Card - Top Position for Alignment */}
+            <Card className="shadow-lg border-0 bg-background/60 backdrop-blur-sm">
+              <CardHeader className="pb-3 border-b">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Zap className="h-5 w-5 text-primary" />
+                  Lead Quick Actions
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="pt-4 grid grid-cols-2 gap-3">
                 {lead.phone && (
-                  <div className="w-full">
-                    <ClickToCall
-                      phoneNumber={lead.phone}
-                      entityType="lead"
-                      entityId={lead.id}
-                      className="w-full justify-start p-0 h-14 text-left border  hover: transition-all rounded-md overflow-hidden "
-                      customTrigger={
-                        <div className="flex items-center gap-4 w-full h-full px-4">
-                          <div className="p-3 bg-muted rounded-lg">
-                            <Phone className="h-5 w-5 text-muted-foreground" />
-                          </div>
-                          <div>
-                            <p className="font-semibold text-foreground">Call Lead</p>
-                            <p className="text-sm ">{lead.phone}</p>
-                          </div>
-                        </div>
-                      }
-                    />
-                  </div>
+                  <ClickToCall
+                    phoneNumber={lead.phone}
+                    entityType="lead"
+                    entityId={lead.id}
+                    className="w-full"
+                    customTrigger={
+                      <Button variant="outline" className="w-full justify-start gap-2 h-10 border hover:bg-muted/50">
+                        <Phone className="h-4 w-4 text-muted-foreground" />
+                        <span className="truncate">Call</span>
+                      </Button>
+                    }
+                  />
                 )}
-
                 {lead.email && (
                   <Button
                     variant="outline"
-                    className="w-full justify-start gap-4 h-14 text-left border  hover: transition-all"
+                    className="w-full justify-start gap-2 h-10 border hover:bg-muted/50"
                     onClick={() => window.open(`mailto:${lead.email}`, '_blank')}
                   >
-                    <div className="p-3 bg-muted rounded-lg">
-                      <Mail className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-foreground">Send Email</p>
-                      <p className="text-sm ">{lead.email}</p>
-                    </div>
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <span className="truncate">Email</span>
                   </Button>
                 )}
-
-                {lead.website && (
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start gap-4 h-14 text-left border  hover: transition-all"
-                    onClick={() => window.open(lead.website, '_blank')}
-                  >
-                    <div className="p-3 bg-muted rounded-lg">
-                      <Globe className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-foreground">Visit Website</p>
-                      <p className="text-sm ">Open in new tab</p>
-                    </div>
-                  </Button>
-                )}
-
                 <Button
                   variant="outline"
-                  className="w-full justify-start gap-4 h-14 text-left border  hover: transition-all"
+                  className="w-full justify-start gap-2 h-10 border hover:bg-muted/50"
                   onClick={() => handleScrollToActivity("activity", "booking")}
                 >
-                  <div className="p-3 bg-muted rounded-lg">
-                    <Calendar className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-foreground">Schedule Meeting</p>
-                    <p className="text-sm ">Book a call or demo</p>
-                  </div>
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  <span className="truncate">Schedule</span>
                 </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2 h-10 border hover:bg-muted/50"
+                  onClick={() => setShowConvertDialog(true)}
+                >
+                  <Target className="h-4 w-4 text-muted-foreground" />
+                  <span className="truncate">Convert</span>
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Activity & Documents Dashboard */}
+            <Card ref={activitySectionRef} className="shadow-lg border-0 overflow-hidden flex flex-col h-[750px]">
+              <CardHeader className="pb-0 border-b bg-muted/20">
+                <div className="flex items-center justify-between pb-4">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Activity className="h-5 w-5 text-primary" />
+                    Activity & Files
+                  </CardTitle>
+                </div>
+                <Tabs value={sidebarTab} onValueChange={setSidebarTab} className="w-full">
+                  <TabsList className="grid grid-cols-2 w-full h-12 bg-muted/20 p-1 rounded-md">
+                    <TabsTrigger value="activity" className="text-sm">Timeline</TabsTrigger>
+                    <TabsTrigger value="files" className="text-sm">Files</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </CardHeader>
+              <CardContent className="p-0 flex-1 overflow-hidden">
+                <Tabs value={sidebarTab} className="h-full flex flex-col">
+                  <TabsContent 
+                    value="activity" 
+                    forceMount={true}
+                    className={cn(
+                      "m-0 p-0 flex-1 overflow-y-auto",
+                      sidebarTab !== "activity" && "hidden"
+                    )}
+                  >
+                    <div className="p-4">
+                      <InteractionPanel
+                        entityType="lead"
+                        entityId={lead.id}
+                        activeTab={interactionTab}
+                        onTabChange={setInteractionTab}
+                        defaultPhone={lead.phone}
+                      />
+                    </div>
+                  </TabsContent>
+                  <TabsContent 
+                    value="files" 
+                    forceMount={true}
+                    className={cn(
+                      "m-0 p-0 flex-1 overflow-y-auto",
+                      sidebarTab !== "files" && "hidden"
+                    )}
+                  >
+                    <div className="p-4">
+                      <EntityFilesSection entityType="lead" entityId={lead.id} />
+                    </div>
+                  </TabsContent>
+                </Tabs>
               </CardContent>
             </Card>
 
           </div>
         </div>
-
-        {/* Activity & Documents Dashboard - Prominent Full Width Section */}
-        <div className="mt-12">
-          <Card ref={activitySectionRef} className="border   shadow-sm scroll-mt-24 overflow-hidden">
-            <CardHeader className="pb-4 /80">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <CardTitle className="text-2xl flex items-center gap-3">
-                    Activity, Communication & Documents
-                  </CardTitle>
-                  <CardDescription className="text-base mt-1">
-                    Complete history of interactions and document management for <strong>{lead.title}</strong>
-                  </CardDescription>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className=" text-muted-foreground ">
-                    {sidebarTab === 'activity' ? 'Timeline View' : 'Files View'}
-                  </Badge>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Tabs value={sidebarTab} onValueChange={setSidebarTab} className="w-full">
-                <TabsList className="flex w-full items-center justify-start h-16 border-b  rounded-none /50 px-6 gap-8">
-                  <TabsTrigger
-                    value="activity"
-                    className="relative px-4 h-full bg-transparent border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none rounded-none gap-2 text-base font-semibold transition-all hover:text-primary/70"
-                  >
-                    <Activity className="h-5 w-5" />
-                    Timeline & Interactions
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="files"
-                    className="relative px-4 h-full bg-transparent border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none rounded-none gap-2 text-base font-semibold transition-all hover:text-primary/70"
-                  >
-                    <FileText className="h-5 w-5" />
-                    Documents & Shared Files
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="activity" className="m-0 border-0 p-6 md:p-8">
-                  <div className="rounded-xl  border  shadow-sm p-4 md:p-6 min-h-[500px]">
-                    <InteractionPanel
-                      entityType="lead"
-                      entityId={lead.id}
-                      activeTab={interactionTab}
-                      onTabChange={setInteractionTab}
-                      defaultPhone={lead.phone}
-                    />
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="files" className="m-0 border-0 p-6 md:p-8">
-                  <div className="rounded-xl  border  shadow-sm p-4 md:p-6 min-h-[500px]">
-                    <EntityFilesSection entityType="lead" entityId={lead.id} />
-                  </div>
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
-        </div>
       </div>
+
+
 
       {/* Workspace Share Modal */}
       <WorkspaceShareModal

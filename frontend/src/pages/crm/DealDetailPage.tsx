@@ -586,6 +586,32 @@ export default function DealDetailPage() {
                       {getStatusIcon(deal.stage)}
                       {pipelineStages.find(s => s.id === deal.stage)?.label || deal.stage}
                     </Badge>
+                    
+                    {!editing && (
+                      <div className="flex items-center gap-2 ml-2">
+                        {linkedContact?.phone && (
+                          <ClickToCall
+                            phoneNumber={linkedContact.phone}
+                            entityType="deal"
+                            entityId={deal.id}
+                            className="h-8 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white border-none shadow-sm transition-all hover:scale-105 active:scale-95"
+                          />
+                        )}
+                        {linkedContact?.email && (
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="h-8 gap-1.5 bg-primary hover:bg-primary/90 text-white text-xs shadow-sm transition-all hover:scale-105 active:scale-95"
+                            asChild
+                          >
+                            <a href={`mailto:${linkedContact.email}`}>
+                              <Mail className="h-3.5 w-3.5" />
+                              Email
+                            </a>
+                          </Button>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
                     <div className="flex items-center gap-2 text-white">
@@ -630,31 +656,6 @@ export default function DealDetailPage() {
                 </>
               ) : (
                 <>
-                  {/* Quick Action Buttons */}
-                  {linkedContact?.phone && (
-                    <ClickToCall
-                      phoneNumber={linkedContact.phone}
-                      entityType="deal"
-                      entityId={deal.id}
-                      className="gap-2 text-emerald-600 border-emerald-200 hover:bg-emerald-50"
-                      variant="outline"
-                      size="sm"
-                    />
-                  )}
-                  {linkedContact?.email && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2 text-blue-600 border-blue-200 hover:bg-blue-50"
-                      asChild
-                    >
-                      <a href={`mailto:${linkedContact.email}`}>
-                        <Mail className="h-4 w-4" />
-                        Email
-                      </a>
-                    </Button>
-                  )}
-
                   <Button
                     variant="outline"
                     onClick={() => setEditing(true)}
@@ -968,10 +969,10 @@ export default function DealDetailPage() {
       </div>
 
       {/* Main Content Grid */}
-      <div className="px-4 md:px-6 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Professional Form Sections */}
-          <div className="lg:col-span-8 space-y-6">
+          <div className="lg:col-span-7 space-y-6">
             {/* Deal Information Card */}
             <Card className="shadow-lg border-0  backdrop-blur-sm">
               <CardHeader className="pb-4">
@@ -1215,7 +1216,7 @@ export default function DealDetailPage() {
             </Card>
 
             <Card className="border   shadow-sm rounded-xl">
-              <CardHeader className="border-b  bg-muted/40/80">
+              <CardHeader className="border-b  bg-muted/30">
                 <CardTitle className="text-base text-foreground">About Deal</CardTitle>
                 <CardDescription className="text-muted-foreground">Client and project basics</CardDescription>
               </CardHeader>
@@ -1277,7 +1278,7 @@ export default function DealDetailPage() {
             </Card>
 
             <Card className="border   shadow-sm rounded-xl">
-              <CardHeader className="border-b  bg-muted/40/80">
+              <CardHeader className="border-b  bg-muted/30">
                 <CardTitle className="text-base text-foreground">More</CardTitle>
                 <CardDescription className="text-muted-foreground">Source, deadline, and feedback</CardDescription>
               </CardHeader>
@@ -1369,7 +1370,7 @@ export default function DealDetailPage() {
 
 
             <Card className="border   shadow-sm rounded-xl">
-              <CardHeader className="border-b  bg-muted/40/80">
+              <CardHeader className="border-b  bg-muted/30">
                 <CardTitle className="text-base text-foreground">Budget & Payment</CardTitle>
                 <CardDescription className="text-muted-foreground">Proposal, invoice, and hourly pricing</CardDescription>
               </CardHeader>
@@ -1572,122 +1573,145 @@ export default function DealDetailPage() {
               </CardContent>
             </Card>
 
-            {/* Interaction Notes Card */}
-            <Card className="shadow-lg border-0  backdrop-blur-sm">
-              <CardHeader className="pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-purple-100 rounded-lg">
-                    <History className="h-5 w-5 text-purple-600" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-lg text-foreground">Interaction Notes & History</CardTitle>
-                    <CardDescription className="text-muted-foreground">Timeline and communication summaries</CardDescription>
-                  </div>
+          </div>
+
+          {/* Right Sidebar - Activity & Actions */}
+          <div className="lg:col-span-5 space-y-6 sticky top-24">
+            {/* Quick Actions Card */}
+            <Card className="shadow-lg border-0 bg-background/60 backdrop-blur-sm">
+              <CardHeader className="pb-3 border-b">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Zap className="h-5 w-5 text-primary" />
+                  Deal Quick Actions
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4 grid grid-cols-2 gap-3">
+                {deal.phone && (
+                  <ClickToCall
+                    phoneNumber={deal.phone}
+                    entityType="deal"
+                    entityId={deal.id}
+                    className="w-full"
+                    customTrigger={
+                      <Button variant="outline" className="w-full justify-start gap-2 h-10 border hover:bg-muted/50">
+                        <Phone className="h-4 w-4 text-muted-foreground" />
+                        <span className="truncate">Call</span>
+                      </Button>
+                    }
+                  />
+                )}
+                {deal.linkedContact?.email && (
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start gap-2 h-10 border hover:bg-muted/50"
+                    onClick={() => window.open(`mailto:${deal.linkedContact.email}`, '_blank')}
+                  >
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <span className="truncate">Email</span>
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2 h-10 border hover:bg-muted/50"
+                  onClick={() => handleScrollToActivity("activity", "booking")}
+                >
+                  <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                  <span className="truncate">Schedule</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2 h-10 border hover:bg-muted/50"
+                  onClick={() => setShowConvertDialog(true)}
+                >
+                  <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
+                  <span className="truncate">Convert</span>
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Activity & Documents Section - Moved to Sidebar */}
+            <Card ref={activitySectionRef} className="shadow-lg border-0 overflow-hidden flex flex-col h-[750px]">
+              <CardHeader className="pb-0 border-b bg-muted/20">
+                <div className="flex items-center justify-between pb-4">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Activity className="h-5 w-5 text-primary" />
+                    Activity & Files
+                  </CardTitle>
+                </div>
+                <Tabs value={sidebarTab} onValueChange={setSidebarTab} className="w-full">
+                  <TabsList className="grid grid-cols-2 w-full h-10 bg-muted/40 p-1">
+                    <TabsTrigger value="activity" className="text-xs font-semibold">Timeline</TabsTrigger>
+                    <TabsTrigger value="files" className="text-xs font-semibold">Files</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </CardHeader>
+              <CardContent className="p-0 flex-1 overflow-hidden">
+                <Tabs value={sidebarTab} className="h-full flex flex-col">
+                  <TabsContent 
+                    value="activity" 
+                    forceMount={true}
+                    className={cn(
+                      "m-0 p-0 flex-1 overflow-y-auto",
+                      sidebarTab !== "activity" && "hidden"
+                    )}
+                  >
+                    <div className="p-4">
+                      <InteractionPanel
+                        entityType="deal"
+                        entityId={deal.id}
+                        activeTab={interactionTab}
+                        onTabChange={setInteractionTab}
+                        defaultPhone={deal.phone || deal.linkedContact?.phone}
+                      />
+                    </div>
+                  </TabsContent>
+                  <TabsContent 
+                    value="files" 
+                    forceMount={true}
+                    className={cn(
+                      "m-0 p-0 flex-1 overflow-y-auto",
+                      sidebarTab !== "files" && "hidden"
+                    )}
+                  >
+                    <div className="p-4">
+                      <EntityFilesSection entityType="deal" entityId={deal.id} />
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </CardContent>
+            </Card>
+
+            {/* Original Interaction Notes Section (Secondary here) */}
+            <Card className="shadow-lg border-0 bg-background/60 backdrop-blur-sm opacity-80 hover:opacity-100 transition-opacity">
+              <CardHeader className="py-3 px-4 border-b">
+                <div className="flex items-center gap-2">
+                  <History className="h-4 w-4 text-purple-600" />
+                  <CardTitle className="text-sm font-semibold">Legacy Notes Summary</CardTitle>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <Field
-                  label="First Interaction Message"
-                  value={form.first_message as string}
-                  onChange={(val) => set("first_message", val)}
-                  editing={editing}
-                  icon={<MessageCircle className="h-4 w-4" />}
-                  multiline
-                  placeholder="Content of the very first message..."
-                />
-                <Field
-                  label="Cumulative Interaction Notes"
-                  value={form.interaction_notes as string}
-                  onChange={(val) => set("interaction_notes", val)}
-                  editing={editing}
-                  icon={<History className="h-4 w-4" />}
-                  multiline
-                  placeholder="Summary of all interactions during lead stage..."
-                />
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Field
-                    label="Last Touch"
-                    value={form.last_touch ? new Date(form.last_touch as string).toISOString().split('T')[0] : ""}
-                    onChange={(val) => set("last_touch", val)}
-                    editing={editing}
-                    icon={<Clock className="h-4 w-4" />}
-                    type="date"
-                  />
-                  <Field
-                    label="Next Follow Up"
-                    value={form.next_follow_up_date ? new Date(form.next_follow_up_date as string).toISOString().split('T')[0] : ""}
-                    onChange={(val) => set("next_follow_up_date", val)}
-                    editing={editing}
-                    icon={<CalendarIcon className="h-4 w-4" />}
-                    type="date"
-                  />
+              <CardContent className="p-4 space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <p className="text-[10px] uppercase text-muted-foreground font-bold">Last Touch</p>
+                    <p className="text-xs font-medium">{form.last_touch ? format(new Date(form.last_touch as string), 'MMM d, yyyy') : '—'}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] uppercase text-muted-foreground font-bold">Follow Up</p>
+                    <p className="text-xs font-medium text-primary">{form.next_follow_up_date ? format(new Date(form.next_follow_up_date as string), 'MMM d, yyyy') : '—'}</p>
+                  </div>
                 </div>
+                {form.interaction_notes && (
+                  <div className="pt-2 border-t">
+                    <p className="text-[10px] uppercase text-muted-foreground font-bold mb-1">Key Summary</p>
+                    <p className="text-xs text-muted-foreground line-clamp-3">{form.interaction_notes as string}</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
         </div>
 
-        {/* Activity & Documents Section - Standardized Full Width */}
-        <div className="mt-12">
-          <Card ref={activitySectionRef} className="shadow-2xl border-0  overflow-hidden rounded-3xl scroll-mt-24 border-t-4 border-t-primary/20">
-            <CardHeader className="pb-4 border-b  bg-gradient-to-r from-muted/30 to-background px-8 py-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 bg-primary/10 rounded-2xl">
-                    <Activity className="h-6 w-6 text-primary" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-xl text-foreground font-bold">Activity, Timeline & Documents</CardTitle>
-                    <CardDescription className="text-muted-foreground text-sm">Interaction history and shared resources for <strong>{deal.title}</strong></CardDescription>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="bg-muted/40 text-muted-foreground ">
-                    {sidebarTab === 'activity' ? 'Timeline View' : 'Files View'}
-                  </Badge>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Tabs value={sidebarTab} onValueChange={setSidebarTab} className="w-full">
-                <TabsList className="flex w-full justify-start gap-10 px-8 border-b  bg-muted/40/50 h-16 rounded-none">
-                  <TabsTrigger
-                    value="activity"
-                    className="relative px-4 h-full bg-transparent border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none rounded-none gap-2 text-base font-semibold transition-all hover:text-primary/70"
-                  >
-                    <Activity className="h-5 w-5" />
-                    Timeline & Interactions
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="files"
-                    className="relative px-4 h-full bg-transparent border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none rounded-none gap-2 text-base font-semibold transition-all hover:text-primary/70"
-                  >
-                    <FileText className="h-5 w-5" />
-                    Documents & Files
-                  </TabsTrigger>
-                </TabsList>
 
-                <TabsContent value="activity" className="mt-0 p-8">
-                  <div className="rounded-xl  border  shadow-sm p-4 md:p-6 min-h-[500px]">
-                    <InteractionPanel
-                      entityType="deal"
-                      entityId={deal.id}
-                      activeTab={interactionTab}
-                      onTabChange={setInteractionTab}
-                      defaultPhone={deal.phone || deal.linkedContact?.phone}
-                    />
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="files" className="mt-0 p-8">
-                  <div className="rounded-xl  border  shadow-sm p-4 md:p-6 min-h-[500px]">
-                    <EntityFilesSection entityType="deal" entityId={deal.id} />
-                  </div>
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
-        </div>
       </div>
     </div>
   );

@@ -265,7 +265,7 @@ const getWorkgroup = async (req, res, next) => {
 // Create workgroup
 const createWorkgroup = async (req, res, next) => {
   try {
-    const { name, description, avatar_color, type, is_private } = req.body;
+    const { name, description, avatar_color, type, is_private, settings } = req.body;
     const normalizedType = type || 'team';
     const normalizedIsPrivate = normalizedType === 'private' ? true : false;
     
@@ -289,8 +289,8 @@ const createWorkgroup = async (req, res, next) => {
 
     const query = `
       INSERT INTO workgroups (
-        id, org_id, name, description, avatar_color, type, is_private, created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        id, org_id, name, description, avatar_color, type, is_private, created_by, settings
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `;
     
@@ -302,7 +302,8 @@ const createWorkgroup = async (req, res, next) => {
       avatar_color || 'bg-blue-500',
       normalizedType,
       normalizedIsPrivate,
-      req.user.id
+      req.user.id,
+      settings || {}
     ]);
 
     // Auto-add creator as owner so team can chat immediately.
@@ -345,6 +346,7 @@ const updateWorkgroup = async (req, res, next) => {
       type,
       is_private,
       manage_member_user_id,
+      settings,
     } = req.body;
     const normalizedType = type;
     const normalizedIsPrivate =
@@ -376,6 +378,17 @@ const updateWorkgroup = async (req, res, next) => {
         return res.status(400).json({ error: 'A workgroup with this name already exists' });
       }
     }
+
+    // Merge settings if provided
+    let finalSettings = settings;
+    if (manage_member_user_id !== undefined) {
+      const currentResult = await db.query('SELECT settings FROM workgroups WHERE id = $1', [id]);
+      const currentSettings = currentResult.rows[0]?.settings || {};
+      finalSettings = {
+        ...currentSettings,
+        member_manager_user_id: manage_member_user_id === 'none' ? null : manage_member_user_id
+      };
+    }
     
     const query = `
       UPDATE workgroups 
@@ -385,8 +398,9 @@ const updateWorkgroup = async (req, res, next) => {
         avatar_color = COALESCE($3, avatar_color),
         type = COALESCE($4, type),
         is_private = COALESCE($5, is_private),
+        settings = COALESCE($6, settings),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $6 AND org_id = $7
+      WHERE id = $7 AND org_id = $8
       RETURNING *
     `;    
     const result = await db.query(query, [
@@ -395,6 +409,7 @@ const updateWorkgroup = async (req, res, next) => {
       avatar_color,
       normalizedType,
       normalizedIsPrivate,
+      finalSettings,
       id,
       req.user.orgId
     ]);
@@ -605,7 +620,7 @@ const addWorkgroupMember = async (req, res, next) => {
     
     // Check workgroup and enforce org isolation
     const workgroupCheckQuery = `
-      SELECT id, org_id FROM workgroups
+      SELECT id, org_id, name FROM workgroups
       WHERE id = $1 AND is_archived = false
     `;
     const workgroupCheckResult = await db.query(workgroupCheckQuery, [id]);
@@ -705,6 +720,15 @@ const addWorkgroupMember = async (req, res, next) => {
     // Notify all members in the workgroup to refresh their member list.
     realtimeService.emitWorkgroupMemberAdded(id, result.rows[0]);
 
+    // CRITICAL: Also notify the specific user who was added so their list updates in real-time.
+    realtimeService.emitWorkgroupNotification(user_id, {
+      action: 'member_added',
+      workgroup_id: id,
+      workgroup: workgroupCheckResult.rows[0],
+      title: 'New Team',
+      body: `You have been added to ${workgroupCheckResult.rows[0].name || 'a new team'}`
+    });
+
     res.status(201).json(result.rows[0]);
   } catch (err) {
     next(err);
@@ -799,6 +823,15 @@ const removeWorkgroupMember = async (req, res, next) => {
 
     // Notify all members in the workgroup to refresh their member list.
     realtimeService.emitWorkgroupMemberRemoved(id, memberId);
+
+    // Also notify the specific user who was removed so their list updates in real-time.
+    const wgInfo = await db.query('SELECT name FROM workgroups WHERE id = $1', [id]);
+    realtimeService.emitWorkgroupNotification(targetUserId, {
+      action: 'member_removed',
+      workgroup_id: id,
+      title: 'Team Update',
+      body: `You are no longer a member of ${wgInfo.rows[0]?.name || 'the team'}`
+    });
 
     res.json({ message: 'Member removed successfully' });
   } catch (err) {
@@ -1252,12 +1285,22 @@ const addWorkgroupPostReaction = async (req, res, next) => {
     if (fetchResult.rows.length === 0) return res.status(404).json({ error: 'Post not found' });
     
     const currentReactions = fetchResult.rows[0].reactions || {};
-    if (!currentReactions[reaction]) currentReactions[reaction] = [];
-    if (!currentReactions[reaction].includes(req.user.id)) {
-        currentReactions[reaction].push(req.user.id);
-    } else {
-        currentReactions[reaction] = currentReactions[reaction].filter(uId => uId !== req.user.id);
-        if (currentReactions[reaction].length === 0) delete currentReactions[reaction];
+    const isAlreadyThisReaction =
+      currentReactions[reaction] &&
+      currentReactions[reaction].includes(req.user.id);
+
+    // 1. Remove user from ALL existing reaction types (enforcing single reaction)
+    for (const key in currentReactions) {
+      currentReactions[key] = currentReactions[key].filter(
+        (uId) => uId !== req.user.id,
+      );
+      if (currentReactions[key].length === 0) delete currentReactions[key];
+    }
+
+    // 2. If it wasn't this exact reaction before, add it now
+    if (!isAlreadyThisReaction) {
+      if (!currentReactions[reaction]) currentReactions[reaction] = [];
+      currentReactions[reaction].push(req.user.id);
     }
 
     const updateQ = `UPDATE workgroup_posts SET reactions = $1 WHERE id = $2 RETURNING *`;
