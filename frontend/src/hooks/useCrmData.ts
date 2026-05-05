@@ -41,7 +41,7 @@ export function useCreateLead() {
       // Optimistic update
       const tempId = `temp-${Date.now()}`;
       const optimisticLead = { ...leadData, id: tempId, created_at: new Date().toISOString() };
-      
+
       queryClient.setQueryData(['leads'], (old: any) => {
         if (!old?.data) return { data: [optimisticLead] };
         return { data: [optimisticLead, ...old.data] };
@@ -62,7 +62,7 @@ export function useUpdateLead() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string } & Record<string, unknown>) => 
+    mutationFn: ({ id, ...data }: { id: string } & Record<string, unknown>) =>
       leadsApi.update(id, data),
     onSuccess: (updatedLead, { id }) => {
       // Invalidate all leads queries
@@ -71,10 +71,10 @@ export function useUpdateLead() {
       queryClient.invalidateQueries({ queryKey: ['leads', id] });
       // Invalidate lead stats
       queryClient.invalidateQueries({ queryKey: ['leads', 'stats'] });
-      
+
       // Update the cache immediately for better UX
       queryClient.setQueryData(['leads', id], updatedLead);
-      
+
       toast.success('Lead updated successfully');
     },
     onError: (error: Error) => toast.error(error.message),
@@ -99,17 +99,17 @@ export function useUpdateLeadStage() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, stage }: { id: string; stage: string }) => 
+    mutationFn: ({ id, stage }: { id: string; stage: string }) =>
       leadsApi.updateStage(id, stage),
     onSuccess: (updatedLead, { id }) => {
       // Immediately update all related queries
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['leads', id] });
       queryClient.invalidateQueries({ queryKey: ['leads', 'stats'] });
-      
+
       // Force refetch to ensure UI is updated
       queryClient.refetchQueries({ queryKey: ['leads'] });
-      
+
       toast.success('Lead stage updated successfully');
     },
     onError: (error: Error) => toast.error(error.message),
@@ -196,7 +196,7 @@ export function useUpdateDeal() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string } & Record<string, unknown>) => 
+    mutationFn: ({ id, ...data }: { id: string } & Record<string, unknown>) =>
       dealsApi.update(id, data),
     onSuccess: (updatedDeal, { id }) => {
       // Invalidate all deals queries
@@ -205,10 +205,10 @@ export function useUpdateDeal() {
       queryClient.invalidateQueries({ queryKey: ['deals', id] });
       // Invalidate deal stats
       queryClient.invalidateQueries({ queryKey: ['deals', 'stats'] });
-      
+
       // Update the cache immediately for better UX
       queryClient.setQueryData(['deals', id], updatedDeal);
-      
+
       toast.success('Deal updated successfully');
     },
     onError: (error: Error) => toast.error(error.message),
@@ -233,17 +233,17 @@ export function useUpdateDealStage() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, stage }: { id: string; stage: string }) => 
+    mutationFn: ({ id, stage }: { id: string; stage: string }) =>
       dealsApi.updateStage(id, stage),
     onSuccess: (updatedDeal, { id }) => {
       // Immediately update all related queries
       queryClient.invalidateQueries({ queryKey: ['deals'] });
       queryClient.invalidateQueries({ queryKey: ['deals', id] });
       queryClient.invalidateQueries({ queryKey: ['deals', 'stats'] });
-      
+
       // Force refetch to ensure UI is updated
       queryClient.refetchQueries({ queryKey: ['deals'] });
-      
+
       toast.success('Deal stage updated successfully');
     },
     onError: (error: Error) => toast.error(error.message),
@@ -254,17 +254,17 @@ export function useUpdateDealStatus() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) => 
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
       dealsApi.updateStatus(id, status),
     onSuccess: (updatedDeal, { id }) => {
       // Immediately update all related queries
       queryClient.invalidateQueries({ queryKey: ['deals'] });
       queryClient.invalidateQueries({ queryKey: ['deals', id] });
       queryClient.invalidateQueries({ queryKey: ['deals', 'stats'] });
-      
+
       // Force refetch to ensure UI is updated
       queryClient.refetchQueries({ queryKey: ['deals'] });
-      
+
       toast.success('Deal status updated successfully');
     },
     onError: (error: Error) => toast.error(error.message),
@@ -321,7 +321,7 @@ export function useUpdateContact() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string } & Record<string, unknown>) => 
+    mutationFn: ({ id, ...data }: { id: string } & Record<string, unknown>) =>
       contactsApi.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
@@ -384,7 +384,7 @@ export function useUpdateCompany() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string } & Record<string, unknown>) => 
+    mutationFn: ({ id, ...data }: { id: string } & Record<string, unknown>) =>
       companiesApi.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['companies'] });
@@ -445,19 +445,19 @@ export function useCreateCustomer() {
 
 export function useUpdateCustomer() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string } & Record<string, unknown>) => 
+    mutationFn: ({ id, ...data }: { id: string } & Record<string, unknown>) =>
       customersApi.update(id, data),
     onSuccess: (updatedCustomer, { id }) => {
       // Invalidate all customers queries
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       // Invalidate specific customer query
       queryClient.invalidateQueries({ queryKey: ['customers', id] });
-      
+
       // Update the cache immediately for better UX
       queryClient.setQueryData(['customers', id], updatedCustomer);
-      
+
       toast.success('Customer updated successfully');
     },
     onError: (error: Error) => toast.error(error.message),
@@ -518,7 +518,7 @@ export function useUpdateVendor() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string } & Record<string, unknown>) => 
+    mutationFn: ({ id, ...data }: { id: string } & Record<string, unknown>) =>
       vendorsApi.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vendors'] });
@@ -579,7 +579,7 @@ export function useUpdateSigningParty() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string } & Record<string, unknown>) => 
+    mutationFn: ({ id, ...data }: { id: string } & Record<string, unknown>) =>
       signingPartiesApi.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['signing-parties'] });
@@ -632,17 +632,17 @@ export function useProduct(id: string) {
 
 export function useCreateProduct() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: (productData: Record<string, unknown>) => productsApi.create(productData),
     onSuccess: (newProduct) => {
       // Invalidate and refetch products list
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['stock'] });
-      
+
       // Force immediate refetch
       queryClient.refetchQueries({ queryKey: ['products'] });
-      
+
       toast.success('Product created successfully');
     },
     onError: (error: Error) => toast.error(error.message),
@@ -651,22 +651,22 @@ export function useCreateProduct() {
 
 export function useUpdateProduct() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string } & Record<string, unknown>) => 
+    mutationFn: ({ id, ...data }: { id: string } & Record<string, unknown>) =>
       productsApi.update(id, data),
     onSuccess: (updatedProduct, { id }) => {
       // Invalidate all products queries
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['products', id] });
       queryClient.invalidateQueries({ queryKey: ['stock'] });
-      
+
       // Force immediate refetch
       queryClient.refetchQueries({ queryKey: ['products'] });
-      
+
       // Update specific product cache
       queryClient.setQueryData(['products', id], updatedProduct);
-      
+
       toast.success('Product updated successfully');
     },
     onError: (error: Error) => toast.error(error.message),
@@ -675,7 +675,7 @@ export function useUpdateProduct() {
 
 export function useDeleteProduct() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: (id: string) => productsApi.delete(id),
     onSuccess: (_, deletedId) => {
@@ -683,14 +683,14 @@ export function useDeleteProduct() {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['stock'] });
       queryClient.invalidateQueries({ queryKey: ['stock', 'alerts'] });
-      
+
       // Force immediate refetch
       queryClient.refetchQueries({ queryKey: ['products'] });
       queryClient.refetchQueries({ queryKey: ['stock'] });
-      
+
       // Remove specific product from cache
       queryClient.removeQueries({ queryKey: ['products', deletedId] });
-      
+
       toast.success('Product deleted successfully');
     },
     onError: (error: Error) => toast.error(error.message),
@@ -731,9 +731,9 @@ export function useStockHistory(productId: string) {
 
 export function useAdjustStock() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: (adjustmentData: { productId: string; warehouseId: string; quantity: number; reason?: string }) => 
+    mutationFn: (adjustmentData: { productId: string; warehouseId: string; quantity: number; reason?: string }) =>
       stockApi.adjust(adjustmentData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stock'] });
@@ -747,9 +747,9 @@ export function useAdjustStock() {
 
 export function useTransferStock() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: (transferData: { productId: string; fromWarehouseId: string; toWarehouseId: string; quantity: number; reason?: string }) => 
+    mutationFn: (transferData: { productId: string; fromWarehouseId: string; toWarehouseId: string; quantity: number; reason?: string }) =>
       stockApi.transfer(transferData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stock'] });
@@ -786,7 +786,7 @@ export function useWarehouse(id: string) {
 
 export function useCreateWarehouse() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: (warehouseData: Record<string, unknown>) => warehousesApi.create(warehouseData),
     onSuccess: () => {
@@ -801,9 +801,9 @@ export function useCreateWarehouse() {
 
 export function useUpdateWarehouse() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string } & Record<string, unknown>) => 
+    mutationFn: ({ id, ...data }: { id: string } & Record<string, unknown>) =>
       warehousesApi.update(id, data),
     onSuccess: (updatedWarehouse, { id }) => {
       queryClient.invalidateQueries({ queryKey: ['warehouses'] });
@@ -819,7 +819,7 @@ export function useUpdateWarehouse() {
 
 export function useDeleteWarehouse() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: (id: string) => warehousesApi.delete(id),
     onSuccess: () => {
@@ -858,7 +858,7 @@ export function usePurchaseOrder(id: string) {
 
 export function useCreatePurchaseOrder() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: (poData: any) => purchaseOrdersApi.create(poData),
     onSuccess: () => {
@@ -873,9 +873,9 @@ export function useCreatePurchaseOrder() {
 
 export function useUpdatePurchaseOrder() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string } & Record<string, unknown>) => 
+    mutationFn: ({ id, ...data }: { id: string } & Record<string, unknown>) =>
       purchaseOrdersApi.update(id, data),
     onSuccess: (updatedPO, { id }) => {
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
@@ -891,9 +891,9 @@ export function useUpdatePurchaseOrder() {
 
 export function useUpdatePurchaseOrderStatus() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) => 
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
       purchaseOrdersApi.updateStatus(id, status),
     onSuccess: (updatedPO, { id }) => {
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
@@ -910,7 +910,7 @@ export function useUpdatePurchaseOrderStatus() {
 
 export function useDeletePurchaseOrder() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: (id: string) => purchaseOrdersApi.delete(id),
     onSuccess: () => {

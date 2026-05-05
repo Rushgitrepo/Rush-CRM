@@ -76,7 +76,7 @@ export default function DealsPage() {
 
   const handleBulkDelete = async () => {
     if (selectedDeals.length === 0) return;
-    
+
     if (await confirm(`Are you sure you want to delete ${selectedDeals.length} deals?`, { variant: 'destructive', title: 'Confirm Bulk Deletion' })) {
       try {
         for (const dealId of selectedDeals) {
@@ -119,7 +119,7 @@ export default function DealsPage() {
   const deals: DealRow[] = useMemo(() => {
     return (dbDeals || []).map((d: any) => {
       const stageKey = (d.stage || "qualification").toLowerCase();
-      
+
       const companyName = d.company || d.companyName || d.company_name || "";
       const contactName = d.contactName || d.contact_name || d.name || "";
       const email = d.contactEmail || d.email || d.companyEmail || d.company_email || "";
@@ -147,9 +147,9 @@ export default function DealsPage() {
       .filter((deal) => {
         const matchesSearch = term
           ? deal.name.toLowerCase().includes(term) ||
-            deal.company.toLowerCase().includes(term) ||
-            deal.contact.toLowerCase().includes(term) ||
-            deal.email.toLowerCase().includes(term)
+          deal.company.toLowerCase().includes(term) ||
+          deal.contact.toLowerCase().includes(term) ||
+          deal.email.toLowerCase().includes(term)
           : true;
         const matchesStage = stage === "all" || deal.stage === stage;
         const matchesStatus = status === "all" || deal.status.toLowerCase() === status;
@@ -176,7 +176,7 @@ export default function DealsPage() {
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground flex items-center gap-2">
-            <Mail className="h-3 w-3" /> 
+            <Mail className="h-3 w-3" />
             {deal.email ? (
               <a href={`mailto:${deal.email}`} className="hover:text-primary hover:underline transition-colors" onClick={(e) => e.stopPropagation()}>
                 {deal.email}
@@ -204,11 +204,11 @@ export default function DealsPage() {
       render: (deal) => (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           {deal.phone || deal.contact ? (
-            <ClickToCall 
-              phoneNumber={deal.phone || deal.contact} 
-              entityType="deal" 
-              entityId={deal.id} 
-              className="font-medium" 
+            <ClickToCall
+              phoneNumber={deal.phone || deal.contact}
+              entityType="deal"
+              entityId={deal.id}
+              className="font-medium"
             />
           ) : (
             "—"
@@ -247,7 +247,7 @@ export default function DealsPage() {
       header: "",
       render: (deal) => (
         <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1">
-  
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm">
@@ -263,7 +263,7 @@ export default function DealsPage() {
                 <Edit className="h-4 w-4 mr-2" />
                 Edit Deal
               </DropdownMenuItem>
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 onSelect={() => {
                   updateDeal.mutate({ id: deal.id, status: 'unqualified', stage: 'unqualified' });
                 }}
@@ -272,7 +272,7 @@ export default function DealsPage() {
                 Unqualify Deal
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 onSelect={async () => {
                   if (await confirm('Are you sure you want to delete this deal?', { variant: 'destructive', title: 'Delete Deal' })) {
                     deleteDeal.mutate(deal.id);

@@ -119,7 +119,7 @@ export default function ExternalSourcesPage() {
       {loading ? (
         <div className="text-center py-12">Loading...</div>
       ) : sources.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
+        <div className=" rounded-lg shadow p-12 text-center">
           <Globe className="mx-auto h-12 w-12 text-gray-400 mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No external sources yet</h3>
           <p className="text-gray-600 mb-4">
@@ -142,7 +142,7 @@ export default function ExternalSourcesPage() {
               <div
                 key={source.id}
                 onClick={() => handleSourceClick(source)}
-                className={`bg-white rounded-lg shadow p-4 cursor-pointer transition-all hover:shadow-md ${
+                className={` rounded-lg shadow p-4 cursor-pointer transition-all hover:shadow-md ${
                   selectedSource?.id === source.id ? 'ring-2 ring-blue-500 bg-blue-50' : ''
                 }`}
               >
@@ -167,7 +167,7 @@ export default function ExternalSourcesPage() {
             {selectedSource ? (
               <div className="space-y-6">
                 {/* Source Details */}
-                <div className="bg-white rounded-lg shadow p-6">
+                <div className=" rounded-lg shadow p-6">
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <h2 className="text-xl font-semibold text-gray-900 mb-2">{selectedSource.source_name}</h2>
@@ -253,7 +253,7 @@ export default function ExternalSourcesPage() {
                 </div>
 
                 {/* Leads from this source */}
-                <div className="bg-white rounded-lg shadow p-6">
+                <div className=" rounded-lg shadow p-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">
                     Leads from {selectedSource.source_name} ({sourceLeads.length})
                   </h3>
@@ -305,7 +305,7 @@ export default function ExternalSourcesPage() {
                 </div>
               </div>
             ) : (
-              <div className="bg-white rounded-lg shadow p-12 text-center">
+              <div className=" rounded-lg shadow p-12 text-center">
                 <Globe className="mx-auto h-12 w-12 text-gray-400 mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">Select a source</h3>
                 <p className="text-gray-600">
@@ -370,7 +370,7 @@ function CreateSourceModal({ onClose, onSuccess }: { onClose: () => void; onSucc
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-md w-full">
+      <div className=" rounded-lg p-6 max-w-md w-full">
         <h2 className="text-xl font-semibold mb-4">Add External Source</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
