@@ -541,6 +541,7 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
         isOutgoing: true,
         isGroupCall: forceGroupCall,
         callStatus: null,
+        isVideoOff: callType === "audio" ? true : prev.isVideoOff,
         peers,
       }));
 
@@ -581,6 +582,7 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
       ...prev,
       callState: "connecting",
       callStatus: null,
+      isVideoOff: state.callType === "audio" ? true : prev.isVideoOff,
     }));
     try {
       await getUserMedia(state.callType);
@@ -948,6 +950,19 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
         ...prev,
         callState: "connecting",
         callStatus: null,
+        peers: {
+          ...prev.peers,
+          [p.accepterId]: {
+            ...(prev.peers[p.accepterId] || {}),
+            userId: p.accepterId,
+            name: p.accepterName || prev.peers[p.accepterId]?.name || "",
+            avatar: p.accepterAvatar ?? prev.peers[p.accepterId]?.avatar ?? null,
+            isMuted: false,
+            isVideoOff: false,
+            isScreenSharing: false,
+            stream: prev.peers[p.accepterId]?.stream || null,
+          },
+        },
       }));
       const pc = createPeerConnection(p.accepterId);
       if (!pc) return;
@@ -965,6 +980,26 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
       if (!pc) pc = createPeerConnection(p.fromUserId)!;
       if (!pc) return;
 
+      // Ensure peer entry has name/avatar (may already be set from incoming event)
+      setState((prev) => {
+        if (prev.peers[p.fromUserId]?.name) return prev; // already populated
+        return {
+          ...prev,
+          peers: {
+            ...prev.peers,
+            [p.fromUserId]: {
+              userId: p.fromUserId,
+              name: p.callerName || p.name || "",
+              avatar: p.callerAvatar ?? p.avatar ?? null,
+              isMuted: false,
+              isVideoOff: false,
+              isScreenSharing: false,
+              stream: null,
+              ...(prev.peers[p.fromUserId] || {}),
+            },
+          },
+        };
+      });
       try {
         if (pc.signalingState === "stable") {
           await pc.setRemoteDescription(new RTCSessionDescription(p.sdp));
