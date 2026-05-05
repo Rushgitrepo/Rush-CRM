@@ -76,6 +76,8 @@ async function exchangeCodeForTokens(code, orgId, userId, redirectUri) {
     throw new Error('Invalid token response from RingCentral');
   }
 
+  console.log(`[RC] New token obtained for user ${userId}. Scopes: ${tokenData.scope || '(none returned)'}`);
+
   await upsertTokens(orgId, userId, tokenData);
   return tokenData;
 }
@@ -105,6 +107,7 @@ async function getAuthenticatedPlatform(orgId, userId) {
       }
 
       const stored = rows[0];
+      console.log(`[RC] Loaded stored token for user ${userId}. Stored scopes: ${stored.scope || '(none stored)'}`);
       const sdk = createSDK();
       const platform = sdk.platform();
 
@@ -117,12 +120,15 @@ async function getAuthenticatedPlatform(orgId, userId) {
       });
 
       // Let the SDK handle refresh automatically
+      let tokenWasRefreshed = false;
       try {
         await platform.ensureLoggedIn();
+        console.log(`[RC] Token is valid (no refresh needed) for user ${userId}`);
       } catch (e) {
         try {
           console.log(`[RC] Refreshing token for user ${userId}...`);
           await platform.refresh();
+          tokenWasRefreshed = true;
         } catch (refreshErr) {
           const errorMsg = refreshErr.message || '';
           const errorResponse = refreshErr.response ? await refreshErr.response.clone().json().catch(() => ({})) : {};
@@ -142,6 +148,7 @@ async function getAuthenticatedPlatform(orgId, userId) {
 
       const freshData = platform.auth().data();
       if (freshData && (freshData.access_token || freshData.accessToken)) {
+        console.log(`[RC] Token ${tokenWasRefreshed ? 'REFRESHED' : 'reused (existing)'} for user ${userId}. Scopes: ${freshData.scope || '(none in token data)'}`);
         await upsertTokens(orgId, userId, freshData);
       }
 
