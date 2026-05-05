@@ -1151,11 +1151,8 @@ export function AppSidebar({
           <div className="flex items-center gap-3 focus-outline-none">
             <div className="flex flex-col">
               <span className="text-base font-bold tracking-tight text-white leading-none">
-                Rush CRM
-              </span>
-              <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-1.5">
-                Enterprise Suite
-              </span>
+                Rush Management System
+              </span>             
             </div>
           </div>
           {isMobile && (
