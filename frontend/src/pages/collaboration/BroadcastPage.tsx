@@ -54,12 +54,13 @@ import { workgroupsApi } from "@/lib/api";
 import { getAvatarUrl } from "@/lib/utils";
 import WorkgroupDetailView from "@/components/workgroups/WorkgroupDetailView";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Navigate, useSearchParams } from "react-router-dom";
+import { Navigate, useSearchParams, useNavigate } from "react-router-dom";
 import { useRealtime } from "@/hooks/useRealtime";
 
 export default function BroadcastPage() {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: workgroups = [], isLoading } = useWorkgroups();
   const { users: orgMembers = [] } = useAdminUsers();
@@ -137,6 +138,7 @@ export default function BroadcastPage() {
     },
     selectedUserIds: [] as string[],
   });
+  const [employeeSearch, setEmployeeSearch] = useState("");
 
   const resetForm = () => {
     setForm({
@@ -152,6 +154,7 @@ export default function BroadcastPage() {
     });
     setAvatarPreview(null);
     setAvatarFile(null);
+    setEmployeeSearch("");
   };
 
   // Realtime: auto-refresh when workgroup is updated (member added, etc.)
@@ -435,16 +438,26 @@ export default function BroadcastPage() {
           },
         ]}
         actions={
-          <Button
-            size="sm"
-            onClick={() => {
-              resetForm();
-              setShowCreate(true);
-            }}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            New Broadcast
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/collaboration/workgroups")}
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Workgroups
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                resetForm();
+                setShowCreate(true);
+              }}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              New Broadcast
+            </Button>
+          </div>
         }
       />
 
@@ -486,7 +499,7 @@ export default function BroadcastPage() {
           icon={<Megaphone className="h-10 w-10 text-muted-foreground" />}
         />
       ) : viewMode === "grid" ? (
-        <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filtered.map((wg) => {
             const unreadCount = Number(wg.unread_count || 0);
             const canEditOrDelete = wg.created_by === user?.id;
@@ -566,11 +579,26 @@ export default function BroadcastPage() {
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <h3
-                    className={`font-bold truncate ${unreadCount > 0 ? "text-primary" : "text-foreground"}`}
-                  >
-                    {wg.name}
-                  </h3>
+                  {/* Top Row */}
+                  <div className="flex items-center justify-between gap-2">
+                    <h3
+                      className={`font-bold truncate ${
+                        unreadCount > 0 ? "text-primary" : "text-foreground"
+                      }`}
+                    >
+                      {wg.name}
+                    </h3>
+
+                    {(wg.settings?.member_manager_user_id === user?.id ||
+                      wg.settings?.manage_member_user_id === user?.id ||
+                      (wg as any).manage_member_user_id === user?.id) && (
+                      <Badge className="shrink-0 text-[9px] px-1.5 py-0 bg-muted text-green-500 border-green-300 dark:text-green-500 dark:border-green-700 font-bold">
+                        Moderator
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* Bottom Row */}
                   <div className="flex items-start justify-between gap-2">
                     {unreadCount > 0 && wg.last_message_sender_name ? (
                       <p className="text-xs font-semibold text-primary truncate mb-1 flex-1">
@@ -583,16 +611,8 @@ export default function BroadcastPage() {
                     ) : (
                       <div className="flex-1" />
                     )}
-                    {(wg.settings?.member_manager_user_id === user?.id ||
-                      wg.settings?.manage_member_user_id === user?.id ||
-                      (wg as any).manage_member_user_id === user?.id) && (
-                      <Badge className="shrink-0 text-[9px] px-1.5 py-0 bg-muted text-green-500 border-green-300 dark:text-green-500 dark:border-green-700 font-bold">
-                        Moderator
-                      </Badge> 
-                    )}
                   </div>
                 </div>
-               
 
                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/50">
                   <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -610,8 +630,7 @@ export default function BroadcastPage() {
                     className="text-[10px] px-1.5 py-0 text-indigo-600 border-indigo-300 dark:text-indigo-400 dark:border-indigo-700"
                   >
                     Broadcast
-                  </Badge> 
-                  
+                  </Badge>
                 </div>
               </div>
             );
@@ -635,7 +654,7 @@ export default function BroadcastPage() {
                 {unreadCount > 0 && (
                   <div className="absolute top-0 left-0 bottom-0 w-1.5 bg-primary rounded-l-xl" />
                 )}
-                
+
                 {/* Avatar Section */}
                 <div className="relative shrink-0">
                   <Avatar className="h-14 w-14 border border-border/50 shadow-sm">
@@ -663,7 +682,10 @@ export default function BroadcastPage() {
                       {wg.name}
                     </h3>
                     {unreadCount > 0 && (
-                      <Badge variant="default" className="h-5 px-1.5 text-[10px] bg-primary text-white">
+                      <Badge
+                        variant="default"
+                        className="h-5 px-1.5 text-[10px] bg-primary text-white"
+                      >
                         {unreadCount} New
                       </Badge>
                     )}
@@ -675,7 +697,7 @@ export default function BroadcastPage() {
                       </Badge>
                     )}
                   </div>
-                  
+
                   {unreadCount > 0 && wg.last_message_sender_name ? (
                     <p className="text-sm font-semibold text-primary truncate">
                       💬 {wg.last_message_sender_name}: new message
@@ -716,9 +738,15 @@ export default function BroadcastPage() {
                     size="icon"
                     className={`h-9 w-9 transition-colors ${pinnedBroadcasts.has(wg.id) ? "text-yellow-500" : "text-muted-foreground hover:text-white"}`}
                     onClick={(e) => togglePin(wg.id, e)}
-                    title={pinnedBroadcasts.has(wg.id) ? "Unpin from top" : "Pin to top"}
+                    title={
+                      pinnedBroadcasts.has(wg.id)
+                        ? "Unpin from top"
+                        : "Pin to top"
+                    }
                   >
-                    <Pin className={`h-4 w-4 ${pinnedBroadcasts.has(wg.id) ? "fill-current" : ""}`} />
+                    <Pin
+                      className={`h-4 w-4 ${pinnedBroadcasts.has(wg.id) ? "fill-current" : ""}`}
+                    />
                   </Button>
                   {canEditOrDelete && (
                     <>
@@ -780,8 +808,12 @@ export default function BroadcastPage() {
                 </div>
               </div>
               <div>
-                <p className="text-sm font-medium text-foreground">Broadcast Logo</p>
-                <p className="text-xs text-muted-foreground mb-1">Click the avatar to upload an image</p>
+                <p className="text-sm font-medium text-foreground">
+                  Broadcast Logo
+                </p>
+                <p className="text-xs text-muted-foreground mb-1">
+                  Click the avatar to upload an image
+                </p>
                 {avatarPreview && (
                   <Button
                     variant="outline"
@@ -873,7 +905,10 @@ export default function BroadcastPage() {
                         })
                       }
                     />
-                    <Label htmlFor="perm-add" className="text-xs font-normal cursor-pointer">
+                    <Label
+                      htmlFor="perm-add"
+                      className="text-xs font-normal cursor-pointer"
+                    >
                       Add
                     </Label>
                   </div>
@@ -891,7 +926,10 @@ export default function BroadcastPage() {
                         })
                       }
                     />
-                    <Label htmlFor="perm-delete" className="text-xs font-normal cursor-pointer">
+                    <Label
+                      htmlFor="perm-delete"
+                      className="text-xs font-normal cursor-pointer"
+                    >
                       Delete
                     </Label>
                   </div>
@@ -909,7 +947,10 @@ export default function BroadcastPage() {
                         })
                       }
                     />
-                    <Label htmlFor="perm-send" className="text-xs font-normal cursor-pointer">
+                    <Label
+                      htmlFor="perm-send"
+                      className="text-xs font-normal cursor-pointer"
+                    >
                       Send
                     </Label>
                   </div>
@@ -917,10 +958,69 @@ export default function BroadcastPage() {
               </div>
             )}
             <div className="space-y-2">
-              <Label>Add Employees</Label>
+              <div className="flex items-center justify-between">
+                <Label>Team Members</Label>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="select-all-employees"
+                    checked={
+                      orgMembers.filter((u) => u.id !== user?.id).length > 0 &&
+                      orgMembers
+                        .filter((u) => u.id !== user?.id)
+                        .every((u) => form.selectedUserIds.includes(u.id))
+                    }
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setForm({
+                          ...form,
+                          selectedUserIds: orgMembers
+                            .filter((u) => u.id !== user?.id)
+                            .map((u) => u.id),
+                        });
+                      } else {
+                        setForm({
+                          ...form,
+                          selectedUserIds: [],
+                        });
+                      }
+                    }}
+                  />
+                  <Label
+                    htmlFor="select-all-employees"
+                    className="text-xs font-medium cursor-pointer text-muted-foreground"
+                  >
+                    Select All
+                  </Label>
+                </div>
+              </div>
+              <Input
+                placeholder="Search employees or type @all to select all..."
+                value={employeeSearch}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setEmployeeSearch(val);
+                  if (val.toLowerCase() === "@all") {
+                    setForm({
+                      ...form,
+                      selectedUserIds: orgMembers
+                        .filter((u) => u.id !== user?.id)
+                        .map((u) => u.id),
+                    });
+                  }
+                }}
+                className="h-8 text-sm"
+              />
               <div className="border rounded-md p-2 max-h-40 overflow-y-auto space-y-1">
                 {orgMembers
                   .filter((u) => u.id !== user?.id)
+                  .filter(
+                    (u) =>
+                      !employeeSearch ||
+                      employeeSearch.toLowerCase() === "@all" ||
+                      u.full_name
+                        ?.toLowerCase()
+                        .includes(employeeSearch.toLowerCase()),
+                  )
                   .map((u) => (
                     <div
                       key={u.id}
@@ -995,8 +1095,12 @@ export default function BroadcastPage() {
                 </div>
               </div>
               <div>
-                <p className="text-sm font-medium text-foreground">Broadcast Logo</p>
-                <p className="text-xs text-muted-foreground mb-1">Click the avatar to upload an image</p>
+                <p className="text-sm font-medium text-foreground">
+                  Broadcast Logo
+                </p>
+                <p className="text-xs text-muted-foreground mb-1">
+                  Click the avatar to upload an image
+                </p>
                 {avatarPreview && (
                   <Button
                     variant="outline"
@@ -1083,7 +1187,10 @@ export default function BroadcastPage() {
                         })
                       }
                     />
-                    <Label htmlFor="edit-perm-add" className="text-xs font-normal cursor-pointer">
+                    <Label
+                      htmlFor="edit-perm-add"
+                      className="text-xs font-normal cursor-pointer"
+                    >
                       Add
                     </Label>
                   </div>
@@ -1101,7 +1208,10 @@ export default function BroadcastPage() {
                         })
                       }
                     />
-                    <Label htmlFor="edit-perm-delete" className="text-xs font-normal cursor-pointer">
+                    <Label
+                      htmlFor="edit-perm-delete"
+                      className="text-xs font-normal cursor-pointer"
+                    >
                       Delete
                     </Label>
                   </div>
@@ -1119,7 +1229,10 @@ export default function BroadcastPage() {
                         })
                       }
                     />
-                    <Label htmlFor="edit-perm-send" className="text-xs font-normal cursor-pointer">
+                    <Label
+                      htmlFor="edit-perm-send"
+                      className="text-xs font-normal cursor-pointer"
+                    >
                       Send
                     </Label>
                   </div>
