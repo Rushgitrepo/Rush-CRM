@@ -5,7 +5,7 @@ import {
   MapPin, Building2, User, Calendar, DollarSign, Tag, FileText,
   Activity, MessageSquare, Clock, Star, MoreHorizontal, Copy,
   CheckCircle, XCircle, AlertCircle, Zap, ChevronRight,
-  TrendingUp, Users, Target, Award, Check, Briefcase, Calendar as CalendarIcon, Edit3, Send, PhoneCall, Eye, Filter, Search, Settings, Share2, Printer, Download
+  TrendingUp, Users, Target, Award, Check, Briefcase, Calendar as CalendarIcon, Edit3, Send, PhoneCall, Eye, Filter, Search, Settings, Share2, Printer, Download, Plus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +31,7 @@ import { useUpdateLead, useDeleteLead, useConvertLeadToDeal } from "@/hooks/useC
 import { useCreateActivity } from "@/hooks/useCrmInteractions";
 import { useLeadStats } from "@/hooks/useCrmData";
 import { useOrganizationProfiles } from "@/hooks/useTenantQuery";
+import { usePipelineStages, useCreatePipelineStage, useDeletePipelineStage, useUpdatePipelineStage } from "@/hooks/usePipelineStages";
 import { useSoftphone } from "@/contexts/SoftphoneContext";
 import { ClickToCall } from "@/components/telephony/ClickToCall";
 import { toast } from "sonner";
@@ -46,6 +47,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 const defaultServiceOptions = [
   { value: "Web Development", label: "Web Development" },
@@ -209,7 +211,7 @@ function displayJsonValue(value: unknown): string {
   return String(value);
 }
 // Enterprise-level pipeline stages with professional styling
-const pipelineStages = [
+const defaultPipelineStages = [
   {
     id: "new",
     label: "New Lead",
@@ -314,6 +316,30 @@ export default function LeadDetailPage() {
   const [showWorkspaceModal, setShowWorkspaceModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showConvertDialog, setShowConvertDialog] = useState(false);
+  const [showStageManager, setShowStageManager] = useState(false);
+  const [newStageName, setNewStageName] = useState("");
+  const [editingStageId, setEditingStageId] = useState<string | null>(null);
+  const [editingStageName, setEditingStageName] = useState("");
+  const { data: dbStages = [] } = usePipelineStages();
+  const createStage = useCreatePipelineStage();
+  const deleteStage = useDeletePipelineStage();
+  const updateStage = useUpdatePipelineStage();
+
+  const customDbStages = dbStages
+    .filter(s => !defaultPipelineStages.some(d => d.id === s.stage_key))
+    .map(s => ({
+      id: s.stage_key,
+      label: s.stage_label,
+      color: "bg-gray-500",
+      bgColor: "bg-muted/40",
+      textColor: "text-foreground",
+      borderColor: "border-border",
+      icon: <Target className="h-4 w-4" />,
+      description: "Custom stage",
+      dbId: s.id,
+    }));
+
+  const pipelineStages = [...defaultPipelineStages, ...customDbStages];
   const [sidebarTab, setSidebarTab] = useState("activity");
   const [interactionTab, setInteractionTab] = useState("activity");
   const activitySectionRef = useRef<HTMLDivElement>(null);
@@ -829,10 +855,21 @@ export default function LeadDetailPage() {
               <h3 className="text-lg font-semibold text-white-900">Lead Progress Pipeline</h3>
               <p className="text-sm text-white-600">Track your lead through the sales process</p>
             </div>
-            <div className="text-right">
-              <div className="text-sm ">Progress</div>
-              <div className="text-lg font-bold text-white-900">
-                {Math.round(((pipelineStages.findIndex(s => s.id === (form.stage || lead.stage)) + 1) / pipelineStages.length) * 100)}%
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs"
+                onClick={() => setShowStageManager(true)}
+              >
+                <Settings className="h-3.5 w-3.5" />
+                Manage Stages
+              </Button>
+              <div className="text-right">
+                <div className="text-sm ">Progress</div>
+                <div className="text-lg font-bold text-white-900">
+                  {Math.round(((pipelineStages.findIndex(s => s.id === (form.stage || lead.stage)) + 1) / pipelineStages.length) * 100)}%
+                </div>
               </div>
             </div>
           </div>
@@ -1569,6 +1606,97 @@ export default function LeadDetailPage() {
       </div>
 
 
+
+      {/* Stage Manager Dialog */}
+      <Dialog open={showStageManager} onOpenChange={setShowStageManager}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5 text-primary" />
+              Manage Pipeline Stages
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              {defaultPipelineStages.map(s => (
+                <div key={s.id} className="flex items-center justify-between px-3 py-2 rounded-lg border bg-muted/30">
+                  <span className="text-sm font-medium">{s.label}</span>
+                  <Badge variant="outline" className="text-[10px]">Default</Badge>
+                </div>
+              ))}
+              {customDbStages.map(s => (
+                <div key={s.id} className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-primary/5">
+                  {editingStageId === (s as any).dbId ? (
+                    <>
+                      <Input
+                        value={editingStageName}
+                        onChange={e => setEditingStageName(e.target.value)}
+                        className="h-7 text-sm flex-1"
+                        autoFocus
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && editingStageName.trim()) {
+                            updateStage.mutate({ id: (s as any).dbId, stageName: editingStageName.trim() }, {
+                              onSuccess: () => setEditingStageId(null)
+                            });
+                          }
+                          if (e.key === 'Escape') setEditingStageId(null);
+                        }}
+                      />
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-primary"
+                        disabled={!editingStageName.trim() || updateStage.isPending}
+                        onClick={() => updateStage.mutate({ id: (s as any).dbId, stageName: editingStageName.trim() }, { onSuccess: () => setEditingStageId(null) })}>
+                        <Check className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground"
+                        onClick={() => setEditingStageId(null)}>
+                        <XCircle className="h-3.5 w-3.5" />
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-sm font-medium flex-1">{s.label}</span>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary"
+                        onClick={() => { setEditingStageId((s as any).dbId); setEditingStageName(s.label); }}>
+                        <Edit3 className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => deleteStage.mutate((s as any).dbId)}
+                        disabled={deleteStage.isPending}>
+                        <XCircle className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2 pt-2 border-t">
+              <Input
+                placeholder="New stage name..."
+                value={newStageName}
+                onChange={e => setNewStageName(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && newStageName.trim()) {
+                    createStage.mutate({ stageName: newStageName.trim() }, { onSuccess: () => setNewStageName("") });
+                  }
+                }}
+                className="h-9"
+              />
+              <Button
+                size="sm"
+                className="gap-1.5 shrink-0"
+                disabled={!newStageName.trim() || createStage.isPending}
+                onClick={() => createStage.mutate({ stageName: newStageName.trim() }, { onSuccess: () => setNewStageName("") })}
+              >
+                <Plus className="h-4 w-4" />
+                Add
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowStageManager(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Workspace Share Modal */}
       <WorkspaceShareModal
