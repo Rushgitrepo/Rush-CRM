@@ -442,7 +442,8 @@ export default function DirectChatPage() {
                                   chat.direct_peer_user_id,
                                   chatDisplayName,
                                   null,
-                                  'audio'
+                                  'audio',
+                                  chat.id
                                 );
                               }}
                             >
@@ -461,7 +462,8 @@ export default function DirectChatPage() {
                                   chat.direct_peer_user_id,
                                   chatDisplayName,
                                   null,
-                                  'video'
+                                  'video',
+                                  chat.id
                                 );
                               }}
                             >

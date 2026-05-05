@@ -3045,7 +3045,7 @@ CREATE TABLE IF NOT EXISTS workgroup_members (
     last_read_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT workgroup_members_role_check CHECK (((role)::text = ANY (ARRAY[('owner'::character varying)::text, ('admin'::character varying)::text, ('member'::character varying)::text, ('guest'::character varying)::text])))
+    CONSTRAINT workgroup_members_role_check CHECK (((role)::text = ANY (ARRAY[('owner'::character varying)::text, ('admin'::character varying)::text, ('moderator'::character varying)::text, ('member'::character varying)::text, ('guest'::character varying)::text])))
 );
 
 
@@ -3098,7 +3098,7 @@ CREATE TABLE IF NOT EXISTS workgroup_posts (
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     last_seen_at timestamp with time zone,
-    CONSTRAINT workgroup_posts_content_type_check CHECK (((content_type)::text = ANY (ARRAY[('text'::character varying)::text, ('file'::character varying)::text, ('image'::character varying)::text, ('link'::character varying)::text, ('code'::character varying)::text])))
+    CONSTRAINT workgroup_posts_content_type_check CHECK (((content_type)::text = ANY (ARRAY[('text'::character varying)::text, ('file'::character varying)::text, ('image'::character varying)::text, ('link'::character varying)::text, ('code'::character varying)::text, ('system'::character varying)::text, ('call'::character varying)::text])))
 );
 
 

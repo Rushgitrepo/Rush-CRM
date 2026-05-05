@@ -58,7 +58,7 @@ export interface WorkgroupPost {
   user_id: string;
   parent_id?: string;
   content: string;
-  content_type: 'text' | 'file' | 'image' | 'link' | 'code' | 'system';
+  content_type: 'text' | 'file' | 'image' | 'link' | 'code' | 'system' | 'call';
   is_pinned: boolean;
   is_edited: boolean;
   is_deleted: boolean;

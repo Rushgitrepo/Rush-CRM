@@ -108,15 +108,25 @@ class RealtimeService {
 
       // ─── WebRTC Call Signaling ───────────────────────────────
       socket.on('call:initiate', (payload) => {
-        // payload: { callId, targetUserId, callerName, callerAvatar, callType: 'video'|'audio' }
-        console.log(`[WebRTC] Call initiated: ${socket.userId} -> ${payload.targetUserId} (${payload.callType})`);
-        this.io.to(`user:${payload.targetUserId}`).emit('call:incoming', {
+        // payload: { callId, targetUserId, callerName, callerAvatar, callType, workgroupId, isGroupCall }
+        console.log(`[WebRTC] Call initiated: ${socket.userId} -> ${payload.isGroupCall ? 'Group ' + payload.workgroupId : payload.targetUserId} (${payload.callType})`);
+        
+        const incomingPayload = {
           callId: payload.callId,
           callerId: socket.userId,
           callerName: payload.callerName,
           callerAvatar: payload.callerAvatar,
           callType: payload.callType,
-        });
+          isGroupCall: payload.isGroupCall,
+          workgroupId: payload.workgroupId
+        };
+
+        if (payload.isGroupCall && payload.workgroupId) {
+          // Broadcast to all workgroup members except the caller
+          socket.to(`workgroup:${payload.workgroupId}`).emit('call:incoming', incomingPayload);
+        } else if (payload.targetUserId) {
+          this.io.to(`user:${payload.targetUserId}`).emit('call:incoming', incomingPayload);
+        }
       });
 
       socket.on('call:accept', (payload) => {
@@ -190,13 +200,20 @@ class RealtimeService {
       });
 
       socket.on('call:end', (payload) => {
-        // payload: { callId, targetUserId, reason }
-        if (payload.targetUserId) {
-          this.io.to(`user:${payload.targetUserId}`).emit('call:end', {
-            callId: payload.callId,
-            fromUserId: socket.userId,
-            reason: payload.reason || 'hangup',
-          });
+        // payload: { callId, targetUserId, workgroupId, isGroupCall, reason }
+        console.log(`[WebRTC] Call ended: ${socket.userId} in ${payload.isGroupCall ? 'Group ' + payload.workgroupId : '1-on-1'}`);
+        
+        const endPayload = {
+          callId: payload.callId,
+          fromUserId: socket.userId,
+          reason: payload.reason || 'hangup',
+        };
+
+        if (payload.isGroupCall && payload.workgroupId) {
+          // Broadcast to all workgroup members
+          socket.to(`workgroup:${payload.workgroupId}`).emit('call:end', endPayload);
+        } else if (payload.targetUserId) {
+          this.io.to(`user:${payload.targetUserId}`).emit('call:end', endPayload);
         }
 
         if (payload.callId) {
