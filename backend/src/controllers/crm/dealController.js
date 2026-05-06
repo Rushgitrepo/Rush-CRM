@@ -82,6 +82,13 @@ const normalizeDealInput = (body = {}) => {
     return val;
   };
 
+  // Helper for date fields to ensure empty strings are treated as null
+  const getDate = (camel, snake) => {
+    const val = getVal(camel, snake);
+    if (val === '' || val === null) return null;
+    return val;
+  };
+
   return {
     title: getVal('title', 'title'),
     contactId: getUuid('contactId', 'contact_id'),
@@ -93,7 +100,7 @@ const normalizeDealInput = (body = {}) => {
     probability: getVal('probability', 'probability'),
     notes: getVal('notes', 'notes'),
     tags: getVal('tags', 'tags'),
-    expectedCloseDate: getVal('expectedCloseDate', 'expected_close_date'),
+    expectedCloseDate: getDate('expectedCloseDate', 'expected_close_date'),
     assignedTo: getUuid('assignedTo', 'assigned_to'),
     lostReason: getVal('lostReason', 'lost_reason'),
     workspaceId: getUuid('workspaceId', 'workspace_id'),
@@ -134,18 +141,18 @@ const normalizeDealInput = (body = {}) => {
     invoiceAmount: getVal('invoiceAmount', 'invoice_amount'),
     invoiceCurrency: getVal('invoiceCurrency', 'invoice_currency'),
     firstMessage: getVal('firstMessage', 'first_message'),
-    lastTouch: getVal('lastTouch', 'last_touch'),
-    workspaceId: getVal('workspaceId', 'workspace_id'),
+    lastTouch: getDate('lastTouch', 'last_touch'),
+    workspaceId: getUuid('workspaceId', 'workspace_id'),
     sourceInfo: getVal('sourceInfo', 'source_info'),
     projectBlueprints: getVal('projectBlueprints', 'project_blueprints'),
     phoneType: getVal('phoneType', 'phone_type'),
     emailType: getVal('emailType', 'email_type'),
     websiteType: getVal('websiteType', 'website_type'),
     customerType: getVal('customerType', 'customer_type'),
-    lastContactedDate: getVal('lastContactedDate', 'last_contacted_date'),
-    nextFollowUpDate: getVal('nextFollowUpDate', 'next_follow_up_date'),
-    responsiblePerson: getVal('responsiblePerson', 'responsible_person'),
-    createdAt: getVal('createdAt', 'created_at'),
+    lastContactedDate: getDate('lastContactedDate', 'last_contacted_date'),
+    nextFollowUpDate: getDate('nextFollowUpDate', 'next_follow_up_date'),
+    responsiblePerson: getUuid('responsiblePerson', 'responsible_person'),
+    createdAt: getDate('createdAt', 'created_at'),
     customFields: getVal('customFields', 'custom_fields'),
   };
 };
@@ -541,8 +548,19 @@ const update = async (req, res, next) => {
       const dbField = dbFieldMapping[key] || fieldMapping[key];
       if (dbField && val !== undefined) {
         fields.push(`${dbField} = $${paramIndex}`);
+        const isDate = ['expectedCloseDate', 'lastTouch', 'lastContactedDate', 'nextFollowUpDate', 'createdAt'].includes(key);
         const isJson = ['project_blueprints', 'custom_fields'].includes(dbField);
-        values.push(dbField === 'project_blueprints' ? serializeBlueprintsField(val) : (isJson ? JSON.stringify(val) : val));
+        
+        let dbValue = val;
+        if (isDate && val === '') {
+          dbValue = null;
+        } else if (dbField === 'project_blueprints') {
+          dbValue = serializeBlueprintsField(val);
+        } else if (isJson) {
+          dbValue = val ? JSON.stringify(val) : '{}';
+        }
+        
+        values.push(dbValue);
         paramIndex++;
       }
     }

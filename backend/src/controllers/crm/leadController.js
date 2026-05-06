@@ -119,6 +119,13 @@ const normalizeLeadInput = (body = {}) => {
     return val;
   };
 
+  // Helper for date fields to ensure empty strings are treated as null
+  const getDate = (camel, snake) => {
+    const val = getVal(camel, snake);
+    if (val === '' || val === null) return null;
+    return val;
+  };
+
   return {
     title: getVal('title', 'name') ?? getVal('name', 'title'),
     name: getVal('name', 'title') ?? getVal('title', 'name'),
@@ -130,7 +137,7 @@ const normalizeLeadInput = (body = {}) => {
     priority: getVal('priority', 'priority'),
     notes: getVal('notes', 'notes'),
     tags: getVal('tags', 'labels'),
-    expectedCloseDate,
+    expectedCloseDate: getDate('expectedCloseDate', 'expected_close_date'),
     contactId: getUuid('contactId', 'contact_id'),
     companyId: getUuid('companyId', 'company_id'),
     assignedTo: getUuid('assignedTo', 'assigned_to'),
@@ -153,14 +160,14 @@ const normalizeLeadInput = (body = {}) => {
     serviceInterested: getVal('serviceInterested', 'service_interested'),
     interactionNotes: getVal('interactionNotes', 'interaction_notes'),
     firstMessage: getVal('firstMessage', 'first_message'),
-    lastTouch,
-    lastContactedDate: getVal('lastContactedDate', 'last_contacted_date'),
-    nextFollowUpDate: getVal('nextFollowUpDate', 'next_follow_up_date'),
+    lastTouch: getDate('lastTouch', 'last_touch'),
+    lastContactedDate: getDate('lastContactedDate', 'last_contacted_date'),
+    nextFollowUpDate: getDate('nextFollowUpDate', 'next_follow_up_date'),
     sourceInfo: getVal('sourceInfo', 'source_info'),
     responsiblePerson: getVal('responsiblePerson', 'responsible_person'),
     pipeline: getVal('pipeline', 'pipeline'),
     externalSourceId: getVal('externalSourceId', 'external_source_id'),
-    createdAt: getVal('createdAt', 'created_at'),
+    createdAt: getDate('createdAt', 'created_at'),
     customFields: getVal('customFields', 'custom_fields'),
   };
 };
@@ -600,7 +607,9 @@ const update = async (req, res, next) => {
       const dbField = fieldMapping[key];
       if (dbField && val !== undefined) {
         let dbValue = val;
-        if (key === 'status' || key === 'stage') {
+        if (['expectedCloseDate', 'lastContactedDate', 'nextFollowUpDate', 'createdAt'].includes(key) && val === '') {
+          dbValue = null;
+        } else if (key === 'status' || key === 'stage') {
           dbValue = mapStatusToDatabase(val);
         } else if (key === 'sourceInfo') {
           dbValue = serializeJsonField(val);
