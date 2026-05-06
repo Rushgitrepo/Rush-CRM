@@ -8,6 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { OrganizationProvider } from "@/contexts/OrganizationContext";
 import { DialogProvider } from "@/contexts/DialogContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { RushNotificationContainer } from "@/components/ui/RushNotification";
 import { AdminRoute } from "@/components/auth/AdminRoute";
 import { MainLayout } from "./components/layout/MainLayout";
 import Dashboard from "./pages/Dashboard";
@@ -148,6 +149,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        <RushNotificationContainer />
         <BrowserRouter>
           <AuthProvider>
             <PushNotificationsSetup />

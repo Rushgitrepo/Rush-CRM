@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
+import { fireRushNotification } from '@/components/ui/RushNotification';
 
 const SOCKET_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || "http://localhost:4000";
 
@@ -129,11 +130,22 @@ export const getSocket = (): Socket | null => {
         // not JSON, use as-is
       }
 
-      if (document.visibilityState === 'hidden') {
-        showDesktopNotification(title, displayBody, workgroupId, isDirectChat);
-      } else {
-        toast(`${title}: ${displayBody}`, { duration: 4000, position: 'bottom-right' });
-      }
+      // Always use custom Rush notification — both when tab is visible and hidden
+      const notifAvatar = isDirectChat
+        ? (msg?.author_avatar || null)
+        : (msg?.workgroup_avatar || null);
+
+      fireRushNotification({
+        title,
+        body: displayBody,
+        avatar: notifAvatar,
+        avatarColor: msg?.avatar_color || null,
+        isDirectChat,
+        isBroadcast: Boolean(msg?.is_broadcast),
+        workgroupId,
+        unreadCount: msg?.unread_count || 1,
+        authorName: msg?.author_name || '',
+      });
     });
     workgroupNotificationListenerAttached = true;
   }
