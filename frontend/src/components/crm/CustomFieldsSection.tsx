@@ -76,7 +76,7 @@ export function CustomFieldsSection({
     )}>
       {isOver && editing && (
         <div className="absolute inset-0 pointer-events-none bg-primary/10 rounded-lg border-2 border-dashed border-primary flex items-center justify-center z-10">
-          <span className="text-sm font-medium text-primary bg-white px-3 py-1 rounded-full shadow-lg">
+          <span className="text-sm font-medium text-primary bg-background px-3 py-1 rounded-full shadow-lg">
             Drop field here
           </span>
         </div>

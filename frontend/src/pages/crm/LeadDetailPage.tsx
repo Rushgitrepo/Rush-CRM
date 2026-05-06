@@ -257,7 +257,7 @@ const defaultPipelineStages = [
     id: "proposal",
     label: "Proposal Sent",
     color: "bg-purple-500",
-    bgColor: "bg-purple-50",
+    bgColor: "bg-purple-50 dark:bg-purple-900/20",
     textColor: "text-purple-700",
     borderColor: "border-purple-200",
     icon: <Send className="h-4 w-4" />,
@@ -267,7 +267,7 @@ const defaultPipelineStages = [
     id: "negotiation",
     label: "Negotiation",
     color: "bg-orange-500",
-    bgColor: "bg-orange-50",
+    bgColor: "bg-orange-50 dark:bg-orange-900/20",
     textColor: "text-orange-700",
     borderColor: "border-orange-200",
     icon: <Target className="h-4 w-4" />,
@@ -277,7 +277,7 @@ const defaultPipelineStages = [
     id: "unqualified",
     label: "Unqualified",
     color: "bg-red-500",
-    bgColor: "bg-red-50",
+    bgColor: "bg-red-50 dark:bg-red-900/20",
     textColor: "text-red-700",
     borderColor: "border-red-200",
     icon: <XCircle className="h-4 w-4" />,
@@ -287,12 +287,12 @@ const defaultPipelineStages = [
 
 const getStatusColor = (status: string) => {
   switch (status?.toLowerCase()) {
-    case 'qualified': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    case 'qualified': return 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50';
     case 'contacted': return 'bg-primary/5 text-primary border-primary/20';
-    case 'unqualified': return 'bg-red-50 text-red-700 border-red-200';
-    case 'new': return 'bg-amber-50 text-amber-700 border-amber-200';
-    case 'proposal': return 'bg-purple-50 text-purple-700 border-purple-200';
-    case 'negotiation': return 'bg-orange-50 text-orange-700 border-orange-200';
+    case 'unqualified': return 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-900/50';
+    case 'new': return 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-900/50';
+    case 'proposal': return 'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-900/50';
+    case 'negotiation': return 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-900/50';
     default: return ' text-muted-foreground ';
   }
 };
@@ -784,8 +784,8 @@ export default function LeadDetailPage() {
                           className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover: transition-all group"
                           onSelect={() => copyToClipboard(lead.email, 'Email')}
                         >
-                          <div className="p-2 bg-blue-50 rounded-md group-hover:bg-blue-100 transition-colors">
-                            <Mail className="h-4 w-4 text-blue-600" />
+                          <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-md group-hover:bg-blue-100 dark:group-hover:bg-blue-900/30 transition-colors">
+                            <Mail className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="font-semibold text-sm text-foreground">Copy Email Address</p>
@@ -890,17 +890,17 @@ export default function LeadDetailPage() {
                           });
                         }}
                       >
-                        <div className="p-2 bg-orange-50 rounded-md group-hover:bg-orange-100 transition-colors">
-                          <XCircle className="h-4 w-4 text-orange-600" />
+                        <div className="p-2 bg-orange-50 dark:bg-orange-900/20 rounded-md group-hover:bg-orange-100 dark:group-hover:bg-orange-900/30 transition-colors">
+                          <XCircle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
                         </div>
-                        <p className="font-semibold text-sm text-orange-600 flex-1">Mark as Unqualified</p>
+                        <p className="font-semibold text-sm text-orange-600 dark:text-orange-400 flex-1">Mark as Unqualified</p>
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-red-50 text-red-600 transition-all group"
                         onSelect={() => setShowDeleteDialog(true)}
                       >
-                        <div className="p-2 bg-red-50 rounded-md group-hover:bg-red-100 transition-colors">
-                          <Trash2 className="h-4 w-4 text-red-600" />
+                        <div className="p-2 bg-red-50 dark:bg-red-900/20 rounded-md group-hover:bg-red-100 dark:group-hover:bg-red-900/30 transition-colors">
+                          <Trash2 className="h-4 w-4 text-red-600 dark:text-red-400" />
                         </div>
                         <p className="font-semibold text-sm flex-1">Delete Lead</p>
                       </DropdownMenuItem>
@@ -954,10 +954,10 @@ export default function LeadDetailPage() {
                       isActive && !isUnqualified
                         ? `${stage.bgColor} ${stage.borderColor} ${stage.textColor} shadow-lg transform scale-105`
                         : isActive && isUnqualified
-                          ? "bg-red-50 border-red-200 text-red-700 shadow-lg"
+                          ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-400 shadow-lg"
                           : isPassed && !isUnqualified
-                            ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                            : "   hover: hover:"
+                            ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-900/50 text-emerald-700 dark:text-emerald-400"
+                            : "   hover:bg-muted/50 transition-colors"
                     )}
                   >
                     <div className="flex items-center gap-3">
