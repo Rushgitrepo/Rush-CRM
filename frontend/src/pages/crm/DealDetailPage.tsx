@@ -1839,7 +1839,7 @@ export default function DealDetailPage() {
                   editing={editing}
                   entityType="deal"
                   entityId={id}
-                  className={!editing ? "opacity-90 pointer-events-none" : "animate-in fade-in slide-in-from-bottom-2 duration-300"}
+                  className={!editing ? "" : "animate-in fade-in slide-in-from-bottom-2 duration-300"}
                 />
               </div>
             </FieldDragWrapper>
