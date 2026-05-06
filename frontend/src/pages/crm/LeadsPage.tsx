@@ -23,10 +23,10 @@ import { ClickToCall } from "@/components/telephony/ClickToCall";
 
 const statusTone = (status?: string) => {
   const s = (status || "").toLowerCase();
-  if (s === "qualified") return "bg-emerald-500/10 text-emerald-700 border-emerald-200";
-  if (s === "contacted") return "bg-primary/10 text-primary border-primary/20";
-  if (s === "unqualified") return "bg-rose-500/10 text-rose-700 border-rose-200";
-  return "bg-amber-500/10 text-amber-700 border-amber-200";
+  if (s === "qualified") return "bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50";
+  if (s === "contacted") return "bg-primary/10 dark:bg-primary/20 text-primary border-primary/20 dark:border-primary/50";
+  if (s === "unqualified") return "bg-rose-500/10 dark:bg-rose-500/20 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900/50";
+  return "bg-amber-500/10 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-900/50";
 };
 
 type ViewType = "kanban" | "list" | "activities" | "calendar";
