@@ -2314,7 +2314,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                                   </button>
                                 </div>
                                 {showInputEmojiPicker && (
-                                  <div className="absolute bottom-12 right-2 z-20 shadow-xl rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
+                                  <div className="absolute bottom-12 left-2 z-20 shadow-xl rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
                                     <EmojiPicker
                                       onEmojiClick={handleComposerEmojiSelect}
                                       width={280}
@@ -4068,8 +4068,8 @@ function PostCard({
               createPortal(
                 <div
                   ref={emojiPickerRef}
-                  className={`fixed z-[999] ${isAuthor ? "right-20" : "left-4"
-                    } top-20 shadow-xl bg-card/80 backdrop-blur-md border border-border rounded-xl shadow-2xl`}
+                  className={`fixed z-[999] ${isAuthor ? "right-[700px]" : "left-[1250px]"
+                    } top-40 shadow-xl bg-card/80 backdrop-blur-md border border-border rounded-xl shadow-2xl`}
                 >
                   <button
                     onClick={() => setShowEmojiPicker(false)}
