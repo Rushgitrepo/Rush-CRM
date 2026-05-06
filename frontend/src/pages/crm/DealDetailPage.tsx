@@ -423,12 +423,20 @@ export default function DealDetailPage() {
       if (deal.custom_fields && typeof deal.custom_fields === 'object') {
         const fields = Object.entries(deal.custom_fields).map(([k, v]) => {
           if (v && typeof v === 'object' && 'value' in v) {
+            const rawSectionId = (v as any).sectionId;
+            let sectionId = rawSectionId;
+            // Map lead section IDs to deal section IDs
+            if (rawSectionId === 'lead-company-details') sectionId = 'company-info';
+            if (rawSectionId === 'activity-tracking') sectionId = 'deal-info';
+            if (rawSectionId === 'qualification-opportunity') sectionId = 'deal-info';
+            if (rawSectionId === 'source-section') sectionId = 'more-section';
+
             return { 
               id: `field-${k.replace(/\s+/g, '-').toLowerCase()}`, 
               key: k, 
               value: String((v as any).value), 
               type: (v as any).type || 'string',
-              sectionId: (v as any).sectionId 
+              sectionId: sectionId || 'custom-fields'
             };
           }
           return { id: `field-${k.replace(/\s+/g, '-').toLowerCase()}`, key: k, value: String(v), type: 'string', sectionId: 'custom-fields' };
@@ -852,8 +860,8 @@ export default function DealDetailPage() {
                       <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-muted-foreground uppercase tracking-wider">Communication</DropdownMenuLabel>
                       {linkedContact?.email && (
                         <DropdownMenuItem onSelect={() => copyToClipboard(linkedContact.email, 'Email')} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-muted/40 transition-colors">
-                          <div className="p-2 bg-blue-50 rounded-md">
-                            <Mail className="h-4 w-4 text-blue-600" />
+                          <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+                            <Mail className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                           </div>
                           <div className="min-w-0">
                             <p className="font-semibold text-sm text-foreground">Copy Contact Email</p>
@@ -863,9 +871,9 @@ export default function DealDetailPage() {
                       )}
                       {linkedContact?.phone && (
                         <>
-                          <DropdownMenuItem onSelect={() => dialNumber(linkedContact.phone!, { entityType: 'deal', entityId: deal.id })} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-emerald-50 transition-colors">
-                            <div className="p-2 bg-emerald-50 rounded-md">
-                              <PhoneCall className="h-4 w-4 text-emerald-600" />
+                          <DropdownMenuItem onSelect={() => dialNumber(linkedContact.phone!, { entityType: 'deal', entityId: deal.id })} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors">
+                            <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-md">
+                              <PhoneCall className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                             </div>
                             <div className="min-w-0">
                               <p className="font-semibold text-sm text-foreground">Call Contact</p>
@@ -887,20 +895,20 @@ export default function DealDetailPage() {
 
                       <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-muted-foreground uppercase tracking-wider">Quick Jump</DropdownMenuLabel>
                       <DropdownMenuItem onSelect={() => handleScrollToActivity("activity")} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-muted/40 transition-colors">
-                        <div className="p-2 bg-purple-50 rounded-md">
-                          <Activity className="h-4 w-4 text-purple-600" />
+                        <div className="p-2 bg-purple-50 dark:bg-purple-900/20 rounded-md">
+                          <Activity className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                         </div>
                         <p className="font-semibold text-sm text-foreground">View Activity Timeline</p>
                       </DropdownMenuItem>
                       <DropdownMenuItem onSelect={() => handleScrollToActivity("activity", "booking")} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-muted/40 transition-colors">
-                        <div className="p-2 bg-orange-50 rounded-md">
+                        <div className="p-2 bg-orange-50 dark:bg-orange-900/20 rounded-md">
                           <Calendar className="h-4 w-4 text-primary" />
                         </div>
                         <p className="font-semibold text-sm text-foreground">Schedule Meeting</p>
                       </DropdownMenuItem>
                       <DropdownMenuItem className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-muted/40 transition-colors">
-                        <div className="p-2 bg-indigo-50 rounded-md">
-                          <MessageSquare className="h-4 w-4 text-indigo-600" />
+                        <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-md">
+                          <MessageSquare className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                         </div>
                         <p className="font-semibold text-sm text-foreground">Send Message</p>
                       </DropdownMenuItem>
@@ -909,14 +917,14 @@ export default function DealDetailPage() {
 
                       <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-muted-foreground uppercase tracking-wider">Reports & Data</DropdownMenuLabel>
                       <DropdownMenuItem onSelect={handlePrint} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-muted/40 transition-colors">
-                        <div className="p-2 bg-orange-50 rounded-md">
-                          <Printer className="h-4 w-4 text-orange-600" />
+                        <div className="p-2 bg-orange-50 dark:bg-orange-900/20 rounded-md">
+                          <Printer className="h-4 w-4 text-orange-600 dark:text-orange-400" />
                         </div>
                         <p className="font-semibold text-sm text-foreground">Print Deal Details</p>
                       </DropdownMenuItem>
                       <DropdownMenuItem onSelect={handleExport} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-muted/40 transition-colors">
-                        <div className="p-2 bg-emerald-50 rounded-md">
-                          <Download className="h-4 w-4 text-emerald-600" />
+                        <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-md">
+                          <Download className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                         </div>
                         <p className="font-semibold text-sm text-foreground">Export as JSON</p>
                       </DropdownMenuItem>
@@ -967,11 +975,11 @@ export default function DealDetailPage() {
       {/* Enterprise Metrics Dashboard */}
       <div className="px-4 md:px-6 py-6 border-b">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="rounded-xl p-6 border border-blue-100">
+          <div className="rounded-xl p-6 border border-blue-100 dark:border-blue-900/50">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <TrendingUp className="h-5 w-5 text-blue-600" />
+                <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
+                  <TrendingUp className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                 </div>
                 <span className="text-sm font-medium text-muted-foreground">Total Deals</span>
               </div>
@@ -984,11 +992,11 @@ export default function DealDetailPage() {
             </div>
           </div>
 
-          <div className="rounded-xl p-6 border border-emerald-100">
+          <div className="rounded-xl p-6 border border-emerald-100 dark:border-emerald-900/50">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <div className="p-2 bg-emerald-100 rounded-lg">
-                  <DollarSign className="h-5 w-5 text-emerald-600" />
+                <div className="p-2 bg-emerald-100 dark:bg-emerald-900/20 rounded-lg">
+                  <DollarSign className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                 </div>
                 <span className="text-sm font-medium text-muted-foreground">Deal Value</span>
               </div>
@@ -1004,11 +1012,11 @@ export default function DealDetailPage() {
             </div>
           </div>
 
-          <div className="rounded-xl p-6 border border-purple-100">
+          <div className="rounded-xl p-6 border border-purple-100 dark:border-purple-900/50">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <div className="p-2 bg-purple-100 rounded-lg">
-                  <Clock className="h-5 w-5 text-purple-600" />
+                <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                  <Clock className="h-5 w-5 text-purple-600 dark:text-purple-400" />
                 </div>
                 <span className="text-sm font-medium text-muted-foreground">Days in Pipeline</span>
               </div>
@@ -1025,11 +1033,11 @@ export default function DealDetailPage() {
             </div>
           </div>
 
-          <div className="rounded-xl p-6 border border-orange-100">
+          <div className="rounded-xl p-6 border border-orange-100 dark:border-orange-900/50">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <div className="p-2 bg-orange-100 rounded-lg">
-                  <Users className="h-5 w-5 text-orange-600" />
+                <div className="p-2 bg-orange-100 dark:bg-orange-900/20 rounded-lg">
+                  <Users className="h-5 w-5 text-orange-600 dark:text-orange-400" />
                 </div>
                 <span className="text-sm font-medium text-muted-foreground">Won Deals</span>
               </div>
@@ -1037,7 +1045,7 @@ export default function DealDetailPage() {
             <div className="flex items-baseline gap-2">
               <span className="text-3xl font-bold text-foreground">{dealStats?.overview?.won_deals ?? '—'}</span>
             </div>
-            <div className="flex items-center gap-1 mt-2 text-sm text-emerald-600">
+            <div className="flex items-center gap-1 mt-2 text-sm text-emerald-600 dark:text-emerald-400">
               <TrendingUp className="h-4 w-4" />
               <span>${dealStats?.overview?.total_won_value ? Number(dealStats.overview.total_won_value).toLocaleString() : '0'} won</span>
             </div>
