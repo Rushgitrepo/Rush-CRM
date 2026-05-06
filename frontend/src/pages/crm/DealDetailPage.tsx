@@ -51,7 +51,9 @@ import { cn } from "@/lib/utils";
 import { useSoftphone } from "@/contexts/SoftphoneContext";
 import { toast } from "sonner";
 import { format, isValid } from "date-fns";
-import { mergeFieldsWithTemplates, saveCustomFieldTemplates } from "@/utils/crm/customFieldsRegistry";
+import { getCustomFieldTemplates, saveCustomFieldTemplates } from "@/utils/crm/customFieldsRegistry";
+import { sanitizePayload } from "@/utils/crm/sanitize";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
 const fallbackStages = [
   {
@@ -596,49 +598,53 @@ export default function DealDetailPage() {
           </Badge>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {sectionFields.map((field) => (
-            <div key={field.id} className="group relative">
-              <div className="flex items-center justify-between mb-1.5">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{field.key}</Label>
-                {editing && (
-                  <DraggableFieldItem fieldKey={field.id}>
-                    <div className="p-1 cursor-grab active:cursor-grabbing text-primary hover:text-primary-foreground hover:bg-primary rounded transition-all">
-                      <GripVertical className="h-3.5 w-3.5" />
+          <SortableContext items={sectionFields.map(f => f.id)} strategy={verticalListSortingStrategy}>
+            {sectionFields.map((field) => (
+              <DraggableFieldItem key={field.id} fieldKey={field.id}>
+                <div className="group relative">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{field.key}</Label>
+                    {editing && (
+                      <DraggableFieldItem fieldKey={field.id} isHandle>
+                        <div className="p-1 cursor-grab active:cursor-grabbing text-primary hover:text-primary-foreground hover:bg-primary rounded transition-all">
+                          <GripVertical className="h-3.5 w-3.5" />
+                        </div>
+                      </DraggableFieldItem>
+                    )}
+                  </div>
+                  
+                  {editing ? (
+                    field.type === "boolean" ? (
+                      <Select
+                        value={field.value}
+                        onValueChange={(v) => updateField(field.id, { value: v })}
+                      >
+                        <SelectTrigger className="h-10 border-slate-200">
+                          <SelectValue placeholder="Select Yes/No" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Yes">Yes</SelectItem>
+                          <SelectItem value="No">No</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        type={field.type === "date" ? "date" : field.type === "datetime" ? "datetime-local" : field.type === "number" || field.type === "money" ? "number" : "text"}
+                        placeholder={field.type === "money" ? "0.00" : "Enter value..."}
+                        value={field.value}
+                        onChange={(e) => updateField(field.id, { value: e.target.value })}
+                        className="h-10 border-slate-200 focus-visible:ring-primary/20"
+                      />
+                    )
+                  ) : (
+                    <div className="min-h-[2.5rem] px-3 py-2 border border-border rounded-lg bg-slate-50/50 flex items-center">
+                      <span className="text-foreground font-medium">{field.value}</span>
                     </div>
-                  </DraggableFieldItem>
-                )}
-              </div>
-              
-              {editing ? (
-                field.type === "boolean" ? (
-                  <Select
-                    value={field.value}
-                    onValueChange={(v) => updateField(field.id, { value: v })}
-                  >
-                    <SelectTrigger className="h-10 border-slate-200">
-                      <SelectValue placeholder="Select Yes/No" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Yes">Yes</SelectItem>
-                      <SelectItem value="No">No</SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input
-                    type={field.type === "date" ? "date" : field.type === "datetime" ? "datetime-local" : field.type === "number" || field.type === "money" ? "number" : "text"}
-                    placeholder={field.type === "money" ? "0.00" : "Enter value..."}
-                    value={field.value}
-                    onChange={(e) => updateField(field.id, { value: e.target.value })}
-                    className="h-10 border-slate-200 focus-visible:ring-primary/20"
-                  />
-                )
-              ) : (
-                <div className="min-h-[2.5rem] px-3 py-2 border border-border rounded-lg bg-slate-50/50 flex items-center">
-                  <span className="text-foreground font-medium">{field.value}</span>
+                  )}
                 </div>
-              )}
-            </div>
-          ))}
+              </DraggableFieldItem>
+            ))}
+          </SortableContext>
         </div>
       </div>
     );

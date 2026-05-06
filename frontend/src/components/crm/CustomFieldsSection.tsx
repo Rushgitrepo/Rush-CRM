@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useSortable } from "@dnd-kit/sortable";
+import { useSortable, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useDroppable } from "@dnd-kit/core";
 
@@ -143,67 +143,69 @@ export function CustomFieldsSection({
           </div>
         ) : (
           <div className="grid gap-3">
-            {activeFields.map((field) => (
-              <DraggableFieldItem key={field.id} fieldKey={field.id}>
-                <div className="group flex flex-col sm:flex-row items-start sm:items-end gap-3 p-3 rounded-lg border border-black-800 transition-all duration-200">
-                  {editing && (
-                    <DraggableFieldItem fieldKey={field.id} isHandle>
-                      <div className="p-2 text-slate-400 hover:text-slate-600">
-                        <GripVertical className="h-4 w-4" />
-                      </div>
-                    </DraggableFieldItem>
-                  )}
-                  <div className="flex-1 w-full space-y-1.5">
-                    <Label className="text-xs font-medium text-slate-500 uppercase tracking-wider ml-1">Field Name</Label>
-                    <Input
-                      placeholder="e.g. Preferred Language"
-                      value={field.key}
-                      onChange={(e) => updateField(field.id, { key: e.target.value })}
-                      className="h-10 focus-visible:ring-primary/20"
-                      disabled={!editing}
-                    />
-                  </div>
-                  <div className="flex-1 w-full space-y-1.5">
-                    <Label className="text-xs font-medium text-slate-500 uppercase tracking-wider ml-1">Value</Label>
-                    {field.type === "boolean" ? (
-                      <Select
-                        value={field.value}
-                        onValueChange={(v) => updateField(field.id, { value: v })}
-                        disabled={!editing}
-                      >
-                        <SelectTrigger className="h-10 border-slate-200">
-                          <SelectValue placeholder="Select Yes/No" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Yes">Yes</SelectItem>
-                          <SelectItem value="No">No</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    ) : (
+            <SortableContext items={activeFields.map(f => f.id)} strategy={verticalListSortingStrategy}>
+              {activeFields.map((field) => (
+                <DraggableFieldItem key={field.id} fieldKey={field.id}>
+                  <div className="group flex flex-col sm:flex-row items-start sm:items-end gap-3 p-3 rounded-lg border border-black-800 transition-all duration-200">
+                    {editing && (
+                      <DraggableFieldItem fieldKey={field.id} isHandle>
+                        <div className="p-2 text-slate-400 hover:text-slate-600">
+                          <GripVertical className="h-4 w-4" />
+                        </div>
+                      </DraggableFieldItem>
+                    )}
+                    <div className="flex-1 w-full space-y-1.5">
+                      <Label className="text-xs font-medium text-slate-500 uppercase tracking-wider ml-1">Field Name</Label>
                       <Input
-                        type={field.type === "date" ? "date" : field.type === "datetime" ? "datetime-local" : field.type === "number" || field.type === "money" ? "number" : "text"}
-                        placeholder={field.type === "money" ? "0.00" : "e.g. English"}
-                        value={field.value}
-                        onChange={(e) => updateField(field.id, { value: e.target.value })}
-                        className="h-10 border-slate-200 focus-visible:ring-primary/20"
+                        placeholder="e.g. Preferred Language"
+                        value={field.key}
+                        onChange={(e) => updateField(field.id, { key: e.target.value })}
+                        className="h-10 focus-visible:ring-primary/20"
                         disabled={!editing}
                       />
+                    </div>
+                    <div className="flex-1 w-full space-y-1.5">
+                      <Label className="text-xs font-medium text-slate-500 uppercase tracking-wider ml-1">Value</Label>
+                      {field.type === "boolean" ? (
+                        <Select
+                          value={field.value}
+                          onValueChange={(v) => updateField(field.id, { value: v })}
+                          disabled={!editing}
+                        >
+                          <SelectTrigger className="h-10 border-slate-200">
+                            <SelectValue placeholder="Select Yes/No" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Yes">Yes</SelectItem>
+                            <SelectItem value="No">No</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          type={field.type === "date" ? "date" : field.type === "datetime" ? "datetime-local" : field.type === "number" || field.type === "money" ? "number" : "text"}
+                          placeholder={field.type === "money" ? "0.00" : "e.g. English"}
+                          value={field.value}
+                          onChange={(e) => updateField(field.id, { value: e.target.value })}
+                          className="h-10 border-slate-200 focus-visible:ring-primary/20"
+                          disabled={!editing}
+                        />
+                      )}
+                    </div>
+                    {editing && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeField(field.id)}
+                        className="h-10 w-10 text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors duration-200"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     )}
                   </div>
-                  {editing && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removeField(field.id)}
-                      className="h-10 w-10 text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors duration-200"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              </DraggableFieldItem>
-            ))}
+                </DraggableFieldItem>
+              ))}
+            </SortableContext>
           </div>
         )}
       </CardContent>
