@@ -357,7 +357,9 @@ async function enrichCallLogWithInsights(orgId, userId, callLogId, callId, exist
           `    3. The account plan may not include RingSense — check with your RC account rep.\n` +
           `  raw body   :`, JSON.stringify(body)
         );
-      } else if (status !== 404 && status !== 400) {
+      } else if (status === 404 || status === 400) {
+        console.log(`[RC] RingSense ${status} for ID "${candidateId}" — insights not available yet (recording may still be processing)`);
+      } else {
         console.warn('[RC] Failed to fetch RingSense insights:', err.message || err);
       }
     }
@@ -365,7 +367,9 @@ async function enrichCallLogWithInsights(orgId, userId, callLogId, callId, exist
 
   if (!insights) {
     const status = lastError?.response?.status;
-    if (status && status !== 404 && status !== 400) {
+    if (status === 404 || status === 400) {
+      console.log(`[RC] RingSense: no insights available for call ${callId} (tried IDs: ${Array.from(new Set([callId, callId.replace(/^s-/, ''), callId.replace(/^rc-/, '')])).join(', ')}) — status ${status}`);
+    } else if (status) {
       console.warn('[RC] Unable to fetch RingSense insights for call:', callId, lastError.message || lastError);
     }
     return false;
@@ -467,9 +471,14 @@ async function syncCallLogs(orgId, userId, options = {}) {
           !row.ai_summary || row.ai_summary.trim() === '' ||
           !row.ai_recap   || row.ai_recap.trim() === '';
 
+        if (!shouldEnrich) {
+          console.log(`[RC] RingSense: call ${sessionId} already has AI data — skipping enrichment`);
+        }
+
         if (shouldEnrich) {
           await sleep(RINGSENSE_THROTTLE_MS);
           const candidateIds = [recordingId, telephonySessionId, sessionId, callId].filter(Boolean);
+          console.log(`[RC] RingSense: trying IDs for call ${sessionId}:`, candidateIds);
           for (const insightId of candidateIds) {
             try {
               const didEnrich = await enrichCallLogWithInsights(orgId, userId, row.id, insightId, row.notes, platform);
@@ -518,6 +527,7 @@ async function syncCallLogs(orgId, userId, options = {}) {
     if (callLogId && mightHaveInsights && !rateLimitHit) {
       await sleep(RINGSENSE_THROTTLE_MS);
       const candidateIds = [recordingId, telephonySessionId, sessionId, callId].filter(Boolean);
+      console.log(`[RC] RingSense: trying IDs for new call ${sessionId}:`, candidateIds);
       for (const insightId of candidateIds) {
         try {
           const didEnrich = await enrichCallLogWithInsights(orgId, userId, callLogId, insightId, null, platform);
