@@ -344,7 +344,20 @@ async function enrichCallLogWithInsights(orgId, userId, callLogId, callId, exist
         console.warn('[RC] RingSense rate limit hit for call:', callId);
         throw err;
       }
-      if (status !== 404 && status !== 400) {
+      if (status === 403) {
+        let body = {};
+        try { body = await err.response.clone().json(); } catch (_) {}
+        console.warn(
+          `[RC] RingSense 403 Forbidden for call ${candidateId}.\n` +
+          `  error_code : ${body.errorCode || body.error || '(none)'}\n` +
+          `  message    : ${body.message || body.description || err.message}\n` +
+          `  FIX HINTS  :\n` +
+          `    1. Your RC app may be missing the "AI" / "ReadAIAnalysis" scope — add it in the RC developer portal and re-authorize.\n` +
+          `    2. RingSense / AI features must be enabled on the RC account (Admin Portal > AI Features).\n` +
+          `    3. The account plan may not include RingSense — check with your RC account rep.\n` +
+          `  raw body   :`, JSON.stringify(body)
+        );
+      } else if (status !== 404 && status !== 400) {
         console.warn('[RC] Failed to fetch RingSense insights:', err.message || err);
       }
     }
@@ -404,7 +417,8 @@ async function syncCallLogs(orgId, userId, options = {}) {
 
   let synced = 0;
   let enriched_count = 0;
-  let rateLimitHit = false; // Global flag — stop ALL insight calls if rate-limited
+  let rateLimitHit = false;
+  let consecutiveRateLimits = 0;
 
   // Pre-check: how many calls have recordings?
   const withRecordings = records.filter(r => r.recording?.id);
@@ -434,10 +448,9 @@ async function syncCallLogs(orgId, userId, options = {}) {
     const fromNumber = rec.from?.phoneNumber || null;
     const toNumber = rec.to?.phoneNumber || null;
 
-    // Attempt RingSense AI enrichment for calls with a duration.
-    // RingSense processes calls independently of whether the basic call log
-    // returns a `recording.id` object (e.g. if the app lacks ReadCallRecording).
-    const mightHaveInsights = rec.duration > 0;
+    // Only attempt RingSense for calls that have a recording ID.
+    // Trying all calls with duration > 0 exhausts the rate limit on ~90 calls per sync.
+    const mightHaveInsights = !!recordingId;
 
     if (existing.rows.length > 0) {
       const row = existing.rows[0];
@@ -456,16 +469,21 @@ async function syncCallLogs(orgId, userId, options = {}) {
 
         if (shouldEnrich) {
           await sleep(RINGSENSE_THROTTLE_MS);
-          // Use recording ID first (most reliable for RingSense), then fallback to others
           const candidateIds = [recordingId, telephonySessionId, sessionId, callId].filter(Boolean);
           for (const insightId of candidateIds) {
             try {
               const didEnrich = await enrichCallLogWithInsights(orgId, userId, row.id, insightId, row.notes, platform);
-              if (didEnrich) { enriched_count++; break; }
+              if (didEnrich) { enriched_count++; consecutiveRateLimits = 0; break; }
             } catch (err) {
               if (err?.response?.status === 429) {
-                console.warn('[RC] Rate limit hit during enrichment — stopping all AI calls for this sync batch.');
-                rateLimitHit = true;
+                consecutiveRateLimits++;
+                if (consecutiveRateLimits >= 3) {
+                  console.warn('[RC] 3 consecutive rate limit hits — stopping all AI calls for this sync batch.');
+                  rateLimitHit = true;
+                } else {
+                  console.warn(`[RC] Rate limit hit (${consecutiveRateLimits}/3) — backing off 20s before next call...`);
+                  await sleep(20000);
+                }
                 break;
               }
             }
@@ -503,11 +521,17 @@ async function syncCallLogs(orgId, userId, options = {}) {
       for (const insightId of candidateIds) {
         try {
           const didEnrich = await enrichCallLogWithInsights(orgId, userId, callLogId, insightId, null, platform);
-          if (didEnrich) { enriched_count++; break; }
+          if (didEnrich) { enriched_count++; consecutiveRateLimits = 0; break; }
         } catch (err) {
           if (err?.response?.status === 429) {
-            console.warn('[RC] Rate limit hit during enrichment — stopping all AI calls for this sync batch.');
-            rateLimitHit = true;
+            consecutiveRateLimits++;
+            if (consecutiveRateLimits >= 3) {
+              console.warn('[RC] 3 consecutive rate limit hits — stopping all AI calls for this sync batch.');
+              rateLimitHit = true;
+            } else {
+              console.warn(`[RC] Rate limit hit (${consecutiveRateLimits}/3) — backing off 20s before next call...`);
+              await sleep(20000);
+            }
             break;
           }
         }

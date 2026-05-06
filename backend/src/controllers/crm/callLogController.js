@@ -41,7 +41,7 @@ exports.getAllCallLogs = async (req, res, next) => {
   try {
     const {
       page = 1, limit = 25, direction, entity_type, entity_id,
-      user_id, search, start_date, end_date, status
+      user_id, search, start_date, end_date, status, has_content
     } = req.query;
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
@@ -81,6 +81,20 @@ exports.getAllCallLogs = async (req, res, next) => {
     if (end_date) {
       conditions.push(`cl.created_at <= $${paramIdx++}`);
       params.push(end_date);
+    }
+    if (has_content === 'transcript') {
+      conditions.push(`(cl.transcript IS NOT NULL AND cl.transcript <> '')`);
+    } else if (has_content === 'notes') {
+      conditions.push(`(cl.notes IS NOT NULL AND cl.notes <> '')`);
+    } else if (has_content === 'ai') {
+      conditions.push(`((cl.ai_summary IS NOT NULL AND cl.ai_summary <> '') OR (cl.ai_recap IS NOT NULL AND cl.ai_recap <> ''))`);
+    } else if (has_content === 'any') {
+      conditions.push(`(
+        (cl.transcript  IS NOT NULL AND cl.transcript  <> '') OR
+        (cl.notes       IS NOT NULL AND cl.notes       <> '') OR
+        (cl.ai_summary  IS NOT NULL AND cl.ai_summary  <> '') OR
+        (cl.ai_recap    IS NOT NULL AND cl.ai_recap    <> '')
+      )`);
     }
 
     const whereClause = conditions.join(' AND ');

@@ -602,23 +602,65 @@ const update = async (req, res, next) => {
 };
 
 const remove = async (req, res, next) => {
+  const client = await db.pool.connect();
   try {
     const { id } = req.params;
+    await client.query('BEGIN');
 
-    const result = await db.query(
+    // 1. Delete associated tasks/activities (hard foreign key constraint)
+    await client.query(
+      `DELETE FROM public.activities WHERE deal_id = $1 AND org_id = $2`,
+      [id, req.user.orgId]
+    );
+
+    // 2. Clean up polymorphic CRM data
+    await client.query(
+      `DELETE FROM public.crm_activities WHERE entity_type = 'deal' AND entity_id = $1 AND org_id = $2`,
+      [id, req.user.orgId]
+    );
+
+    await client.query(
+      `DELETE FROM public.crm_comments WHERE entity_type = 'deal' AND entity_id = $1 AND org_id = $2`,
+      [id, req.user.orgId]
+    );
+
+    await client.query(
+      `DELETE FROM public.crm_documents WHERE entity_type = 'deal' AND entity_id = $1 AND org_id = $2`,
+      [id, req.user.orgId]
+    );
+
+    // 3. Delete from deal_contacts and deal_signing_parties (already has CASCADE in schema, but being explicit is fine)
+    await client.query(
+      `DELETE FROM public.deal_contacts WHERE deal_id = $1 AND org_id = $2`,
+      [id, req.user.orgId]
+    );
+
+    await client.query(
+      `DELETE FROM public.deal_signing_parties WHERE deal_id = $1 AND org_id = $2`,
+      [id, req.user.orgId]
+    );
+
+    // 4. Finally delete the deal
+    const result = await client.query(
       `DELETE FROM public.deals WHERE id = $1 AND org_id = $2 RETURNING id`,
       [id, req.user.orgId]
     );
 
     if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Deal not found' });
     }
 
+    await client.query('COMMIT');
     res.json({ message: 'Deal deleted successfully' });
   } catch (err) {
+    await client.query('ROLLBACK');
     next(err);
+  } finally {
+    client.release();
   }
 };
+
 
 const getStats = async (req, res, next) => {
   try {

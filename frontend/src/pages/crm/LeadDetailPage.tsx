@@ -24,6 +24,8 @@ import { CustomFieldsSection, DraggableFieldItem } from "@/components/crm/Custom
 import { GripVertical } from "lucide-react";
 import { FieldDragWrapper } from "@/components/crm/FieldDragWrapper";
 import { DroppableSection } from "@/components/crm/DroppableSection";
+import { mergeFieldsWithTemplates, saveCustomFieldTemplates } from "@/utils/crm/customFieldsRegistry";
+import { sanitizePayload } from "@/utils/crm/sanitize";
 
 import { WorkspaceShareModal } from "@/components/crm/leads/WorkspaceShareModal";
 import { useLead, useInteractionHistory } from "@/hooks/useCrmInteractions";
@@ -36,7 +38,7 @@ import { useSoftphone } from "@/contexts/SoftphoneContext";
 import { ClickToCall } from "@/components/telephony/ClickToCall";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { format, isValid } from "date-fns";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -185,6 +187,14 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
             />
           ) : type === "email" ? (
             <a href={`mailto:${value}`} className="text-primary hover:underline font-medium break-words w-full">{value}</a>
+          ) : type === "date" && value && isValid(new Date(value)) ? (
+            <span className="text-foreground font-medium break-words w-full">
+              {format(new Date(value), "MMM d, yyyy")}
+            </span>
+          ) : type === "datetime-local" && value && isValid(new Date(value)) ? (
+            <span className="text-foreground font-medium break-words w-full">
+              {format(new Date(value), "MMM d, yyyy HH:mm")}
+            </span>
           ) : (
             <span className="text-foreground font-medium break-words w-full">{value}</span>
           )}
@@ -311,7 +321,7 @@ export default function LeadDetailPage() {
 
   const [editing, setEditing] = useState(() => window.location.pathname.endsWith('/edit'));
   const [form, setForm] = useState<Record<string, unknown>>({});
-  const [customFields, setCustomFields] = useState<{ id: string; key: string; value: string; sectionId?: string }[]>([]);
+  const [customFields, setCustomFields] = useState<{ id: string; key: string; value: string; type?: string; sectionId?: string }[]>([]);
 
   const [showWorkspaceModal, setShowWorkspaceModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -398,29 +408,40 @@ export default function LeadDetailPage() {
         priority: lead.priority,
         pipeline: lead.pipeline,
         tags: lead.tags,
-        expected_close_date: lead.expected_close_date,
-        last_contacted_date: lead.last_contacted_date,
-        next_follow_up_date: lead.next_follow_up_date,
+        expected_close_date: lead.expected_close_date && isValid(new Date(lead.expected_close_date)) ? format(new Date(lead.expected_close_date), "yyyy-MM-dd") : "",
+        last_contacted_date: lead.last_contacted_date && isValid(new Date(lead.last_contacted_date)) ? format(new Date(lead.last_contacted_date), "yyyy-MM-dd") : "",
+        next_follow_up_date: lead.next_follow_up_date && isValid(new Date(lead.next_follow_up_date)) ? format(new Date(lead.next_follow_up_date), "yyyy-MM-dd") : "",
         first_message: lead.first_message,
         last_touch: lead.last_touch,
         phone_type: lead.phone_type,
         email_type: lead.email_type,
         website_type: lead.website_type,
         responsible_person: lead.responsible_person,
-        createdAt: lead.created_at ? format(new Date(lead.created_at), "yyyy-MM-dd'T'HH:mm") : "",
+        external_source_id: lead.external_source_id,
+        createdAt: lead.created_at && isValid(new Date(lead.created_at)) ? format(new Date(lead.created_at), "yyyy-MM-dd'T'HH:mm") : "",
       });
 
       if (lead.custom_fields && typeof lead.custom_fields === 'object') {
         const fields = Object.entries(lead.custom_fields).map(([k, v]) => {
           if (v && typeof v === 'object' && 'value' in v) {
-            return { id: k, key: k, value: String((v as any).value), sectionId: (v as any).sectionId };
+            return { 
+              id: k, 
+              id: `template-${k.replace(/\s+/g, '-').toLowerCase()}-${Math.random().toString(36).substr(2, 5)}`, 
+              key: k, 
+              value: String((v as any).value), 
+              type: (v as any).type || 'string',
+              sectionId: (v as any).sectionId 
+            };
           }
-          return { id: k, key: k, value: String(v), sectionId: 'custom-fields' };
+          return { id: `template-${k.replace(/\s+/g, '-').toLowerCase()}-${Math.random().toString(36).substr(2, 5)}`, key: k, value: String(v), type: 'string', sectionId: 'custom-fields' };
         });
-        setCustomFields(fields);
+        // Merge with templates to show empty "standard" custom fields
+        const mergedFields = mergeFieldsWithTemplates('lead', fields);
+        setCustomFields(mergedFields);
+      } else {
+        // No custom fields on record, show templates
+        setCustomFields(mergeFieldsWithTemplates('lead', []));
       }
-
-
     }
   }, [lead]);
 
@@ -429,27 +450,38 @@ export default function LeadDetailPage() {
     Object.entries(form).forEach(([key, val]) => {
       if (val !== (lead as Record<string, unknown>)[key]) changes[key] = val;
     });
-    if (Object.keys(changes).length === 0) {
+
+    const customFieldsObj = customFields.reduce((acc, field) => {
+      if (field.key.trim()) acc[field.key.trim()] = { 
+        value: field.value, 
+        type: field.type || 'string',
+        sectionId: field.sectionId 
+      };
+      return acc;
+    }, {} as Record<string, { value: string; type: string; sectionId?: string }>);
+
+    const leadCustomFields = lead.custom_fields || {};
+    const customFieldsChanged = JSON.stringify(customFieldsObj) !== JSON.stringify(leadCustomFields);
+
+    if (Object.keys(changes).length === 0 && !customFieldsChanged) {
+      saveCustomFieldTemplates('lead', customFields);
       setEditing(false);
       return;
     }
-
-    const customFieldsObj = customFields.reduce((acc, field) => {
-      if (field.key.trim()) acc[field.key.trim()] = { value: field.value, sectionId: field.sectionId };
-      return acc;
-    }, {} as Record<string, { value: string; sectionId?: string }>);
 
     const formattedChanges: Record<string, unknown> = { ...changes };
     if (formattedChanges.last_contacted_date) formattedChanges.last_contacted_date = new Date(formattedChanges.last_contacted_date as string).toISOString();
     if (formattedChanges.next_follow_up_date) formattedChanges.next_follow_up_date = new Date(formattedChanges.next_follow_up_date as string).toISOString();
     if (formattedChanges.expected_close_date) formattedChanges.expected_close_date = new Date(formattedChanges.expected_close_date as string).toISOString();
+    if (formattedChanges.createdAt) formattedChanges.createdAt = new Date(formattedChanges.createdAt as string).toISOString();
 
-    updateLead.mutate({
+    updateLead.mutate(sanitizePayload({
       id: lead.id,
       ...formattedChanges,
       customFields: customFieldsObj
-    }, {
+    }), {
       onSuccess: () => {
+        saveCustomFieldTemplates('lead', customFields);
         setEditing(false);
       },
     });
@@ -494,13 +526,16 @@ export default function LeadDetailPage() {
   const set = (key: string, val: unknown) => setForm(prev => ({ ...prev, [key]: val }));
 
   const handleFieldDropToSection = (fieldKey: string, fieldValue: string, sectionId: string) => {
-    // State is already updated by FieldDragWrapper
     console.log(`Field ${fieldKey} moved to ${sectionId}`);
   };
 
   const renderDroppedFields = (sectionId: string) => {
     const sectionFields = customFields.filter(f => f.sectionId === sectionId);
     if (sectionFields.length === 0) return null;
+
+    const updateField = (id: string, updates: Partial<CustomField>) => {
+      setCustomFields(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
+    };
 
     return (
       <div className="mt-6 pt-6 border-t border-dashed border-border space-y-4">
@@ -511,7 +546,7 @@ export default function LeadDetailPage() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {sectionFields.map((field) => (
-            <div key={field.key} className="group relative">
+            <div key={field.id} className="group relative">
               <div className="flex items-center justify-between mb-1.5">
                 <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{field.key}</Label>
                 {editing && (
@@ -522,9 +557,35 @@ export default function LeadDetailPage() {
                   </DraggableFieldItem>
                 )}
               </div>
-              <div className="min-h-[2.5rem] px-3 py-2 border border-border rounded-lg bg-primary/5 flex items-center">
-                <span className="text-foreground font-medium">{field.value}</span>
-              </div>
+              
+              {editing ? (
+                field.type === "boolean" ? (
+                  <Select
+                    value={field.value}
+                    onValueChange={(v) => updateField(field.id, { value: v })}
+                  >
+                    <SelectTrigger className="h-10 border-slate-200">
+                      <SelectValue placeholder="Select Yes/No" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Yes">Yes</SelectItem>
+                      <SelectItem value="No">No</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    type={field.type === "date" ? "date" : field.type === "datetime" ? "datetime-local" : field.type === "number" || field.type === "money" ? "number" : "text"}
+                    placeholder={field.type === "money" ? "0.00" : "Enter value..."}
+                    value={field.value}
+                    onChange={(e) => updateField(field.id, { value: e.target.value })}
+                    className="h-10 border-slate-200 focus-visible:ring-primary/20"
+                  />
+                )
+              ) : (
+                <div className="min-h-[2.5rem] px-3 py-2 border border-border rounded-lg bg-slate-50/50 flex items-center">
+                  <span className="text-foreground font-medium">{field.value}</span>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -1028,7 +1089,23 @@ export default function LeadDetailPage() {
                       <CardDescription>Core contact, company, and ownership details.</CardDescription>
                     </CardHeader>
                     <CardContent className="p-8">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-b pb-8 mb-8">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground flex items-center gap-2">
+                            <Briefcase className="h-4 w-4" />
+                            Pipeline
+                          </Label>
+                          <Select value={(form.pipeline as string) || "default"} onValueChange={(v) => set("pipeline", v)} disabled={!editing}>
+                            <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
+                              <SelectValue placeholder="Select pipeline" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="default">Standard Pipeline</SelectItem>
+                              <SelectItem value="marketing">Marketing Pipeline</SelectItem>
+                              <SelectItem value="sales">Sales Pipeline</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                         <div className="space-y-2">
                           <Label className="text-sm font-medium text-foreground">Stage</Label>
                           <Select value={(form.stage as string) || ""} onValueChange={(v) => set("stage", v)} disabled={!editing}>
@@ -1415,6 +1492,16 @@ export default function LeadDetailPage() {
                         </div>
 
                         <Field
+                          label="Expected Close Date"
+                          value={form.expected_close_date as string}
+                          onChange={(v) => set("expected_close_date", v)}
+                          editing={editing}
+                          type="date"
+                          icon={<CalendarIcon className="h-4 w-4" />}
+                          entityId={id}
+                        />
+
+                        <Field
                           label="Responsible Person"
                           value={form.responsible_person as string}
                           onChange={(v) => set("responsible_person", v)}
@@ -1478,6 +1565,31 @@ export default function LeadDetailPage() {
                             </div>
                           )}
                         </div>
+
+                        <div className="md:col-span-2 space-y-2">
+                          <Label className="text-sm font-medium text-foreground">Additional Notes</Label>
+                          {editing ? (
+                            <Textarea
+                              value={(form.notes as string) || ""}
+                              onChange={(e) => set("notes", e.target.value)}
+                              placeholder="Add any extra context"
+                              className="min-h-[110px] resize-none border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                            />
+                          ) : (
+                            <div className="min-h-[110px] px-3 py-2 border border-border rounded-lg bg-muted/40 whitespace-pre-wrap text-foreground font-medium">
+                              {(form.notes as string) || <span className="text-muted-foreground italic">No additional notes</span>}
+                            </div>
+                          )}
+                        </div>
+                        <Field
+                          label="External Source ID"
+                          value={form.external_source_id as string}
+                          onChange={(v) => set("external_source_id", v)}
+                          editing={editing}
+                          icon={<Target className="h-4 w-4" />}
+                          placeholder="e.g. CRM-123"
+                          entityId={id}
+                        />
                       </div>
                       {renderDroppedFields("source-section")}
                     </CardContent>

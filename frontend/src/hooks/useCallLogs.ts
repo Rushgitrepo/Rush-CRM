@@ -57,6 +57,7 @@ export interface CallLogFilters {
   start_date?: string;
   end_date?: string;
   status?: string;
+  has_content?: 'transcript' | 'notes' | 'ai' | 'any';
 }
 
 export interface CallStats {
