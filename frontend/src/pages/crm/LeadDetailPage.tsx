@@ -426,15 +426,14 @@ export default function LeadDetailPage() {
         const fields = Object.entries(lead.custom_fields).map(([k, v]) => {
           if (v && typeof v === 'object' && 'value' in v) {
             return { 
-              id: k, 
-              id: `template-${k.replace(/\s+/g, '-').toLowerCase()}-${Math.random().toString(36).substr(2, 5)}`, 
+              id: `field-${k.replace(/\s+/g, '-').toLowerCase()}`, 
               key: k, 
               value: String((v as any).value), 
               type: (v as any).type || 'string',
               sectionId: (v as any).sectionId 
             };
           }
-          return { id: `template-${k.replace(/\s+/g, '-').toLowerCase()}-${Math.random().toString(36).substr(2, 5)}`, key: k, value: String(v), type: 'string', sectionId: 'custom-fields' };
+          return { id: `field-${k.replace(/\s+/g, '-').toLowerCase()}`, key: k, value: String(v), type: 'string', sectionId: 'custom-fields' };
         });
         // Merge with templates to show empty "standard" custom fields
         const mergedFields = mergeFieldsWithTemplates('lead', fields);
@@ -585,7 +584,7 @@ export default function LeadDetailPage() {
                       />
                     )
                   ) : (
-                    <div className="min-h-[2.5rem] px-3 py-2 border border-border rounded-lg bg-slate-50/50 flex items-center">
+                    <div className="min-h-[2.5rem] px-3 py-2 border border-border rounded-lg bg-muted/30 flex items-center">
                       <span className="text-foreground font-medium">{field.value}</span>
                     </div>
                   )}
@@ -616,7 +615,7 @@ export default function LeadDetailPage() {
 
   if (!lead && !deleteLead.isPending && !deleteLead.isSuccess) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary/5 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center  p-8 rounded-2xl shadow-xl border  max-w-md">
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <AlertCircle className="h-8 w-8 text-red-600" />
@@ -633,9 +632,9 @@ export default function LeadDetailPage() {
   }
 
   return (
-    <div className="min-h-screen ">
+    <div className="min-h-screen bg-background">
       {/* Enterprise Header with Breadcrumb Navigation */}
-      <div className=" border-b  shadow-sm">
+      <div className="bg-card border-b shadow-sm sticky top-0 z-40">
         <div className="px-6 py-4">
           {/* Professional Breadcrumb */}
           <nav className="flex items-center gap-2 text-sm  mb-6">
@@ -660,17 +659,17 @@ export default function LeadDetailPage() {
               </Button>
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                 <div className="relative">
-                  <Avatar className="h-14 w-14 ring-4 ring-white shadow-lg">
+                  <Avatar className="h-14 w-14 ring-4 ring-background shadow-lg">
                     <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${lead.title}`} />
-                    <AvatarFallback className="bg-foreground text-white font-bold text-lg">
+                    <AvatarFallback className="bg-primary text-primary-foreground font-bold text-lg">
                       {lead.title?.split(' ').map(n => n[0]).join('').toUpperCase() || 'L'}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 border-2 border-white rounded-full"></div>
+                  <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 border-2 border-background rounded-full"></div>
                 </div>
                 <div>
                   <div className="flex flex-wrap items-center gap-3 mb-1">
-                    <h1 className="text-xl md:text-2xl font-bold text-white break-words max-w-[200px] sm:max-w-none">{lead.title}</h1>
+                    <h1 className="text-xl md:text-2xl font-bold text-foreground break-words max-w-[200px] sm:max-w-none">{lead.title}</h1>
                     <Badge className={cn("gap-1 px-3 py-1 font-medium whitespace-nowrap", getStatusColor(lead.status))}>
                       {getStatusIcon(lead.status)}
                       {lead.status || 'New Lead'}
@@ -703,9 +702,9 @@ export default function LeadDetailPage() {
                     )}
                   </div>
                   <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-                    <div className="flex items-center gap-2 text-white-600">
+                    <div className="flex items-center gap-2 text-muted-foreground">
                       <Building2 className="h-4 w-4 shrink-0" />
-                      <span className="font-medium break-words">{lead.company_name || 'No Company'}</span>
+                      <span className="font-medium break-words text-foreground">{lead.company_name || 'No Company'}</span>
                     </div>
                     {lead.value && (
                       <div className="flex items-center gap-1 text-emerald-600 font-semibold">
@@ -714,7 +713,7 @@ export default function LeadDetailPage() {
                       </div>
                     )}
                     {lead.created_at && (
-                      <div className="flex items-center gap-1  whitespace-nowrap">
+                      <div className="flex items-center gap-1 text-muted-foreground whitespace-nowrap">
                         <CalendarIcon className="h-4 w-4" />
                         <span>Created {format(new Date(form.createdAt as string || lead.created_at), 'MMM d, yyyy')}</span>
                       </div>
