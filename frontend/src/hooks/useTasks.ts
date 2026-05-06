@@ -24,6 +24,10 @@ export interface Task {
   labels?: string[] | null;
   entity_type: string | null;
   entity_id: string | null;
+  is_starred?: boolean;
+  project_name?: string;
+  project_color?: string;
+  assigned_to_name?: string;
   created_at: string;
   updated_at: string;
 }

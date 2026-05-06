@@ -7,6 +7,10 @@ router.use(auth, requireOrg);
 
 router.get('/', dealController.getAll);
 router.get('/stats', dealController.getStats);
+router.get('/stages', dealController.getStages);
+router.post('/stages', dealController.createStage);
+router.put('/stages/:id', dealController.updateStage_custom);
+router.delete('/stages/:id', dealController.deleteStage);
 router.post('/:id/contacts', dealController.addContact);
 router.delete('/:id/contacts/:contactId', dealController.removeContact);
 router.post('/:id/signing-parties', dealController.addSigningParty);

@@ -200,7 +200,9 @@
   }
 }
 
-input[type="date"]::-webkit-calendar-picker-indicator {
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
   /* Filter to match primary color #4A90E2 (hsl(217 91% 60%)) */
   filter: invert(56%) sepia(89%) saturate(1345%) hue-rotate(191deg) brightness(95%) contrast(89%);
