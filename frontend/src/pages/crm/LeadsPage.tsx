@@ -59,8 +59,8 @@ export default function LeadsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
 
-  const { data: dbLeads, isLoading, isError } = useLeads({ 
-    search, 
+  const { data: dbLeads, isLoading, isError } = useLeads({
+    search,
     status: status !== "all" ? status : undefined,
     page: currentPage,
     limit: pageSize
@@ -71,7 +71,7 @@ export default function LeadsPage() {
   const leads: LeadRow[] = useMemo(() => {
     // Handle different response formats from the API
     let leadsData: any[] = [];
-    
+
     if (Array.isArray(dbLeads)) {
       leadsData = dbLeads;
     } else if (dbLeads && typeof dbLeads === 'object') {
@@ -106,9 +106,9 @@ export default function LeadsPage() {
       .filter((lead) => {
         const matchesSearch = term
           ? lead.name.toLowerCase().includes(term) ||
-            lead.company.toLowerCase().includes(term) ||
-            lead.email.toLowerCase().includes(term) ||
-            lead.source.toLowerCase().includes(term)
+          lead.company.toLowerCase().includes(term) ||
+          lead.email.toLowerCase().includes(term) ||
+          lead.source.toLowerCase().includes(term)
           : true;
         const matchesStatus = status === "all" || lead.status.toLowerCase() === status;
         const matchesType = type === "all" || lead.type === type;
@@ -141,7 +141,7 @@ export default function LeadsPage() {
 
   const handleBulkDelete = async () => {
     if (selectedLeads.length === 0) return;
-    
+
     if (await confirm(`Are you sure you want to delete ${selectedLeads.length} leads?`, { variant: 'destructive', title: 'Confirm Bulk Deletion' })) {
       try {
         for (const leadId of selectedLeads) {
@@ -208,7 +208,7 @@ export default function LeadsPage() {
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground flex items-center gap-2">
-            <Mail className="h-3 w-3" /> 
+            <Mail className="h-3 w-3" />
             {lead.email ? (
               <a href={`mailto:${lead.email}`} className="hover:text-primary hover:underline transition-colors" onClick={(e) => e.stopPropagation()}>
                 {lead.email}
@@ -253,11 +253,11 @@ export default function LeadsPage() {
       render: (lead) => (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           {lead.phone ? (
-            <ClickToCall 
-              phoneNumber={lead.phone} 
-              entityType="lead" 
-              entityId={lead.id} 
-              className="font-medium" 
+            <ClickToCall
+              phoneNumber={lead.phone}
+              entityType="lead"
+              entityId={lead.id}
+              className="font-medium"
             />
           ) : (
             "—"
@@ -295,7 +295,7 @@ export default function LeadsPage() {
                 <Edit className="h-4 w-4 mr-2" />
                 Edit Lead
               </DropdownMenuItem>
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 onClick={(e) => {
                   e.stopPropagation();
                   updateLead.mutate({ id: lead.id, status: 'unqualified', stage: 'unqualified' });
@@ -305,7 +305,7 @@ export default function LeadsPage() {
                 Unqualify Lead
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 onClick={async (e) => {
                   e.stopPropagation();
                   if (await confirm('Are you sure you want to delete this lead?', { variant: 'destructive', title: 'Delete Lead' })) {
@@ -413,18 +413,18 @@ export default function LeadsPage() {
         onViewChange={(v) => setView(v as ViewType)}
       >
         <div className="flex gap-2 items-center">
-          <WorkspaceFilter 
-            value={workspaceFilter} 
+          <WorkspaceFilter
+            value={workspaceFilter}
             onChange={setWorkspaceFilter}
-            
+
           />
           <Button variant="outline" size="sm" onClick={() => { setType("all"); setWorkspaceFilter("all"); }}>
             Reset Filters
           </Button>
           {filtered.length > 0 && (
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => handleSelectAll(selectedLeads.length !== filtered.length)}
             >
               {selectedLeads.length === filtered.length ? 'Deselect All' : 'Select All'}

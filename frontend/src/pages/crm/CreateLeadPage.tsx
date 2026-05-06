@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { cn } from "@/lib/utils";
 import {
   Loader2, Save, ArrowLeft, Building2, CalendarDays, MessageSquare,
   ChevronDown, Sparkles, Tag
@@ -15,8 +16,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/crm/ui/PageHeader";
 import { useCreateLead } from "@/hooks/useCrmData";
-import { CustomFieldsSection } from "@/components/crm/CustomFieldsSection";
+import { CustomFieldsSection, DraggableFieldItem } from "@/components/crm/CustomFieldsSection";
+import { FieldDragWrapper } from "@/components/crm/FieldDragWrapper";
+import { DroppableSection } from "@/components/crm/DroppableSection";
+import { GripVertical } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { Badge } from "@/components/ui/badge";
 
 const leadSchema = z.object({
   title: z.string().min(2, "Lead name is required"),
@@ -152,20 +157,28 @@ function LabeledInput({
   fieldProps,
   type = "text",
   rightAddon,
+  error,
 }: {
   label: string;
   placeholder?: string;
   fieldProps: any;
   type?: string;
   rightAddon?: React.ReactNode;
+  error?: string;
 }) {
   return (
     <div className="space-y-2">
       <Label className="text-sm font-medium text-foreground">{label}</Label>
       <div className="flex items-stretch gap-2">
-        <Input type={type} placeholder={placeholder} {...fieldProps} className="h-11" />
+        <Input
+          type={type}
+          placeholder={placeholder}
+          {...fieldProps}
+          className={cn("h-11", error && "border-destructive focus-visible:ring-destructive")}
+        />
         {rightAddon}
       </div>
+      {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );
 }
@@ -175,16 +188,24 @@ function LabeledTextarea({
   placeholder,
   fieldProps,
   rows = 4,
+  error,
 }: {
   label: string;
   placeholder?: string;
   fieldProps: any;
   rows?: number;
+  error?: string;
 }) {
   return (
     <div className="space-y-2">
       <Label className="text-sm font-medium text-foreground">{label}</Label>
-      <Textarea rows={rows} placeholder={placeholder} {...fieldProps} />
+      <Textarea
+        rows={rows}
+        placeholder={placeholder}
+        {...fieldProps}
+        className={cn(error && "border-destructive focus-visible:ring-destructive")}
+      />
+      {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );
 }
@@ -195,24 +216,29 @@ function InlineSelect({
   placeholder,
   options,
   className,
+  error,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   options: { value: string; label: string }[];
   className?: string;
+  error?: string;
 }) {
   return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className={className || "w-[160px] h-11"}>
-        <SelectValue placeholder={placeholder || "Select"} />
-      </SelectTrigger>
-      <SelectContent>
-        {options.map(opt => (
-          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <div className="space-y-1.5">
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger className={cn(className || "w-[160px] h-11", error && "border-destructive")}>
+          <SelectValue placeholder={placeholder || "Select"} />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map(opt => (
+            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {error && <p className="text-[10px] text-destructive px-1">{error}</p>}
+    </div>
   );
 }
 
@@ -253,10 +279,10 @@ export default function CreateLeadPage() {
     },
   });
 
-  const [customFields, setCustomFields] = useState<{ key: string; value: string }[]>([]);
+  const [customFields, setCustomFields] = useState<{ id: string; key: string; value: string; sectionId?: string }[]>([]);
 
   const isSaving = createLead.isPending;
-  const { handleSubmit, register, setValue, watch } = form;
+  const { handleSubmit, register, setValue, watch, formState: { errors } } = form;
 
   const onSubmit = (data: LeadForm) => {
     const payload = {
@@ -284,8 +310,8 @@ export default function CreateLeadPage() {
       serviceInterested: data.serviceInterested || null,
       decisionMaker: data.decisionMaker || null,
       interactionNotes: data.interactionNotes || null,
-      lastContactedDate: data.lastContactedDate || null,
-      nextFollowUpDate: data.nextFollowUpDate || null,
+      lastContactedDate: data.lastContactedDate ? new Date(data.lastContactedDate).toISOString() : null,
+      nextFollowUpDate: data.nextFollowUpDate ? new Date(data.nextFollowUpDate).toISOString() : null,
       lastTouch: new Date().toISOString(),
       customFields: customFields.reduce((acc, field) => {
         if (field.key.trim()) {
@@ -310,6 +336,42 @@ export default function CreateLeadPage() {
     });
   };
 
+  const handleFieldDropToSection = (fieldKey: string, fieldValue: string, sectionId: string) => {
+    console.log(`Field ${fieldKey} moved to ${sectionId}`);
+  };
+
+  const renderDroppedFields = (sectionId: string) => {
+    const sectionFields = customFields.filter(f => f.sectionId === sectionId);
+    if (sectionFields.length === 0) return null;
+
+    return (
+      <div className="mt-6 pt-6 border-t border-dashed border-border space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Badge variant="outline" className="text-[10px] uppercase tracking-wider bg-primary/5 text-primary border-primary/20">
+            Custom Fields
+          </Badge>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {sectionFields.map((field) => (
+            <div key={field.id} className="group relative">
+              <div className="flex items-center justify-between mb-1.5">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{field.key}</Label>
+                <DraggableFieldItem fieldKey={field.id}>
+                  <div className="p-1 cursor-grab active:cursor-grabbing text-primary hover:text-primary-foreground hover:bg-primary rounded transition-all">
+                    <GripVertical className="h-3.5 w-3.5" />
+                  </div>
+                </DraggableFieldItem>
+              </div>
+              <div className="min-h-[2.5rem] px-3 py-2 border border-border rounded-lg bg-primary/5 flex items-center">
+                <span className="text-foreground font-medium">{field.value}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   const saveButton = (
     <Button onClick={handleSubmit(onSubmit)} disabled={isSaving} className="gap-2">
       {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
@@ -332,268 +394,326 @@ export default function CreateLeadPage() {
       />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="space-y-6">
-          <Card className="border shadow-sm rounded-xl">
-            <CardHeader className="border-b">
-              <SectionTitle
-                icon={Building2}
-                title="Lead and Company Details"
-                description="Core contact, company, and ownership details."
-              />
-            </CardHeader>
-            <CardContent className="space-y-5 p-6">
-              <div className="grid gap-5 md:grid-cols-3">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-foreground">Stage</Label>
-                  <Select value={watch("stage")} onValueChange={v => { setValue("stage", v); setValue("status", v); }}>
-                    <SelectTrigger className="h-10">
-                      <SelectValue placeholder="Select stage" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {stageOptions.map(opt => (
-                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-foreground">Customer Type</Label>
-                  <Select value={watch("customerType")} onValueChange={v => setValue("customerType", v)}>
-                    <SelectTrigger className="h-10">
-                      <SelectValue placeholder="not selected" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {customerTypeOptions.map(opt => (
-                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <LabeledInput label="Lead name" placeholder="Lead #" fieldProps={register("title")} />
-              </div>
-              
-              <div className="grid gap-5 md:grid-cols-2">
-                <LabeledInput label="Company name" placeholder="Company name" fieldProps={register("companyName")} />
-                <LabeledInput label="Designation" placeholder="Job title / designation" fieldProps={register("designation")} />
-
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-foreground">Personal Number</Label>
-                  <div className="flex items-stretch gap-2">
-                    <Input placeholder="+1 555 0123" className="h-11 flex-1" {...register("phone")} />
-                    <InlineSelect
-                      value={watch("phoneType")}
-                      onChange={v => setValue("phoneType", v)}
-                      placeholder="Work Phone"
-                      options={phoneTypeOptions}
-                      className="w-[160px] h-11"
-                    />
-                    <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0 text-muted-foreground">
-                      <ChevronDown className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-foreground">Personal E-mail</Label>
-                  <div className="flex items-stretch gap-2">
-                    <Input type="email" placeholder="name@example.com" className="h-11 flex-1" {...register("email")} />
-                    <InlineSelect
-                      value={watch("emailType")}
-                      onChange={v => setValue("emailType", v)}
-                      placeholder="Work"
-                      options={emailTypeOptions}
-                      className="w-[160px] h-11"
-                    />
-                    <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0 text-muted-foreground">
-                      <ChevronDown className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-foreground">Website</Label>
-                  <div className="flex items-stretch gap-2">
-                    <Input placeholder="https://example.com" className="h-11 flex-1" {...register("website")} />
-                    <InlineSelect
-                      value={watch("websiteType")}
-                      onChange={v => setValue("websiteType", v)}
-                      placeholder="Corporate"
-                      options={websiteTypeOptions}
-                      className="w-[160px] h-11"
-                    />
-                    <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0 text-muted-foreground">
-                      <ChevronDown className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="md:col-span-2 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium text-foreground">Address</Label>
-                    <span className="text-xs text-primary">expand</span>
-                  </div>
-                  <Textarea
-                    placeholder="Address"
-                    {...register("address")}
-                    className="min-h-[84px]"
+        <FieldDragWrapper
+          customFields={customFields}
+          onCustomFieldsChange={setCustomFields}
+          onFieldDropToSection={handleFieldDropToSection}
+          editing={true}
+        >
+          <div className="space-y-6">
+            <DroppableSection id="lead-company-details" editing={true}>
+              <Card className="border shadow-sm rounded-xl">
+                <CardHeader className="border-b">
+                  <SectionTitle
+                    icon={Building2}
+                    title="Lead and Company Details"
+                    description="Core contact, company, and ownership details."
                   />
-                </div>
+                </CardHeader>
+                <CardContent className="space-y-5 p-6">
+                  <div className="grid gap-5 md:grid-cols-3">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground">Stage</Label>
+                      <Select value={watch("stage")} onValueChange={v => { setValue("stage", v); setValue("status", v); }}>
+                        <SelectTrigger className={cn("h-10", errors.stage && "border-destructive")}>
+                          <SelectValue placeholder="Select stage" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {stageOptions.map(opt => (
+                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {errors.stage && <p className="text-xs text-destructive">{errors.stage.message}</p>}
+                    </div>
 
-                <LabeledInput label="Company Phone Number" placeholder="+1 555 0123" fieldProps={register("companyPhone")} />
-                <LabeledInput label="Company Email" placeholder="info@company.com" fieldProps={register("companyEmail")} type="email" />
-              </div>
-            </CardContent>
-          </Card>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground">Customer Type</Label>
+                      <Select value={watch("customerType")} onValueChange={v => setValue("customerType", v)}>
+                        <SelectTrigger className={cn("h-10", errors.customerType && "border-destructive")}>
+                          <SelectValue placeholder="not selected" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {customerTypeOptions.map(opt => (
+                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {errors.customerType && <p className="text-xs text-destructive">{errors.customerType.message}</p>}
+                    </div>
 
-          <Card className="border shadow-sm rounded-xl">
-            <CardHeader className="border-b">
-              <SectionTitle
-                icon={CalendarDays}
-                title="Activity & Interaction Tracking"
-                description="Track touchpoints and follow-up timing."
-              />
-            </CardHeader>
-            <CardContent className="space-y-5 p-6">
-              <div className="grid gap-5 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-foreground">Last Contacted Date</Label>
-                  <Input type="date" {...register("lastContactedDate")} className="h-10" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-foreground">Next Follow-up Date</Label>
-                  <Input type="date" {...register("nextFollowUpDate")} className="h-10" />
-                </div>
-              </div>
+                    <LabeledInput label="Lead name" placeholder="Lead #" fieldProps={register("title")} error={errors.title?.message} />
+                  </div>
 
-              <LabeledTextarea
-                label="All Interaction Notes With Dates"
-                placeholder="Add interaction notes..."
-                fieldProps={register("interactionNotes")}
-                rows={8}
-              />
-            </CardContent>
-          </Card>
+                  <div className="grid gap-5 md:grid-cols-2">
+                    <LabeledInput label="Company name" placeholder="Company name" fieldProps={register("companyName")} error={errors.companyName?.message} />
+                    <LabeledInput label="Designation" placeholder="Job title / designation" fieldProps={register("designation")} error={errors.designation?.message} />
 
-          <Card className="border shadow-sm rounded-xl">
-            <CardHeader className="border-b">
-              <SectionTitle
-                icon={Sparkles}
-                title="Qualification & Opportunity"
-                description="Capture the sales potential and buying intent."
-              />
-            </CardHeader>
-            <CardContent className="space-y-5 p-6">
-              <div className="grid gap-5 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-foreground">Service Interested</Label>
-                  <Select value={watch("serviceInterested")} onValueChange={v => setValue("serviceInterested", v)}>
-                    <SelectTrigger className="h-10">
-                      <SelectValue placeholder="Select service..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {serviceOptions.map(opt => (
-                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground">Personal Number</Label>
+                      <div className="flex items-stretch gap-2">
+                        <Input
+                          placeholder="+1 555 0123"
+                          className={cn("h-11 flex-1", errors.phone && "border-destructive")}
+                          {...register("phone")}
+                        />
+                        <InlineSelect
+                          value={watch("phoneType")}
+                          onChange={v => setValue("phoneType", v)}
+                          placeholder="Work Phone"
+                          options={phoneTypeOptions}
+                          className="w-[160px] h-11"
+                          error={errors.phoneType?.message}
+                        />
+                        <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0 text-muted-foreground">
+                          <ChevronDown className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      {errors.phone && <p className="text-xs text-destructive">{errors.phone.message}</p>}
+                    </div>
 
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-foreground">Company Size</Label>
-                  <Select value={watch("companySize")} onValueChange={v => setValue("companySize", v)}>
-                    <SelectTrigger className="h-10">
-                      <SelectValue placeholder="Company Size" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {companySizeOptions.map(opt => (
-                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground">Personal E-mail</Label>
+                      <div className="flex items-stretch gap-2">
+                        <Input
+                          type="email"
+                          placeholder="name@example.com"
+                          className={cn("h-11 flex-1", errors.email && "border-destructive")}
+                          {...register("email")}
+                        />
+                        <InlineSelect
+                          value={watch("emailType")}
+                          onChange={v => setValue("emailType", v)}
+                          placeholder="Work"
+                          options={emailTypeOptions}
+                          className="w-[160px] h-11"
+                          error={errors.emailType?.message}
+                        />
+                        <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0 text-muted-foreground">
+                          <ChevronDown className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+                    </div>
 
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-foreground">Estimated Opportunity Value</Label>
-                  <div className="flex items-stretch gap-2">
-                    <Input type="number" placeholder="0" {...register("value")} className="h-10 flex-1" />
-                    <InlineSelect
-                      value={watch("currency")}
-                      onChange={v => setValue("currency", v)}
-                      placeholder="US Dollar"
-                      options={currencyOptions}
-                      className="w-[170px] h-10"
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground">Website</Label>
+                      <div className="flex items-stretch gap-2">
+                        <Input
+                          placeholder="https://example.com"
+                          className={cn("h-11 flex-1", errors.website && "border-destructive")}
+                          {...register("website")}
+                        />
+                        <InlineSelect
+                          value={watch("websiteType")}
+                          onChange={v => setValue("websiteType", v)}
+                          placeholder="Corporate"
+                          options={websiteTypeOptions}
+                          className="w-[160px] h-11"
+                          error={errors.websiteType?.message}
+                        />
+                        <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0 text-muted-foreground">
+                          <ChevronDown className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      {errors.website && <p className="text-xs text-destructive">{errors.website.message}</p>}
+                    </div>
+
+                    <div className="md:col-span-2 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-medium text-foreground">Address</Label>
+                        <span className="text-xs text-primary">expand</span>
+                      </div>
+                      <Textarea
+                        placeholder="Address"
+                        {...register("address")}
+                        className={cn("min-h-[84px]", errors.address && "border-destructive")}
+                      />
+                      {errors.address && <p className="text-xs text-destructive">{errors.address.message}</p>}
+                    </div>
+
+                    <LabeledInput label="Company Phone Number" placeholder="+1 555 0123" fieldProps={register("companyPhone")} error={errors.companyPhone?.message} />
+                    <LabeledInput label="Company Email" placeholder="info@company.com" fieldProps={register("companyEmail")} type="email" error={errors.companyEmail?.message} />
+                  </div>
+                  {renderDroppedFields("lead-company-details")}
+                </CardContent>
+              </Card>
+            </DroppableSection>
+
+            <DroppableSection id="activity-tracking" editing={true}>
+              <Card className="border shadow-sm rounded-xl">
+                <CardHeader className="border-b">
+                  <SectionTitle
+                    icon={CalendarDays}
+                    title="Activity & Interaction Tracking"
+                    description="Track touchpoints and follow-up timing."
+                  />
+                </CardHeader>
+                <CardContent className="space-y-5 p-6">
+                  <div className="grid gap-5 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground">Last Contacted Date</Label>
+                      <Input type="date" {...register("lastContactedDate")} className={cn("h-10", errors.lastContactedDate && "border-destructive")} />
+                      {errors.lastContactedDate && <p className="text-xs text-destructive">{errors.lastContactedDate.message}</p>}
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground">Next Follow-up Date</Label>
+                      <Input type="date" {...register("nextFollowUpDate")} className={cn("h-10", errors.nextFollowUpDate && "border-destructive")} />
+                      {errors.nextFollowUpDate && <p className="text-xs text-destructive">{errors.nextFollowUpDate.message}</p>}
+                    </div>
+                  </div>
+
+                  <LabeledTextarea
+                    label="All Interaction Notes With Dates"
+                    placeholder="Add interaction notes..."
+                    fieldProps={register("interactionNotes")}
+                    rows={8}
+                    error={errors.interactionNotes?.message}
+                  />
+                  {renderDroppedFields("activity-tracking")}
+                </CardContent>
+              </Card>
+            </DroppableSection>
+
+            <DroppableSection id="qualification-opportunity" editing={true}>
+              <Card className="border shadow-sm rounded-xl">
+                <CardHeader className="border-b">
+                  <SectionTitle
+                    icon={Sparkles}
+                    title="Qualification & Opportunity"
+                    description="Capture the sales potential and buying intent."
+                  />
+                </CardHeader>
+                <CardContent className="space-y-5 p-6">
+                  <div className="grid gap-5 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground">Service Interested</Label>
+                      <Select value={watch("serviceInterested")} onValueChange={v => setValue("serviceInterested", v)}>
+                        <SelectTrigger className={cn("h-10", errors.serviceInterested && "border-destructive")}>
+                          <SelectValue placeholder="Select service..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {serviceOptions.map(opt => (
+                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {errors.serviceInterested && <p className="text-xs text-destructive">{errors.serviceInterested.message}</p>}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground">Company Size</Label>
+                      <Select value={watch("companySize")} onValueChange={v => setValue("companySize", v)}>
+                        <SelectTrigger className={cn("h-10", errors.companySize && "border-destructive")}>
+                          <SelectValue placeholder="Company Size" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {companySizeOptions.map(opt => (
+                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {errors.companySize && <p className="text-xs text-destructive">{errors.companySize.message}</p>}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground">Estimated Opportunity Value</Label>
+                      <div className="flex items-stretch gap-2">
+                        <Input
+                          type="number"
+                          placeholder="0"
+                          {...register("value")}
+                          className={cn("h-10 flex-1", errors.value && "border-destructive")}
+                        />
+                        <InlineSelect
+                          value={watch("currency")}
+                          onChange={v => setValue("currency", v)}
+                          placeholder="US Dollar"
+                          options={currencyOptions}
+                          className="w-[170px] h-10"
+                          error={errors.currency?.message}
+                        />
+                      </div>
+                      {errors.value && <p className="text-xs text-destructive">{errors.value.message}</p>}
+                    </div>
+
+                    <LabeledInput
+                      label="Decision Maker Identified"
+                      placeholder="not selected"
+                      fieldProps={register("decisionMaker")}
+                      error={errors.decisionMaker?.message}
                     />
                   </div>
-                </div>
+                  {renderDroppedFields("qualification-opportunity")}
+                </CardContent>
+              </Card>
+            </DroppableSection>
 
-                <LabeledInput
-                  label="Decision Maker Identified"
-                  placeholder="not selected"
-                  fieldProps={register("decisionMaker")}
-                />
-              </div>
-            </CardContent>
-          </Card>
+            <DroppableSection id="source-section" editing={true}>
+              <Card className="border shadow-sm rounded-xl">
+                <CardHeader className="border-b">
+                  <SectionTitle
+                    icon={Tag}
+                    title="Source"
+                    description="Record where the lead came from and any source context."
+                  />
+                </CardHeader>
+                <CardContent className="space-y-5 p-6">
+                  <div className="grid gap-5 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground">Created on</Label>
+                      <div className="h-10 rounded-md border border-dashed bg-muted/50 px-3 text-sm text-muted-foreground flex items-center">
+                        Will be set automatically
+                      </div>
+                    </div>
 
-          <Card className="border shadow-sm rounded-xl">
-            <CardHeader className="border-b">
-              <SectionTitle
-                icon={Tag}
-                title="Source"
-                description="Record where the lead came from and any source context."
-              />
-            </CardHeader>
-            <CardContent className="space-y-5 p-6">
-              <div className="grid gap-5 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-foreground">Created on</Label>
-                  <div className="h-10 rounded-md border border-dashed bg-muted/50 px-3 text-sm text-muted-foreground flex items-center">
-                    Will be set automatically
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground">Source</Label>
+                      <Select value={watch("source")} onValueChange={v => setValue("source", v)}>
+                        <SelectTrigger className={cn("h-10", errors.source && "border-destructive")}>
+                          <SelectValue placeholder="Call" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {sourceOptions.map(opt => (
+                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {errors.source && <p className="text-xs text-destructive">{errors.source.message}</p>}
+                    </div>
+
+                    <div className="md:col-span-2 space-y-2">
+                      <Label className="text-sm font-medium text-foreground">Source Information</Label>
+                      <Textarea
+                        placeholder="Source Information"
+                        {...register("sourceInfo")}
+                        className={cn("min-h-[110px]", errors.sourceInfo && "border-destructive")}
+                      />
+                      {errors.sourceInfo && <p className="text-xs text-destructive">{errors.sourceInfo.message}</p>}
+                    </div>
+
+                    <div className="md:col-span-2 space-y-2">
+                      <Label className="text-sm font-medium text-foreground">Additional Notes</Label>
+                      <Textarea
+                        placeholder="Add any extra context"
+                        {...register("notes")}
+                        className={cn("min-h-[110px]", errors.notes && "border-destructive")}
+                      />
+                      {errors.notes && <p className="text-xs text-destructive">{errors.notes.message}</p>}
+                    </div>
                   </div>
-                </div>
+                  {renderDroppedFields("source-section")}
+                </CardContent>
+              </Card>
+            </DroppableSection>
 
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-foreground">Source</Label>
-                  <Select value={watch("source")} onValueChange={v => setValue("source", v)}>
-                    <SelectTrigger className="h-10">
-                      <SelectValue placeholder="Call" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {sourceOptions.map(opt => (
-                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="md:col-span-2 space-y-2">
-                  <Label className="text-sm font-medium text-foreground">Source Information</Label>
-                  <Textarea
-                    placeholder="Source Information"
-                    {...register("sourceInfo")}
-                    className="min-h-[110px]"
-                  />
-                </div>
-
-                <div className="md:col-span-2 space-y-2">
-                  <Label className="text-sm font-medium text-foreground">Additional Notes</Label>
-                  <Textarea
-                    placeholder="Add any extra context"
-                    {...register("notes")}
-                    className="min-h-[110px]"
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <CustomFieldsSection 
-            fields={customFields} 
-            onChange={setCustomFields} 
-          />
-        </div>
+            <CustomFieldsSection
+              fields={customFields}
+              onChange={setCustomFields}
+              editing={true}
+            />
+          </div>
+        </FieldDragWrapper>
 
         <div className="space-y-6">
           <Card className="border shadow-sm sticky top-6 rounded-xl">

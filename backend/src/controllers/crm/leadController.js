@@ -159,6 +159,7 @@ const normalizeLeadInput = (body = {}) => {
     responsiblePerson: getVal('responsiblePerson', 'responsible_person'),
     pipeline: getVal('pipeline', 'pipeline'),
     externalSourceId: getVal('externalSourceId', 'external_source_id'),
+    createdAt: getVal('createdAt', 'created_at'),
     customFields: getVal('customFields', 'custom_fields'),
   };
 };
@@ -204,6 +205,7 @@ const updateLeadSchema = Joi.object({
   responsiblePerson: Joi.string().optional().allow(null, ''),
   pipeline: Joi.string().optional().allow(null, ''),
   externalSourceId: Joi.string().optional().allow(null, ''),
+  createdAt: Joi.alternatives().try(Joi.date(), Joi.string().isoDate()).optional().allow(null, ''),
   customFields: Joi.object().optional().allow(null),
 }).min(1);
 
@@ -424,8 +426,8 @@ const create = async (req, res, next) => {
       title, name, stage, status, source, value: leadValue, currency, priority,
       notes, tags, expectedCloseDate, contactId, companyId,
       assignedTo, customerType, designation, phone, phoneType, email, emailType,
-      website, websiteType, address, companyName, companyPhone, 
-      companyEmail, companySize, agentName, decisionMaker, serviceInterested, 
+      website, websiteType, address, companyName, companyPhone,
+      companyEmail, companySize, agentName, decisionMaker, serviceInterested,
       interactionNotes, firstMessage, lastTouch, lastContactedDate, nextFollowUpDate,
       sourceInfo, responsiblePerson, customFields
     } = value;
@@ -455,11 +457,11 @@ const create = async (req, res, next) => {
                  $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43)
          RETURNING *`,
         [req.user.orgId, req.user.id, workspaceId, assignedTo || null, title, name, stage, status, source, serializeJsonField(sourceInfo), customerType || null,
-         leadValue, currency, priority, notes, tags, expectedCloseDate, contactId, companyId,
-         designation, phone, phoneType || null, email, emailType || null, website, websiteType || null, address, companyName, companyPhone,
-         companyEmail, companySize, agentName, decisionMaker, serviceInterested,
-         interactionNotes, firstMessage, lastTouch, lastContactedDate || null, nextFollowUpDate || null, responsiblePerson || null, value.pipeline, value.externalSourceId,
-         customFields ? JSON.stringify(customFields) : '{}']
+          leadValue, currency, priority, notes, tags, expectedCloseDate, contactId, companyId,
+          designation, phone, phoneType || null, email, emailType || null, website, websiteType || null, address, companyName, companyPhone,
+          companyEmail, companySize, agentName, decisionMaker, serviceInterested,
+          interactionNotes, firstMessage, lastTouch, lastContactedDate || null, nextFollowUpDate || null, responsiblePerson || null, value.pipeline, value.externalSourceId,
+        customFields ? JSON.stringify(customFields) : '{}']
       );
     } catch (err) {
       if (err.code === '42703') {
@@ -586,6 +588,7 @@ const update = async (req, res, next) => {
       responsiblePerson: 'responsible_person',
       pipeline: 'pipeline',
       externalSourceId: 'external_source_id',
+      createdAt: 'created_at',
       customFields: 'custom_fields'
     };
 
@@ -606,7 +609,7 @@ const update = async (req, res, next) => {
         fields.push(`${dbField} = $${paramIndex}`);
         values.push(dbValue);
         paramIndex++;
-        
+
         if (key === 'stage' && !hasStatus) {
           fields.push(`status = $${paramIndex}`);
           values.push(dbValue);
@@ -929,7 +932,7 @@ const getStages = async (req, res, next) => {
       'SELECT id, stage_label, sort_order, color, is_active FROM pipeline_stages WHERE org_id = $1 AND is_active = true ORDER BY sort_order ASC',
       [req.user.orgId]
     );
-    
+
     const stages = rows.map(row => ({
       id: row.id,
       stage_key: row.stage_label.toLowerCase().replace(/\s+/g, '_'),
@@ -937,7 +940,7 @@ const getStages = async (req, res, next) => {
       sort_order: row.sort_order,
       color: row.color || 'bg-gray-500'
     }));
-    
+
     res.json(stages);
   } catch (err) {
     next(err);
@@ -947,27 +950,27 @@ const getStages = async (req, res, next) => {
 const createStage = async (req, res, next) => {
   try {
     const { stageName } = req.body;
-    
+
     if (!stageName) {
       return res.status(400).json({ error: 'Stage name is required' });
     }
 
     const stageKey = stageName.toLowerCase().replace(/\s+/g, '_');
-    
+
     const { rows: existing } = await db.query(
       'SELECT MAX(sort_order) as max_order FROM pipeline_stages WHERE org_id = $1',
       [req.user.orgId]
     );
-    
+
     const sortOrder = (existing[0]?.max_order || 0) + 1;
-    
+
     const { rows } = await db.query(
       `INSERT INTO pipeline_stages (org_id, stage_key, stage_label, sort_order, color, is_active) 
        VALUES ($1, $2, $3, $4, $5, $6) 
        RETURNING *`,
       [req.user.orgId, stageKey, stageName, sortOrder, '#6b7280', true]
     );
-    
+
     res.status(201).json({
       id: rows[0].id,
       stage_key: rows[0].stage_key,
@@ -983,17 +986,34 @@ const createStage = async (req, res, next) => {
 const deleteStage = async (req, res, next) => {
   try {
     const { id } = req.params;
-    
+
     const result = await db.query(
       'DELETE FROM pipeline_stages WHERE id = $1 AND org_id = $2 RETURNING id',
       [id, req.user.orgId]
     );
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Stage not found' });
     }
-    
+
     res.json({ message: 'Stage deleted successfully' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const updateStage_custom = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { stageName } = req.body;
+    if (!stageName) return res.status(400).json({ error: 'Stage name is required' });
+    const stageKey = stageName.toLowerCase().replace(/\s+/g, '_');
+    const { rows } = await db.query(
+      `UPDATE pipeline_stages SET stage_label = $1, stage_key = $2 WHERE id = $3 AND org_id = $4 RETURNING *`,
+      [stageName, stageKey, id, req.user.orgId]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Stage not found' });
+    res.json({ id: rows[0].id, stage_key: rows[0].stage_key, stage_label: rows[0].stage_label, sort_order: rows[0].sort_order, color: rows[0].color });
   } catch (err) {
     next(err);
   }
@@ -1074,6 +1094,7 @@ module.exports = {
   getStats,
   getStages,
   createStage,
+  updateStage_custom,
   deleteStage,
   convertToDeal,
   importLeads,

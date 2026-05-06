@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { cn } from "@/lib/utils";
 import { Save, Loader2, ArrowLeft, DollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +13,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/crm/ui/PageHeader";
 import { EntitySearchSelect } from "@/components/crm/EntitySearchSelect";
-import { CustomFieldsSection } from "@/components/crm/CustomFieldsSection";
+import { CustomFieldsSection, DraggableFieldItem } from "@/components/crm/CustomFieldsSection";
+import { FieldDragWrapper } from "@/components/crm/FieldDragWrapper";
+import { DroppableSection } from "@/components/crm/DroppableSection";
+import { GripVertical } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { useContacts, useCompanies, useCreateDeal } from "@/hooks/useCrmData";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -49,6 +54,8 @@ const dealSchema = z.object({
   invoiceCurrency: z.string().optional(),
   sourceInfo: z.string().optional(),
   projectBlueprints: z.string().optional(),
+  expectedCloseDate: z.string().optional(),
+  nextFollowUpDate: z.string().optional(),
 });
 
 type DealForm = z.infer<typeof dealSchema>;
@@ -115,7 +122,7 @@ export default function CreateDealPage() {
 
   const [contactId, setContactId] = useState<string | null>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
-  const [customFields, setCustomFields] = useState<{ key: string; value: string }[]>([]);
+  const [customFields, setCustomFields] = useState<{ id: string; key: string; value: string; sectionId?: string }[]>([]);
 
   const contactOptions = useMemo(() => {
     const data = (contacts as any)?.data || contacts || [];
@@ -169,10 +176,48 @@ export default function CreateDealPage() {
       invoiceCurrency: "USD",
       sourceInfo: "",
       projectBlueprints: "",
+      expectedCloseDate: "",
+      nextFollowUpDate: "",
     },
   });
 
   const isSaving = createDeal.isPending;
+
+  const handleFieldDropToSection = (fieldKey: string, fieldValue: string, sectionId: string) => {
+    console.log(`Field ${fieldKey} moved to ${sectionId}`);
+  };
+
+  const renderDroppedFields = (sectionId: string) => {
+    const sectionFields = customFields.filter(f => f.sectionId === sectionId);
+    if (sectionFields.length === 0) return null;
+
+    return (
+      <div className="mt-6 pt-6 border-t border-dashed border-border space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Badge variant="outline" className="text-[10px] uppercase tracking-wider bg-primary/5 text-primary border-primary/20">
+            Custom Fields
+          </Badge>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {sectionFields.map((field) => (
+            <div key={field.id} className="group relative">
+              <div className="flex items-center justify-between mb-1.5">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{field.key}</Label>
+                <DraggableFieldItem fieldKey={field.id}>
+                  <div className="p-1 cursor-grab active:cursor-grabbing text-primary hover:text-primary-foreground hover:bg-primary rounded transition-all">
+                    <GripVertical className="h-3.5 w-3.5" />
+                  </div>
+                </DraggableFieldItem>
+              </div>
+              <div className="min-h-[2.5rem] px-3 py-2 border border-border rounded-lg bg-primary/5 flex items-center">
+                <span className="text-foreground font-medium">{field.value}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   const onSubmit = (data: DealForm) => {
     const payload = {
@@ -209,6 +254,8 @@ export default function CreateDealPage() {
       invoiceCurrency: data.invoiceCurrency,
       sourceInfo: data.sourceInfo,
       projectBlueprints: data.projectBlueprints,
+      expected_close_date: data.expectedCloseDate ? new Date(data.expectedCloseDate).toISOString() : undefined,
+      next_follow_up_date: data.nextFollowUpDate ? new Date(data.nextFollowUpDate).toISOString() : undefined,
       customFields: customFields.reduce((acc, field) => {
         if (field.key.trim()) {
           acc[field.key.trim()] = field.value;
@@ -250,176 +297,299 @@ export default function CreateDealPage() {
       />
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-4">
-          <Card className="border-0 shadow-card">
-            <CardHeader>
-              <CardTitle>Deal details</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Deal title *</Label>
-                  <Input placeholder="New build proposal" {...form.register("title")} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Contact Name</Label>
-                  <Input placeholder="John Smith" {...form.register("contactName")} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Company Name</Label>
-                  <Input placeholder="Acme Inc" {...form.register("companyName")} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Email</Label>
-                  <Input type="email" placeholder="john@example.com" {...form.register("email")} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Phone</Label>
-                  <Input placeholder="+1 555-0123" {...form.register("phone")} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Value</Label>
-                  <div className="flex items-center gap-2">
-                    <DollarSign className="h-4 w-4 text-muted-foreground" />
-                    <Input type="number" placeholder="25000" {...form.register("value")} />
+        <FieldDragWrapper
+          customFields={customFields}
+          onCustomFieldsChange={setCustomFields}
+          onFieldDropToSection={handleFieldDropToSection}
+          editing={true}
+        >
+          <div className="lg:col-span-2 space-y-4">
+            <DroppableSection id="deal-info" editing={true}>
+              <Card className="border-0 shadow-card">
+                <CardHeader>
+                  <CardTitle>Deal details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Deal title *</Label>
+                      <Input
+                        placeholder="New build proposal"
+                        {...form.register("title")}
+                        className={cn(form.formState.errors.title && "border-destructive")}
+                      />
+                      {form.formState.errors.title && <p className="text-xs text-destructive">{form.formState.errors.title.message}</p>}
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Contact Name</Label>
+                      <Input
+                        placeholder="John Smith"
+                        {...form.register("contactName")}
+                        className={cn(form.formState.errors.contactName && "border-destructive")}
+                      />
+                      {form.formState.errors.contactName && <p className="text-xs text-destructive">{form.formState.errors.contactName.message}</p>}
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Company Name</Label>
+                      <Input
+                        placeholder="Acme Inc"
+                        {...form.register("companyName")}
+                        className={cn(form.formState.errors.companyName && "border-destructive")}
+                      />
+                      {form.formState.errors.companyName && <p className="text-xs text-destructive">{form.formState.errors.companyName.message}</p>}
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Email</Label>
+                      <Input
+                        type="email"
+                        placeholder="john@example.com"
+                        {...form.register("email")}
+                        className={cn(form.formState.errors.email && "border-destructive")}
+                      />
+                      {form.formState.errors.email && <p className="text-xs text-destructive">{form.formState.errors.email.message}</p>}
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Phone</Label>
+                      <Input
+                        placeholder="+1 555-0123"
+                        {...form.register("phone")}
+                        className={cn(form.formState.errors.phone && "border-destructive")}
+                      />
+                      {form.formState.errors.phone && <p className="text-xs text-destructive">{form.formState.errors.phone.message}</p>}
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Value</Label>
+                      <div className="flex items-center gap-2">
+                        <DollarSign className="h-4 w-4 text-muted-foreground" />
+                        <Input
+                          type="number"
+                          placeholder="25000"
+                          {...form.register("value")}
+                          className={cn(form.formState.errors.value && "border-destructive")}
+                        />
+                      </div>
+                      {form.formState.errors.value && <p className="text-xs text-destructive">{form.formState.errors.value.message}</p>}
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Stage</Label>
+                      <Select defaultValue="qualification" onValueChange={(v) => { form.setValue("stage", v); form.setValue("status", v); }}>
+                        <SelectTrigger className={cn(form.formState.errors.stage && "border-destructive")}><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {stageOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      {form.formState.errors.stage && <p className="text-xs text-destructive">{form.formState.errors.stage.message}</p>}
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Priority</Label>
+                      <Select defaultValue="medium" onValueChange={(v) => form.setValue("priority", v)}>
+                        <SelectTrigger className={cn(form.formState.errors.priority && "border-destructive")}><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="low">Low</SelectItem>
+                          <SelectItem value="medium">Medium</SelectItem>
+                          <SelectItem value="high">High</SelectItem>
+                          <SelectItem value="urgent">Urgent</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {form.formState.errors.priority && <p className="text-xs text-destructive">{form.formState.errors.priority.message}</p>}
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Expected Close Date</Label>
+                      <Input
+                        type="date"
+                        {...form.register("expectedCloseDate")}
+                        className={cn(form.formState.errors.expectedCloseDate && "border-destructive")}
+                      />
+                      {form.formState.errors.expectedCloseDate && <p className="text-xs text-destructive">{form.formState.errors.expectedCloseDate.message}</p>}
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Next Follow-up Date</Label>
+                      <Input
+                        type="date"
+                        {...form.register("nextFollowUpDate")}
+                        className={cn(form.formState.errors.nextFollowUpDate && "border-destructive")}
+                      />
+                      {form.formState.errors.nextFollowUpDate && <p className="text-xs text-destructive">{form.formState.errors.nextFollowUpDate.message}</p>}
+                    </div>
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Stage</Label>
-                  <Select defaultValue="qualification" onValueChange={(v) => { form.setValue("stage", v); form.setValue("status", v); }}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {stageOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Priority</Label>
-                  <Select defaultValue="medium" onValueChange={(v) => form.setValue("priority", v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="low">Low</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="high">High</SelectItem>
-                      <SelectItem value="urgent">Urgent</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label>Notes</Label>
-                <Textarea rows={4} placeholder="Scope, risks, deliverables" {...form.register("notes")} />
-              </div>
-            </CardContent>
-          </Card>
+                  <div className="space-y-2">
+                    <Label>Notes</Label>
+                    <Textarea
+                      rows={4}
+                      placeholder="Scope, risks, deliverables"
+                      {...form.register("notes")}
+                      className={cn(form.formState.errors.notes && "border-destructive")}
+                    />
+                    {form.formState.errors.notes && <p className="text-xs text-destructive">{form.formState.errors.notes.message}</p>}
+                  </div>
+                  {renderDroppedFields("deal-info")}
+                </CardContent>
+              </Card>
+            </DroppableSection>
 
-          <Card className="border   shadow-sm rounded-xl">
-            <CardHeader className="border-b  ">
-              <CardTitle>About Deal</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-2 p-6">
-              <div className="space-y-2">
-                <Label>Client Type</Label>
-                <Select value={form.watch("clientType") || ""} onValueChange={(v) => form.setValue("clientType", v)}>
-                  <SelectTrigger><SelectValue placeholder="not selected" /></SelectTrigger>
-                  <SelectContent>{clientTypeOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Project Type</Label>
-                <Select value={form.watch("projectType") || ""} onValueChange={(v) => form.setValue("projectType", v)}>
-                  <SelectTrigger><SelectValue placeholder="not selected" /></SelectTrigger>
-                  <SelectContent>{projectTypeOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Available to everyone</Label>
-                <Select value={form.watch("availableToEveryone") ? "yes" : "no"} onValueChange={(v) => form.setValue("availableToEveryone", v === "yes")}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{yesNoOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
+            <DroppableSection id="about-deal" editing={true}>
+              <Card className="border shadow-sm rounded-xl">
+                <CardHeader className="border-b">
+                  <CardTitle>About Deal</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 md:grid-cols-2 p-6">
+                  <div className="space-y-2">
+                    <Label>Client Type</Label>
+                    <Select value={form.watch("clientType") || ""} onValueChange={(v) => form.setValue("clientType", v)}>
+                      <SelectTrigger className={cn(form.formState.errors.clientType && "border-destructive")}>
+                        <SelectValue placeholder="not selected" />
+                      </SelectTrigger>
+                      <SelectContent>{clientTypeOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                    {form.formState.errors.clientType && <p className="text-xs text-destructive">{form.formState.errors.clientType.message}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Project Type</Label>
+                    <Select value={form.watch("projectType") || ""} onValueChange={(v) => form.setValue("projectType", v)}>
+                      <SelectTrigger className={cn(form.formState.errors.projectType && "border-destructive")}>
+                        <SelectValue placeholder="not selected" />
+                      </SelectTrigger>
+                      <SelectContent>{projectTypeOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                    {form.formState.errors.projectType && <p className="text-xs text-destructive">{form.formState.errors.projectType.message}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Available to everyone</Label>
+                    <Select value={form.watch("availableToEveryone") ? "yes" : "no"} onValueChange={(v) => form.setValue("availableToEveryone", v === "yes")}>
+                      <SelectTrigger className={cn(form.formState.errors.availableToEveryone && "border-destructive")}><SelectValue /></SelectTrigger>
+                      <SelectContent>{yesNoOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                    {form.formState.errors.availableToEveryone && <p className="text-xs text-destructive">{form.formState.errors.availableToEveryone.message}</p>}
+                  </div>
+                </CardContent>
+                {renderDroppedFields("about-deal")}
+              </Card>
+            </DroppableSection>
 
-          <Card className="border   shadow-sm rounded-xl">
-            <CardHeader className="border-b ">
-              <CardTitle>More</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-2 p-6">
-              <div className="space-y-2">
-                <Label>Source</Label>
-                <Select onValueChange={(v) => form.setValue("source", v)}>
-                  <SelectTrigger><SelectValue placeholder="Not selected" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="website">Website</SelectItem>
-                    <SelectItem value="referral">Referral</SelectItem>
-                    <SelectItem value="linkedin">LinkedIn</SelectItem>
-                    <SelectItem value="cold_call">Cold Call</SelectItem>
-                    <SelectItem value="trade_show">Trade Show</SelectItem>
-                    <SelectItem value="advertisement">Advertisement</SelectItem>
-                    <SelectItem value="partner">Partner</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Source Information</Label>
-                <Textarea rows={3} placeholder="Source Information" {...form.register("sourceInfo")} />
-              </div>
-              <div className="space-y-2">
-                <Label>QA Status</Label>
-                <Select value={form.watch("qaStatus") || ""} onValueChange={(v) => form.setValue("qaStatus", v)}>
-                  <SelectTrigger><SelectValue placeholder="not selected" /></SelectTrigger>
-                  <SelectContent>{qaStatusOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Quotation Received</Label>
-                <Input placeholder="Quotation Received" {...form.register("quotationReceived")} />
-              </div>
-            </CardContent>
-          </Card>
+            <DroppableSection id="more-section" editing={true}>
+              <Card className="border shadow-sm rounded-xl">
+                <CardHeader className="border-b">
+                  <CardTitle>More</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 md:grid-cols-2 p-6">
+                  <div className="space-y-2">
+                    <Label>Source</Label>
+                    <Select onValueChange={(v) => form.setValue("source", v)}>
+                      <SelectTrigger className={cn(form.formState.errors.source && "border-destructive")}>
+                        <SelectValue placeholder="Not selected" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="website">Website</SelectItem>
+                        <SelectItem value="referral">Referral</SelectItem>
+                        <SelectItem value="linkedin">LinkedIn</SelectItem>
+                        <SelectItem value="cold_call">Cold Call</SelectItem>
+                        <SelectItem value="trade_show">Trade Show</SelectItem>
+                        <SelectItem value="advertisement">Advertisement</SelectItem>
+                        <SelectItem value="partner">Partner</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {form.formState.errors.source && <p className="text-xs text-destructive">{form.formState.errors.source.message}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Source Information</Label>
+                    <Textarea
+                      rows={3}
+                      placeholder="Source Information"
+                      {...form.register("sourceInfo")}
+                      className={cn(form.formState.errors.sourceInfo && "border-destructive")}
+                    />
+                    {form.formState.errors.sourceInfo && <p className="text-xs text-destructive">{form.formState.errors.sourceInfo.message}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>QA Status</Label>
+                    <Select value={form.watch("qaStatus") || ""} onValueChange={(v) => form.setValue("qaStatus", v)}>
+                      <SelectTrigger className={cn(form.formState.errors.qaStatus && "border-destructive")}>
+                        <SelectValue placeholder="not selected" />
+                      </SelectTrigger>
+                      <SelectContent>{qaStatusOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                    {form.formState.errors.qaStatus && <p className="text-xs text-destructive">{form.formState.errors.qaStatus.message}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Quotation Received</Label>
+                    <Input
+                      placeholder="Quotation Received"
+                      {...form.register("quotationReceived")}
+                      className={cn(form.formState.errors.quotationReceived && "border-destructive")}
+                    />
+                    {form.formState.errors.quotationReceived && <p className="text-xs text-destructive">{form.formState.errors.quotationReceived.message}</p>}
+                  </div>
+                  {renderDroppedFields("more-section")}
+                </CardContent>
+              </Card>
+            </DroppableSection>
 
-          <Card className="border   shadow-sm rounded-xl">
-            <CardHeader className="border-b  ">
-              <CardTitle>Budget & Payment</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-2 p-6">
-              <div className="space-y-2">
-                <Label>Payment Method</Label>
-                <Select value={form.watch("paymentMethod") || ""} onValueChange={(v) => form.setValue("paymentMethod", v)}>
-                  <SelectTrigger><SelectValue placeholder="not selected" /></SelectTrigger>
-                  <SelectContent>{paymentMethodOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Invoice Link</Label>
-                <Input placeholder="Invoice link" {...form.register("invoiceLink")} />
-              </div>
-              <div className="space-y-2">
-                <Label>Hourly Rate</Label>
-                <div className="flex gap-2">
-                  <Input type="number" placeholder="0" {...form.register("hourlyRate")} />
-                  <Select value={form.watch("hourlyRateCurrency") || "USD"} onValueChange={(v) => form.setValue("hourlyRateCurrency", v)}>
-                    <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
-                    <SelectContent>{currencyOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Hours Of Work</Label>
-                <Input placeholder="Hours of work" {...form.register("hoursOfWork")} />
-              </div>
-            </CardContent>
-          </Card>
+            <DroppableSection id="budget-payment" editing={true}>
+              <Card className="border shadow-sm rounded-xl">
+                <CardHeader className="border-b">
+                  <CardTitle>Budget & Payment</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 md:grid-cols-2 p-6">
+                  <div className="space-y-2">
+                    <Label>Payment Method</Label>
+                    <Select value={form.watch("paymentMethod") || ""} onValueChange={(v) => form.setValue("paymentMethod", v)}>
+                      <SelectTrigger className={cn(form.formState.errors.paymentMethod && "border-destructive")}>
+                        <SelectValue placeholder="not selected" />
+                      </SelectTrigger>
+                      <SelectContent>{paymentMethodOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                    {form.formState.errors.paymentMethod && <p className="text-xs text-destructive">{form.formState.errors.paymentMethod.message}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Invoice Link</Label>
+                    <Input
+                      placeholder="Invoice link"
+                      {...form.register("invoiceLink")}
+                      className={cn(form.formState.errors.invoiceLink && "border-destructive")}
+                    />
+                    {form.formState.errors.invoiceLink && <p className="text-xs text-destructive">{form.formState.errors.invoiceLink.message}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Hourly Rate</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="number"
+                        placeholder="0"
+                        {...form.register("hourlyRate")}
+                        className={cn(form.formState.errors.hourlyRate && "border-destructive")}
+                      />
+                      <Select value={form.watch("hourlyRateCurrency") || "USD"} onValueChange={(v) => form.setValue("hourlyRateCurrency", v)}>
+                        <SelectTrigger className={cn("w-[130px]", form.formState.errors.hourlyRateCurrency && "border-destructive")}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>{currencyOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    {form.formState.errors.hourlyRate && <p className="text-xs text-destructive">{form.formState.errors.hourlyRate.message}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Hours Of Work</Label>
+                    <Input
+                      placeholder="Hours of work"
+                      {...form.register("hoursOfWork")}
+                      className={cn(form.formState.errors.hoursOfWork && "border-destructive")}
+                    />
+                    {form.formState.errors.hoursOfWork && <p className="text-xs text-destructive">{form.formState.errors.hoursOfWork.message}</p>}
+                  </div>
+                  {renderDroppedFields("budget-payment")}
+                </CardContent>
+              </Card>
+            </DroppableSection>
 
-          <CustomFieldsSection 
-            fields={customFields} 
-            onChange={setCustomFields} 
-          />
-        </div>
+            <CustomFieldsSection
+              fields={customFields}
+              onChange={setCustomFields}
+              editing={true}
+            />
+          </div>
+        </FieldDragWrapper>
 
         <div className="space-y-4">
           <Card className="border-0 shadow-card">

@@ -76,6 +76,8 @@ async function exchangeCodeForTokens(code, orgId, userId, redirectUri) {
     throw new Error('Invalid token response from RingCentral');
   }
 
+  console.log(`[RC] New token obtained for user ${userId}. Scopes: ${tokenData.scope || '(none returned)'}`);
+
   await upsertTokens(orgId, userId, tokenData);
   return tokenData;
 }
@@ -105,6 +107,7 @@ async function getAuthenticatedPlatform(orgId, userId) {
       }
 
       const stored = rows[0];
+      console.log(`[RC] Loaded stored token for user ${userId}. Stored scopes: ${stored.scope || '(none stored)'}`);
       const sdk = createSDK();
       const platform = sdk.platform();
 
@@ -117,12 +120,15 @@ async function getAuthenticatedPlatform(orgId, userId) {
       });
 
       // Let the SDK handle refresh automatically
+      let tokenWasRefreshed = false;
       try {
         await platform.ensureLoggedIn();
+        console.log(`[RC] Token is valid (no refresh needed) for user ${userId}`);
       } catch (e) {
         try {
           console.log(`[RC] Refreshing token for user ${userId}...`);
           await platform.refresh();
+          tokenWasRefreshed = true;
         } catch (refreshErr) {
           const errorMsg = refreshErr.message || '';
           const errorResponse = refreshErr.response ? await refreshErr.response.clone().json().catch(() => ({})) : {};
@@ -142,6 +148,7 @@ async function getAuthenticatedPlatform(orgId, userId) {
 
       const freshData = platform.auth().data();
       if (freshData && (freshData.access_token || freshData.accessToken)) {
+        console.log(`[RC] Token ${tokenWasRefreshed ? 'REFRESHED' : 'reused (existing)'} for user ${userId}. Scopes: ${freshData.scope || '(none in token data)'}`);
         await upsertTokens(orgId, userId, freshData);
       }
 
@@ -179,7 +186,7 @@ async function upsertTokens(orgId, userId, tokenData) {
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      ON CONFLICT (org_id, user_id) DO UPDATE SET
        access_token  = EXCLUDED.access_token,
-       refresh_token = EXCLUDED.refresh_token,
+       refresh_token = COALESCE(EXCLUDED.refresh_token, ringcentral_tokens.refresh_token),
        token_type    = EXCLUDED.token_type,
        expires_at    = EXCLUDED.expires_at,
        scope         = EXCLUDED.scope,
@@ -427,9 +434,10 @@ async function syncCallLogs(orgId, userId, options = {}) {
     const fromNumber = rec.from?.phoneNumber || null;
     const toNumber = rec.to?.phoneNumber || null;
 
-    // Only attempt RingSense AI enrichment for calls that HAVE a recording.
-    // Without a recording, RingSense has no audio to transcribe and will always return 404.
-    const hasRecording = !!recordingId;
+    // Attempt RingSense AI enrichment for calls with a duration.
+    // RingSense processes calls independently of whether the basic call log
+    // returns a `recording.id` object (e.g. if the app lacks ReadCallRecording).
+    const mightHaveInsights = rec.duration > 0;
 
     if (existing.rows.length > 0) {
       const row = existing.rows[0];
@@ -439,8 +447,8 @@ async function syncCallLogs(orgId, userId, options = {}) {
         await db.query('UPDATE call_logs SET recording_url = $1, updated_at = NOW() WHERE id = $2', [recordingUrl, row.id]);
       }
 
-      // Only try AI enrichment if the call has a recording AND we haven't been rate-limited
-      if (hasRecording && !rateLimitHit) {
+      // Only try AI enrichment if the call might have insights AND we haven't been rate-limited
+      if (mightHaveInsights && !rateLimitHit) {
         const shouldEnrich =
           !row.transcript || row.transcript.trim() === '' ||
           !row.ai_summary || row.ai_summary.trim() === '' ||
@@ -488,8 +496,8 @@ async function syncCallLogs(orgId, userId, options = {}) {
 
     const callLogId = insertResult.rows[0]?.id;
 
-    // Only attempt RingSense for new calls that have recordings
-    if (callLogId && hasRecording && !rateLimitHit) {
+    // Only attempt RingSense for new calls that might have insights
+    if (callLogId && mightHaveInsights && !rateLimitHit) {
       await sleep(RINGSENSE_THROTTLE_MS);
       const candidateIds = [recordingId, telephonySessionId, sessionId, callId].filter(Boolean);
       for (const insightId of candidateIds) {

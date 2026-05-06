@@ -5,7 +5,7 @@ import {
   MapPin, Building2, User, Calendar, DollarSign, Tag, FileText,
   Activity, MessageSquare, Clock, Star, MoreHorizontal, Copy,
   CheckCircle, XCircle, AlertCircle, Zap, ChevronRight,
-  TrendingUp, Users, Target, Award, Check, Briefcase, Calendar as CalendarIcon, Edit3, Send, PhoneCall, Eye, Filter, Search, Settings, Share2, Printer, Download
+  TrendingUp, Users, Target, Award, Check, Briefcase, Calendar as CalendarIcon, Edit3, Send, PhoneCall, Eye, Filter, Search, Settings, Share2, Printer, Download, Plus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +20,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { InteractionPanel } from "@/components/crm/InteractionPanel";
 import { CreatableSelect } from "@/components/crm/CreatableSelect";
 import { EntityFilesSection } from "@/components/crm/EntityFilesSection";
-import { CustomFieldsSection } from "@/components/crm/CustomFieldsSection";
+import { CustomFieldsSection, DraggableFieldItem } from "@/components/crm/CustomFieldsSection";
+import { GripVertical } from "lucide-react";
+import { FieldDragWrapper } from "@/components/crm/FieldDragWrapper";
+import { DroppableSection } from "@/components/crm/DroppableSection";
 
 import { WorkspaceShareModal } from "@/components/crm/leads/WorkspaceShareModal";
 import { useLead, useInteractionHistory } from "@/hooks/useCrmInteractions";
@@ -28,6 +31,7 @@ import { useUpdateLead, useDeleteLead, useConvertLeadToDeal } from "@/hooks/useC
 import { useCreateActivity } from "@/hooks/useCrmInteractions";
 import { useLeadStats } from "@/hooks/useCrmData";
 import { useOrganizationProfiles } from "@/hooks/useTenantQuery";
+import { usePipelineStages, useCreatePipelineStage, useDeletePipelineStage, useUpdatePipelineStage } from "@/hooks/usePipelineStages";
 import { useSoftphone } from "@/contexts/SoftphoneContext";
 import { ClickToCall } from "@/components/telephony/ClickToCall";
 import { toast } from "sonner";
@@ -43,6 +47,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 const defaultServiceOptions = [
   { value: "Web Development", label: "Web Development" },
@@ -206,7 +211,7 @@ function displayJsonValue(value: unknown): string {
   return String(value);
 }
 // Enterprise-level pipeline stages with professional styling
-const pipelineStages = [
+const defaultPipelineStages = [
   {
     id: "new",
     label: "New Lead",
@@ -306,11 +311,35 @@ export default function LeadDetailPage() {
 
   const [editing, setEditing] = useState(() => window.location.pathname.endsWith('/edit'));
   const [form, setForm] = useState<Record<string, unknown>>({});
-  const [customFields, setCustomFields] = useState<{ key: string; value: string }[]>([]);
+  const [customFields, setCustomFields] = useState<{ id: string; key: string; value: string; sectionId?: string }[]>([]);
 
   const [showWorkspaceModal, setShowWorkspaceModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showConvertDialog, setShowConvertDialog] = useState(false);
+  const [showStageManager, setShowStageManager] = useState(false);
+  const [newStageName, setNewStageName] = useState("");
+  const [editingStageId, setEditingStageId] = useState<string | null>(null);
+  const [editingStageName, setEditingStageName] = useState("");
+  const { data: dbStages = [] } = usePipelineStages();
+  const createStage = useCreatePipelineStage();
+  const deleteStage = useDeletePipelineStage();
+  const updateStage = useUpdatePipelineStage();
+
+  const customDbStages = dbStages
+    .filter(s => !defaultPipelineStages.some(d => d.id === s.stage_key))
+    .map(s => ({
+      id: s.stage_key,
+      label: s.stage_label,
+      color: "bg-gray-500",
+      bgColor: "bg-muted/40",
+      textColor: "text-foreground",
+      borderColor: "border-border",
+      icon: <Target className="h-4 w-4" />,
+      description: "Custom stage",
+      dbId: s.id,
+    }));
+
+  const pipelineStages = [...defaultPipelineStages, ...customDbStages];
   const [sidebarTab, setSidebarTab] = useState("activity");
   const [interactionTab, setInteractionTab] = useState("activity");
   const activitySectionRef = useRef<HTMLDivElement>(null);
@@ -378,10 +407,16 @@ export default function LeadDetailPage() {
         email_type: lead.email_type,
         website_type: lead.website_type,
         responsible_person: lead.responsible_person,
+        createdAt: lead.created_at ? format(new Date(lead.created_at), "yyyy-MM-dd'T'HH:mm") : "",
       });
 
       if (lead.custom_fields && typeof lead.custom_fields === 'object') {
-        const fields = Object.entries(lead.custom_fields).map(([k, v]) => ({ key: k, value: String(v) }));
+        const fields = Object.entries(lead.custom_fields).map(([k, v]) => {
+          if (v && typeof v === 'object' && 'value' in v) {
+            return { id: k, key: k, value: String((v as any).value), sectionId: (v as any).sectionId };
+          }
+          return { id: k, key: k, value: String(v), sectionId: 'custom-fields' };
+        });
         setCustomFields(fields);
       }
 
@@ -400,16 +435,20 @@ export default function LeadDetailPage() {
     }
 
     const customFieldsObj = customFields.reduce((acc, field) => {
-      if (field.key.trim()) acc[field.key.trim()] = field.value;
+      if (field.key.trim()) acc[field.key.trim()] = { value: field.value, sectionId: field.sectionId };
       return acc;
-    }, {} as Record<string, string>);
+    }, {} as Record<string, { value: string; sectionId?: string }>);
+
+    const formattedChanges: Record<string, unknown> = { ...changes };
+    if (formattedChanges.last_contacted_date) formattedChanges.last_contacted_date = new Date(formattedChanges.last_contacted_date as string).toISOString();
+    if (formattedChanges.next_follow_up_date) formattedChanges.next_follow_up_date = new Date(formattedChanges.next_follow_up_date as string).toISOString();
+    if (formattedChanges.expected_close_date) formattedChanges.expected_close_date = new Date(formattedChanges.expected_close_date as string).toISOString();
 
     updateLead.mutate({
       id: lead.id,
-      ...changes,
+      ...formattedChanges,
       customFields: customFieldsObj
     }, {
-
       onSuccess: () => {
         setEditing(false);
       },
@@ -454,13 +493,52 @@ export default function LeadDetailPage() {
 
   const set = (key: string, val: unknown) => setForm(prev => ({ ...prev, [key]: val }));
 
+  const handleFieldDropToSection = (fieldKey: string, fieldValue: string, sectionId: string) => {
+    // State is already updated by FieldDragWrapper
+    console.log(`Field ${fieldKey} moved to ${sectionId}`);
+  };
+
+  const renderDroppedFields = (sectionId: string) => {
+    const sectionFields = customFields.filter(f => f.sectionId === sectionId);
+    if (sectionFields.length === 0) return null;
+
+    return (
+      <div className="mt-6 pt-6 border-t border-dashed border-border space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Badge variant="outline" className="text-[10px] uppercase tracking-wider bg-primary/5 text-primary border-primary/20">
+            Custom Fields
+          </Badge>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {sectionFields.map((field) => (
+            <div key={field.key} className="group relative">
+              <div className="flex items-center justify-between mb-1.5">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{field.key}</Label>
+                {editing && (
+                  <DraggableFieldItem fieldKey={field.id}>
+                    <div className="p-1 cursor-grab active:cursor-grabbing text-primary hover:text-primary-foreground hover:bg-primary rounded transition-all">
+                      <GripVertical className="h-3.5 w-3.5" />
+                    </div>
+                  </DraggableFieldItem>
+                )}
+              </div>
+              <div className="min-h-[2.5rem] px-3 py-2 border border-border rounded-lg bg-primary/5 flex items-center">
+                <span className="text-foreground font-medium">{field.value}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     toast.success(`${label} copied to clipboard`);
   };
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary/5 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center  p-8 rounded-2xl shadow-xl border ">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
           <h3 className="text-lg font-semibold text-foreground mb-2">Loading Lead Details</h3>
@@ -531,7 +609,7 @@ export default function LeadDetailPage() {
                       {getStatusIcon(lead.status)}
                       {lead.status || 'New Lead'}
                     </Badge>
-                    
+
                     {!editing && (
                       <div className="flex items-center gap-2 ml-2">
                         {lead.phone && (
@@ -572,7 +650,7 @@ export default function LeadDetailPage() {
                     {lead.created_at && (
                       <div className="flex items-center gap-1  whitespace-nowrap">
                         <CalendarIcon className="h-4 w-4" />
-                        <span>Created {format(new Date(lead.created_at), 'MMM d, yyyy')}</span>
+                        <span>Created {format(new Date(form.createdAt as string || lead.created_at), 'MMM d, yyyy')}</span>
                       </div>
                     )}
                   </div>
@@ -777,10 +855,21 @@ export default function LeadDetailPage() {
               <h3 className="text-lg font-semibold text-white-900">Lead Progress Pipeline</h3>
               <p className="text-sm text-white-600">Track your lead through the sales process</p>
             </div>
-            <div className="text-right">
-              <div className="text-sm ">Progress</div>
-              <div className="text-lg font-bold text-white-900">
-                {Math.round(((pipelineStages.findIndex(s => s.id === (form.stage || lead.stage)) + 1) / pipelineStages.length) * 100)}%
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs"
+                onClick={() => setShowStageManager(true)}
+              >
+                <Settings className="h-3.5 w-3.5" />
+                Manage Stages
+              </Button>
+              <div className="text-right">
+                <div className="text-sm ">Progress</div>
+                <div className="text-lg font-bold text-white-900">
+                  {Math.round(((pipelineStages.findIndex(s => s.id === (form.stage || lead.stage)) + 1) / pipelineStages.length) * 100)}%
+                </div>
               </div>
             </div>
           </div>
@@ -906,7 +995,7 @@ export default function LeadDetailPage() {
                   <Activity className="h-6 w-6 text-purple-600" />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-purple-600 uppercase tracking-widest mb-1">Last Touch</p>
+                  <p className="text-xs font-bold text-purple-600 uppercase tracking-widest mb-1">Last Update</p>
                   <p className="text-sm font-medium">{lead.last_touch ? format(new Date(lead.last_touch), 'MMM d, yyyy') : 'No interactions'}</p>
                 </div>
               </div>
@@ -922,455 +1011,488 @@ export default function LeadDetailPage() {
           <div className="lg:col-span-7 space-y-8">
 
             {/* Professional Form Sections */}
-            <div className="space-y-8">
-              {/* Lead and Company Details */}
-              <Card className="border   shadow-sm">
-                <CardHeader className="border-b bg-muted/30 rounded-t-lg">
-                  <CardTitle className="flex items-center gap-3 text-xl">
-                    Lead and Company Details
-                  </CardTitle>
-                  <CardDescription>Core contact, company, and ownership details.</CardDescription>
-                </CardHeader>
-                <CardContent className="p-8">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-foreground">Stage</Label>
-                      <Select value={(form.stage as string) || ""} onValueChange={(v) => set("stage", v)} disabled={!editing}>
-                        <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
-                          <SelectValue placeholder="Select stage" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {pipelineStages.map(stage => (
-                            <SelectItem key={stage.id} value={stage.id}>{stage.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+            <FieldDragWrapper
+              customFields={customFields}
+              onCustomFieldsChange={setCustomFields}
+              onFieldDropToSection={handleFieldDropToSection}
+              editing={editing}
+            >
+              <div className="space-y-8">
+                {/* Lead and Company Details */}
+                <DroppableSection id="lead-company-details" editing={editing}>
+                  <Card className="border   shadow-sm">
+                    <CardHeader className="border-b bg-muted/30 rounded-t-lg">
+                      <CardTitle className="flex items-center gap-3 text-xl">
+                        Lead and Company Details
+                      </CardTitle>
+                      <CardDescription>Core contact, company, and ownership details.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-8">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground">Stage</Label>
+                          <Select value={(form.stage as string) || ""} onValueChange={(v) => set("stage", v)} disabled={!editing}>
+                            <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
+                              <SelectValue placeholder="Select stage" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {pipelineStages.map(stage => (
+                                <SelectItem key={stage.id} value={stage.id}>{stage.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
 
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-foreground">Customer Type</Label>
-                      <Select value={(form.customer_type as string) || ""} onValueChange={(v) => set("customer_type", v)} disabled={!editing}>
-                        <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
-                          <SelectValue placeholder="not selected" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {customerTypeOptions.map(opt => (
-                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground">Customer Type</Label>
+                          <Select value={(form.customer_type as string) || ""} onValueChange={(v) => set("customer_type", v)} disabled={!editing}>
+                            <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
+                              <SelectValue placeholder="not selected" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {customerTypeOptions.map(opt => (
+                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
 
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-foreground flex items-center gap-2">
-                        <Users className="h-4 w-4" />
-                        Lead owner
-                      </label>
-                      {editing ? (
-                        <Select
-                          value={form.assigned_to || "unassigned"}
-                          onValueChange={(v) => set("assigned_to", v === "unassigned" ? null : v)}
-                        >
-                          <SelectTrigger className="bg-background border-border">
-                            <SelectValue placeholder="Select owner..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="unassigned">Unassigned</SelectItem>
-                            {members.map((m) => (
-                              <SelectItem key={m.id} value={m.id}>
-                                <div className="flex items-center gap-2">
-                                  <Avatar className="h-5 w-5">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                            <Users className="h-4 w-4" />
+                            Lead owner
+                          </label>
+                          {editing ? (
+                            <Select
+                              value={form.assigned_to || "unassigned"}
+                              onValueChange={(v) => set("assigned_to", v === "unassigned" ? null : v)}
+                            >
+                              <SelectTrigger className="bg-background border-border">
+                                <SelectValue placeholder="Select owner..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="unassigned">Unassigned</SelectItem>
+                                {members.map((m) => (
+                                  <SelectItem key={m.id} value={m.id}>
+                                    <div className="flex items-center gap-2">
+                                      <Avatar className="h-5 w-5">
+                                        <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+                                          {m.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                                        </AvatarFallback>
+                                      </Avatar>
+                                      {m.full_name}
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <div className="h-10 px-3 py-2 border rounded-lg bg-muted/40 flex items-center gap-2">
+                              {form.assigned_to ? (
+                                <>
+                                  <Avatar className="h-6 w-6">
                                     <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
-                                      {m.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                                      {members.find(m => m.id === form.assigned_to)?.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
                                     </AvatarFallback>
                                   </Avatar>
-                                  {m.full_name}
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <div className="h-10 px-3 py-2 border rounded-lg bg-muted/40 flex items-center gap-2">
-                          {form.assigned_to ? (
-                            <>
-                              <Avatar className="h-6 w-6">
-                                <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
-                                  {members.find(m => m.id === form.assigned_to)?.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                                </AvatarFallback>
-                              </Avatar>
-                              <span className="text-foreground font-medium">
-                                {members.find(m => m.id === form.assigned_to)?.full_name || 'Assigned User'}
-                              </span>
-                            </>
-                          ) : (
-                            <span className="text-muted-foreground italic">Unassigned</span>
+                                  <span className="text-foreground font-medium">
+                                    {members.find(m => m.id === form.assigned_to)?.full_name || 'Assigned User'}
+                                  </span>
+                                </>
+                              ) : (
+                                <span className="text-muted-foreground italic">Unassigned</span>
+                              )}
+                            </div>
                           )}
                         </div>
-                      )}
-                    </div>
 
-                    <Field
-                      label="Lead name"
-                      value={form.title as string}
-                      onChange={(v) => set("title", v)}
-                      editing={editing}
-                      icon={<User className="h-4 w-4" />}
-                      required
-                      entityId={id}
-                    />
-                    <Field
-                      label="Company name"
-                      value={form.company_name as string}
-                      onChange={(v) => set("company_name", v)}
-                      editing={editing}
-                      icon={<Building2 className="h-4 w-4" />}
-                      entityId={id}
-                    />
-                    <Field
-                      label="Designation"
-                      value={form.designation as string}
-                      onChange={(v) => set("designation", v)}
-                      editing={editing}
-                      icon={<Briefcase className="h-4 w-4" />}
-                      entityId={id}
-                    />
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-foreground">Personal Number</Label>
-                      <div className="flex items-stretch gap-2">
-                        {editing ? (
-                          <Input
-                            value={(form.phone as string) || ""}
-                            onChange={(e) => set("phone", e.target.value)}
-                            placeholder="+1 (555) 123-4567"
-                            className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1"
-                          />
-                        ) : (
-                          <div className="h-10 px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-center flex-1">
-                            {(form.phone as string) ? (
-                              <ClickToCall
-                                phoneNumber={form.phone as string}
-                                entityType="lead"
-                                entityId={id}
-                                className="text-sm font-medium text-foreground"
+                        <Field
+                          label="Created Date"
+                          value={editing ? (form.createdAt as string) : (form.createdAt ? format(new Date(form.createdAt as string), 'MMM d, yyyy HH:mm') : 'Not specified')}
+                          onChange={(v) => set("createdAt", v)}
+                          editing={editing}
+                          type="datetime-local"
+                          icon={<CalendarIcon className="h-4 w-4" />}
+                          entityId={id}
+                        />
+
+                        <Field
+                          label="Lead name"
+                          value={form.title as string}
+                          onChange={(v) => set("title", v)}
+                          editing={editing}
+                          icon={<User className="h-4 w-4" />}
+                          required
+                          entityId={id}
+                        />
+                        <Field
+                          label="Company name"
+                          value={form.company_name as string}
+                          onChange={(v) => set("company_name", v)}
+                          editing={editing}
+                          icon={<Building2 className="h-4 w-4" />}
+                          entityId={id}
+                        />
+                        <Field
+                          label="Designation"
+                          value={form.designation as string}
+                          onChange={(v) => set("designation", v)}
+                          editing={editing}
+                          icon={<Briefcase className="h-4 w-4" />}
+                          entityId={id}
+                        />
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground">Personal Number</Label>
+                          <div className="flex items-stretch gap-2">
+                            {editing ? (
+                              <Input
+                                value={(form.phone as string) || ""}
+                                onChange={(e) => set("phone", e.target.value)}
+                                placeholder="+1 (555) 123-4567"
+                                className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1"
                               />
                             ) : (
-                              <span className="text-muted-foreground italic">Not specified</span>
+                              <div className="h-10 px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-center flex-1">
+                                {(form.phone as string) ? (
+                                  <ClickToCall
+                                    phoneNumber={form.phone as string}
+                                    entityType="lead"
+                                    entityId={id}
+                                    className="text-sm font-medium text-foreground"
+                                  />
+                                ) : (
+                                  <span className="text-muted-foreground italic">Not specified</span>
+                                )}
+                              </div>
                             )}
+                            <Select value={(form.phone_type as string) || ""} onValueChange={(v) => set("phone_type", v)} disabled={!editing}>
+                              <SelectTrigger className="h-10 w-[160px] border-border">
+                                <SelectValue placeholder="Work Phone" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {phoneTypeOptions.map(opt => (
+                                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
-                        )}
-                        <Select value={(form.phone_type as string) || ""} onValueChange={(v) => set("phone_type", v)} disabled={!editing}>
-                          <SelectTrigger className="h-10 w-[160px] border-border">
-                            <SelectValue placeholder="Work Phone" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {phoneTypeOptions.map(opt => (
-                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-foreground">Personal E-mail</Label>
-                      <div className="flex items-stretch gap-2">
-                        {editing ? (
-                          <Input
-                            type="email"
-                            value={(form.email as string) || ""}
-                            onChange={(e) => set("email", e.target.value)}
-                            placeholder="john@example.com"
-                            className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1"
-                          />
-                        ) : (
-                          <div className="h-10 px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-center flex-1 overflow-hidden">
-                            {(form.email as string) ? (
-                              <a href={`mailto:${form.email}`} className="text-primary hover:underline font-medium break-words w-full">{form.email as string}</a>
-                            ) : (
-                              <span className="text-muted-foreground italic">Not specified</span>
-                            )}
-                          </div>
-                        )}
-                        <Select value={(form.email_type as string) || ""} onValueChange={(v) => set("email_type", v)} disabled={!editing}>
-                          <SelectTrigger className="h-10 w-[140px] border-border">
-                            <SelectValue placeholder="Work" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {emailTypeOptions.map(opt => (
-                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-foreground">Website</Label>
-                      <div className="flex items-stretch gap-2">
-                        {editing ? (
-                          <Input
-                            value={(form.website as string) || ""}
-                            onChange={(e) => set("website", e.target.value)}
-                            placeholder="https://example.com"
-                            className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1"
-                          />
-                        ) : (
-                          <div className="h-10 px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-center flex-1 overflow-hidden">
-                            {(form.website as string) ? (
-                              <a href={String(form.website)} target="_blank" rel="noreferrer" className="text-primary hover:underline font-medium break-words w-full">{form.website as string}</a>
-                            ) : (
-                              <span className="text-muted-foreground italic">Not specified</span>
-                            )}
-                          </div>
-                        )}
-                        <Select value={(form.website_type as string) || ""} onValueChange={(v) => set("website_type", v)} disabled={!editing}>
-                          <SelectTrigger className="h-10 w-[160px] border-border">
-                            <SelectValue placeholder="Corporate" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {websiteTypeOptions.map(opt => (
-                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div className="md:col-span-2 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-sm font-medium text-foreground flex items-center gap-1">
-                          <MapPin className="h-4 w-4" />
-                          Address
-                        </Label>
-                        <span className="text-xs text-primary">expand</span>
-                      </div>
-                      {editing ? (
-                        <Textarea
-                          value={(form.address as string) || ""}
-                          onChange={(e) => set("address", e.target.value)}
-                          className="min-h-[84px] resize-none border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                          placeholder="Address"
-                        />
-                      ) : (
-                        <div className="min-h-[84px] px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-start overflow-hidden">
-                          <span className="whitespace-pre-wrap break-words text-foreground font-medium w-full">
-                            {(form.address as string) || <span className="text-muted-foreground italic">Not specified</span>}
-                          </span>
                         </div>
-                      )}
-                    </div>
 
-                    <Field
-                      label="Company Phone Number"
-                      value={form.company_phone as string}
-                      onChange={(v) => set("company_phone", v)}
-                      editing={editing}
-                      type="tel"
-                      icon={<Phone className="h-4 w-4" />}
-                      entityId={id}
-                    />
-                    <Field
-                      label="Company Email"
-                      value={form.company_email as string}
-                      onChange={(v) => set("company_email", v)}
-                      editing={editing}
-                      icon={<Mail className="h-4 w-4" />}
-                      entityId={id}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-              {/* Activity & Interaction Tracking */}
-              <Card className="border   shadow-sm">
-                <CardHeader className="border-b bg-muted/30 rounded-t-lg">
-                  <CardTitle className="flex items-center gap-3 text-xl">
-                    Activity & Interaction Tracking
-                  </CardTitle>
-                  <CardDescription>Track touchpoints and follow-up timing.</CardDescription>
-                </CardHeader>
-                <CardContent className="p-8">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <Field
-                      label="Last Contacted Date"
-                      value={form.last_contacted_date as string}
-                      onChange={(v) => set("last_contacted_date", v)}
-                      editing={editing}
-                      type="date"
-                      icon={<CalendarIcon className="h-4 w-4" />}
-                      entityId={id}
-                    />
-                    <Field
-                      label="Next Follow-up Date"
-                      value={form.next_follow_up_date as string}
-                      onChange={(v) => set("next_follow_up_date", v)}
-                      editing={editing}
-                      type="date"
-                      icon={<CalendarIcon className="h-4 w-4" />}
-                      entityId={id}
-                    />
-                    <div className="md:col-span-2">
-                      <Field
-                        label="All Interaction Notes With Dates"
-                        value={form.interaction_notes as string}
-                        onChange={(v) => set("interaction_notes", v)}
-                        editing={editing}
-                        multiline
-                        icon={<FileText className="h-4 w-4" />}
-                        placeholder="Add interaction notes..."
-                        entityId={id}
-                      />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Qualification & Opportunity */}
-              <Card className="border   shadow-sm">
-                <CardHeader className="border-b bg-muted/30 rounded-t-lg">
-                  <CardTitle className="flex items-center gap-3 text-xl">
-
-                    Qualification & Opportunity
-                  </CardTitle>
-                  <CardDescription>Capture the sales potential and buying intent.</CardDescription>
-                </CardHeader>
-                <CardContent className="p-8">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-foreground flex items-center gap-1">
-                        <Star className="h-4 w-4" />
-                        Service Interested
-                      </Label>
-                      <CreatableSelect
-                        label="Service Interested"
-                        value={(form.service_interested as string) || ""}
-                        onChange={(v) => set("service_interested", v)}
-                        options={defaultServiceOptions}
-                        disabled={!editing}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-foreground">Company Size</Label>
-                      <Select value={(form.company_size as string) || ""} onValueChange={(v) => set("company_size", v)} disabled={!editing}>
-                        <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
-                          <SelectValue placeholder="Company Size" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {companySizeOptions.map(opt => (
-                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-foreground">Estimated Opportunity Value</Label>
-                      <div className="flex items-stretch gap-2">
-                        <Input
-                          type="number"
-                          value={form.value !== undefined && form.value !== null ? String(form.value) : ""}
-                          onChange={(e) => set("value", e.target.value ? Number(e.target.value) : null)}
-                          disabled={!editing}
-                          placeholder="0"
-                          className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1"
-                        />
-                        <Select value={(form.currency as string) || ""} onValueChange={(v) => set("currency", v)} disabled={!editing}>
-                          <SelectTrigger className="h-10 w-[170px] border-border">
-                            <SelectValue placeholder="US Dollar" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {currencyOptions.map(opt => (
-                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-foreground">Decision Maker Identified</Label>
-                      <Select value={(form.decision_maker as string) || ""} onValueChange={(v) => set("decision_maker", v)} disabled={!editing}>
-                        <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
-                          <SelectValue placeholder="not selected" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {yesNoOptions.map(opt => (
-                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <Field
-                      label="Responsible Person"
-                      value={form.responsible_person as string}
-                      onChange={(v) => set("responsible_person", v)}
-                      editing={editing}
-                      icon={<User className="h-4 w-4" />}
-                      entityId={id}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Source */}
-              <Card className="border   shadow-sm">
-                <CardHeader className="border-b bg-muted/30 rounded-t-lg">
-                  <CardTitle className="flex items-center gap-3 text-xl">
-                    Source
-                  </CardTitle>
-                  <CardDescription>Record where the lead came from and any source context.</CardDescription>
-                </CardHeader>
-                <CardContent className="p-8">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-foreground">Created on</Label>
-                      <div className="h-10 px-3 py-2 border border-dashed border-border rounded-lg bg-muted/40 flex items-center text-muted-foreground">
-                        {lead.created_at ? format(new Date(lead.created_at), "MMM d, yyyy") : "Will be set automatically"}
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-foreground">Source</Label>
-                      <Select value={(form.source as string) || ""} onValueChange={(v) => set("source", v)} disabled={!editing}>
-                        <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
-                          <SelectValue placeholder="Call" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {sourceOptions.map(opt => (
-                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="md:col-span-2 space-y-2">
-                      <Label className="text-sm font-medium text-foreground">Source Information</Label>
-                      {editing ? (
-                        <Textarea
-                          value={displayJsonValue(form.source_info)}
-                          onChange={(e) => set("source_info", e.target.value)}
-                          placeholder="Source Information"
-                          className="min-h-[110px] resize-none border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                        />
-                      ) : (
-                        <div className="min-h-[110px] px-3 py-2 border border-border rounded-lg bg-muted/40 whitespace-pre-wrap text-foreground">
-                          {displayJsonValue(form.source_info) || <span className="text-muted-foreground italic">Not specified</span>}
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground">Personal E-mail</Label>
+                          <div className="flex items-stretch gap-2">
+                            {editing ? (
+                              <Input
+                                type="email"
+                                value={(form.email as string) || ""}
+                                onChange={(e) => set("email", e.target.value)}
+                                placeholder="john@example.com"
+                                className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1"
+                              />
+                            ) : (
+                              <div className="h-10 px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-center flex-1 overflow-hidden">
+                                {(form.email as string) ? (
+                                  <a href={`mailto:${form.email}`} className="text-primary hover:underline font-medium break-words w-full">{form.email as string}</a>
+                                ) : (
+                                  <span className="text-muted-foreground italic">Not specified</span>
+                                )}
+                              </div>
+                            )}
+                            <Select value={(form.email_type as string) || ""} onValueChange={(v) => set("email_type", v)} disabled={!editing}>
+                              <SelectTrigger className="h-10 w-[140px] border-border">
+                                <SelectValue placeholder="Work" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {emailTypeOptions.map(opt => (
+                                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
 
-              <CustomFieldsSection
-                fields={customFields}
-                onChange={setCustomFields}
-                className={!editing ? "opacity-90 pointer-events-none" : "animate-in fade-in slide-in-from-bottom-2 duration-300"}
-              />
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground">Website</Label>
+                          <div className="flex items-stretch gap-2">
+                            {editing ? (
+                              <Input
+                                value={(form.website as string) || ""}
+                                onChange={(e) => set("website", e.target.value)}
+                                placeholder="https://example.com"
+                                className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1"
+                              />
+                            ) : (
+                              <div className="h-10 px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-center flex-1 overflow-hidden">
+                                {(form.website as string) ? (
+                                  <a href={String(form.website)} target="_blank" rel="noreferrer" className="text-primary hover:underline font-medium break-words w-full">{form.website as string}</a>
+                                ) : (
+                                  <span className="text-muted-foreground italic">Not specified</span>
+                                )}
+                              </div>
+                            )}
+                            <Select value={(form.website_type as string) || ""} onValueChange={(v) => set("website_type", v)} disabled={!editing}>
+                              <SelectTrigger className="h-10 w-[160px] border-border">
+                                <SelectValue placeholder="Corporate" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {websiteTypeOptions.map(opt => (
+                                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
 
-            </div>
+                        <div className="md:col-span-2 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-sm font-medium text-foreground flex items-center gap-1">
+                              <MapPin className="h-4 w-4" />
+                              Address
+                            </Label>
+                            <span className="text-xs text-primary">expand</span>
+                          </div>
+                          {editing ? (
+                            <Textarea
+                              value={(form.address as string) || ""}
+                              onChange={(e) => set("address", e.target.value)}
+                              className="min-h-[84px] resize-none border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                              placeholder="Address"
+                            />
+                          ) : (
+                            <div className="min-h-[84px] px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-start overflow-hidden">
+                              <span className="whitespace-pre-wrap break-words text-foreground font-medium w-full">
+                                {(form.address as string) || <span className="text-muted-foreground italic">Not specified</span>}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        <Field
+                          label="Company Phone Number"
+                          value={form.company_phone as string}
+                          onChange={(v) => set("company_phone", v)}
+                          editing={editing}
+                          type="tel"
+                          icon={<Phone className="h-4 w-4" />}
+                          entityId={id}
+                        />
+                        <Field
+                          label="Company Email"
+                          value={form.company_email as string}
+                          onChange={(v) => set("company_email", v)}
+                          editing={editing}
+                          icon={<Mail className="h-4 w-4" />}
+                          entityId={id}
+                        />
+                      </div>
+                      {renderDroppedFields("lead-company-details")}
+                    </CardContent>
+                  </Card>
+                </DroppableSection>
+                {/* Activity & Interaction Tracking */}
+                <DroppableSection id="activity-tracking" editing={editing}>
+                  <Card className="border   shadow-sm">
+                    <CardHeader className="border-b bg-muted/30 rounded-t-lg">
+                      <CardTitle className="flex items-center gap-3 text-xl">
+                        Activity & Interaction Tracking
+                      </CardTitle>
+                      <CardDescription>Track touchpoints and follow-up timing.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-8">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <Field
+                          label="Last Contacted Date"
+                          value={form.last_contacted_date as string}
+                          onChange={(v) => set("last_contacted_date", v)}
+                          editing={editing}
+                          type="date"
+                          icon={<CalendarIcon className="h-4 w-4" />}
+                          entityId={id}
+                        />
+                        <Field
+                          label="Next Follow-up Date"
+                          value={form.next_follow_up_date as string}
+                          onChange={(v) => set("next_follow_up_date", v)}
+                          editing={editing}
+                          type="date"
+                          icon={<CalendarIcon className="h-4 w-4" />}
+                          entityId={id}
+                        />
+                        <div className="md:col-span-2">
+                          <Field
+                            label="All Interaction Notes With Dates"
+                            value={form.interaction_notes as string}
+                            onChange={(v) => set("interaction_notes", v)}
+                            editing={editing}
+                            multiline
+                            icon={<FileText className="h-4 w-4" />}
+                            placeholder="Add interaction notes..."
+                            entityId={id}
+                          />
+                        </div>
+                      </div>
+                      {renderDroppedFields("activity-tracking")}
+                    </CardContent>
+                  </Card>
+                </DroppableSection>
+
+                {/* Qualification & Opportunity */}
+                <DroppableSection id="qualification-opportunity" editing={editing}>
+                  <Card className="border   shadow-sm">
+                    <CardHeader className="border-b bg-muted/30 rounded-t-lg">
+                      <CardTitle className="flex items-center gap-3 text-xl">
+
+                        Qualification & Opportunity
+                      </CardTitle>
+                      <CardDescription>Capture the sales potential and buying intent.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-8">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground flex items-center gap-1">
+                            <Star className="h-4 w-4" />
+                            Service Interested
+                          </Label>
+                          <CreatableSelect
+                            label="Service Interested"
+                            value={(form.service_interested as string) || ""}
+                            onChange={(v) => set("service_interested", v)}
+                            options={defaultServiceOptions}
+                            disabled={!editing}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground">Company Size</Label>
+                          <Select value={(form.company_size as string) || ""} onValueChange={(v) => set("company_size", v)} disabled={!editing}>
+                            <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
+                              <SelectValue placeholder="Company Size" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {companySizeOptions.map(opt => (
+                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground">Estimated Opportunity Value</Label>
+                          <div className="flex items-stretch gap-2">
+                            <Input
+                              type="number"
+                              value={form.value !== undefined && form.value !== null ? String(form.value) : ""}
+                              onChange={(e) => set("value", e.target.value ? Number(e.target.value) : null)}
+                              disabled={!editing}
+                              placeholder="0"
+                              className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1"
+                            />
+                            <Select value={(form.currency as string) || ""} onValueChange={(v) => set("currency", v)} disabled={!editing}>
+                              <SelectTrigger className="h-10 w-[170px] border-border">
+                                <SelectValue placeholder="US Dollar" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {currencyOptions.map(opt => (
+                                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground">Decision Maker Identified</Label>
+                          <Select value={(form.decision_maker as string) || ""} onValueChange={(v) => set("decision_maker", v)} disabled={!editing}>
+                            <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
+                              <SelectValue placeholder="not selected" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {yesNoOptions.map(opt => (
+                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <Field
+                          label="Responsible Person"
+                          value={form.responsible_person as string}
+                          onChange={(v) => set("responsible_person", v)}
+                          editing={editing}
+                          icon={<User className="h-4 w-4" />}
+                          entityId={id}
+                        />
+                      </div>
+                      {renderDroppedFields("qualification-opportunity")}
+                    </CardContent>
+                  </Card>
+                </DroppableSection>
+
+                {/* Source */}
+                <DroppableSection id="source-section" editing={editing}>
+                  <Card className="border   shadow-sm">
+                    <CardHeader className="border-b bg-muted/30 rounded-t-lg">
+                      <CardTitle className="flex items-center gap-3 text-xl">
+                        Source
+                      </CardTitle>
+                      <CardDescription>Record where the lead came from and any source context.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-8">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <Field
+                          label="Created on"
+                          value={editing ? (form.createdAt as string) : (lead.created_at ? format(new Date(lead.created_at), "MMM d, yyyy") : "Not specified")}
+                          onChange={(v) => set("createdAt", v)}
+                          editing={editing}
+                          type="datetime-local"
+                          icon={<CalendarIcon className="h-4 w-4" />}
+                          entityId={id}
+                        />
+
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground">Source</Label>
+                          <Select value={(form.source as string) || ""} onValueChange={(v) => set("source", v)} disabled={!editing}>
+                            <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
+                              <SelectValue placeholder="Call" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {sourceOptions.map(opt => (
+                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="md:col-span-2 space-y-2">
+                          <Label className="text-sm font-medium text-foreground">Source Information</Label>
+                          {editing ? (
+                            <Textarea
+                              value={displayJsonValue(form.source_info)}
+                              onChange={(e) => set("source_info", e.target.value)}
+                              placeholder="Source Information"
+                              className="min-h-[110px] resize-none border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                            />
+                          ) : (
+                            <div className="min-h-[110px] px-3 py-2 border border-border rounded-lg bg-muted/40 whitespace-pre-wrap text-foreground">
+                              {displayJsonValue(form.source_info) || <span className="text-muted-foreground italic">Not specified</span>}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {renderDroppedFields("source-section")}
+                    </CardContent>
+                  </Card>
+                </DroppableSection>
+
+                <CustomFieldsSection
+                  fields={customFields}
+                  onChange={setCustomFields}
+                  editing={editing}
+                  className={!editing ? "opacity-90 pointer-events-none" : "animate-in fade-in slide-in-from-bottom-2 duration-300"}
+                />
+
+              </div>
+            </FieldDragWrapper>
           </div>
 
           {/* Right Sidebar - Activity & Actions */}
@@ -1445,8 +1567,8 @@ export default function LeadDetailPage() {
               </CardHeader>
               <CardContent className="p-0 flex-1 overflow-hidden">
                 <Tabs value={sidebarTab} className="h-full flex flex-col">
-                  <TabsContent 
-                    value="activity" 
+                  <TabsContent
+                    value="activity"
                     forceMount={true}
                     className={cn(
                       "m-0 p-0 flex-1 overflow-y-auto",
@@ -1463,8 +1585,8 @@ export default function LeadDetailPage() {
                       />
                     </div>
                   </TabsContent>
-                  <TabsContent 
-                    value="files" 
+                  <TabsContent
+                    value="files"
                     forceMount={true}
                     className={cn(
                       "m-0 p-0 flex-1 overflow-y-auto",
@@ -1484,6 +1606,97 @@ export default function LeadDetailPage() {
       </div>
 
 
+
+      {/* Stage Manager Dialog */}
+      <Dialog open={showStageManager} onOpenChange={setShowStageManager}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5 text-primary" />
+              Manage Pipeline Stages
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              {defaultPipelineStages.map(s => (
+                <div key={s.id} className="flex items-center justify-between px-3 py-2 rounded-lg border bg-muted/30">
+                  <span className="text-sm font-medium">{s.label}</span>
+                  <Badge variant="outline" className="text-[10px]">Default</Badge>
+                </div>
+              ))}
+              {customDbStages.map(s => (
+                <div key={s.id} className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-primary/5">
+                  {editingStageId === (s as any).dbId ? (
+                    <>
+                      <Input
+                        value={editingStageName}
+                        onChange={e => setEditingStageName(e.target.value)}
+                        className="h-7 text-sm flex-1"
+                        autoFocus
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && editingStageName.trim()) {
+                            updateStage.mutate({ id: (s as any).dbId, stageName: editingStageName.trim() }, {
+                              onSuccess: () => setEditingStageId(null)
+                            });
+                          }
+                          if (e.key === 'Escape') setEditingStageId(null);
+                        }}
+                      />
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-primary"
+                        disabled={!editingStageName.trim() || updateStage.isPending}
+                        onClick={() => updateStage.mutate({ id: (s as any).dbId, stageName: editingStageName.trim() }, { onSuccess: () => setEditingStageId(null) })}>
+                        <Check className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground"
+                        onClick={() => setEditingStageId(null)}>
+                        <XCircle className="h-3.5 w-3.5" />
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-sm font-medium flex-1">{s.label}</span>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary"
+                        onClick={() => { setEditingStageId((s as any).dbId); setEditingStageName(s.label); }}>
+                        <Edit3 className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => deleteStage.mutate((s as any).dbId)}
+                        disabled={deleteStage.isPending}>
+                        <XCircle className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2 pt-2 border-t">
+              <Input
+                placeholder="New stage name..."
+                value={newStageName}
+                onChange={e => setNewStageName(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && newStageName.trim()) {
+                    createStage.mutate({ stageName: newStageName.trim() }, { onSuccess: () => setNewStageName("") });
+                  }
+                }}
+                className="h-9"
+              />
+              <Button
+                size="sm"
+                className="gap-1.5 shrink-0"
+                disabled={!newStageName.trim() || createStage.isPending}
+                onClick={() => createStage.mutate({ stageName: newStageName.trim() }, { onSuccess: () => setNewStageName("") })}
+              >
+                <Plus className="h-4 w-4" />
+                Add
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowStageManager(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Workspace Share Modal */}
       <WorkspaceShareModal

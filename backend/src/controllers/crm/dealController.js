@@ -145,6 +145,7 @@ const normalizeDealInput = (body = {}) => {
     lastContactedDate: getVal('lastContactedDate', 'last_contacted_date'),
     nextFollowUpDate: getVal('nextFollowUpDate', 'next_follow_up_date'),
     responsiblePerson: getVal('responsiblePerson', 'responsible_person'),
+    createdAt: getVal('createdAt', 'created_at'),
     customFields: getVal('customFields', 'custom_fields'),
   };
 };
@@ -232,6 +233,7 @@ const updateDealSchema = Joi.object({
   lastContactedDate: Joi.date().optional().allow(null),
   nextFollowUpDate: Joi.date().optional().allow(null),
   responsiblePerson: Joi.string().uuid().optional().allow(null),
+  createdAt: Joi.date().optional().allow(null),
   customFields: Joi.object().optional().allow(null),
 }).min(1);
 
@@ -393,16 +395,16 @@ const create = async (req, res, next) => {
       return res.status(400).json({ error: error.details[0].message });
     }
 
-    const { 
-      title, contactId, companyId, stage, status, value: dealValue, currency, 
-      probability, notes, tags, expectedCloseDate, 
+    const {
+      title, contactId, companyId, stage, status, value: dealValue, currency,
+      probability, notes, tags, expectedCloseDate,
       contactName, companyName, phone, email, priority, source, description,
       designation, website, address, companyPhone, companyEmail, companySize,
-      availableToEveryone, clientType, projectType, scope, agentName, decisionMaker, serviceInterested, interactionNotes, 
+      availableToEveryone, clientType, projectType, scope, agentName, decisionMaker, serviceInterested, interactionNotes,
       feedback, feedbackDetails, paymentMethod, invoiceLink, qaStatus, quotationReceived,
       hoursOfWork, hourlyRate, hourlyRateCurrency, proposalAmount, proposalCurrency, invoiceAmount, invoiceCurrency,
       firstMessage, lastTouch, workspaceId, sourceInfo, projectBlueprints,
-      phoneType, emailType, websiteType, customerType, 
+      phoneType, emailType, websiteType, customerType,
       lastContactedDate, nextFollowUpDate, responsiblePerson, customFields
     } = value;
 
@@ -429,15 +431,15 @@ const create = async (req, res, next) => {
        )
        RETURNING *`,
       [
-        req.user.orgId, req.user.id, title, contactId, companyId, stage, status, 
-        dealValue, currency, probability, notes, tags, expectedCloseDate, 
+        req.user.orgId, req.user.id, title, contactId, companyId, stage, status,
+        dealValue, currency, probability, notes, tags, expectedCloseDate,
         contactName, companyName, phone, email, priority, source, description,
         designation, website, address, companyPhone, companyEmail, companySize,
-        availableToEveryone, clientType, projectType, scope, agentName, decisionMaker, serviceInterested, interactionNotes, 
+        availableToEveryone, clientType, projectType, scope, agentName, decisionMaker, serviceInterested, interactionNotes,
         feedback, feedbackDetails, paymentMethod, invoiceLink, qaStatus, quotationReceived,
         hoursOfWork, hourlyRate, hourlyRateCurrency, proposalAmount, proposalCurrency, invoiceAmount, invoiceCurrency,
-        firstMessage, lastTouch, workspaceId, sourceInfo, serializeBlueprintsField(projectBlueprints), 
-        phoneType, emailType, websiteType, customerType, 
+        firstMessage, lastTouch, workspaceId, sourceInfo, serializeBlueprintsField(projectBlueprints),
+        phoneType, emailType, websiteType, customerType,
         lastContactedDate, nextFollowUpDate, responsiblePerson,
         customFields ? JSON.stringify(customFields) : '{}'
       ]
@@ -532,6 +534,7 @@ const update = async (req, res, next) => {
       lastTouch: 'last_touch',
       lastContactedDate: 'last_contacted_date',
       nextFollowUpDate: 'next_follow_up_date',
+      createdAt: 'created_at',
     };
 
     for (const [key, val] of Object.entries(value)) {
@@ -891,6 +894,84 @@ const convertToCustomer = async (req, res, next) => {
   }
 };
 
+const getStages = async (req, res, next) => {
+  try {
+    const { rows } = await db.query(
+      `SELECT id, stage_label, sort_order, color, is_active FROM pipeline_stages 
+       WHERE org_id = $1 AND pipeline = 'deals' AND is_active = true ORDER BY sort_order ASC`,
+      [req.user.orgId]
+    );
+    const stages = rows.map(row => ({
+      id: row.id,
+      stage_key: row.stage_label.toLowerCase().replace(/\s+/g, '_'),
+      stage_label: row.stage_label,
+      sort_order: row.sort_order,
+      color: row.color || 'bg-gray-500'
+    }));
+    res.json(stages);
+  } catch (err) {
+    next(err);
+  }
+};
+
+const createStage = async (req, res, next) => {
+  try {
+    const { stageName } = req.body;
+    if (!stageName) return res.status(400).json({ error: 'Stage name is required' });
+    const stageKey = stageName.toLowerCase().replace(/\s+/g, '_');
+    const { rows: existing } = await db.query(
+      `SELECT MAX(sort_order) as max_order FROM pipeline_stages WHERE org_id = $1 AND pipeline = 'deals'`,
+      [req.user.orgId]
+    );
+    const sortOrder = (existing[0]?.max_order || 0) + 1;
+    const { rows } = await db.query(
+      `INSERT INTO pipeline_stages (org_id, pipeline, stage_key, stage_label, sort_order, color, is_active)
+       VALUES ($1, 'deals', $2, $3, $4, $5, true) RETURNING *`,
+      [req.user.orgId, stageKey, stageName, sortOrder, '#6b7280']
+    );
+    res.status(201).json({
+      id: rows[0].id,
+      stage_key: rows[0].stage_key,
+      stage_label: rows[0].stage_label,
+      sort_order: rows[0].sort_order,
+      color: rows[0].color
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const updateStage_custom = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { stageName } = req.body;
+    if (!stageName) return res.status(400).json({ error: 'Stage name is required' });
+    const stageKey = stageName.toLowerCase().replace(/\s+/g, '_');
+    const { rows } = await db.query(
+      `UPDATE pipeline_stages SET stage_label = $1, stage_key = $2 WHERE id = $3 AND org_id = $4 AND pipeline = 'deals' RETURNING *`,
+      [stageName, stageKey, id, req.user.orgId]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Stage not found' });
+    res.json({ id: rows[0].id, stage_key: rows[0].stage_key, stage_label: rows[0].stage_label, sort_order: rows[0].sort_order, color: rows[0].color });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const deleteStage = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const result = await db.query(
+      `DELETE FROM pipeline_stages WHERE id = $1 AND org_id = $2 AND pipeline = 'deals' RETURNING id`,
+      [id, req.user.orgId]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Stage not found' });
+    res.json({ message: 'Stage deleted successfully' });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getAll,
   getById,
@@ -900,6 +981,10 @@ module.exports = {
   updateStatus,
   remove,
   getStats,
+  getStages,
+  createStage,
+  updateStage_custom,
+  deleteStage,
   addContact,
   removeContact,
   addSigningParty,
