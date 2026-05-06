@@ -14,13 +14,13 @@ PUBLIC_HTML="$BASE_DIR/public_html"
 echo "======== DEPLOYMENT STARTED: $DOMAIN ========"
 date
 
-# # 1. Update Repository
-# if [ ! -d "$REPO_DIR/.git" ]; then
-#     echo "Cloning repository for the first time..."
-#     # If directory exists but isn't a repo, we clear it first
-#     rm -rf $REPO_DIR/*
-#     git clone $REPO_URL $REPO_DIR
-# fi
+# 1. Update Repository
+if [ ! -d "$REPO_DIR/.git" ]; then
+    echo "Cloning repository for the first time..."
+    # If directory exists but isn't a repo, we clear it first
+    rm -rf $REPO_DIR/*
+    git clone $REPO_URL $REPO_DIR
+fi
 
 cd $REPO_DIR
 echo "Resetting local changes and pulling fresh from main..."
