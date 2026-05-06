@@ -147,6 +147,43 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
     workgroupId,
     (newMessage) => {
       if (!newMessage?.id) return;
+
+      // Handle deleted message real-time update
+      if (newMessage.is_deleted) {
+        queryClient.setQueriesData(
+          { queryKey: ["workgroup-posts", workgroupId] },
+          (prev: WorkgroupPost[] | undefined) => {
+            if (!Array.isArray(prev)) return prev;
+            return prev.map((p) => {
+              if (p.id === newMessage.id) {
+                return {
+                  ...p,
+                  is_deleted: true,
+                  deleted_for_users: newMessage.deleted_for_users || p.deleted_for_users || [],
+                };
+              }
+              // Check replies too
+              if (p.replies?.some((r: any) => r.id === newMessage.id)) {
+                return {
+                  ...p,
+                  replies: p.replies.map((r: any) =>
+                    r.id === newMessage.id
+                      ? {
+                        ...r,
+                        is_deleted: true,
+                        deleted_for_users: newMessage.deleted_for_users || r.deleted_for_users || [],
+                      }
+                      : r
+                  ),
+                };
+              }
+              return p;
+            });
+          },
+        );
+        return;
+      }
+
       if (!newMessage.parent_id) {
         // Root message: inject directly for instant display
         queryClient.setQueriesData(
@@ -273,6 +310,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
     useState<string[]>([]);
   const [isForwardingMessages, setIsForwardingMessages] = useState(false);
   const [isDeleteSelectMode, setIsDeleteSelectMode] = useState(false);
+  const [isDeletedPlaceholderMode, setIsDeletedPlaceholderMode] = useState(false);
   const [selectedDeletePostIds, setSelectedDeletePostIds] = useState<string[]>(
     [],
   );
@@ -319,7 +357,9 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
         : [];
       const isDeletedForMe =
         currentUserId && deletedForUsers.includes(currentUserId);
-      return p.is_deleted || isDeletedForMe;
+      // is_deleted = true means "deleted for everyone" — show placeholder, don't hide
+      // isDeletedForMe = "deleted for me only" — hide completely
+      return Boolean(isDeletedForMe);
     };
 
     posts.forEach((p) => {
@@ -405,11 +445,13 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   // Scroll to bottom when entering a chat
   useEffect(() => {
     if (!scrollRef.current || postsLoading) return;
-    requestAnimationFrame(() => {
+    // Use setTimeout to ensure DOM is fully rendered after data load
+    const timer = setTimeout(() => {
       if (scrollRef.current) {
         scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
       }
-    });
+    }, 100);
+    return () => clearTimeout(timer);
   }, [workgroupId, postsLoading]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -611,11 +653,12 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
     const hasElevatedRole = ["owner", "admin"].includes(
       currentUserMembership?.role || "",
     );
-    if (hasElevatedRole || canRemoveMembers) return true;
+    // Only allow "delete for everyone" if user is the author of ALL selected posts
+    // OR if user is owner/admin (elevated role)
+    if (hasElevatedRole) return true;
     return selectedDeletePosts.every((post) => post.user_id === user?.id);
   }, [
     currentUserMembership?.role,
-    canRemoveMembers,
     selectedDeletePosts,
     user?.id,
   ]);
@@ -906,10 +949,14 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   const startDeleteSelection = (postId: string) => {
     setIsDeleteSelectMode(true);
     setSelectedDeletePostIds([postId]);
+    // Check if this is a deleted placeholder
+    const targetPost = flatPosts.find(p => p.id === postId);
+    setIsDeletedPlaceholderMode(Boolean(targetPost?.is_deleted));
   };
 
   const clearDeleteSelection = () => {
     setIsDeleteSelectMode(false);
+    setIsDeletedPlaceholderMode(false);
     setSelectedDeletePostIds([]);
     setShowDeleteDialog(false);
   };
@@ -920,8 +967,8 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
     try {
       // Filter post IDs based on selected categories
       const filteredPostIds = selectedDeletePostIds.filter((postId) => {
-        const post = posts.find((p) => p.id === postId);
-        if (!post) return false;
+        const post = flatPosts.find((p) => p.id === postId) || posts.find((p) => p.id === postId);
+        if (!post) return true; // include if not found (already deleted placeholder)
 
         // Explicitly handle call logs first
         if (post.content_type === "call") {
@@ -2020,8 +2067,17 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                                     handleToggleDeletePost
                                   }
                                   onStartDeleteSelection={startDeleteSelection}
-                                  onDelete={(postId) =>
-                                    deletePost.mutate({ postId, workgroupId })
+                                  onDelete={(postId) => {
+                                    const targetPost = flatPosts.find(p => p.id === postId);
+                                    if (targetPost?.is_deleted) {
+                                      // Already deleted for everyone — remove placeholder for ALL members
+                                      deletePost.mutate({ postId, workgroupId });
+                                    } else {
+                                      deletePost.mutate({ postId, workgroupId });
+                                    }
+                                  }}
+                                  onDeleteForMe={(postId) =>
+                                    deletePostForMe.mutate({ postId, workgroupId })
                                   }
                                   onTogglePin={(postId, isPinned) =>
                                     togglePin.mutate({
@@ -2305,24 +2361,27 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                       <div className="max-w-5xl mx-auto flex flex-col gap-2">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-1.5">
-                              <Checkbox
-                                id="selectAllDelete"
-                                checked={
-                                  selectedDeletePostIds.length ===
-                                  posts.length && posts.length > 0
-                                }
-                                onCheckedChange={(val) =>
-                                  handleSelectAllForDelete(Boolean(val))
-                                }
-                              />
-                              <label
-                                htmlFor="selectAllDelete"
-                                className="text-xs font-medium cursor-pointer"
-                              >
-                                Select All
-                              </label>
-                            </div>
+                            {/* Select All — hide in placeholder mode */}
+                            {!isDeletedPlaceholderMode && (
+                              <div className="flex items-center gap-1.5">
+                                <Checkbox
+                                  id="selectAllDelete"
+                                  checked={
+                                    selectedDeletePostIds.length ===
+                                    posts.length && posts.length > 0
+                                  }
+                                  onCheckedChange={(val) =>
+                                    handleSelectAllForDelete(Boolean(val))
+                                  }
+                                />
+                                <label
+                                  htmlFor="selectAllDelete"
+                                  className="text-xs font-medium cursor-pointer"
+                                >
+                                  Select All
+                                </label>
+                              </div>
+                            )}
                             <span className="text-xs text-muted-foreground border-l pl-3">
                               {selectedDeletePostIds.length} message(s) selected
                             </span>
@@ -2347,101 +2406,103 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                           </div>
                         </div>
 
-                        {/* Filters Row */}
-                        <div className="flex items-center gap-4 py-1.5 px-1 bg-muted/30 rounded-md border border-border/50">
-                          <span className="text-[10px] uppercase font-bold text-muted-foreground ml-2">
-                            Include:
-                          </span>
-                          <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-1.5">
-                              <Checkbox
-                                id="filterText"
-                                checked={deleteFilters.text}
-                                onCheckedChange={(v) =>
-                                  setDeleteFilters((f) => ({ ...f, text: !!v }))
-                                }
-                              />
-                              <label
-                                htmlFor="filterText"
-                                className="text-[11px] cursor-pointer"
-                              >
-                                Text
-                              </label>
+                        {/* Filters Row — hide in placeholder mode */}
+                        {!isDeletedPlaceholderMode && (
+                          <div className="flex items-center gap-4 py-1.5 px-1 bg-muted/30 rounded-md border border-border/50">
+                            <span className="text-[10px] uppercase font-bold text-muted-foreground ml-2">
+                              Include:
+                            </span>
+                            <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-1.5">
+                                <Checkbox
+                                  id="filterText"
+                                  checked={deleteFilters.text}
+                                  onCheckedChange={(v) =>
+                                    setDeleteFilters((f) => ({ ...f, text: !!v }))
+                                  }
+                                />
+                                <label
+                                  htmlFor="filterText"
+                                  className="text-[11px] cursor-pointer"
+                                >
+                                  Text
+                                </label>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <Checkbox
+                                  id="filterImage"
+                                  checked={deleteFilters.image}
+                                  onCheckedChange={(v) =>
+                                    setDeleteFilters((f) => ({
+                                      ...f,
+                                      image: !!v,
+                                    }))
+                                  }
+                                />
+                                <label
+                                  htmlFor="filterImage"
+                                  className="text-[11px] cursor-pointer"
+                                >
+                                  Images
+                                </label>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <Checkbox
+                                  id="filterVideo"
+                                  checked={deleteFilters.video}
+                                  onCheckedChange={(v) =>
+                                    setDeleteFilters((f) => ({
+                                      ...f,
+                                      video: !!v,
+                                    }))
+                                  }
+                                />
+                                <label
+                                  htmlFor="filterVideo"
+                                  className="text-[11px] cursor-pointer"
+                                >
+                                  Videos
+                                </label>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <Checkbox
+                                  id="filterDoc"
+                                  checked={deleteFilters.document}
+                                  onCheckedChange={(v) =>
+                                    setDeleteFilters((f) => ({
+                                      ...f,
+                                      document: !!v,
+                                    }))
+                                  }
+                                />
+                                <label
+                                  htmlFor="filterDoc"
+                                  className="text-[11px] cursor-pointer"
+                                >
+                                  Documents
+                                </label>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <Checkbox
+                                  id="filterCall"
+                                  checked={deleteFilters.call}
+                                  onCheckedChange={(v) =>
+                                    setDeleteFilters((f) => ({ ...f, call: !!v }))
+                                  }
+                                />
+                                <label
+                                  htmlFor="filterCall"
+                                  className="text-[11px] cursor-pointer"
+                                >
+                                  Calls
+                                </label>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-1.5">
-                              <Checkbox
-                                id="filterImage"
-                                checked={deleteFilters.image}
-                                onCheckedChange={(v) =>
-                                  setDeleteFilters((f) => ({
-                                    ...f,
-                                    image: !!v,
-                                  }))
-                                }
-                              />
-                              <label
-                                htmlFor="filterImage"
-                                className="text-[11px] cursor-pointer"
-                              >
-                                Images
-                              </label>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <Checkbox
-                                id="filterVideo"
-                                checked={deleteFilters.video}
-                                onCheckedChange={(v) =>
-                                  setDeleteFilters((f) => ({
-                                    ...f,
-                                    video: !!v,
-                                  }))
-                                }
-                              />
-                              <label
-                                htmlFor="filterVideo"
-                                className="text-[11px] cursor-pointer"
-                              >
-                                Videos
-                              </label>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <Checkbox
-                                id="filterDoc"
-                                checked={deleteFilters.document}
-                                onCheckedChange={(v) =>
-                                  setDeleteFilters((f) => ({
-                                    ...f,
-                                    document: !!v,
-                                  }))
-                                }
-                              />
-                              <label
-                                htmlFor="filterDoc"
-                                className="text-[11px] cursor-pointer"
-                              >
-                                Documents
-                              </label>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <Checkbox
-                                id="filterCall"
-                                checked={deleteFilters.call}
-                                onCheckedChange={(v) =>
-                                  setDeleteFilters((f) => ({ ...f, call: !!v }))
-                                }
-                              />
-                              <label
-                                htmlFor="filterCall"
-                                className="text-[11px] cursor-pointer"
-                              >
-                                Calls
-                              </label>
-                            </div>
+                            <p className="text-[10px] text-muted-foreground italic ml-auto mr-2">
+                              * Uncheck to keep these items
+                            </p>
                           </div>
-                          <p className="text-[10px] text-muted-foreground italic ml-auto mr-2">
-                            * Uncheck to keep these items
-                          </p>
-                        </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -3392,7 +3453,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </div >
   );
 }
 // ─── Quick Emojis ────────────────────────────────────────────────────────────────────
@@ -3459,6 +3520,7 @@ interface PostCardProps {
   postAuthorRole?: "owner" | "admin" | "member" | "guest";
   onSetReplyTo: (id: string | null) => void;
   onDelete: (postId: string) => void;
+  onDeleteForMe?: (postId: string) => void;
   onTogglePin: (postId: string, isPinned: boolean) => void;
   onReaction?: (postId: string, emoji: string) => void;
   onScrollToMessage?: (id: string) => void;
@@ -3492,6 +3554,7 @@ function PostCard({
   postAuthorRole,
   onSetReplyTo,
   onDelete,
+  onDeleteForMe,
   onTogglePin,
   onReaction,
   onScrollToMessage,
@@ -3574,7 +3637,7 @@ function PostCard({
   );
   const isDeletedMessage = Boolean(post.is_deleted || isDeletedForMe);
   const deletedPlaceholder =
-    isDeletedForMe || (isDeletedMessage && isAuthor)
+    isAuthor
       ? "You deleted this message"
       : "This message was deleted";
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -3812,22 +3875,17 @@ function PostCard({
 
       {/* Bubble row */}
       <div
-        className={`flex ${isAuthor ? "justify-end" : "justify-start"} items-end gap-2 mb-0.5`}
+        className={`flex ${isAuthor ? "justify-end" : "justify-start"} items-center gap-2 mb-0.5`}
       >
-        {isForwardSelectMode && (
+        {/* Checkbox — always on left side for both sender and receiver */}
+        {(isForwardSelectMode || isDeleteSelectMode) && (
           <Checkbox
-            checked={isSelectedForForward}
-            onCheckedChange={(value) =>
-              onToggleForwardSelection?.(post.id, Boolean(value))
-            }
-          />
-        )}
-        {isDeleteSelectMode && (
-          <Checkbox
-            checked={isSelectedForDelete}
-            onCheckedChange={(value) =>
-              onToggleDeleteSelection?.(post.id, Boolean(value))
-            }
+            checked={isForwardSelectMode ? isSelectedForForward : isSelectedForDelete}
+            onCheckedChange={(value) => {
+              if (isForwardSelectMode) onToggleForwardSelection?.(post.id, Boolean(value));
+              else onToggleDeleteSelection?.(post.id, Boolean(value));
+            }}
+            className="shrink-0"
           />
         )}
         {/* Avatar — only for received */}
@@ -3870,7 +3928,31 @@ function PostCard({
             <div
               className={`absolute top-1 right-1 z-[20] opacity-0 group-hover/bubble:opacity-100 transition-opacity`}
             >
-              {!isDeletedMessage && (
+              {isDeletedMessage ? (
+                /* Deleted message: show delete options via selection mode */
+                !isDeletedForMe && isMember && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        className="transition-colors p-0.5 rounded text-gray-400 hover:text-gray-600 dark:text-white/70 dark:hover:text-white"
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align={isAuthor ? "end" : "start"}
+                      className="w-48"
+                    >
+                      <DropdownMenuItem
+                        onClick={() => onStartDeleteSelection?.(post.id)}
+                        className="text-red-600 dark:text-red-400 focus:text-red-600"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" /> Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )
+              ) : (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button
@@ -3948,12 +4030,15 @@ function PostCard({
                       </div>
                     </div>
                     {isMember && (
-                      <DropdownMenuItem
-                        onClick={() => onStartDeleteSelection?.(post.id)}
-                        className="text-red-600 dark:text-red-400 focus:text-red-600 border-t border-gray-100 dark:border-gray-700"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" /> Delete
-                      </DropdownMenuItem>
+                      <>
+                        {/* Delete — opens selection mode with dialog for everyone/me choice */}
+                        <DropdownMenuItem
+                          onClick={() => onStartDeleteSelection?.(post.id)}
+                          className="text-red-600 dark:text-red-400 focus:text-red-600 border-t border-gray-100 dark:border-gray-700"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" /> Delete
+                        </DropdownMenuItem>
+                      </>
                     )}
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -4022,7 +4107,7 @@ function PostCard({
             )}
 
             {/* Message content or Call Log */}
-            {isCallLog ? (
+            {isCallLog && !isDeletedMessage ? (
               <div className="flex items-center gap-3 py-1 pr-8">
                 <div
                   className={`flex items-center justify-center h-10 w-10 rounded-full shrink-0 ${isMissedCall
