@@ -21,6 +21,7 @@ import { InteractionPanel } from "@/components/crm/InteractionPanel";
 import { CreatableSelect } from "@/components/crm/CreatableSelect";
 import { EntityFilesSection } from "@/components/crm/EntityFilesSection";
 import { CustomFieldsSection, DraggableFieldItem } from "@/components/crm/CustomFieldsSection";
+import { CustomFieldInput } from "@/components/crm/CustomFieldInput";
 import { GripVertical } from "lucide-react";
 import { FieldDragWrapper } from "@/components/crm/FieldDragWrapper";
 import { DroppableSection } from "@/components/crm/DroppableSection";
@@ -560,34 +561,13 @@ export default function LeadDetailPage() {
                     )}
                   </div>
                   
-                  {editing ? (
-                    field.type === "boolean" ? (
-                      <Select
-                        value={field.value}
-                        onValueChange={(v) => updateField(field.id, { value: v })}
-                      >
-                        <SelectTrigger className="h-10 border-slate-200">
-                          <SelectValue placeholder="Select Yes/No" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Yes">Yes</SelectItem>
-                          <SelectItem value="No">No</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Input
-                        type={field.type === "date" ? "date" : field.type === "datetime" ? "datetime-local" : field.type === "number" || field.type === "money" ? "number" : "text"}
-                        placeholder={field.type === "money" ? "0.00" : "Enter value..."}
-                        value={field.value}
-                        onChange={(e) => updateField(field.id, { value: e.target.value })}
-                        className="h-10 border-slate-200 focus-visible:ring-primary/20"
-                      />
-                    )
-                  ) : (
-                    <div className="min-h-[2.5rem] px-3 py-2 border border-border rounded-lg bg-muted/30 flex items-center">
-                      <span className="text-foreground font-medium">{field.value}</span>
-                    </div>
-                  )}
+                  <CustomFieldInput
+                    field={field}
+                    editing={editing}
+                    updateField={updateField}
+                    entityType="lead"
+                    entityId={id}
+                  />
                 </div>
               </DraggableFieldItem>
             ))}
@@ -1604,6 +1584,8 @@ export default function LeadDetailPage() {
                   fields={customFields}
                   onChange={setCustomFields}
                   editing={editing}
+                  entityType="lead"
+                  entityId={id}
                   className={!editing ? "opacity-90 pointer-events-none" : "animate-in fade-in slide-in-from-bottom-2 duration-300"}
                 />
 
