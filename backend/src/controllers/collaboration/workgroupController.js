@@ -1228,7 +1228,7 @@ const deleteWorkgroupPost = async (req, res, next) => {
       SELECT p.*, wm.role
       FROM workgroup_posts p
       LEFT JOIN workgroup_members wm ON p.workgroup_id = wm.workgroup_id AND wm.user_id = $1
-      WHERE p.id = $2 AND p.workgroup_id = $3 AND p.is_deleted = false
+      WHERE p.id = $2 AND p.workgroup_id = $3
     `;
     const postResult = await db.query(postQuery, [req.user.id, postId, id]);
 
@@ -1244,6 +1244,42 @@ const deleteWorkgroupPost = async (req, res, next) => {
     }
 
     // Soft delete the post
+    // If already deleted for everyone (is_deleted = true), add ALL members to deleted_for_users
+    // so the placeholder is hidden for everyone
+    if (post.is_deleted) {
+      const membersResult = await db.query(
+        `SELECT user_id FROM workgroup_members WHERE workgroup_id = $1`,
+        [id]
+      );
+      const allMemberIds = membersResult.rows.map(r => r.user_id);
+      await db.query(
+        `UPDATE workgroup_posts
+         SET deleted_for_users = $1::uuid[],
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2`,
+        [allMemberIds, postId]
+      );
+
+      // Real-time: notify all members to hide this post completely
+      realtimeService.emitWorkgroupPost(id, {
+        id: postId,
+        workgroup_id: id,
+        is_deleted: true,
+        deleted_for_users: allMemberIds,
+        user_id: post.user_id,
+        content: post.content,
+        content_type: post.content_type,
+        created_at: post.created_at,
+        author_name: post.author_name,
+        author_avatar: post.author_avatar,
+        parent_id: post.parent_id || null,
+        attachments: post.attachments || [],
+        reactions: post.reactions || {},
+      });
+
+      return res.json({ message: 'Post deleted successfully' });
+    }
+
     const deleteQuery = `
       UPDATE workgroup_posts 
       SET is_deleted = true, updated_at = CURRENT_TIMESTAMP
@@ -1255,6 +1291,23 @@ const deleteWorkgroupPost = async (req, res, next) => {
     await logActivity(id, req.user.id, 'message_deleted', {
       message_id: postId,
       deleted_by_author: post.user_id === req.user.id
+    });
+
+    // Real-time: notify all members in the workgroup that this post was deleted
+    realtimeService.emitWorkgroupPost(id, {
+      id: postId,
+      workgroup_id: id,
+      is_deleted: true,
+      user_id: post.user_id,
+      content: post.content,
+      content_type: post.content_type,
+      created_at: post.created_at,
+      author_name: post.author_name,
+      author_avatar: post.author_avatar,
+      parent_id: post.parent_id || null,
+      attachments: post.attachments || [],
+      reactions: post.reactions || {},
+      deleted_for_users: post.deleted_for_users || [],
     });
 
     res.json({ message: 'Post deleted successfully' });
@@ -1269,6 +1322,7 @@ const deleteWorkgroupPostForMe = async (req, res, next) => {
     const { id, postId } = req.params;
 
     // Ensure requester is a member and post exists in this workgroup
+    // Allow deleting even if already deleted for everyone (is_deleted = true)
     const postQuery = `
       SELECT p.id, p.user_id
       FROM workgroup_posts p
@@ -1277,7 +1331,6 @@ const deleteWorkgroupPostForMe = async (req, res, next) => {
        AND wm.user_id = $1
       WHERE p.id = $2
         AND p.workgroup_id = $3
-        AND p.is_deleted = false
     `;
     const postResult = await db.query(postQuery, [req.user.id, postId, id]);
 
