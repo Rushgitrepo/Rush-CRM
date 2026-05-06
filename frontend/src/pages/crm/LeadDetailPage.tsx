@@ -798,8 +798,8 @@ export default function LeadDetailPage() {
                           className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover: transition-all group"
                           onSelect={() => copyToClipboard(lead.phone, 'Phone')}
                         >
-                          <div className="p-2 bg-emerald-50 rounded-md group-hover:bg-emerald-100 transition-colors">
-                            <Phone className="h-4 w-4 text-emerald-600" />
+                          <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-md group-hover:bg-emerald-100 dark:group-hover:bg-emerald-900/30 transition-colors">
+                            <Phone className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="font-semibold text-sm text-foreground">Copy Phone Number</p>
@@ -815,8 +815,8 @@ export default function LeadDetailPage() {
                         className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover: transition-all group"
                         onSelect={() => handleScrollToActivity("activity")}
                       >
-                        <div className="p-2 bg-purple-50 rounded-md group-hover:bg-purple-100 transition-colors">
-                          <Eye className="h-4 w-4 text-purple-600" />
+                        <div className="p-2 bg-purple-50 dark:bg-purple-900/20 rounded-md group-hover:bg-purple-100 dark:group-hover:bg-purple-900/30 transition-colors">
+                          <Eye className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                         </div>
                         <p className="font-semibold text-sm text-foreground flex-1">View Activity Timeline</p>
                       </DropdownMenuItem>
@@ -824,8 +824,8 @@ export default function LeadDetailPage() {
                         className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-orange-50/50 transition-all group"
                         onSelect={() => handleScrollToActivity("activity", "booking")}
                       >
-                        <div className="p-2 bg-orange-50 rounded-md group-hover:bg-orange-100 transition-colors">
-                          <Calendar className="h-4 w-4 text-orange-600" />
+                        <div className="p-2 bg-orange-50 dark:bg-orange-900/20 rounded-md group-hover:bg-orange-100 dark:group-hover:bg-orange-900/30 transition-colors">
+                          <Calendar className="h-4 w-4 text-orange-600 dark:text-orange-400" />
                         </div>
                         <p className="font-semibold text-sm text-foreground flex-1">Schedule Meeting</p>
                       </DropdownMenuItem>
@@ -833,8 +833,8 @@ export default function LeadDetailPage() {
                         className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-indigo-50/50 transition-all group"
                         onSelect={() => handleScrollToActivity("activity", "message")}
                       >
-                        <div className="p-2 bg-indigo-50 rounded-md group-hover:bg-indigo-100 transition-colors">
-                          <MessageSquare className="h-4 w-4 text-indigo-600" />
+                        <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-md group-hover:bg-indigo-100 dark:group-hover:bg-indigo-900/30 transition-colors">
+                          <MessageSquare className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                         </div>
                         <p className="font-semibold text-sm text-foreground flex-1">Send Message</p>
                       </DropdownMenuItem>
@@ -846,8 +846,8 @@ export default function LeadDetailPage() {
                         className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover: transition-all group"
                         onSelect={handlePrint}
                       >
-                        <div className="p-2 bg-orange-50 rounded-md group-hover:bg-orange-100 transition-colors">
-                          <Printer className="h-4 w-4 text-orange-600" />
+                        <div className="p-2 bg-orange-50 dark:bg-orange-900/20 rounded-md group-hover:bg-orange-100 dark:group-hover:bg-orange-900/30 transition-colors">
+                          <Printer className="h-4 w-4 text-orange-600 dark:text-orange-400" />
                         </div>
                         <p className="font-semibold text-sm text-foreground flex-1">Print Lead Details</p>
                       </DropdownMenuItem>
@@ -855,8 +855,8 @@ export default function LeadDetailPage() {
                         className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover: transition-all group"
                         onSelect={handleExport}
                       >
-                        <div className="p-2 bg-emerald-50 rounded-md group-hover:bg-emerald-100 transition-colors">
-                          <Download className="h-4 w-4 text-emerald-600" />
+                        <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-md group-hover:bg-emerald-100 dark:group-hover:bg-emerald-900/30 transition-colors">
+                          <Download className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                         </div>
                         <p className="font-semibold text-sm text-foreground flex-1">Export as JSON</p>
                       </DropdownMenuItem>
@@ -917,8 +917,8 @@ export default function LeadDetailPage() {
         <div className="rounded-xl p-6 border ">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-lg font-semibold text-white-900">Lead Progress Pipeline</h3>
-              <p className="text-sm text-white-600">Track your lead through the sales process</p>
+              <h3 className="text-lg font-semibold text-foreground">Lead Progress Pipeline</h3>
+              <p className="text-sm text-muted-foreground">Track your lead through the sales process</p>
             </div>
             <div className="flex items-center gap-3">
               <Button
@@ -1019,11 +1019,11 @@ export default function LeadDetailPage() {
           <Card className="border shadow-sm">
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
-                <div className="p-3 bg-blue-100 rounded-xl">
-                  <Target className="h-6 w-6 text-blue-600" />
+                <div className="p-3 bg-blue-100 dark:bg-blue-900/20 rounded-xl">
+                  <Target className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-1">Pipeline Value</p>
+                  <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1">Pipeline Value</p>
                   <div className="flex items-baseline gap-2">
                     <span className="text-2xl font-bold text-foreground">
                       ${leadStats?.overview?.total_value ? Number(leadStats.overview.total_value).toLocaleString() : '0'}
@@ -1037,11 +1037,11 @@ export default function LeadDetailPage() {
           <Card className="border shadow-sm">
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
-                <div className="p-3 bg-amber-100 rounded-xl">
-                  <Clock className="h-6 w-6 text-amber-600" />
+                <div className="p-3 bg-amber-100 dark:bg-amber-900/20 rounded-xl">
+                  <Clock className="h-6 w-6 text-amber-600 dark:text-amber-400" />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-amber-600 uppercase tracking-widest mb-1">Days Active</p>
+                  <p className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-widest mb-1">Days Active</p>
                   <div className="flex items-baseline gap-2">
                     <span className="text-2xl font-bold text-foreground">
                       {lead.created_at ? Math.floor((new Date().getTime() - new Date(lead.created_at).getTime()) / (1000 * 60 * 60 * 24)) : 0}
@@ -1056,11 +1056,11 @@ export default function LeadDetailPage() {
           <Card className="border shadow-sm">
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
-                <div className="p-3 bg-purple-100 rounded-xl">
-                  <Activity className="h-6 w-6 text-purple-600" />
+                <div className="p-3 bg-purple-100 dark:bg-purple-900/20 rounded-xl">
+                  <Activity className="h-6 w-6 text-purple-600 dark:text-purple-400" />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-purple-600 uppercase tracking-widest mb-1">Last Update</p>
+                  <p className="text-xs font-bold text-purple-600 dark:text-purple-400 uppercase tracking-widest mb-1">Last Update</p>
                   <p className="text-sm font-medium">{lead.last_touch ? format(new Date(lead.last_touch), 'MMM d, yyyy') : 'No interactions'}</p>
                 </div>
               </div>
