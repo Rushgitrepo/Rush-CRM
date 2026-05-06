@@ -18,7 +18,7 @@ psql -U postgres -d your_database -f database-dump.sql
 # Start development server
 npm run dev
 ```
-
+///
 ## 📋 Available Scripts
 
 ```bash
