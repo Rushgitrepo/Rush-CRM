@@ -720,6 +720,22 @@ export default function CommunicationsPage() {
                 <SelectItem value="in_call">In Progress</SelectItem>
               </SelectContent>
             </Select>
+            <Select
+              value={callFilters.has_content || 'all'}
+              onValueChange={v => setCallFilters(f => ({ ...f, has_content: v === 'all' ? undefined : v as CallLogFilters['has_content'], page: 1 }))}
+            >
+              <SelectTrigger className="w-[160px] bg-card border-border/50">
+                <FileText className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                <SelectValue placeholder="Content" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Calls</SelectItem>
+                <SelectItem value="any">Has Transcript / Notes</SelectItem>
+                <SelectItem value="transcript">Has Transcript</SelectItem>
+                <SelectItem value="notes">Has Notes</SelectItem>
+                <SelectItem value="ai">Has AI Summary</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Call Logs Table */}

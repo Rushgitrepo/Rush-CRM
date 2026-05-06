@@ -6,8 +6,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { cn } from "@/lib/utils";
 import {
   Loader2, Save, ArrowLeft, Building2, CalendarDays, MessageSquare,
-  ChevronDown, Sparkles, Tag
+  ChevronDown, Sparkles, Tag, Users, Calendar as CalendarIcon, Briefcase
 } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useOrganizationProfiles } from "@/hooks/useTenantQuery";
+import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,11 +19,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/crm/ui/PageHeader";
 import { useCreateLead } from "@/hooks/useCrmData";
+import { CreatableSelect } from "@/components/crm/CreatableSelect";
 import { CustomFieldsSection, DraggableFieldItem } from "@/components/crm/CustomFieldsSection";
 import { FieldDragWrapper } from "@/components/crm/FieldDragWrapper";
 import { DroppableSection } from "@/components/crm/DroppableSection";
 import { GripVertical } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { format, isValid } from "date-fns";
+import { getCustomFieldTemplates, saveCustomFieldTemplates } from "@/utils/crm/customFieldsRegistry";
+import { sanitizePayload } from "@/utils/crm/sanitize";
 import { Badge } from "@/components/ui/badge";
 
 const leadSchema = z.object({
@@ -32,7 +39,7 @@ const leadSchema = z.object({
   sourceInfo: z.string().optional(),
   value: z.string().optional(),
   currency: z.string().optional(),
-  notes: z.string().optional(),
+  notes: z.string().nullable().optional().or(z.literal("")),
   designation: z.string().optional(),
   phone: z.string().optional(),
   phoneType: z.string().optional(),
@@ -47,9 +54,15 @@ const leadSchema = z.object({
   companySize: z.string().optional(),
   serviceInterested: z.string().optional(),
   decisionMaker: z.string().optional(),
-  interactionNotes: z.string().optional(),
+  interactionNotes: z.string().nullable().optional().or(z.literal("")),
   lastContactedDate: z.string().optional(),
   nextFollowUpDate: z.string().optional(),
+  createdAt: z.string().optional(),
+  assignedTo: z.string().optional().nullable(),
+  expectedCloseDate: z.string().optional(),
+  pipeline: z.string().optional(),
+  responsiblePerson: z.string().optional(),
+  externalSourceId: z.string().optional(),
 });
 
 type LeadForm = z.infer<typeof leadSchema>;
@@ -276,10 +289,37 @@ export default function CreateLeadPage() {
       interactionNotes: "",
       lastContactedDate: "",
       nextFollowUpDate: "",
+      createdAt: new Date().toISOString().split('T')[0],
+      assignedTo: null,
+      expectedCloseDate: "",
+      pipeline: "default",
     },
   });
 
-  const [customFields, setCustomFields] = useState<{ id: string; key: string; value: string; sectionId?: string }[]>([]);
+  const { data: members = [] } = useOrganizationProfiles();
+  const { data: dbStages = [] } = usePipelineStages();
+
+  const customDbStages = dbStages
+    .filter(s => !stageOptions.some(d => d.value === s.stage_key))
+    .map(s => ({
+      value: s.stage_key,
+      label: s.stage_label,
+    }));
+
+  const allStageOptions = [...stageOptions, ...customDbStages];
+
+  const [contactId, setContactId] = useState<string | null>(null);
+  const [companyId, setCompanyId] = useState<string | null>(null);
+  const [customFields, setCustomFields] = useState<{ id: string; key: string; value: string; type?: string; sectionId?: string }[]>(() => {
+    const templates = getCustomFieldTemplates('lead');
+    return templates.map(t => ({
+      id: `template-${Math.random().toString(36).substr(2, 9)}`,
+      key: t.key,
+      value: "",
+      type: t.type,
+      sectionId: "custom-fields"
+    }));
+  });
 
   const isSaving = createLead.isPending;
   const { handleSubmit, register, setValue, watch, formState: { errors } } = form;
@@ -310,19 +350,32 @@ export default function CreateLeadPage() {
       serviceInterested: data.serviceInterested || null,
       decisionMaker: data.decisionMaker || null,
       interactionNotes: data.interactionNotes || null,
-      lastContactedDate: data.lastContactedDate ? new Date(data.lastContactedDate).toISOString() : null,
-      nextFollowUpDate: data.nextFollowUpDate ? new Date(data.nextFollowUpDate).toISOString() : null,
+      lastContactedDate: data.lastContactedDate && isValid(new Date(data.lastContactedDate)) ? new Date(data.lastContactedDate).toISOString() : null,
+      nextFollowUpDate: data.nextFollowUpDate && isValid(new Date(data.nextFollowUpDate)) ? new Date(data.nextFollowUpDate).toISOString() : null,
+      expectedCloseDate: data.expectedCloseDate && isValid(new Date(data.expectedCloseDate)) ? new Date(data.expectedCloseDate).toISOString() : null,
+      createdAt: data.createdAt && isValid(new Date(data.createdAt)) ? new Date(data.createdAt).toISOString() : new Date().toISOString(),
       lastTouch: new Date().toISOString(),
+      assignedTo: data.assignedTo || null,
+      pipeline: data.pipeline || 'default',
+      responsiblePerson: data.responsiblePerson || null,
+      externalSourceId: data.externalSourceId || null,
       customFields: customFields.reduce((acc, field) => {
         if (field.key.trim()) {
-          acc[field.key.trim()] = field.value;
+          acc[field.key.trim()] = { 
+            value: field.value, 
+            type: field.type || 'string',
+            sectionId: field.sectionId || 'custom-fields'
+          };
         }
         return acc;
-      }, {} as Record<string, string>),
+      }, {} as Record<string, any>),
     } as Record<string, unknown>;
 
-    createLead.mutate(payload, {
+    createLead.mutate(sanitizePayload(payload), {
       onSuccess: () => {
+        // Save these field definitions as templates for future leads
+        saveCustomFieldTemplates('lead', customFields);
+        
         toast({ title: "Lead created", description: data.title });
         navigate("/crm/leads");
       },
@@ -344,6 +397,10 @@ export default function CreateLeadPage() {
     const sectionFields = customFields.filter(f => f.sectionId === sectionId);
     if (sectionFields.length === 0) return null;
 
+    const updateField = (id: string, updates: Partial<CustomField>) => {
+      setCustomFields(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
+    };
+
     return (
       <div className="mt-6 pt-6 border-t border-dashed border-border space-y-4">
         <div className="flex items-center gap-2 mb-2">
@@ -362,9 +419,29 @@ export default function CreateLeadPage() {
                   </div>
                 </DraggableFieldItem>
               </div>
-              <div className="min-h-[2.5rem] px-3 py-2 border border-border rounded-lg bg-primary/5 flex items-center">
-                <span className="text-foreground font-medium">{field.value}</span>
-              </div>
+              
+              {field.type === "boolean" ? (
+                <Select
+                  value={field.value}
+                  onValueChange={(v) => updateField(field.id, { value: v })}
+                >
+                  <SelectTrigger className="h-10 border-slate-200">
+                    <SelectValue placeholder="Select Yes/No" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Yes">Yes</SelectItem>
+                    <SelectItem value="No">No</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  type={field.type === "date" ? "date" : field.type === "datetime" ? "datetime-local" : field.type === "number" || field.type === "money" ? "number" : "text"}
+                  placeholder={field.type === "money" ? "0.00" : "Enter value..."}
+                  value={field.value}
+                  onChange={(e) => updateField(field.id, { value: e.target.value })}
+                  className="h-10 border-slate-200 focus-visible:ring-primary/20"
+                />
+              )}
             </div>
           ))}
         </div>
@@ -413,18 +490,63 @@ export default function CreateLeadPage() {
                 <CardContent className="space-y-5 p-6">
                   <div className="grid gap-5 md:grid-cols-3">
                     <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground flex items-center gap-2">
+                        <Briefcase className="h-4 w-4" />
+                        Pipeline
+                      </Label>
+                      <Select value={watch("pipeline") || "default"} onValueChange={v => setValue("pipeline", v)}>
+                        <SelectTrigger className="h-10">
+                          <SelectValue placeholder="Select pipeline" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="default">Standard Pipeline</SelectItem>
+                          <SelectItem value="marketing">Marketing Pipeline</SelectItem>
+                          <SelectItem value="sales">Sales Pipeline</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
                       <Label className="text-sm font-medium text-foreground">Stage</Label>
                       <Select value={watch("stage")} onValueChange={v => { setValue("stage", v); setValue("status", v); }}>
                         <SelectTrigger className={cn("h-10", errors.stage && "border-destructive")}>
                           <SelectValue placeholder="Select stage" />
                         </SelectTrigger>
                         <SelectContent>
-                          {stageOptions.map(opt => (
+                          {allStageOptions.map(opt => (
                             <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                       {errors.stage && <p className="text-xs text-destructive">{errors.stage.message}</p>}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground flex items-center gap-2">
+                        <Users className="h-4 w-4" />
+                        Lead owner
+                      </Label>
+                      <Select value={watch("assignedTo") || "unassigned"} onValueChange={v => setValue("assignedTo", v === "unassigned" ? null : v)}>
+                        <SelectTrigger className={cn("h-10", errors.assignedTo && "border-destructive")}>
+                          <SelectValue placeholder="Select owner..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unassigned">Unassigned</SelectItem>
+                          {members.map((m) => (
+                            <SelectItem key={m.id} value={m.id}>
+                              <div className="flex items-center gap-2">
+                                <Avatar className="h-5 w-5">
+                                  <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+                                    {m.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                                  </AvatarFallback>
+                                </Avatar>
+                                {m.full_name}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {errors.assignedTo && <p className="text-xs text-destructive">{errors.assignedTo.message}</p>}
                     </div>
 
                     <div className="space-y-2">
@@ -587,17 +709,17 @@ export default function CreateLeadPage() {
                 <CardContent className="space-y-5 p-6">
                   <div className="grid gap-5 md:grid-cols-2">
                     <div className="space-y-2">
-                      <Label className="text-sm font-medium text-foreground">Service Interested</Label>
-                      <Select value={watch("serviceInterested")} onValueChange={v => setValue("serviceInterested", v)}>
-                        <SelectTrigger className={cn("h-10", errors.serviceInterested && "border-destructive")}>
-                          <SelectValue placeholder="Select service..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {serviceOptions.map(opt => (
-                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Label className="text-sm font-medium text-foreground flex items-center gap-2">
+                        <Sparkles className="h-4 w-4" />
+                        Service Interested
+                      </Label>
+                      <CreatableSelect
+                        label="Service Interested"
+                        value={watch("serviceInterested") || ""}
+                        onChange={(v) => setValue("serviceInterested", v)}
+                        options={serviceOptions}
+                        disabled={false}
+                      />
                       {errors.serviceInterested && <p className="text-xs text-destructive">{errors.serviceInterested.message}</p>}
                     </div>
 
@@ -643,6 +765,20 @@ export default function CreateLeadPage() {
                       fieldProps={register("decisionMaker")}
                       error={errors.decisionMaker?.message}
                     />
+
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground flex items-center gap-2">
+                        <CalendarIcon className="h-4 w-4" />
+                        Expected Close Date
+                      </Label>
+                      <Input type="date" {...register("expectedCloseDate")} className={cn("h-10", errors.expectedCloseDate && "border-destructive")} />
+                      {errors.expectedCloseDate && <p className="text-xs text-destructive">{errors.expectedCloseDate.message}</p>}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground">Responsible Person</Label>
+                      <Input placeholder="Responsible Person" {...register("responsiblePerson")} className="h-10" />
+                    </div>
                   </div>
                   {renderDroppedFields("qualification-opportunity")}
                 </CardContent>
@@ -662,9 +798,12 @@ export default function CreateLeadPage() {
                   <div className="grid gap-5 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-foreground">Created on</Label>
-                      <div className="h-10 rounded-md border border-dashed bg-muted/50 px-3 text-sm text-muted-foreground flex items-center">
-                        Will be set automatically
-                      </div>
+                      <Input 
+                        type="date" 
+                        {...register("createdAt")} 
+                        className={cn("h-10", errors.createdAt && "border-destructive")} 
+                      />
+                      {errors.createdAt && <p className="text-xs text-destructive">{errors.createdAt.message}</p>}
                     </div>
 
                     <div className="space-y-2">
@@ -690,6 +829,11 @@ export default function CreateLeadPage() {
                         className={cn("min-h-[110px]", errors.sourceInfo && "border-destructive")}
                       />
                       {errors.sourceInfo && <p className="text-xs text-destructive">{errors.sourceInfo.message}</p>}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground">External Source ID</Label>
+                      <Input placeholder="e.g. CRM-123" {...register("externalSourceId")} className="h-10" />
                     </div>
 
                     <div className="md:col-span-2 space-y-2">

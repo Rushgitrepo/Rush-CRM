@@ -222,28 +222,59 @@ const update = async (req, res, next) => {
 };
 
 const remove = async (req, res, next) => {
+  const client = await db.pool.connect();
   try {
     const { id } = req.params;
+    await client.query('BEGIN');
 
-    const result = await db.query(
+    // 1. Delete associated tasks/activities (hard foreign key constraint)
+    await client.query(
+      `DELETE FROM public.activities WHERE contact_id = $1 AND org_id = $2`,
+      [id, req.user.orgId]
+    );
+
+    // 2. Clean up polymorphic CRM data
+    await client.query(
+      `DELETE FROM public.crm_activities WHERE entity_type = 'contact' AND entity_id = $1 AND org_id = $2`,
+      [id, req.user.orgId]
+    );
+
+    await client.query(
+      `DELETE FROM public.crm_comments WHERE entity_type = 'contact' AND entity_id = $1 AND org_id = $2`,
+      [id, req.user.orgId]
+    );
+
+    await client.query(
+      `DELETE FROM public.crm_documents WHERE entity_type = 'contact' AND entity_id = $1 AND org_id = $2`,
+      [id, req.user.orgId]
+    );
+
+    // 3. Finally delete the contact
+    const result = await client.query(
       `DELETE FROM public.contacts WHERE id = $1 AND org_id = $2 RETURNING id`,
       [id, req.user.orgId]
     );
 
     if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Contact not found' });
     }
 
+    await client.query('COMMIT');
     res.json({ message: 'Contact deleted successfully' });
   } catch (err) {
+    await client.query('ROLLBACK');
     if (err.code === '23503') {
       return res.status(400).json({ 
         error: 'This contact cannot be deleted because it is being used in invoices, deals, or other records. Please remove those records first.' 
       });
     }
     next(err);
+  } finally {
+    client.release();
   }
 };
+
 
 module.exports = {
   getAll,

@@ -206,13 +206,13 @@ function OutgoingCallView({ peer, callType, status, endCall }: any) {
         <div className="relative group">
           <div
             className={cn(
-              "absolute inset-0 rounded-full scale-150 blur-2xl animate-pulse duration-[3000ms]",
+              "absolute inset-0 rounded-full scale-150 blur-2xl animate-pulse [animation-duration:3000ms]",
               status ? "bg-red-500/20" : "bg-indigo-500/20",
             )}
           />
           <div
             className={cn(
-              "absolute inset-0 rounded-full scale-125 animate-ping duration-[2000ms]",
+              "absolute inset-0 rounded-full scale-125 animate-ping [animation-duration:2000ms]",
               status ? "bg-red-500/10" : "bg-indigo-500/10",
             )}
           />

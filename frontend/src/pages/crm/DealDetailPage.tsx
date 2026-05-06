@@ -50,7 +50,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { cn } from "@/lib/utils";
 import { useSoftphone } from "@/contexts/SoftphoneContext";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, isValid } from "date-fns";
+import { mergeFieldsWithTemplates, saveCustomFieldTemplates } from "@/utils/crm/customFieldsRegistry";
 
 const fallbackStages = [
   {
@@ -262,6 +263,16 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
               entityId={entityId || ""}
               className="font-medium break-words w-full text-left"
             />
+          ) : type === "email" ? (
+            <a href={`mailto:${value}`} className="text-primary hover:underline font-medium break-words w-full">{value}</a>
+          ) : type === "date" && value && isValid(new Date(value)) ? (
+            <span className="text-foreground font-medium break-words w-full">
+              {format(new Date(value), "MMM d, yyyy")}
+            </span>
+          ) : type === "datetime-local" && value && isValid(new Date(value)) ? (
+            <span className="text-foreground font-medium break-words w-full">
+              {format(new Date(value), "MMM d, yyyy HH:mm")}
+            </span>
           ) : (
             <span className="text-foreground font-medium break-words w-full">{value}</span>
           )}
@@ -323,7 +334,7 @@ export default function DealDetailPage() {
 
   const [editing, setEditing] = useState(() => window.location.pathname.endsWith('/edit'));
   const [form, setForm] = useState<Record<string, unknown>>({});
-  const [customFields, setCustomFields] = useState<{ id: string; key: string; value: string; sectionId?: string }[]>([]);
+  const [customFields, setCustomFields] = useState<{ id: string; key: string; value: string; type?: string; sectionId?: string }[]>([]);
 
   const [contactDialogOpen, setContactDialogOpen] = useState(false);
   const [companyDialogOpen, setCompanyDialogOpen] = useState(false);
@@ -377,6 +388,15 @@ export default function DealDetailPage() {
     enabled: !!form.assigned_to,
   });
 
+  // Fetch all team members for assignment
+  const { data: members = [] } = useQuery({
+    queryKey: ['users'],
+    queryFn: async () => {
+      const response = await usersApi.list();
+      return response || [];
+    },
+  });
+
   // Keep the original built-in deal pipeline stages, then append custom stages.
   const customPipelineStages = (dbStages || [])
     .filter(s => !fallbackStages.some(f => f.id === s.stage_key))
@@ -401,17 +421,28 @@ export default function DealDetailPage() {
       if (deal.custom_fields && typeof deal.custom_fields === 'object') {
         const fields = Object.entries(deal.custom_fields).map(([k, v]) => {
           if (v && typeof v === 'object' && 'value' in v) {
-            return { id: k, key: k, value: String((v as any).value), sectionId: (v as any).sectionId };
+            return { 
+              id: k, 
+              key: k, 
+              value: String((v as any).value), 
+              type: (v as any).type || 'string',
+              sectionId: (v as any).sectionId 
+            };
           }
-          return { id: k, key: k, value: String(v), sectionId: 'custom-fields' };
+          return { id: k, key: k, value: String(v), type: 'string', sectionId: 'custom-fields' };
         });
-        setCustomFields(fields);
+        // Merge with templates to show empty "standard" custom fields
+        const mergedFields = mergeFieldsWithTemplates('deal', fields);
+        setCustomFields(mergedFields);
       } else {
-        setCustomFields([]);
+        // No custom fields on record, show templates
+        setCustomFields(mergeFieldsWithTemplates('deal', []));
       }
       setForm({
         ...deal,
-        createdAt: deal.created_at ? format(new Date(deal.created_at), "yyyy-MM-dd'T'HH:mm") : "",
+        expected_close_date: deal.expected_close_date && isValid(new Date(deal.expected_close_date)) ? format(new Date(deal.expected_close_date), "yyyy-MM-dd") : "",
+        next_follow_up_date: deal.next_follow_up_date && isValid(new Date(deal.next_follow_up_date)) ? format(new Date(deal.next_follow_up_date), "yyyy-MM-dd") : "",
+        createdAt: deal.created_at && isValid(new Date(deal.created_at)) ? format(new Date(deal.created_at), "yyyy-MM-dd'T'HH:mm") : "",
       });
     }
   }, [deal]);
@@ -450,27 +481,37 @@ export default function DealDetailPage() {
     Object.entries(form).forEach(([key, val]) => {
       if (val !== (deal as Record<string, unknown>)[key]) changes[key] = val;
     });
-    if (Object.keys(changes).length === 0) {
+
+    const customFieldsObj = customFields.reduce((acc, field) => {
+      if (field.key.trim()) acc[field.key.trim()] = { 
+        value: field.value, 
+        type: field.type || 'string',
+        sectionId: field.sectionId 
+      };
+      return acc;
+    }, {} as Record<string, { value: string; type: string; sectionId?: string }>);
+
+    // Check if custom fields changed compared to deal record
+    const dealCustomFields = deal.custom_fields || {};
+    const customFieldsChanged = JSON.stringify(customFieldsObj) !== JSON.stringify(dealCustomFields);
+
+    if (Object.keys(changes).length === 0 && !customFieldsChanged) {
+      saveCustomFieldTemplates('deal', customFields);
       setEditing(false);
       return;
     }
-
-    const customFieldsObj = customFields.reduce((acc, field) => {
-      if (field.key.trim()) acc[field.key.trim()] = { value: field.value, sectionId: field.sectionId };
-      return acc;
-    }, {} as Record<string, { value: string; sectionId?: string }>);
 
     const formattedChanges: Record<string, unknown> = { ...changes };
     if (formattedChanges.expected_close_date) formattedChanges.expected_close_date = new Date(formattedChanges.expected_close_date as string).toISOString();
     if (formattedChanges.next_follow_up_date) formattedChanges.next_follow_up_date = new Date(formattedChanges.next_follow_up_date as string).toISOString();
 
-    updateDeal.mutate({
+    updateDeal.mutate(sanitizePayload({
       id: deal.id,
       ...formattedChanges,
       customFields: customFieldsObj
-    }, {
-
+    }), {
       onSuccess: () => {
+        saveCustomFieldTemplates('deal', customFields);
         setEditing(false);
         createActivity.mutate({
           entityType: 'deal',
@@ -543,6 +584,10 @@ export default function DealDetailPage() {
     const sectionFields = customFields.filter(f => f.sectionId === sectionId);
     if (sectionFields.length === 0) return null;
 
+    const updateField = (id: string, updates: Partial<CustomField>) => {
+      setCustomFields(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
+    };
+
     return (
       <div className="mt-6 pt-6 border-t border-dashed border-border space-y-4">
         <div className="flex items-center gap-2 mb-2">
@@ -552,7 +597,7 @@ export default function DealDetailPage() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {sectionFields.map((field) => (
-            <div key={field.key} className="group relative">
+            <div key={field.id} className="group relative">
               <div className="flex items-center justify-between mb-1.5">
                 <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{field.key}</Label>
                 {editing && (
@@ -563,9 +608,35 @@ export default function DealDetailPage() {
                   </DraggableFieldItem>
                 )}
               </div>
-              <div className="min-h-[2.5rem] px-3 py-2 border border-border rounded-lg bg-primary/5 flex items-center">
-                <span className="text-foreground font-medium">{field.value}</span>
-              </div>
+              
+              {editing ? (
+                field.type === "boolean" ? (
+                  <Select
+                    value={field.value}
+                    onValueChange={(v) => updateField(field.id, { value: v })}
+                  >
+                    <SelectTrigger className="h-10 border-slate-200">
+                      <SelectValue placeholder="Select Yes/No" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Yes">Yes</SelectItem>
+                      <SelectItem value="No">No</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    type={field.type === "date" ? "date" : field.type === "datetime" ? "datetime-local" : field.type === "number" || field.type === "money" ? "number" : "text"}
+                    placeholder={field.type === "money" ? "0.00" : "Enter value..."}
+                    value={field.value}
+                    onChange={(e) => updateField(field.id, { value: e.target.value })}
+                    className="h-10 border-slate-200 focus-visible:ring-primary/20"
+                  />
+                )
+              ) : (
+                <div className="min-h-[2.5rem] px-3 py-2 border border-border rounded-lg bg-slate-50/50 flex items-center">
+                  <span className="text-foreground font-medium">{field.value}</span>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -1074,6 +1145,35 @@ export default function DealDetailPage() {
                           required
                         />
                       </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-foreground flex items-center gap-2">
+                          <Activity className="h-4 w-4" />
+                          Pipeline
+                        </Label>
+                        <Select value={(form.pipeline as string) || "default"} onValueChange={(v) => set("pipeline", v)} disabled={!editing}>
+                          <SelectTrigger className="h-10 border-border">
+                            <SelectValue placeholder="Select pipeline" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="default">Standard Pipeline</SelectItem>
+                            <SelectItem value="marketing">Marketing Pipeline</SelectItem>
+                            <SelectItem value="sales">Sales Pipeline</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-foreground">Stage</Label>
+                        <Select value={(form.stage as string) || ""} onValueChange={(v) => set("stage", v)} disabled={!editing}>
+                          <SelectTrigger className="h-10 border-border">
+                            <SelectValue placeholder="Select stage" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {pipelineStages.map(stage => (
+                              <SelectItem key={stage.id} value={stage.id}>{stage.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                       <Field
                         label="Deal Value"
                         value={form.value as string}
@@ -1093,11 +1193,75 @@ export default function DealDetailPage() {
                       />
                       <Field
                         label="Expected Close Date"
-                        value={form.expected_close_date ? new Date(form.expected_close_date as string).toISOString().split('T')[0] : ""}
+                        value={form.expected_close_date ? (editing ? form.expected_close_date as string : format(new Date(form.expected_close_date as string), 'MMM d, yyyy')) : ""}
                         onChange={(val) => set("expected_close_date", val)}
                         editing={editing}
                         icon={<Calendar className="h-4 w-4" />}
                         type="date"
+                      />
+                      <Field
+                        label="Next Follow-up Date"
+                        value={form.next_follow_up_date ? (editing ? form.next_follow_up_date as string : format(new Date(form.next_follow_up_date as string), 'MMM d, yyyy')) : ""}
+                        onChange={(val) => set("next_follow_up_date", val)}
+                        editing={editing}
+                        icon={<Clock className="h-4 w-4" />}
+                        type="date"
+                      />
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-foreground flex items-center gap-2">
+                          <Users className="h-4 w-4" />
+                          Responsible Person
+                        </Label>
+                        {editing ? (
+                          <Select
+                            value={form.assigned_to as string || "unassigned"}
+                            onValueChange={(v) => set("assigned_to", v === "unassigned" ? null : v)}
+                          >
+                            <SelectTrigger className="h-10 border-border">
+                              <SelectValue placeholder="Select owner..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="unassigned">Unassigned</SelectItem>
+                              {members.map((m: any) => (
+                                <SelectItem key={m.id} value={m.id}>
+                                  <div className="flex items-center gap-2">
+                                    <Avatar className="h-5 w-5">
+                                      <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+                                        {m.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    {m.full_name}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <div className="h-10 px-3 py-2 border rounded-lg bg-muted/40 flex items-center gap-2">
+                            {form.assigned_to ? (
+                              <>
+                                <Avatar className="h-6 w-6">
+                                  <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+                                    {members.find((m: any) => m.id === form.assigned_to)?.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className="text-foreground font-medium">
+                                  {members.find((m: any) => m.id === form.assigned_to)?.full_name || 'Assigned User'}
+                                </span>
+                              </>
+                            ) : (
+                              <span className="text-muted-foreground italic">Unassigned</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <Field
+                        label="External Source ID"
+                        value={form.external_source_id as string}
+                        onChange={(val) => set("external_source_id", val)}
+                        editing={editing}
+                        icon={<ExternalLink className="h-4 w-4" />}
+                        placeholder="e.g., EXT-12345"
                       />
                       <Field
                         label="Probability (%)"
@@ -1109,7 +1273,7 @@ export default function DealDetailPage() {
                       />
                       <Field
                         label="Created Date"
-                        value={editing ? (form.createdAt as string) : (form.createdAt ? format(new Date(form.createdAt as string), 'MMM d, yyyy HH:mm') : 'Not specified')}
+                        value={editing ? (form.createdAt as string) : (form.createdAt && isValid(new Date(form.createdAt as string)) ? format(new Date(form.createdAt as string), 'MMM d, yyyy HH:mm') : 'Not specified')}
                         onChange={(v) => set("createdAt", v)}
                         editing={editing}
                         type="datetime-local"

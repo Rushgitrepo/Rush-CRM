@@ -86,6 +86,7 @@ const createLeadSchema = Joi.object({
   responsiblePerson: Joi.string().optional().allow(null, ''),
   pipeline: Joi.string().optional().allow(null, ''),
   externalSourceId: Joi.string().optional().allow(null, ''),
+  createdAt: Joi.alternatives().try(Joi.date(), Joi.string().isoDate()).optional().allow(null, ''),
   customFields: Joi.object().optional().allow(null),
 });
 
@@ -429,7 +430,7 @@ const create = async (req, res, next) => {
       website, websiteType, address, companyName, companyPhone,
       companyEmail, companySize, agentName, decisionMaker, serviceInterested,
       interactionNotes, firstMessage, lastTouch, lastContactedDate, nextFollowUpDate,
-      sourceInfo, responsiblePerson, customFields
+      sourceInfo, responsiblePerson, createdAt, customFields
     } = value;
 
     const workspaceId = req.body.workspaceId || null;
@@ -452,16 +453,16 @@ const create = async (req, res, next) => {
           value, currency, priority, notes, tags, expected_close_date, contact_id, company_id,
           designation, phone, phone_type, email, email_type, website, website_type, address, company_name, company_phone,
           company_email, company_size, agent_name, decision_maker, service_interested,
-          interaction_notes, first_message, last_touch, last_contacted_date, next_follow_up_date, responsible_person, pipeline, external_source_id, custom_fields)
+          interaction_notes, first_message, last_touch, last_contacted_date, next_follow_up_date, responsible_person, pipeline, external_source_id, custom_fields, created_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
-                 $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43)
+                 $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44)
          RETURNING *`,
         [req.user.orgId, req.user.id, workspaceId, assignedTo || null, title, name, stage, status, source, serializeJsonField(sourceInfo), customerType || null,
           leadValue, currency, priority, notes, tags, expectedCloseDate, contactId, companyId,
           designation, phone, phoneType || null, email, emailType || null, website, websiteType || null, address, companyName, companyPhone,
           companyEmail, companySize, agentName, decisionMaker, serviceInterested,
           interactionNotes, firstMessage, lastTouch, lastContactedDate || null, nextFollowUpDate || null, responsiblePerson || null, value.pipeline, value.externalSourceId,
-        customFields ? JSON.stringify(customFields) : '{}']
+        customFields ? JSON.stringify(customFields) : '{}', createdAt || new Date().toISOString()]
       );
     } catch (err) {
       if (err.code === '42703') {
@@ -699,23 +700,60 @@ const update = async (req, res, next) => {
 };
 
 const remove = async (req, res, next) => {
+  const client = await db.pool.connect();
   try {
     const { id } = req.params;
+    await client.query('BEGIN');
 
-    const result = await db.query(
+    // 1. Delete associated tasks/activities (hard foreign key constraint)
+    await client.query(
+      `DELETE FROM public.activities WHERE lead_id = $1 AND org_id = $2`,
+      [id, req.user.orgId]
+    );
+
+    // 2. Clean up polymorphic CRM data (no hard FK but logically associated)
+    await client.query(
+      `DELETE FROM public.crm_activities WHERE entity_type = 'lead' AND entity_id = $1 AND org_id = $2`,
+      [id, req.user.orgId]
+    );
+
+    await client.query(
+      `DELETE FROM public.crm_comments WHERE entity_type = 'lead' AND entity_id = $1 AND org_id = $2`,
+      [id, req.user.orgId]
+    );
+
+    await client.query(
+      `DELETE FROM public.crm_documents WHERE entity_type = 'lead' AND entity_id = $1 AND org_id = $2`,
+      [id, req.user.orgId]
+    );
+
+    // 3. Delete from lead_workspace_access (already has CASCADE in schema, but being explicit is fine)
+    await client.query(
+      `DELETE FROM public.lead_workspace_access WHERE lead_id = $1`,
+      [id]
+    );
+
+    // 4. Finally delete the lead
+    const result = await client.query(
       `DELETE FROM public.leads WHERE id = $1 AND org_id = $2 RETURNING id`,
       [id, req.user.orgId]
     );
 
     if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Lead not found' });
     }
 
+    await client.query('COMMIT');
     res.json({ message: 'Lead deleted successfully' });
   } catch (err) {
+    await client.query('ROLLBACK');
     next(err);
+  } finally {
+    client.release();
   }
 };
+
 
 const getStats = async (req, res, next) => {
   try {

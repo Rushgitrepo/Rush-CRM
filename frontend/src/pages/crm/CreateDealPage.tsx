@@ -20,13 +20,16 @@ import { GripVertical } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useContacts, useCompanies, useCreateDeal } from "@/hooks/useCrmData";
 import { useToast } from "@/components/ui/use-toast";
+import { format, isValid } from "date-fns";
+import { getCustomFieldTemplates, saveCustomFieldTemplates } from "@/utils/crm/customFieldsRegistry";
 
 const dealSchema = z.object({
   title: z.string().min(2, "Deal title required"),
   value: z.string().optional(),
   stage: z.string().min(1, "Pick a stage"),
+  pipeline: z.string().optional(),
   status: z.string().optional(),
-  notes: z.string().optional(),
+  notes: z.string().nullable().optional().or(z.literal("")),
   currency: z.string().optional(),
   // Additional fields for better deal tracking
   contactName: z.string().optional(),
@@ -56,6 +59,8 @@ const dealSchema = z.object({
   projectBlueprints: z.string().optional(),
   expectedCloseDate: z.string().optional(),
   nextFollowUpDate: z.string().optional(),
+  assignedTo: z.string().optional(),
+  externalSourceId: z.string().optional(),
 });
 
 type DealForm = z.infer<typeof dealSchema>;
@@ -122,7 +127,16 @@ export default function CreateDealPage() {
 
   const [contactId, setContactId] = useState<string | null>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
-  const [customFields, setCustomFields] = useState<{ id: string; key: string; value: string; sectionId?: string }[]>([]);
+  const [customFields, setCustomFields] = useState<{ id: string; key: string; value: string; type?: string; sectionId?: string }[]>(() => {
+    const templates = getCustomFieldTemplates('deal');
+    return templates.map(t => ({
+      id: `template-${Math.random().toString(36).substr(2, 9)}`,
+      key: t.key,
+      value: "",
+      type: t.type,
+      sectionId: "custom-fields"
+    }));
+  });
 
   const contactOptions = useMemo(() => {
     const data = (contacts as any)?.data || contacts || [];
@@ -148,6 +162,7 @@ export default function CreateDealPage() {
       title: "",
       value: "",
       stage: "qualification",
+      pipeline: "default",
       status: "open",
       notes: "",
       currency: "USD",
@@ -178,6 +193,8 @@ export default function CreateDealPage() {
       projectBlueprints: "",
       expectedCloseDate: "",
       nextFollowUpDate: "",
+      assignedTo: "",
+      externalSourceId: "",
     },
   });
 
@@ -190,6 +207,10 @@ export default function CreateDealPage() {
   const renderDroppedFields = (sectionId: string) => {
     const sectionFields = customFields.filter(f => f.sectionId === sectionId);
     if (sectionFields.length === 0) return null;
+
+    const updateField = (id: string, updates: Partial<CustomField>) => {
+      setCustomFields(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
+    };
 
     return (
       <div className="mt-6 pt-6 border-t border-dashed border-border space-y-4">
@@ -209,9 +230,29 @@ export default function CreateDealPage() {
                   </div>
                 </DraggableFieldItem>
               </div>
-              <div className="min-h-[2.5rem] px-3 py-2 border border-border rounded-lg bg-primary/5 flex items-center">
-                <span className="text-foreground font-medium">{field.value}</span>
-              </div>
+              
+              {field.type === "boolean" ? (
+                <Select
+                  value={field.value}
+                  onValueChange={(v) => updateField(field.id, { value: v })}
+                >
+                  <SelectTrigger className="h-10 border-slate-200">
+                    <SelectValue placeholder="Select Yes/No" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Yes">Yes</SelectItem>
+                    <SelectItem value="No">No</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  type={field.type === "date" ? "date" : field.type === "datetime" ? "datetime-local" : field.type === "number" || field.type === "money" ? "number" : "text"}
+                  placeholder={field.type === "money" ? "0.00" : "Enter value..."}
+                  value={field.value}
+                  onChange={(e) => updateField(field.id, { value: e.target.value })}
+                  className="h-10 border-slate-200 focus-visible:ring-primary/20"
+                />
+              )}
             </div>
           ))}
         </div>
@@ -224,6 +265,7 @@ export default function CreateDealPage() {
       title: data.title,
       value: data.value ? Number(data.value) : undefined,
       stage: data.stage,
+      pipeline: data.pipeline || 'default',
       status: data.status || data.stage,
       notes: data.notes,
       currency: data.currency,
@@ -254,18 +296,27 @@ export default function CreateDealPage() {
       invoiceCurrency: data.invoiceCurrency,
       sourceInfo: data.sourceInfo,
       projectBlueprints: data.projectBlueprints,
-      expected_close_date: data.expectedCloseDate ? new Date(data.expectedCloseDate).toISOString() : undefined,
-      next_follow_up_date: data.nextFollowUpDate ? new Date(data.nextFollowUpDate).toISOString() : undefined,
+      expected_close_date: data.expectedCloseDate && isValid(new Date(data.expectedCloseDate)) ? new Date(data.expectedCloseDate).toISOString() : undefined,
+      next_follow_up_date: data.nextFollowUpDate && isValid(new Date(data.nextFollowUpDate)) ? new Date(data.nextFollowUpDate).toISOString() : undefined,
+      assigned_to: data.assignedTo || undefined,
+      external_source_id: data.externalSourceId,
       customFields: customFields.reduce((acc, field) => {
         if (field.key.trim()) {
-          acc[field.key.trim()] = field.value;
+          acc[field.key.trim()] = { 
+            value: field.value, 
+            type: field.type || 'string',
+            sectionId: field.sectionId || 'custom-fields'
+          };
         }
         return acc;
-      }, {} as Record<string, string>),
+      }, {} as Record<string, any>),
     };
 
-    createDeal.mutate(payload as any, {
+    createDeal.mutate(sanitizePayload(payload) as any, {
       onSuccess: () => {
+        // Save these field definitions as templates for future deals
+        saveCustomFieldTemplates('deal', customFields);
+        
         toast({ title: "Deal created", description: data.title });
         navigate("/crm/deals");
       },
@@ -371,6 +422,17 @@ export default function CreateDealPage() {
                       {form.formState.errors.value && <p className="text-xs text-destructive">{form.formState.errors.value.message}</p>}
                     </div>
                     <div className="space-y-2">
+                      <Label>Pipeline</Label>
+                      <Select defaultValue="default" onValueChange={(v) => form.setValue("pipeline", v)}>
+                        <SelectTrigger><SelectValue placeholder="Select pipeline" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="default">Standard Pipeline</SelectItem>
+                          <SelectItem value="marketing">Marketing Pipeline</SelectItem>
+                          <SelectItem value="sales">Sales Pipeline</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
                       <Label>Stage</Label>
                       <Select defaultValue="qualification" onValueChange={(v) => { form.setValue("stage", v); form.setValue("status", v); }}>
                         <SelectTrigger className={cn(form.formState.errors.stage && "border-destructive")}><SelectValue /></SelectTrigger>
@@ -410,6 +472,23 @@ export default function CreateDealPage() {
                         className={cn(form.formState.errors.nextFollowUpDate && "border-destructive")}
                       />
                       {form.formState.errors.nextFollowUpDate && <p className="text-xs text-destructive">{form.formState.errors.nextFollowUpDate.message}</p>}
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Responsible Person</Label>
+                      <Select onValueChange={(v) => form.setValue("assignedTo", v)}>
+                        <SelectTrigger><SelectValue placeholder="Select responsible..." /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="me">Me (Default)</SelectItem>
+                          {/* In a real app, you'd list users here. For now, we'll use a placeholder or the current user ID if available */}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>External Source ID</Label>
+                      <Input
+                        placeholder="e.g., EXT-12345"
+                        {...form.register("externalSourceId")}
+                      />
                     </div>
                   </div>
 
