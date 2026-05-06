@@ -134,6 +134,24 @@ export default function WorkgroupsPage() {
       ) && !(wg.settings as any)?.is_broadcast,
   );
 
+  // Broadcast unread total
+  const broadcastWorkgroups = visibleWorkgroups.filter(
+    (wg) => (wg.settings as any)?.is_broadcast,
+  );
+  const totalBroadcastUnread = broadcastWorkgroups.reduce(
+    (sum, wg) => sum + Number((wg as any).unread_count || 0),
+    0,
+  );
+
+  // Direct chat unread total
+  const directChatWorkgroups = visibleWorkgroups.filter(
+    (wg) => wg.type === "private" && Boolean((wg.settings as any)?.is_direct_chat),
+  );
+  const totalDirectChatUnread = directChatWorkgroups.reduce(
+    (sum, wg) => sum + Number((wg as any).unread_count || 0),
+    0,
+  );
+
   const totalMembers = teamOnlyWorkgroups.reduce(
     (sum, wg) => sum + Number(wg.member_count || 0),
     0,
@@ -294,7 +312,7 @@ export default function WorkgroupsPage() {
   };
 
   const openEdit = (wg: Workgroup) => {
-    const isModerator = 
+    const isModerator =
       wg.settings?.member_manager_user_id === user?.id ||
       wg.settings?.manage_member_user_id === user?.id ||
       (wg as any).manage_member_user_id === user?.id;
@@ -443,7 +461,7 @@ export default function WorkgroupsPage() {
             try {
               await workgroupsApi.uploadAvatar(newWg.id, avatarFile);
               queryClient.invalidateQueries({ queryKey: ["workgroups"] });
-            } catch {}
+            } catch { }
           }
 
           // Add selected members
@@ -503,7 +521,7 @@ export default function WorkgroupsPage() {
             try {
               await workgroupsApi.uploadAvatar(editing.id, avatarFile);
               queryClient.invalidateQueries({ queryKey: ["workgroups"] });
-            } catch {}
+            } catch { }
           }
           setEditing(null);
           setManageMembersUserId("none");
@@ -559,17 +577,29 @@ export default function WorkgroupsPage() {
               variant="outline"
               size="sm"
               onClick={() => navigate("/collaboration/broadcast")}
+              className="relative"
             >
               <Send className="h-4 w-4 mr-2" />
               Broadcasts
+              {totalBroadcastUnread > 0 && (
+                <span className="ml-2 inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-primary text-white text-[10px] font-bold px-1">
+                  {totalBroadcastUnread > 99 ? "99+" : totalBroadcastUnread}
+                </span>
+              )}
             </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={() => navigate("/collaboration/direct-chats")}
+              className="relative"
             >
               <MessageCircle className="h-4 w-4 mr-2" />
               Direct Chats
+              {totalDirectChatUnread > 0 && (
+                <span className="ml-2 inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-primary text-white text-[10px] font-bold px-1">
+                  {totalDirectChatUnread > 99 ? "99+" : totalDirectChatUnread}
+                </span>
+              )}
             </Button>
             <Button
               size="sm"
@@ -656,19 +686,19 @@ export default function WorkgroupsPage() {
                 const TypeIcon = getTypeIcon(wg.type);
                 const unreadCount =
                   selectedId === wg.id ? 0 : Number(wg.unread_count || 0);
-                
-                const isModerator = 
+
+                const isModerator =
                   wg.settings?.member_manager_user_id === user?.id ||
                   wg.settings?.manage_member_user_id === user?.id ||
                   (wg as any).manage_member_user_id === user?.id;
 
                 const canEdit =
-                  wg.user_role === "owner" || 
+                  wg.user_role === "owner" ||
                   wg.created_by === user?.id ||
                   (isModerator && wg.settings?.moderator_permissions?.edit_group);
-                
+
                 const canDelete =
-                  wg.user_role === "owner" || 
+                  wg.user_role === "owner" ||
                   wg.created_by === user?.id ||
                   (isModerator && wg.settings?.moderator_permissions?.delete_group);
 
@@ -677,11 +707,10 @@ export default function WorkgroupsPage() {
                   <div
                     key={wg.id}
                     onClick={() => openWorkgroup(wg.id)}
-                    className={`relative group flex flex-col rounded-xl border-2 border-blue-200 p-4 cursor-pointer hover:shadow-md ${
-                      unreadCount > 0
-                        ? "bg-primary/10 border-primary shadow-sm shadow-primary/20 hover:border-primary"
-                        : "bg-card hover:border-blue-300"
-                    }`}
+                    className={`relative group flex flex-col rounded-xl border-2 border-blue-200 p-4 cursor-pointer hover:shadow-md ${unreadCount > 0
+                      ? "bg-primary/10 border-primary shadow-sm shadow-primary/20 hover:border-primary"
+                      : "bg-card hover:border-blue-300"
+                      }`}
                   >
                     {unreadCount > 0 && (
                       <div className="absolute top-0 left-0 bottom-0 w-1.5 bg-primary rounded-l-xl" />
@@ -757,9 +786,8 @@ export default function WorkgroupsPage() {
                       {/* Top Row */}
                       <div className="flex items-center justify-between gap-2">
                         <h3
-                          className={`font-bold truncate ${
-                            unreadCount > 0 ? "text-primary" : "text-foreground"
-                          }`}
+                          className={`font-bold truncate ${unreadCount > 0 ? "text-primary" : "text-foreground"
+                            }`}
                         >
                           {wg.name}
                         </h3>
@@ -815,18 +843,18 @@ export default function WorkgroupsPage() {
                 const TypeIcon = getTypeIcon(wg.type);
                 const unreadCount =
                   selectedId === wg.id ? 0 : Number(wg.unread_count || 0);
-                const isModerator = 
+                const isModerator =
                   wg.settings?.member_manager_user_id === user?.id ||
                   wg.settings?.manage_member_user_id === user?.id ||
                   (wg as any).manage_member_user_id === user?.id;
 
                 const canEdit =
-                  wg.user_role === "owner" || 
+                  wg.user_role === "owner" ||
                   wg.created_by === user?.id ||
                   (isModerator && wg.settings?.moderator_permissions?.edit_group);
-                
+
                 const canDelete =
-                  wg.user_role === "owner" || 
+                  wg.user_role === "owner" ||
                   wg.created_by === user?.id ||
                   (isModerator && wg.settings?.moderator_permissions?.delete_group);
                 const isPinned = pinnedTeams.has(wg.id);
@@ -834,13 +862,12 @@ export default function WorkgroupsPage() {
                   <div
                     key={wg.id}
                     onClick={() => openWorkgroup(wg.id)}
-                    className={`relative group flex items-center gap-4 p-4 cursor-pointer rounded-xl border ${
-                      unreadCount > 0
-                        ? "bg-primary/10 border-primary/30"
-                        : isPinned
-                          ? "bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800"
-                          : "bg-card border-border hover:border-border/80 hover:bg-muted/50"
-                    }`}
+                    className={`relative group flex items-center gap-4 p-4 cursor-pointer rounded-xl border ${unreadCount > 0
+                      ? "bg-primary/10 border-primary/30"
+                      : isPinned
+                        ? "bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800"
+                        : "bg-card border-border hover:border-border/80 hover:bg-muted/50"
+                      }`}
                   >
                     {/* Pin indicator */}
                     {isPinned && (
@@ -927,12 +954,11 @@ export default function WorkgroupsPage() {
                         </div>
                         <Badge
                           variant="outline"
-                          className={`text-xs px-2 py-1 font-medium ${
-                            unreadCount > 0
-                              ? "bg-primary/10 text-primary border-primary/30"
-                              : TYPE_COLORS[wg.type] ||
-                                "bg-muted text-muted-foreground border-border"
-                          }`}
+                          className={`text-xs px-2 py-1 font-medium ${unreadCount > 0
+                            ? "bg-primary/10 text-primary border-primary/30"
+                            : TYPE_COLORS[wg.type] ||
+                            "bg-muted text-muted-foreground border-border"
+                            }`}
                         >
                           {getTypeLabel(wg.type)}
                         </Badge>
@@ -1000,410 +1026,410 @@ export default function WorkgroupsPage() {
       >
         <DialogContent className="max-w-lg max-h-[95vh] overflow-y-auto">
           {(() => {
-            const isAdminOrOwner = 
+            const isAdminOrOwner =
               !editing || // Creating new team
-              editing.user_role === "owner" || 
-              editing.user_role === "admin" || 
+              editing.user_role === "owner" ||
+              editing.user_role === "admin" ||
               editing.created_by === user?.id;
 
             return (
               <>
-          <DialogHeader>
-            <DialogTitle>
-              {editing ? "Edit Team" : "Create New Team"}
-            </DialogTitle>
-            <DialogDescription>
-              {editing
-                ? "Update your team details."
-                : "Set up a new team for your organization."}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            {/* Avatar Upload */}
-            {isAdminOrOwner && (
-              <div className="flex items-center gap-4">
-                <div
-                  className="relative cursor-pointer group"
-                  onClick={() => avatarInputRef.current?.click()}
-                >
-                  <Avatar className="h-16 w-16">
-                    <AvatarImage src={avatarPreview || undefined} />
-                    <AvatarFallback
-                      className={`${form.avatar_color} text-white font-bold text-lg`}
-                    >
-                      {form.name ? (
-                        form.name.slice(0, 2).toUpperCase()
-                      ) : (
-                        <Camera className="h-5 w-5" />
-                      )}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Camera className="h-5 w-5 text-white" />
-                  </div>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-foreground">
-                    Group Logo
-                  </p>
-                  <p className="text-xs text-muted-foreground mb-1">
-                    Click the avatar to upload an image
-                  </p>
-                  {avatarPreview && (
-                    <Button
-                      variant="outline"
-                      type="button"
-                      className="text-xs text-destructive h-8 w-14 border-red-500 hover:bg-red-500/10 hover:text-destructive"
-                      onClick={() => {
-                        setAvatarPreview(null);
-                        setAvatarFile(null);
-                      }}
-                    >
-                      Remove
-                    </Button>
-                  )}
-                </div>
-                <input
-                  ref={avatarInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    setAvatarFile(file);
-                    setAvatarPreview(URL.createObjectURL(file));
-                  }}
-                />
-              </div>
-            )}
-            <div className="space-y-1.5">
-              <Label htmlFor="name">Name *</Label>
-              <Input
-                id="name"
-                value={form.name}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setForm({
-                    ...form,
-                    name: v.charAt(0).toUpperCase() + v.slice(1),
-                  });
-                }}
-                placeholder={`e.g., Sales ${getTypeLabel(form.type)}`}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="description">Description</Label>
-              <Input
-                id="description"
-                value={form.description}
-                onChange={(e) =>
-                  setForm({ ...form, description: e.target.value })
-                }
-                placeholder="What is this team for?"
-              />
-            </div>
-
-            {isAdminOrOwner && (
-              <div className="space-y-1.5">
-                <Label htmlFor="type">Team Type</Label>
-                <Select
-                  value={form.type}
-                  onValueChange={(value: any) =>
-                    setForm({
-                      ...form,
-                      type: value,
-                      is_private: value === "private",
-                    })
-                  }
-                >
-                  <SelectTrigger id="type">
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {WORKGROUP_TYPES.map((t) => (
-                      <SelectItem key={t.value} value={t.value}>
-                        <div className="flex items-center">
-                          <t.icon className="h-4 w-4 mr-2 text-muted-foreground" />
-                          {t.label}
+                <DialogHeader>
+                  <DialogTitle>
+                    {editing ? "Edit Team" : "Create New Team"}
+                  </DialogTitle>
+                  <DialogDescription>
+                    {editing
+                      ? "Update your team details."
+                      : "Set up a new team for your organization."}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-2">
+                  {/* Avatar Upload */}
+                  {isAdminOrOwner && (
+                    <div className="flex items-center gap-4">
+                      <div
+                        className="relative cursor-pointer group"
+                        onClick={() => avatarInputRef.current?.click()}
+                      >
+                        <Avatar className="h-16 w-16">
+                          <AvatarImage src={avatarPreview || undefined} />
+                          <AvatarFallback
+                            className={`${form.avatar_color} text-white font-bold text-lg`}
+                          >
+                            {form.name ? (
+                              form.name.slice(0, 2).toUpperCase()
+                            ) : (
+                              <Camera className="h-5 w-5" />
+                            )}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Camera className="h-5 w-5 text-white" />
                         </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {/* modiator section  */}
-            {isAdminOrOwner && (
-              <div className="space-y-1.5 flex flex-col">
-                <Label htmlFor="assign-member-manager">Moderator</Label>
-                <Popover open={moderatorOpen} onOpenChange={setModeratorOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={moderatorOpen}
-                      className="justify-between font-normal h-10 w-full"
-                    >
-                      {manageMembersUserId === "none"
-                        ? "None (Owner/Admin only)"
-                        : orgMembers.find(
-                              (m: any) => m.id === manageMembersUserId,
-                            )
-                          ? orgMembers.find(
-                              (m: any) => m.id === manageMembersUserId,
-                            )?.full_name ||
-                            orgMembers.find(
-                              (m: any) => m.id === manageMembersUserId,
-                            )?.email
-                          : "Select a moderator"}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    className="w-[--radix-popover-trigger-width] p-0"
-                    align="start"
-                  >
-                    <Command>
-                      <CommandInput placeholder="Search a moderator..." />
-                      <CommandList>
-                        <CommandEmpty>No moderator found.</CommandEmpty>
-                        <CommandGroup>
-                          <CommandItem
-                            value="none"
-                            onSelect={() => {
-                              setManageMembersUserId("none");
-                              setModeratorOpen(false);
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-foreground">
+                          Group Logo
+                        </p>
+                        <p className="text-xs text-muted-foreground mb-1">
+                          Click the avatar to upload an image
+                        </p>
+                        {avatarPreview && (
+                          <Button
+                            variant="outline"
+                            type="button"
+                            className="text-xs text-destructive h-8 w-14 border-red-500 hover:bg-red-500/10 hover:text-destructive"
+                            onClick={() => {
+                              setAvatarPreview(null);
+                              setAvatarFile(null);
                             }}
                           >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                manageMembersUserId === "none"
-                                  ? "opacity-100"
-                                  : "opacity-0",
-                              )}
-                            />
-                            None (Owner/Admin only)
-                          </CommandItem>
-                          {orgMembers.map((member: any) => (
-                            <CommandItem
-                              key={member.id}
-                              value={member.full_name || member.email}
-                              onSelect={() => {
-                                setManageMembersUserId(member.id);
-                                setModeratorOpen(false);
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  manageMembersUserId === member.id
-                                    ? "opacity-100"
-                                    : "opacity-0",
-                                )}
-                              />
-                              {member.full_name || member.email}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Moderators can add/remove members but cannot delete the team.
-                </p>
-              </div>
-            )}
-            
-            {/* Global Permissions Section */}
-            <div className="space-y-4 p-4 rounded-xl border-2 border-blue-100">
-              <h4 className="text-sm font-bold text-blue-900 flex items-center gap-2">
-                <Lock className="h-4 w-4" />
-                Global Permissions
-              </h4>
-              
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label className="text-sm font-semibold">Lock Chat</Label>
-                  <p className="text-xs text-muted-foreground">Only Admins and Moderators can send messages</p>
-                </div>
-                <Switch checked={isChatLocked} onCheckedChange={setIsChatLocked} />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label className="text-sm font-semibold">Lock Reactions</Label>
-                  <p className="text-xs text-muted-foreground">Only Admins and Moderators can react with emojis</p>
-                </div>
-                <Switch checked={isReactionsLocked} onCheckedChange={setIsReactionsLocked} />
-              </div>
-            </div>
-
-            {/* Moderator Permissions Section (if moderator selected) */}
-            {isAdminOrOwner && manageMembersUserId !== "none" && (
-              <div className="space-y-4 p-4 rounded-xl border-2 border-orange-100">
-                <h4 className="text-sm font-bold text-blue-900 flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  Moderator Permissions
-                </h4>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox 
-                      id="perm-edit" 
-                      checked={moderatorPermissions.edit_group}
-                      onCheckedChange={(val) => setModeratorPermissions(prev => ({ ...prev, edit_group: !!val }))}
-                    />
-                    <Label htmlFor="perm-edit" className="text-xs">Edit Group Name</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox 
-                      id="perm-delete" 
-                      checked={moderatorPermissions.delete_group}
-                      onCheckedChange={(val) => setModeratorPermissions(prev => ({ ...prev, delete_group: !!val }))}
-                    />
-                    <Label htmlFor="perm-delete" className="text-xs">Delete Group</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox 
-                      id="perm-lock-chat" 
-                      checked={moderatorPermissions.lock_chat}
-                      onCheckedChange={(val) => setModeratorPermissions(prev => ({ ...prev, lock_chat: !!val }))}
-                    />
-                    <Label htmlFor="perm-lock-chat" className="text-xs">Lock/Unlock Chat</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox 
-                      id="perm-lock-reactions" 
-                      checked={moderatorPermissions.lock_reactions}
-                      onCheckedChange={(val) => setModeratorPermissions(prev => ({ ...prev, lock_reactions: !!val }))}
-                    />
-                    <Label htmlFor="perm-lock-reactions" className="text-xs">Lock Reactions</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox 
-                      id="perm-add" 
-                      checked={moderatorPermissions.add_members}
-                      onCheckedChange={(val) => setModeratorPermissions(prev => ({ ...prev, add_members: !!val }))}
-                    />
-                    <Label htmlFor="perm-add" className="text-xs">Add Members</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox 
-                      id="perm-remove" 
-                      checked={moderatorPermissions.delete_members}
-                      onCheckedChange={(val) => setModeratorPermissions(prev => ({ ...prev, delete_members: !!val }))}
-                    />
-                    <Label htmlFor="perm-remove" className="text-xs">Remove Members</Label>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* User Selection */}
-            {isAdminOrOwner && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label>Team Members</Label>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="select-all-team-members"
-                      checked={
-                        orgMembers.length > 0 &&
-                        orgMembers.every((member: any) =>
-                          selectedUsers.includes(member.id),
-                        )
-                      }
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setSelectedUsers(orgMembers.map((m: any) => m.id));
-                        } else {
-                          setSelectedUsers([]);
-                        }
+                            Remove
+                          </Button>
+                        )}
+                      </div>
+                      <input
+                        ref={avatarInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          setAvatarFile(file);
+                          setAvatarPreview(URL.createObjectURL(file));
+                        }}
+                      />
+                    </div>
+                  )}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="name">Name *</Label>
+                    <Input
+                      id="name"
+                      value={form.name}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setForm({
+                          ...form,
+                          name: v.charAt(0).toUpperCase() + v.slice(1),
+                        });
                       }}
+                      placeholder={`e.g., Sales ${getTypeLabel(form.type)}`}
                     />
-                    <Label
-                      htmlFor="select-all-team-members"
-                      className="text-xs font-medium cursor-pointer text-muted-foreground"
-                    >
-                      Select All
-                    </Label>
                   </div>
-                </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="description">Description</Label>
+                    <Input
+                      id="description"
+                      value={form.description}
+                      onChange={(e) =>
+                        setForm({ ...form, description: e.target.value })
+                      }
+                      placeholder="What is this team for?"
+                    />
+                  </div>
 
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search users..."
-                    value={userSearch}
-                    onChange={(e) => setUserSearch(e.target.value)}
-                    className="pl-9"
-                  />
-                </div>
-
-                <div className="max-h-48 overflow-y-auto space-y-1 p-1 rounded-md border border-border bg-muted/30">
-                  {orgMembers
-                    .filter(
-                      (m: any) =>
-                        m.full_name
-                          ?.toLowerCase()
-                          .includes(userSearch.toLowerCase()) ||
-                        m.email?.toLowerCase().includes(userSearch.toLowerCase()),
-                    )
-                    .map((member: any) => (
-                      <div
-                        key={member.id}
-                        className="flex items-center space-x-3 p-2 rounded-md hover:bg-background transition-colors"
+                  {isAdminOrOwner && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="type">Team Type</Label>
+                      <Select
+                        value={form.type}
+                        onValueChange={(value: any) =>
+                          setForm({
+                            ...form,
+                            type: value,
+                            is_private: value === "private",
+                          })
+                        }
                       >
-                        <Checkbox
-                          id={`user-${member.id}`}
-                          checked={selectedUsers.includes(member.id)}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              setSelectedUsers((prev) => [...prev, member.id]);
-                            } else {
-                              setSelectedUsers((prev) =>
-                                prev.filter((id) => id !== member.id),
-                              );
-                            }
-                          }}
-                        />
-                        <div className="flex items-center gap-2">
-                          <Avatar className="h-6 w-6">
-                            <AvatarImage
-                              src={member.avatar_url || undefined}
-                            />
-                            <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
-                              {member.full_name?.slice(0, 2).toUpperCase() ||
-                                member.email?.slice(0, 2).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <Label
-                            htmlFor={`user-${member.id}`}
-                            className="text-sm font-normal cursor-pointer flex-1"
+                        <SelectTrigger id="type">
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {WORKGROUP_TYPES.map((t) => (
+                            <SelectItem key={t.value} value={t.value}>
+                              <div className="flex items-center">
+                                <t.icon className="h-4 w-4 mr-2 text-muted-foreground" />
+                                {t.label}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {/* modiator section  */}
+                  {isAdminOrOwner && (
+                    <div className="space-y-1.5 flex flex-col">
+                      <Label htmlFor="assign-member-manager">Moderator</Label>
+                      <Popover open={moderatorOpen} onOpenChange={setModeratorOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={moderatorOpen}
+                            className="justify-between font-normal h-10 w-full"
                           >
-                            {member.full_name || member.email}
+                            {manageMembersUserId === "none"
+                              ? "None (Owner/Admin only)"
+                              : orgMembers.find(
+                                (m: any) => m.id === manageMembersUserId,
+                              )
+                                ? orgMembers.find(
+                                  (m: any) => m.id === manageMembersUserId,
+                                )?.full_name ||
+                                orgMembers.find(
+                                  (m: any) => m.id === manageMembersUserId,
+                                )?.email
+                                : "Select a moderator"}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          className="w-[--radix-popover-trigger-width] p-0"
+                          align="start"
+                        >
+                          <Command>
+                            <CommandInput placeholder="Search a moderator..." />
+                            <CommandList>
+                              <CommandEmpty>No moderator found.</CommandEmpty>
+                              <CommandGroup>
+                                <CommandItem
+                                  value="none"
+                                  onSelect={() => {
+                                    setManageMembersUserId("none");
+                                    setModeratorOpen(false);
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      manageMembersUserId === "none"
+                                        ? "opacity-100"
+                                        : "opacity-0",
+                                    )}
+                                  />
+                                  None (Owner/Admin only)
+                                </CommandItem>
+                                {orgMembers.map((member: any) => (
+                                  <CommandItem
+                                    key={member.id}
+                                    value={member.full_name || member.email}
+                                    onSelect={() => {
+                                      setManageMembersUserId(member.id);
+                                      setModeratorOpen(false);
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        manageMembersUserId === member.id
+                                          ? "opacity-100"
+                                          : "opacity-0",
+                                      )}
+                                    />
+                                    {member.full_name || member.email}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Moderators can add/remove members but cannot delete the team.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Global Permissions Section */}
+                  <div className="space-y-4 p-4 rounded-xl border-2 border-blue-100">
+                    <h4 className="text-sm font-bold text-blue-900 flex items-center gap-2">
+                      <Lock className="h-4 w-4" />
+                      Global Permissions
+                    </h4>
+
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label className="text-sm font-semibold">Lock Chat</Label>
+                        <p className="text-xs text-muted-foreground">Only Admins and Moderators can send messages</p>
+                      </div>
+                      <Switch checked={isChatLocked} onCheckedChange={setIsChatLocked} />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label className="text-sm font-semibold">Lock Reactions</Label>
+                        <p className="text-xs text-muted-foreground">Only Admins and Moderators can react with emojis</p>
+                      </div>
+                      <Switch checked={isReactionsLocked} onCheckedChange={setIsReactionsLocked} />
+                    </div>
+                  </div>
+
+                  {/* Moderator Permissions Section (if moderator selected) */}
+                  {isAdminOrOwner && manageMembersUserId !== "none" && (
+                    <div className="space-y-4 p-4 rounded-xl border-2 border-orange-100">
+                      <h4 className="text-sm font-bold text-blue-900 flex items-center gap-2">
+                        <Users className="h-4 w-4" />
+                        Moderator Permissions
+                      </h4>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="perm-edit"
+                            checked={moderatorPermissions.edit_group}
+                            onCheckedChange={(val) => setModeratorPermissions(prev => ({ ...prev, edit_group: !!val }))}
+                          />
+                          <Label htmlFor="perm-edit" className="text-xs">Edit Group Name</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="perm-delete"
+                            checked={moderatorPermissions.delete_group}
+                            onCheckedChange={(val) => setModeratorPermissions(prev => ({ ...prev, delete_group: !!val }))}
+                          />
+                          <Label htmlFor="perm-delete" className="text-xs">Delete Group</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="perm-lock-chat"
+                            checked={moderatorPermissions.lock_chat}
+                            onCheckedChange={(val) => setModeratorPermissions(prev => ({ ...prev, lock_chat: !!val }))}
+                          />
+                          <Label htmlFor="perm-lock-chat" className="text-xs">Lock/Unlock Chat</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="perm-lock-reactions"
+                            checked={moderatorPermissions.lock_reactions}
+                            onCheckedChange={(val) => setModeratorPermissions(prev => ({ ...prev, lock_reactions: !!val }))}
+                          />
+                          <Label htmlFor="perm-lock-reactions" className="text-xs">Lock Reactions</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="perm-add"
+                            checked={moderatorPermissions.add_members}
+                            onCheckedChange={(val) => setModeratorPermissions(prev => ({ ...prev, add_members: !!val }))}
+                          />
+                          <Label htmlFor="perm-add" className="text-xs">Add Members</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="perm-remove"
+                            checked={moderatorPermissions.delete_members}
+                            onCheckedChange={(val) => setModeratorPermissions(prev => ({ ...prev, delete_members: !!val }))}
+                          />
+                          <Label htmlFor="perm-remove" className="text-xs">Remove Members</Label>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* User Selection */}
+                  {isAdminOrOwner && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label>Team Members</Label>
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="select-all-team-members"
+                            checked={
+                              orgMembers.length > 0 &&
+                              orgMembers.every((member: any) =>
+                                selectedUsers.includes(member.id),
+                              )
+                            }
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setSelectedUsers(orgMembers.map((m: any) => m.id));
+                              } else {
+                                setSelectedUsers([]);
+                              }
+                            }}
+                          />
+                          <Label
+                            htmlFor="select-all-team-members"
+                            className="text-xs font-medium cursor-pointer text-muted-foreground"
+                          >
+                            Select All
                           </Label>
                         </div>
                       </div>
-                    ))}
+
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Search users..."
+                          value={userSearch}
+                          onChange={(e) => setUserSearch(e.target.value)}
+                          className="pl-9"
+                        />
+                      </div>
+
+                      <div className="max-h-48 overflow-y-auto space-y-1 p-1 rounded-md border border-border bg-muted/30">
+                        {orgMembers
+                          .filter(
+                            (m: any) =>
+                              m.full_name
+                                ?.toLowerCase()
+                                .includes(userSearch.toLowerCase()) ||
+                              m.email?.toLowerCase().includes(userSearch.toLowerCase()),
+                          )
+                          .map((member: any) => (
+                            <div
+                              key={member.id}
+                              className="flex items-center space-x-3 p-2 rounded-md hover:bg-background transition-colors"
+                            >
+                              <Checkbox
+                                id={`user-${member.id}`}
+                                checked={selectedUsers.includes(member.id)}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setSelectedUsers((prev) => [...prev, member.id]);
+                                  } else {
+                                    setSelectedUsers((prev) =>
+                                      prev.filter((id) => id !== member.id),
+                                    );
+                                  }
+                                }}
+                              />
+                              <div className="flex items-center gap-2">
+                                <Avatar className="h-6 w-6">
+                                  <AvatarImage
+                                    src={member.avatar_url || undefined}
+                                  />
+                                  <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+                                    {member.full_name?.slice(0, 2).toUpperCase() ||
+                                      member.email?.slice(0, 2).toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <Label
+                                  htmlFor={`user-${member.id}`}
+                                  className="text-sm font-normal cursor-pointer flex-1"
+                                >
+                                  {member.full_name || member.email}
+                                </Label>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                      {selectedUsers.length > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          {selectedUsers.length} member
+                          {selectedUsers.length !== 1 ? "s" : ""} selected
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
-                {selectedUsers.length > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    {selectedUsers.length} member
-                    {selectedUsers.length !== 1 ? "s" : ""} selected
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-        </>
-      );
-    })()}
-    <DialogFooter>
+              </>
+            );
+          })()}
+          <DialogFooter>
             <Button
               variant="outline"
               onClick={() => {
