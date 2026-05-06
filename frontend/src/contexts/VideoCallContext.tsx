@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getSocket } from "@/hooks/useRealtime";
 import { toast } from "sonner";
 import { getAvatarUrl } from "@/lib/utils";
+import { fireRushNotification } from "@/components/ui/RushNotification";
 
 // ─── Types ───────────────────────────────────────────────
 export type CallState =
@@ -782,28 +783,20 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
           const caller = Object.values(s.peers)[0];
           const displayName = s.isGroupCall && s.groupName ? s.groupName : (caller?.name || "Someone");
           const rawAvatar = s.isGroupCall && s.groupAvatar ? s.groupAvatar : (caller?.avatar || null);
-          const displayAvatar = rawAvatar ? getAvatarUrl(rawAvatar) : null;
           const isVideo = s.callType === "video";
           const label = isVideo ? "Missed video call" : "Missed voice call";
 
-          toast(
-            React.createElement("div", { className: "flex items-center gap-3" },
-              displayAvatar
-                ? React.createElement("img", {
-                  src: displayAvatar,
-                  className: "w-9 h-9 rounded-full object-cover shrink-0",
-                  alt: displayName,
-                })
-                : React.createElement("div", {
-                  className: "w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm shrink-0",
-                }, displayName.charAt(0).toUpperCase()),
-              React.createElement("div", { className: "flex flex-col min-w-0" },
-                React.createElement("span", { className: "font-semibold text-sm truncate" }, displayName),
-                React.createElement("span", { className: "text-xs text-muted-foreground" }, `📵 ${label}`)
-              )
-            ),
-            { duration: 5000, position: "bottom-right" }
-          );
+          fireRushNotification({
+            title: displayName,
+            body: `📵 ${label}`,
+            avatar: rawAvatar,
+            avatarColor: null,
+            isDirectChat: !s.isGroupCall,
+            isBroadcast: false,
+            workgroupId: s.workgroupId || s.callId || "",
+            unreadCount: 0,
+            authorName: "",
+          });
         }
         resetCallStateRef.current();
       } else {

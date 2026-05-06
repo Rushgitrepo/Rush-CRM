@@ -302,7 +302,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   const membersScrollRef = useRef<HTMLDivElement>(null);
   const composerEmojiRef = useRef<HTMLDivElement>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
-  const messageInputRef = useRef<HTMLInputElement>(null);
+  const messageInputRef = useRef<HTMLTextAreaElement>(null);
   const mentionStartRef = useRef<number | null>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -344,6 +344,20 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   const starredMessagesList = useMemo(() => {
     return flatPosts.filter((p) => starredMessages.has(p.id));
   }, [flatPosts, starredMessages]);
+
+  // Auto-cleanup: remove starred IDs that no longer exist in flatPosts (deleted messages)
+  useEffect(() => {
+    if (starredMessages.size === 0) return;
+    const existingIds = new Set(flatPosts.map((p) => p.id));
+    const toRemove = [...starredMessages].filter((id) => !existingIds.has(id));
+    if (toRemove.length > 0) {
+      setStarredMessages((prev) => {
+        const next = new Set(prev);
+        toRemove.forEach((id) => next.delete(id));
+        return next;
+      });
+    }
+  }, [flatPosts]);
 
   // Filter posts based on search query
   const filteredPosts = useMemo(() => {
@@ -639,6 +653,10 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
             setReplyTo(null);
             setSelectedMentions([]);
             setShowMentionSuggestions(false);
+            // Reset textarea height
+            if (messageInputRef.current) {
+              messageInputRef.current.style.height = 'auto';
+            }
           },
         },
       );
@@ -651,6 +669,10 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
             setNewPost("");
             setSelectedMentions([]);
             setShowMentionSuggestions(false);
+            // Reset textarea height
+            if (messageInputRef.current) {
+              messageInputRef.current.style.height = 'auto';
+            }
           },
         },
       );
@@ -948,6 +970,12 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
         );
       }
       toast.success("Messages deleted successfully");
+      // Remove deleted messages from starred list
+      setStarredMessages((prev) => {
+        const next = new Set(prev);
+        filteredPostIds.forEach((id) => next.delete(id));
+        return next;
+      });
       clearDeleteSelection();
     } catch (error: any) {
       toast.error(error?.message || "Failed to delete messages");
@@ -1775,19 +1803,11 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => {
-                  if (starredMessages.size === 0) {
-                    toast.info(
-                      "No starred messages yet. Star messages by clicking the star icon on any message.",
-                    );
-                  } else {
-                    setShowStarredMessages(true);
-                  }
-                }}
-                className={starredMessages.size > 0 ? "text-yellow-500" : ""}
+                onClick={() => setShowStarredMessages(true)}
+                className={starredMessagesList.length > 0 ? "text-yellow-500" : "text-white/60 hover:text-white"}
               >
                 <Star
-                  className={`h-4 w-4 ${starredMessages.size > 0 ? "fill-current" : ""}`}
+                  className={`h-4 w-4 ${starredMessagesList.length > 0 ? "fill-current" : ""}`}
                 />
               </Button>
               <Button
@@ -2125,7 +2145,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                                 ref={composerEmojiRef}
                                 className="flex-1 relative"
                               >
-                                <Input
+                                <Textarea
                                   ref={messageInputRef}
                                   value={newPost}
                                   onChange={(e) =>
@@ -2143,12 +2163,20 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                                         : "Type a message..."
                                   }
                                   disabled={!canSendMessages}
-                                  className="w-full pl-4 pr-32 bg-muted border-none rounded-full h-11 focus-visible:ring-1 focus-visible:ring-primary shadow-inner"
+                                  rows={1}
+                                  className="w-full pl-4 pr-32 bg-muted border-none rounded-2xl min-h-[44px] max-h-[160px] focus-visible:ring-1 focus-visible:ring-primary shadow-inner resize-none overflow-y-auto py-2.5 leading-6"
+                                  style={{ height: 'auto' }}
+                                  onInput={(e) => {
+                                    const el = e.currentTarget;
+                                    el.style.height = 'auto';
+                                    el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+                                  }}
                                   onKeyDown={(e) => {
                                     if (e.key === "Enter" && !e.shiftKey) {
                                       e.preventDefault();
                                       handlePost();
                                     }
+                                    // Shift+Enter: allow default (new line)
                                   }}
                                 />
                                 {showMentionSuggestions &&
@@ -3317,7 +3345,25 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                     </Button>
                   </div>
                   <div className="text-sm text-gray-700 dark:text-gray-300 line-clamp-3">
-                    {msg.content}
+                    {(() => {
+                      const content = msg.content || '';
+                      try {
+                        const parsed = JSON.parse(content);
+                        if (parsed && parsed.type && parsed.status) {
+                          const isVideo = parsed.type === 'video';
+                          const isMissed = parsed.status === 'missed' || parsed.status === 'rejected';
+                          if (isMissed) return isVideo ? '📵 Missed video call' : '📵 Missed voice call';
+                          if (parsed.status === 'completed') {
+                            const dur = parsed.duration || 0;
+                            const m = Math.floor(dur / 60);
+                            const s = dur % 60;
+                            const durStr = dur > 0 ? ` (${m}:${s.toString().padStart(2, '0')})` : '';
+                            return isVideo ? `📹 Video call${durStr}` : `📞 Voice call${durStr}`;
+                          }
+                        }
+                      } catch (_) { }
+                      return content;
+                    })()}
                   </div>
                   <div className="mt-3 flex justify-end">
                     <Button

@@ -1136,7 +1136,7 @@ const createWorkgroupPost = async (req, res, next) => {
 
     // Fetch workgroup name and all members (excluding sender) for per-user notifications
     const [wgResult, membersResult] = await Promise.all([
-      db.query(`SELECT name, type, settings FROM workgroups WHERE id = $1`, [id]),
+      db.query(`SELECT name, type, settings, avatar_url FROM workgroups WHERE id = $1`, [id]),
       db.query(
         `SELECT wm.user_id FROM workgroup_members wm WHERE wm.workgroup_id = $1 AND wm.user_id <> $2`,
         [id, req.user.id]
@@ -1148,6 +1148,25 @@ const createWorkgroupPost = async (req, res, next) => {
     const chatName = isDirectChat ? insertedPost.author_name : (workgroup?.name || 'Team');
     const notifTitle = isDirectChat ? insertedPost.author_name : `${chatName}`;
     const notifBody = insertedPost.content.replace('[SYSTEM] ', '');
+
+    // Helper: convert relative avatar path to absolute URL for push notifications
+    const backendUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 4000}`;
+    const toAbsoluteUrl = (url) => {
+      if (!url) return null;
+      if (url.startsWith('http')) return url;
+      return `${backendUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+    };
+
+    // For broadcast channels, fetch channel avatar if available
+    let channelAvatar = null;
+    if (channel_id) {
+      const channelAvatarResult = await db.query(
+        `SELECT avatar_url FROM workgroup_channels WHERE id = $1`,
+        [channel_id]
+      );
+      channelAvatar = channelAvatarResult.rows[0]?.avatar_url || null;
+    }
+
     const notifPayload = {
       title: notifTitle,
       body: notifBody,
@@ -1155,7 +1174,8 @@ const createWorkgroupPost = async (req, res, next) => {
       workgroup_name: chatName,
       user_id: req.user.id,
       author_name: insertedPost.author_name,
-      author_avatar: insertedPost.author_avatar,
+      author_avatar: toAbsoluteUrl(insertedPost.author_avatar),
+      workgroup_avatar: toAbsoluteUrl(channelAvatar || workgroup?.avatar_url),
       post_id: insertedPost.id,
       is_direct_chat: isDirectChat,
     };
