@@ -478,13 +478,12 @@ export default function AdminDashboardPage() {
                           <td className="px-6 py-4">
                             <Badge
                               variant="outline"
-                              className={`capitalize border-none px-2 py-0.5 ${
-                                u.role === "super_admin"
+                              className={`capitalize border-none px-2 py-0.5 ${u.role === "super_admin"
                                   ? "bg-indigo-500/10 text-indigo-500"
                                   : u.role === "admin"
                                     ? "bg-emerald-500/10 text-emerald-500"
                                     : "bg-slate-500/10 text-slate-500"
-                              }`}
+                                }`}
                             >
                               {u.role?.replace("_", " ")}
                             </Badge>
@@ -603,9 +602,8 @@ export default function AdminDashboardPage() {
                   {[1, 2].map((i) => (
                     <div
                       key={i}
-                      className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
-                        i <= addMemberStep ? "bg-primary" : "bg-primary/10"
-                      }`}
+                      className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${i <= addMemberStep ? "bg-primary" : "bg-primary/10"
+                        }`}
                     />
                   ))}
                 </div>
@@ -742,10 +740,51 @@ export default function AdminDashboardPage() {
                     </div>
                   </div>
                 ) : (
-                  <ModulePermissionEditor
-                    selectedModules={selectedModules}
-                    setSelectedModules={setSelectedModules}
-                  />
+                  <div className="space-y-6">
+                    {/* Role Edit - only show when editing existing user */}
+                    {editingUser && (
+                      <div className="flex items-center gap-4 p-4 bg-secondary/30 rounded-xl border border-border/50">
+                        <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                          <ShieldCheck className="h-4 w-4 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                            System Role
+                          </label>
+                          <Select
+                            value={formData.role}
+                            onValueChange={(v) =>
+                              setFormData({ ...formData, role: v })
+                            }
+                          >
+                            <SelectTrigger className="mt-1 bg-secondary/50 border-none focus:ring-1 focus:ring-primary h-9 capitalize">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {ROLE_OPTIONS.filter(
+                                (r) =>
+                                  userRole?.role === "super_admin" ||
+                                  r.value !== "super_admin",
+                              ).map((r) => (
+                                <SelectItem key={r.value} value={r.value}>
+                                  {r.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {formData.role === "admin" && (
+                          <p className="text-[10px] text-amber-500 font-medium flex items-center gap-1 shrink-0">
+                            <ShieldCheck className="h-3 w-3" /> Broad access
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    <ModulePermissionEditor
+                      selectedModules={selectedModules}
+                      setSelectedModules={setSelectedModules}
+                    />
+                  </div>
                 )}
               </form>
             </div>
