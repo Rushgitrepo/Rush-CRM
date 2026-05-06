@@ -21,6 +21,7 @@ import {
   Monitor,
 } from "lucide-react";
 import { useAdminUsers } from "@/hooks/useAdminUsers";
+import { useWorkgroupMembers } from "@/hooks/useWorkgroups";
 import { useAuth } from "@/contexts/AuthContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -408,19 +409,30 @@ export default function VideoCallOverlay() {
     inviteToCall,
     isGroupCall,
     callStatus,
+    workgroupId,
   } = useVideoCall();
 
   const { users: allUsers = [] } = useAdminUsers();
+  const { data: workgroupMembers = [] } = useWorkgroupMembers(workgroupId || "");
   const { user, profile: currentUser } = useAuth();
   const [showInvitePopover, setShowInvitePopover] = useState(false);
 
-  // Filter out users already in call and self
+  // Filter to workgroup members only (excluding self and already-in-call peers)
   const inviteableUsers = useMemo(() => {
     const peerIds = new Set(Object.keys(peers));
-    return allUsers.filter(
-      (u) => u.id !== user?.id && !peerIds.has(u.id),
+    // If we have workgroup members, use them; otherwise fall back to all users
+    const sourceList = workgroupMembers.length > 0
+      ? workgroupMembers.map((m: any) => ({
+        id: m.user_id || m.id,
+        full_name: m.full_name || m.name,
+        email: m.email,
+        avatar_url: m.avatar_url,
+      }))
+      : allUsers;
+    return sourceList.filter(
+      (u: any) => u.id !== user?.id && !peerIds.has(u.id),
     );
-  }, [allUsers, peers, user]);
+  }, [workgroupMembers, allUsers, peers, user]);
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const screenVideoRef = useRef<HTMLVideoElement>(null);
@@ -436,6 +448,7 @@ export default function VideoCallOverlay() {
   const [pipPosition, setPipPosition] = useState({ x: 0, y: 0 });
   const [pipMode, setPipMode] = useState<"local" | "remote">("local");
   const [pipSwapped, setPipSwapped] = useState(false); // true = PiP is main, main is PiP
+  const [gridPage, setGridPage] = useState(0); // pagination for group call grid
 
   const dragRef = useRef({
     startX: 0,
@@ -886,89 +899,117 @@ export default function VideoCallOverlay() {
               </div>
             </div>
           ) : (
-            /* 3+ person: Grid View OR PiP-swapped full screen */
-            pipSwapped && peerList.length >= 1 ? (
-              /* PiP Swapped: Remote full screen, local in bottom-right */
-              <div className="flex-1 relative bg-black overflow-hidden">
-                <div className="absolute inset-0 z-0">
-                  <RemotePeerVideo peer={peerList[0]} fullScreen />
-                </div>
-              </div>
-            ) : (
-              <div
-                className={cn(
-                  "flex-1 p-4 overflow-y-auto no-scrollbar",
-                  isGroupCall ? "bg-zinc-950" : "px-4",
-                )}
-              >
-                <div
-                  className={cn(
-                    "grid gap-4 h-full content-center",
-                    peerList.length <= 1
-                      ? "grid-cols-1 lg:grid-cols-2"
-                      : peerList.length === 2
-                        ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
-                        : "grid-cols-2 md:grid-cols-3",
+            /* 3+ person: Paginated Grid + PiP self-view */
+            (() => {
+              const PEERS_PER_PAGE = 6;
+              const totalPages = Math.ceil(peerList.length / PEERS_PER_PAGE);
+              const pagedPeers = peerList.slice(gridPage * PEERS_PER_PAGE, (gridPage + 1) * PEERS_PER_PAGE);
+
+              return (
+                <div className="flex-1 relative bg-zinc-950 overflow-hidden flex flex-col">
+                  {/* Remote peers grid — fills available space, no scroll */}
+                  <div className="flex-1 p-4 flex flex-col min-h-0">
+                    <div
+                      className={cn(
+                        "grid gap-3 h-full",
+                        pagedPeers.length <= 2
+                          ? "grid-cols-2 grid-rows-1"
+                          : pagedPeers.length <= 4
+                            ? "grid-cols-2 grid-rows-2"
+                            : "grid-cols-3 grid-rows-2",
+                      )}
+                    >
+                      {pagedPeers.map((p) => (
+                        <div
+                          key={p.userId}
+                          className="relative rounded-2xl overflow-hidden border border-white/5 bg-zinc-900 shadow-xl min-h-0"
+                        >
+                          <RemotePeerVideo peer={p} fullScreen />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Pagination arrows — only when more than 6 peers */}
+                  {totalPages > 1 && (
+                    <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 flex justify-between px-2 pointer-events-none z-30">
+                      <button
+                        onClick={() => setGridPage((p) => Math.max(0, p - 1))}
+                        disabled={gridPage === 0}
+                        className={cn(
+                          "pointer-events-auto w-10 h-10 rounded-full bg-black/60 backdrop-blur-md border border-white/10 flex items-center justify-center text-white transition-all hover:bg-black/80",
+                          gridPage === 0 && "opacity-30 cursor-not-allowed",
+                        )}
+                      >
+                        ‹
+                      </button>
+                      <button
+                        onClick={() => setGridPage((p) => Math.min(totalPages - 1, p + 1))}
+                        disabled={gridPage === totalPages - 1}
+                        className={cn(
+                          "pointer-events-auto w-10 h-10 rounded-full bg-black/60 backdrop-blur-md border border-white/10 flex items-center justify-center text-white transition-all hover:bg-black/80",
+                          gridPage === totalPages - 1 && "opacity-30 cursor-not-allowed",
+                        )}
+                      >
+                        ›
+                      </button>
+                    </div>
                   )}
-                >
-                  {/* Local Video Card */}
+
+                  {/* Page indicator dots */}
+                  {totalPages > 1 && (
+                    <div className="absolute bottom-20 left-1/2 -translate-x-1/2 flex gap-1.5 z-30">
+                      {Array.from({ length: totalPages }).map((_, i) => (
+                        <button
+                          key={i}
+                          onClick={() => setGridPage(i)}
+                          className={cn(
+                            "w-1.5 h-1.5 rounded-full transition-all",
+                            i === gridPage ? "bg-white w-4" : "bg-white/30",
+                          )}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* PiP self-view — sits inside the controls bar area, positioned bottom-right */}
                   <div
-                    className={cn(
-                      "relative rounded-3xl overflow-hidden border border-white/5 bg-zinc-900 group shadow-2xl transition-all duration-500",
-                      isGroupCall ? "aspect-video" : "aspect-[3/4]",
-                    )}
+                    className="absolute w-28 md:w-36 aspect-[3/4] bg-zinc-900 rounded-xl overflow-hidden border-2 border-white/20 shadow-2xl z-50 hover:border-white/50 transition-all"
+                    style={{
+                      right: '16px',
+                      bottom: '0px',
+                    }}
+                    title="You"
                   >
                     {isVideoOff || !localStream ? (
-                      <div className="w-full h-full flex flex-col items-center justify-center gap-4">
-                        <div className="w-20 h-20 rounded-full bg-zinc-800 border-2 border-white/10 overflow-hidden flex items-center justify-center">
+                      <div className="w-full h-full flex flex-col items-center justify-center gap-1 bg-zinc-900">
+                        <div className="w-10 h-10 rounded-full bg-zinc-800 border border-white/10 overflow-hidden flex items-center justify-center">
                           {currentUser?.avatar_url ? (
-                            <img
-                              src={getAvatarUrl(currentUser.avatar_url)}
-                              alt={currentUser.full_name}
-                              className="w-full h-full object-cover"
-                            />
+                            <img src={getAvatarUrl(currentUser.avatar_url)} alt="You" className="w-full h-full object-cover" />
                           ) : (
-                            <span className="text-2xl font-bold text-zinc-400">
+                            <span className="text-sm font-bold text-zinc-400">
                               {currentUser?.full_name?.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2) || "ME"}
                             </span>
                           )}
                         </div>
-                        <span className="text-[11px] text-white/50 font-bold uppercase tracking-widest">
-                          {currentUser?.full_name || "You"}
-                        </span>
                       </div>
                     ) : (
                       <video
-                        ref={localVideoRef}
+                        ref={(el) => { if (el && localStream) el.srcObject = localStream; }}
                         autoPlay
                         muted
                         playsInline
                         className="w-full h-full object-cover scale-x-[-1]"
                       />
                     )}
-                    <div className="absolute bottom-4 left-4 flex items-center gap-2 px-2.5 py-1 bg-black/40 backdrop-blur-md rounded-full border border-white/5">
-                      <span className="text-[10px] text-white font-bold">
-                        You
-                      </span>
-                      {isMuted && <MicOff className="w-3 h-3 text-red-500" />}
+                    {/* You label */}
+                    <div className="absolute bottom-1 left-0 right-0 flex justify-center">
+                      <span className="text-[9px] text-white/80 font-bold bg-black/50 px-2 py-0.5 rounded-full">You</span>
                     </div>
                   </div>
-
-                  {/* Remote Peers */}
-                  {peerList.map((p) => (
-                    <div
-                      key={p.userId}
-                      className={cn(
-                        "relative rounded-3xl overflow-hidden border border-white/5 bg-zinc-900 shadow-2xl transition-all duration-500",
-                        isGroupCall ? "aspect-video" : "aspect-[3/4]",
-                      )}
-                    >
-                      <RemotePeerVideo peer={p} fullScreen />
-                    </div>
-                  ))}
                 </div>
-              </div>
-            )
+              );
+            })()
           )}
         </div>
 
@@ -1006,7 +1047,7 @@ export default function VideoCallOverlay() {
             )}
 
             {/* Center Controls */}
-            <div className="flex items-center gap-3 mx-auto">
+            <div className="flex items-center gap-2 mx-auto">
               {/* Media Toggles */}
               <button
                 onClick={toggleMute}
@@ -1173,6 +1214,7 @@ export default function VideoCallOverlay() {
       </div>
     </div>
   );
+
   const shouldShowFullScreen = isGroupCall || callType === "video";
 
   // ─── Minimized floating widget (audio call) ──────────────────
