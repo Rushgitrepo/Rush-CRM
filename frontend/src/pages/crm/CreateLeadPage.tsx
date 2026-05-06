@@ -154,8 +154,8 @@ function SectionTitle({
 }) {
   return (
     <div className="flex items-start gap-3">
-      <div className="rounded-lg bg-slate-100 p-2.5">
-        <Icon className="h-5 w-5 text-slate-700" />
+      <div className="rounded-lg bg-muted p-2.5">
+        <Icon className="h-5 w-5 text-primary" />
       </div>
       <div>
         <h3 className="text-lg font-semibold text-foreground">{title}</h3>
@@ -428,7 +428,7 @@ export default function CreateLeadPage() {
                       value={field.value}
                       onValueChange={(v) => updateField(field.id, { value: v })}
                     >
-                      <SelectTrigger className="h-10 border-slate-200">
+                      <SelectTrigger className="h-10 border-border">
                         <SelectValue placeholder="Select Yes/No" />
                       </SelectTrigger>
                       <SelectContent>
@@ -442,7 +442,7 @@ export default function CreateLeadPage() {
                       placeholder={field.type === "money" ? "0.00" : "Enter value..."}
                       value={field.value}
                       onChange={(e) => updateField(field.id, { value: e.target.value })}
-                      className="h-10 border-slate-200 focus-visible:ring-primary/20"
+                      className="h-10 border-border focus-visible:ring-primary/20"
                     />
                   )}
                 </div>
@@ -462,9 +462,9 @@ export default function CreateLeadPage() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-screen bg-background pb-20">
       <PageHeader
-        title="Create Lead"
+        title="Create New Lead"
         description="Capture a new lead with custom fields support."
         actions={
           <div className="flex items-center gap-2">

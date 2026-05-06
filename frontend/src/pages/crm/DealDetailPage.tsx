@@ -51,7 +51,7 @@ import { cn } from "@/lib/utils";
 import { useSoftphone } from "@/contexts/SoftphoneContext";
 import { toast } from "sonner";
 import { format, isValid } from "date-fns";
-import { getCustomFieldTemplates, saveCustomFieldTemplates } from "@/utils/crm/customFieldsRegistry";
+import { getCustomFieldTemplates, saveCustomFieldTemplates, mergeFieldsWithTemplates } from "@/utils/crm/customFieldsRegistry";
 import { sanitizePayload } from "@/utils/crm/sanitize";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
@@ -424,14 +424,14 @@ export default function DealDetailPage() {
         const fields = Object.entries(deal.custom_fields).map(([k, v]) => {
           if (v && typeof v === 'object' && 'value' in v) {
             return { 
-              id: k, 
+              id: `field-${k.replace(/\s+/g, '-').toLowerCase()}`, 
               key: k, 
               value: String((v as any).value), 
               type: (v as any).type || 'string',
               sectionId: (v as any).sectionId 
             };
           }
-          return { id: k, key: k, value: String(v), type: 'string', sectionId: 'custom-fields' };
+          return { id: `field-${k.replace(/\s+/g, '-').toLowerCase()}`, key: k, value: String(v), type: 'string', sectionId: 'custom-fields' };
         });
         // Merge with templates to show empty "standard" custom fields
         const mergedFields = mergeFieldsWithTemplates('deal', fields);
@@ -637,7 +637,7 @@ export default function DealDetailPage() {
                       />
                     )
                   ) : (
-                    <div className="min-h-[2.5rem] px-3 py-2 border border-border rounded-lg bg-slate-50/50 flex items-center">
+                    <div className="min-h-[2.5rem] px-3 py-2 border border-border rounded-lg bg-muted/30 flex items-center">
                       <span className="text-foreground font-medium">{field.value}</span>
                     </div>
                   )}
@@ -681,9 +681,9 @@ export default function DealDetailPage() {
 
   const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-background">
       {/* Enterprise Header with Breadcrumb Navigation */}
-      <div className=" border-b  shadow-sm">
+      <div className="bg-card border-b shadow-sm sticky top-0 z-40">
         <div className="px-4 md:px-6 py-4">
           {/* Professional Breadcrumb */}
           <nav className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground mb-6">
@@ -708,17 +708,17 @@ export default function DealDetailPage() {
               </Button>
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                 <div className="relative">
-                  <Avatar className="h-14 w-14 ring-4 ring-white shadow-lg">
+                  <Avatar className="h-14 w-14 ring-4 ring-background shadow-lg">
                     <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${deal.title}`} />
-                    <AvatarFallback className="bg-gradient-to-br from-green-500 to-emerald-600 text-white font-bold text-lg">
+                    <AvatarFallback className="bg-primary text-primary-foreground font-bold text-lg">
                       {deal.title?.split(' ').map(n => n[0]).join('').toUpperCase() || 'D'}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 border-2 border-white rounded-full"></div>
+                  <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 border-2 border-background rounded-full"></div>
                 </div>
                 <div>
                   <div className="flex flex-wrap items-center gap-3 mb-1">
-                    <h1 className="text-xl md:text-2xl font-bold text-white break-words max-w-[200px] sm:max-w-none">{deal.title}</h1>
+                    <h1 className="text-xl md:text-2xl font-bold text-foreground break-words max-w-[200px] sm:max-w-none">{deal.title}</h1>
                     <Badge className={cn("gap-1 px-3 py-1 font-medium whitespace-nowrap", getStatusColor(deal.stage))}>
                       {getStatusIcon(deal.stage)}
                       {pipelineStages.find(s => s.id === deal.stage)?.label || deal.stage}

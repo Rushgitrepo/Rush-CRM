@@ -146,7 +146,7 @@ export function CustomFieldsSection({
             <SortableContext items={activeFields.map(f => f.id)} strategy={verticalListSortingStrategy}>
               {activeFields.map((field) => (
                 <DraggableFieldItem key={field.id} fieldKey={field.id}>
-                  <div className="group flex flex-col sm:flex-row items-start sm:items-end gap-3 p-3 rounded-lg border border-black-800 transition-all duration-200">
+                  <div className="group flex flex-col sm:flex-row items-start sm:items-end gap-3 p-3 rounded-lg border border-border transition-all duration-200">
                     {editing && (
                       <DraggableFieldItem fieldKey={field.id} isHandle>
                         <div className="p-2 text-slate-400 hover:text-slate-600">
