@@ -5,7 +5,7 @@ import {
   MapPin, Building2, User, Calendar, DollarSign, Tag, FileText,
   Activity, MessageSquare, Clock, Star, MoreHorizontal, Copy,
   CheckCircle, XCircle, AlertCircle, Zap, ChevronRight,
-  TrendingUp, Users, Target, Award, Check, Briefcase, Calendar as CalendarIcon, Edit3, Send, PhoneCall, Eye, Filter, Search, Settings, Share2, Printer, Download, Plus
+  TrendingUp, Users, Target, Award, Check, Briefcase, Calendar as CalendarIcon, Edit3, Send, PhoneCall, Eye, EyeOff, Filter, Search, Settings, Share2, Printer, Download, Plus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +30,7 @@ import { sanitizePayload } from "@/utils/crm/sanitize";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
 import { WorkspaceShareModal } from "@/components/crm/leads/WorkspaceShareModal";
+import { DeleteConfirmationDialog } from "@/components/crm/DeleteConfirmationDialog";
 import { useLead, useInteractionHistory } from "@/hooks/useCrmInteractions";
 import { useUpdateLead, useDeleteLead, useConvertLeadToDeal } from "@/hooks/useCrmMutations";
 import { useCreateActivity } from "@/hooks/useCrmInteractions";
@@ -231,7 +232,7 @@ const defaultPipelineStages = [
     bgColor: "bg-primary/5",
     textColor: "text-primary",
     borderColor: "border-primary/20",
-    icon: <AlertCircle className="h-4 w-4" />,
+    icon: AlertCircle,
     description: "Fresh lead, needs initial contact"
   },
   {
@@ -241,7 +242,7 @@ const defaultPipelineStages = [
     bgColor: "bg-yellow-50",
     textColor: "text-yellow-700",
     borderColor: "border-yellow-200",
-    icon: <PhoneCall className="h-4 w-4" />,
+    icon: PhoneCall,
     description: "Initial contact made"
   },
   {
@@ -251,7 +252,7 @@ const defaultPipelineStages = [
     bgColor: "bg-green-50",
     textColor: "text-green-700",
     borderColor: "border-green-200",
-    icon: <CheckCircle className="h-4 w-4" />,
+    icon: CheckCircle,
     description: "Lead meets criteria"
   },
   {
@@ -261,7 +262,7 @@ const defaultPipelineStages = [
     bgColor: "bg-purple-50 dark:bg-purple-900/20",
     textColor: "text-purple-700",
     borderColor: "border-purple-200",
-    icon: <Send className="h-4 w-4" />,
+    icon: Send,
     description: "Proposal delivered"
   },
   {
@@ -271,7 +272,7 @@ const defaultPipelineStages = [
     bgColor: "bg-orange-50 dark:bg-orange-900/20",
     textColor: "text-orange-700",
     borderColor: "border-orange-200",
-    icon: <Target className="h-4 w-4" />,
+    icon: Target,
     description: "Terms being discussed"
   },
   {
@@ -281,7 +282,7 @@ const defaultPipelineStages = [
     bgColor: "bg-red-50 dark:bg-red-900/20",
     textColor: "text-red-700",
     borderColor: "border-red-200",
-    icon: <XCircle className="h-4 w-4" />,
+    icon: XCircle,
     description: "Does not meet criteria"
   },
 ];
@@ -323,35 +324,41 @@ export default function LeadDetailPage() {
 
   const [editing, setEditing] = useState(() => window.location.pathname.endsWith('/edit'));
   const [form, setForm] = useState<Record<string, unknown>>({});
+  const [showConvertDialog, setShowConvertDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showWorkspaceModal, setShowWorkspaceModal] = useState(false);
   const [customFields, setCustomFields] = useState<{ id: string; key: string; value: string; type?: string; sectionId?: string }[]>([]);
 
-  const [showWorkspaceModal, setShowWorkspaceModal] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [showConvertDialog, setShowConvertDialog] = useState(false);
   const [showStageManager, setShowStageManager] = useState(false);
   const [newStageName, setNewStageName] = useState("");
   const [editingStageId, setEditingStageId] = useState<string | null>(null);
   const [editingStageName, setEditingStageName] = useState("");
-  const { data: dbStages = [] } = usePipelineStages();
+  const { data: dbStages = [] } = usePipelineStages('default', showStageManager);
   const createStage = useCreatePipelineStage();
   const deleteStage = useDeletePipelineStage();
   const updateStage = useUpdatePipelineStage();
 
-  const customDbStages = dbStages
-    .filter(s => !defaultPipelineStages.some(d => d.id === s.stage_key))
-    .map(s => ({
+  const [stageToDelete, setStageToDelete] = useState<string | null>(null);
+
+  // Combine DB stages with visual fallback data (colors/icons)
+  const pipelineStages = dbStages.map(s => {
+    const fallback = defaultPipelineStages.find(f => f.id === s.stage_key);
+    return {
       id: s.stage_key,
       label: s.stage_label,
-      color: "bg-gray-500",
-      bgColor: "bg-muted/40",
-      textColor: "text-foreground",
-      borderColor: "border-border",
-      icon: <Target className="h-4 w-4" />,
-      description: "Custom stage",
+      description: fallback?.description || "Custom stage",
+      color: s.color || fallback?.color || "bg-muted/400",
+      bgColor: fallback?.bgColor || "bg-muted/40",
+      textColor: fallback?.textColor || "text-foreground",
+      borderColor: fallback?.borderColor || "",
+      icon: fallback?.icon || Clock,
       dbId: s.id,
-    }));
+      is_active: s.is_active
+    };
+  });
 
-  const pipelineStages = [...defaultPipelineStages, ...customDbStages];
+  const activePipelineStages = pipelineStages.filter(s => s.is_active);
+  const stageOptions = activePipelineStages.map(s => ({ value: s.id, label: s.label }));
   const [sidebarTab, setSidebarTab] = useState("activity");
   const [interactionTab, setInteractionTab] = useState("activity");
   const activitySectionRef = useRef<HTMLDivElement>(null);
@@ -954,7 +961,7 @@ export default function LeadDetailPage() {
                         {isPassed && !isUnqualified ? (
                           <CheckCircle className="h-5 w-5" />
                         ) : isActive ? (
-                          stage.icon
+                          <stage.icon className="h-5 w-5" />
                         ) : (
                           index + 1
                         )}
@@ -1715,16 +1722,13 @@ export default function LeadDetailPage() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              {defaultPipelineStages.map(s => (
-                <div key={s.id} className="flex items-center justify-between px-3 py-2 rounded-lg border bg-muted/30">
-                  <span className="text-sm font-medium">{s.label}</span>
-                  <Badge variant="outline" className="text-[10px]">Default</Badge>
-                </div>
-              ))}
-              {customDbStages.map(s => (
-                <div key={s.id} className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-primary/5">
-                  {editingStageId === (s as any).dbId ? (
+            <div className="space-y-2 max-h-[60vh] overflow-y-auto px-1">
+              {pipelineStages.map(s => (
+                <div key={s.dbId} className={cn(
+                  "flex items-center gap-2 px-3 py-2 rounded-lg border transition-all",
+                  s.is_active ? "bg-primary/5 border-primary/20" : "bg-muted/30 border-dashed opacity-60"
+                )}>
+                  {editingStageId === s.dbId ? (
                     <>
                       <Input
                         value={editingStageName}
@@ -1733,7 +1737,7 @@ export default function LeadDetailPage() {
                         autoFocus
                         onKeyDown={e => {
                           if (e.key === 'Enter' && editingStageName.trim()) {
-                            updateStage.mutate({ id: (s as any).dbId, stageName: editingStageName.trim() }, {
+                            updateStage.mutate({ id: s.dbId, stageName: editingStageName.trim() }, {
                               onSuccess: () => setEditingStageId(null)
                             });
                           }
@@ -1742,7 +1746,7 @@ export default function LeadDetailPage() {
                       />
                       <Button size="icon" variant="ghost" className="h-7 w-7 text-primary"
                         disabled={!editingStageName.trim() || updateStage.isPending}
-                        onClick={() => updateStage.mutate({ id: (s as any).dbId, stageName: editingStageName.trim() }, { onSuccess: () => setEditingStageId(null) })}>
+                        onClick={() => updateStage.mutate({ id: s.dbId, stageName: editingStageName.trim() }, { onSuccess: () => setEditingStageId(null) })}>
                         <Check className="h-3.5 w-3.5" />
                       </Button>
                       <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground"
@@ -1752,13 +1756,27 @@ export default function LeadDetailPage() {
                     </>
                   ) : (
                     <>
-                      <span className="text-sm font-medium flex-1">{s.label}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium truncate">{s.label}</span>
+                          {!s.is_active && <Badge variant="outline" className="text-[10px] py-0 h-4">Hidden</Badge>}
+                          {defaultPipelineStages.some(f => f.id === s.id) && <Badge variant="secondary" className="text-[10px] py-0 h-4">Default</Badge>}
+                        </div>
+                      </div>
+                      
                       <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary"
-                        onClick={() => { setEditingStageId((s as any).dbId); setEditingStageName(s.label); }}>
+                        onClick={() => { setEditingStageId(s.dbId); setEditingStageName(s.label); }}>
                         <Edit3 className="h-3.5 w-3.5" />
                       </Button>
+                      
+                      <Button size="icon" variant="ghost" className={cn("h-7 w-7", s.is_active ? "text-muted-foreground hover:text-orange-500" : "text-orange-500 hover:text-orange-700")}
+                        onClick={() => updateStage.mutate({ id: s.dbId, is_active: !s.is_active })}
+                        title={s.is_active ? "Hide Stage" : "Show Stage"}>
+                        {s.is_active ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                      </Button>
+
                       <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
-                        onClick={() => deleteStage.mutate((s as any).dbId)}
+                        onClick={() => setStageToDelete(s.dbId)}
                         disabled={deleteStage.isPending}>
                         <XCircle className="h-4 w-4" />
                       </Button>
@@ -1892,6 +1910,34 @@ export default function LeadDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <DeleteConfirmationDialog 
+        open={!!stageToDelete}
+        onOpenChange={(open) => !open && setStageToDelete(null)}
+        onConfirm={() => {
+          if (stageToDelete) {
+            deleteStage.mutate(stageToDelete, {
+              onSuccess: () => setStageToDelete(null)
+            });
+          }
+        }}
+        isLoading={deleteStage.isPending}
+        title="Delete Pipeline Stage?"
+        description="Are you sure you want to delete this stage? This will permanently remove it from the pipeline configuration."
+      />
+
+      <DeleteConfirmationDialog 
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        onConfirm={() => {
+          deleteLead.mutate(lead.id, {
+            onSuccess: () => navigate('/crm/leads')
+          });
+        }}
+        isLoading={deleteLead.isPending}
+        title="Delete Lead?"
+        description={`Are you sure you want to delete "${lead.name}"? This action cannot be undone.`}
+      />
     </div>
   );
 }

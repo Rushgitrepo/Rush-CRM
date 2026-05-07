@@ -10,23 +10,27 @@ export interface PipelineStage {
   stage_label: string;
   sort_order: number;
   color: string;
+  probability?: number;
+  is_active: boolean;
 }
 
-export function usePipelineStages(pipeline = 'default') {
+export function usePipelineStages(pipeline = 'default', includeInactive = false) {
   return useQuery({
-    queryKey: ['pipeline_stages', pipeline],
+    queryKey: ['pipeline_stages', pipeline, includeInactive],
     queryFn: async () => {
-      const data = await api.get<PipelineStage[]>('/leads/stages').catch(() => [] as PipelineStage[]);
+      const url = includeInactive ? '/leads/stages?all=true' : '/leads/stages';
+      const data = await api.get<PipelineStage[]>(url).catch(() => [] as PipelineStage[]);
       return data || [];
     },
   });
 }
 
-export function useDealPipelineStages() {
+export function useDealPipelineStages(includeInactive = false) {
   return useQuery({
-    queryKey: ['pipeline_stages', 'deals'],
+    queryKey: ['pipeline_stages', 'deals', includeInactive],
     queryFn: async () => {
-      const data = await api.get<PipelineStage[]>('/deals/stages').catch(() => [] as PipelineStage[]);
+      const url = includeInactive ? '/deals/stages?all=true' : '/deals/stages';
+      const data = await api.get<PipelineStage[]>(url).catch(() => [] as PipelineStage[]);
       return data || [];
     },
   });
@@ -62,11 +66,21 @@ export function useCreateDealPipelineStage() {
   });
 }
 
+export interface UpdateStageParams {
+  id: string;
+  stageName?: string;
+  color?: string;
+  is_active?: boolean;
+  sortOrder?: number;
+  probability?: number;
+}
+
 export function useUpdatePipelineStage() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, stageName }: { id: string; stageName: string }) => {
-      const data = await api.put<PipelineStage>(`/leads/stages/${id}`, { stageName });
+    mutationFn: async (params: UpdateStageParams) => {
+      const { id, ...body } = params;
+      const data = await api.put<PipelineStage>(`/leads/stages/${id}`, body);
       return data;
     },
     onSuccess: () => {
@@ -80,8 +94,9 @@ export function useUpdatePipelineStage() {
 export function useUpdateDealPipelineStage() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, stageName }: { id: string; stageName: string }) => {
-      const data = await api.put<PipelineStage>(`/deals/stages/${id}`, { stageName });
+    mutationFn: async (params: UpdateStageParams) => {
+      const { id, ...body } = params;
+      const data = await api.put<PipelineStage>(`/deals/stages/${id}`, body);
       return data;
     },
     onSuccess: () => {

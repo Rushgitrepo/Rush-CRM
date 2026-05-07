@@ -13,6 +13,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useUpdateDeal, useDeleteDeal } from "@/hooks/useCrmMutations";
+import { useDealPipelineStages, useUpdateDealPipelineStage, useDeleteDealPipelineStage, useCreateDealPipelineStage } from "@/hooks/usePipelineStages";
+import { DeleteConfirmationDialog } from "@/components/crm/DeleteConfirmationDialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface DealData {
   id: string;
@@ -28,17 +39,7 @@ interface DealData {
   contacts?: { first_name: string; last_name?: string | null } | null;
 }
 
-const stages = [
-  { id: "drawings_received", name: "Drawings Received", color: "bg-chart-3", prob: 10 },
-  { id: "awaiting_proposal", name: "Awaiting Proposal", color: "bg-chart-1", prob: 20 },
-  { id: "proposal_sent", name: "Proposal Sent", color: "bg-chart-4", prob: 40 },
-  { id: "invoice_sent", name: "Invoice Sent", color: "bg-chart-5", prob: 50 },
-  { id: "proposal_approved", name: "Approved", color: "bg-chart-2", prob: 60 },
-  { id: "in_progress", name: "In Progress", color: "bg-primary", prob: 80 },
-  { id: "project_delivered", name: "Delivered", color: "bg-success", prob: 95 },
-  { id: "revision", name: "Revision", color: "bg-destructive", prob: 90 },
-  { id: "close_deal", name: "Closed", color: "bg-muted-foreground", prob: 100 },
-];
+// Replaced by useDealPipelineStages
 
 interface DealsKanbanViewProps {
   deals?: DealData[];
@@ -50,13 +51,33 @@ export function DealsKanbanView({ deals = [], selectedStage, onStageSelect }: De
   const navigate = useNavigate();
   const updateDeal = useUpdateDeal();
   const deleteDeal = useDeleteDeal();
+  const { data: pipelineStages = [] } = useDealPipelineStages();
+  const updateStage = useUpdateDealPipelineStage();
+  const deleteStage = useDeleteDealPipelineStage();
+  
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
+  const [isEditStageOpen, setIsEditStageOpen] = useState(false);
+  const [editingStage, setEditingStage] = useState<{id: string, label: string, color: string, probability: number} | null>(null);
+  const [editStageName, setEditStageName] = useState("");
+  const [editStageColor, setEditStageColor] = useState("");
+  const [editStageProb, setEditStageProb] = useState(0);
+  const [stageToDelete, setStageToDelete] = useState<string | null>(null);
+  const [dealToDelete, setDealToDelete] = useState<string | null>(null);
 
-  const getStageDeals = (stageId: string) =>
-    deals.filter((d) => (d.stage || "qualification") === stageId);
+  const stages = pipelineStages.map(s => ({
+    id: s.id,
+    key: s.stage_key,
+    name: s.stage_label,
+    color: s.color || "bg-gray-500",
+    prob: s.probability || 0,
+    is_active: s.is_active
+  })).filter(s => s.is_active !== false);
 
-  const getStageTotalValue = (stageId: string) =>
-    getStageDeals(stageId).reduce((sum, d) => sum + (Number(d.value) || 0), 0);
+  const getStageDeals = (stageKey: string) =>
+    deals.filter((d) => (d.stage || "drawings_received") === stageKey);
+
+  const getStageTotalValue = (stageKey: string) =>
+    getStageDeals(stageKey).reduce((sum, d) => sum + (Number(d.value) || 0), 0);
 
   const handleDragStart = (e: React.DragEvent, dealId: string) => {
     e.dataTransfer.setData("dealId", dealId);
@@ -71,20 +92,40 @@ export function DealsKanbanView({ deals = [], selectedStage, onStageSelect }: De
 
   const handleDragLeave = () => setDragOverColumn(null);
 
-  const handleDrop = (e: React.DragEvent, newStage: string) => {
+  const handleDrop = (e: React.DragEvent, newStageKey: string) => {
     e.preventDefault();
     setDragOverColumn(null);
     const dealId = e.dataTransfer.getData("dealId");
     if (!dealId) return;
     const deal = deals.find((d) => d.id === dealId);
-    if (deal && deal.stage !== newStage) {
-      const stageInfo = stages.find((s) => s.id === newStage);
+    if (deal && deal.stage !== newStageKey) {
+      const stageInfo = stages.find((s) => s.key === newStageKey);
       updateDeal.mutate({
         id: dealId,
-        stage: newStage,
+        stage: newStageKey,
         probability: stageInfo?.prob ?? deal.probability,
       });
     }
+  };
+
+  const handleUpdateStage = () => {
+    if (!editingStage || !editStageName.trim()) return;
+    updateStage.mutate({ 
+      id: editingStage.id, 
+      stageName: editStageName,
+      color: editStageColor,
+      probability: editStageProb
+    });
+    setIsEditStageOpen(false);
+    setEditingStage(null);
+  };
+
+  const handleHideStage = (id: string) => {
+    updateStage.mutate({ id, is_active: false });
+  };
+
+  const handleDeleteStage = (id: string) => {
+    setStageToDelete(id);
   };
 
   return (
@@ -102,9 +143,9 @@ export function DealsKanbanView({ deals = [], selectedStage, onStageSelect }: De
                 ? "border-primary bg-primary/5"
                 : "border-border"
             )}
-            onDragOver={(e) => handleDragOver(e, stage.id)}
+            onDragOver={(e) => handleDragOver(e, stage.key)}
             onDragLeave={handleDragLeave}
-            onDrop={(e) => handleDrop(e, stage.id)}
+            onDrop={(e) => handleDrop(e, stage.key)}
           >
             {/* Stage Header */}
             <div className="p-4 border-b border-border">
@@ -116,17 +157,46 @@ export function DealsKanbanView({ deals = [], selectedStage, onStageSelect }: De
                     {stageDeals.length}
                   </Badge>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() => navigate("/crm/deals/create")}
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => navigate("/crm/deals/create")}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-7 w-7">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => {
+                        setEditingStage({ id: stage.id, label: stage.name, color: stage.color, probability: stage.prob });
+                        setEditStageName(stage.name);
+                        setEditStageColor(stage.color);
+                        setEditStageProb(stage.prob);
+                        setIsEditStageOpen(true);
+                      }}>
+                        Edit Stage
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleHideStage(stage.id)}>
+                        Hide Stage
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        className="text-destructive"
+                        onClick={() => handleDeleteStage(stage.id)}
+                      >
+                        Delete Stage
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
               <p className="text-sm text-muted-foreground mt-1">
-                ${(getStageTotalValue(stage.id) / 1000).toFixed(0)}k total
+                ${(getStageTotalValue(stage.key) / 1000).toFixed(0)}k total
               </p>
             </div>
 
@@ -171,7 +241,7 @@ export function DealsKanbanView({ deals = [], selectedStage, onStageSelect }: De
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             className="text-destructive"
-                            onClick={() => deleteDeal.mutate(deal.id)}
+                            onClick={() => setDealToDelete(deal.id)}
                           >
                             Delete
                           </DropdownMenuItem>
@@ -238,6 +308,90 @@ export function DealsKanbanView({ deals = [], selectedStage, onStageSelect }: De
           </div>
         );
       })}
+      {/* Edit Stage Dialog */}
+      <Dialog open={isEditStageOpen} onOpenChange={setIsEditStageOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Deal Stage</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Stage Name</Label>
+              <Input
+                placeholder="Enter stage name..."
+                value={editStageName}
+                onChange={(e) => setEditStageName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Default Probability (%)</Label>
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                value={editStageProb}
+                onChange={(e) => setEditStageProb(Number(e.target.value))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Color</Label>
+              <div className="flex gap-2 flex-wrap">
+                {[
+                  "bg-chart-1", "bg-chart-2", "bg-chart-3", "bg-chart-4", "bg-chart-5",
+                  "bg-warning", "bg-success", "bg-primary", "bg-destructive", "bg-muted-foreground",
+                  "bg-purple-500", "bg-orange-500", "bg-pink-500", "bg-blue-500", "bg-emerald-500"
+                ].map((color) => (
+                  <button
+                    key={color}
+                    className={cn(
+                      "h-8 w-8 rounded-full border-2 transition-all",
+                      color,
+                      editStageColor === color ? "border-primary scale-110" : "border-transparent"
+                    )}
+                    onClick={() => setEditStageColor(color)}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditStageOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateStage}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <DeleteConfirmationDialog 
+        open={!!stageToDelete}
+        onOpenChange={(open) => !open && setStageToDelete(null)}
+        onConfirm={() => {
+          if (stageToDelete) {
+            deleteStage.mutate(stageToDelete, {
+              onSuccess: () => setStageToDelete(null)
+            });
+          }
+        }}
+        isLoading={deleteStage.isPending}
+        title="Delete Pipeline Stage?"
+        description="Are you sure you want to delete this stage? Deals in this stage will need to be moved manually."
+      />
+
+      <DeleteConfirmationDialog 
+        open={!!dealToDelete}
+        onOpenChange={(open) => !open && setDealToDelete(null)}
+        onConfirm={() => {
+          if (dealToDelete) {
+            deleteDeal.mutate(dealToDelete, {
+              onSuccess: () => setDealToDelete(null)
+            });
+          }
+        }}
+        isLoading={deleteDeal.isPending}
+        title="Delete Deal?"
+        description="Are you sure you want to delete this deal? This action cannot be undone."
+      />
     </div>
   );
 }
