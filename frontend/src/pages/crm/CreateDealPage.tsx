@@ -66,6 +66,14 @@ const dealSchema = z.object({
 
 type DealForm = z.infer<typeof dealSchema>;
 
+interface CustomField {
+  id: string;
+  key: string;
+  value: string;
+  type?: string;
+  sectionId?: string;
+}
+
 const stageOptions = [
   { value: "qualification", label: "Qualification" },
   { value: "discovery", label: "Discovery" },
@@ -128,14 +136,14 @@ export default function CreateDealPage() {
 
   const [contactId, setContactId] = useState<string | null>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
-  const [customFields, setCustomFields] = useState<{ id: string; key: string; value: string; type?: string; sectionId?: string }[]>(() => {
+  const [customFields, setCustomFields] = useState<CustomField[]>(() => {
     const templates = getCustomFieldTemplates('deal');
     return templates.map(t => ({
       id: `template-${Math.random().toString(36).substr(2, 9)}`,
       key: t.key,
       value: "",
       type: t.type,
-      sectionId: "custom-fields"
+      sectionId: t.sectionId || "custom-fields"
     }));
   });
 
@@ -202,7 +210,12 @@ export default function CreateDealPage() {
   const isSaving = createDeal.isPending;
 
   const handleFieldDropToSection = (fieldKey: string, fieldValue: string, sectionId: string) => {
-    console.log(`Field ${fieldKey} moved to ${sectionId}`);
+    setCustomFields(prev => {
+      const updated = prev.map(f => f.id === fieldKey ? { ...f, sectionId } : f);
+      // Persist this change globally to the registry so new deals follow this layout
+      saveCustomFieldTemplates('deal', updated);
+      return updated;
+    });
   };
 
   const renderDroppedFields = (sectionId: string) => {
