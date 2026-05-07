@@ -60,6 +60,10 @@ export default function LeadImportPage() {
     { value: 'state', label: 'State/Province' },
     { value: 'zipCode', label: 'Zip/Postal Code' },
     { value: 'twitter', label: 'Twitter Handle' },
+    { value: 'priority', label: 'Priority (Low/Medium/High)' },
+    { value: 'tags', label: 'Tags (Comma separated)' },
+    { value: 'expectedCloseDate', label: 'Expected Close Date' },
+    { value: 'createdAt', label: 'Created On / Date Created' },
   ];
 
   const customFields = getCustomFieldTemplates(entityType);
