@@ -25,8 +25,12 @@ export interface Task {
   entity_type: string | null;
   entity_id: string | null;
   is_starred?: boolean;
+  progress?: number;
+  can_assign?: boolean;
   project_name?: string;
   project_color?: string;
+  project_can_assign?: boolean;
+  project_manager_id?: string | null;
   assigned_to_name?: string;
   created_at: string;
   updated_at: string;
@@ -39,9 +43,13 @@ export interface Project {
   description: string | null;
   status: string;
   owner_id: string;
+  manager_id: string | null;
+  created_by: string;
   start_date: string | null;
   end_date: string | null;
   color: string | null;
+  progress: number;
+  can_assign: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -72,7 +80,7 @@ export function useCreateProject() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (project: { name: string; description?: string; start_date?: string; end_date?: string; color?: string }) => 
+    mutationFn: (project: { name: string; description?: string; start_date?: string; end_date?: string; color?: string }) =>
       projectsApi.create(project),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
@@ -86,7 +94,7 @@ export function useUpdateProject() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string } & Partial<Project>) => 
+    mutationFn: ({ id, ...data }: { id: string } & Partial<Project>) =>
       projectsApi.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
@@ -141,7 +149,7 @@ export function useUpdateTask() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, ...updates }: Partial<Task> & { id: string }) => 
+    mutationFn: ({ id, ...updates }: Partial<Task> & { id: string }) =>
       tasksApi.update(id, updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
@@ -154,7 +162,7 @@ export function useUpdateTaskStatus() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) => 
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
       tasksApi.updateStatus(id, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
@@ -185,5 +193,13 @@ export function useReorderTasks() {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
     onError: (err: Error) => toast.error('Failed: ' + err.message),
+  });
+}
+
+export function useProjectMembers(projectId: string | null) {
+  return useQuery({
+    queryKey: ['projects', projectId, 'members'],
+    queryFn: () => projectsApi.getMembers(projectId!),
+    enabled: !!projectId,
   });
 }

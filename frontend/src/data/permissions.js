@@ -4,6 +4,18 @@
  * This is the source of truth for both backend validation and frontend display.
  */
 export const MODULE_PERMISSIONS = {
+  
+  // Admin_dashboard
+  admin_dashboard: ["view", "create", "edit", "delete"],
+
+  //Dashboard
+   dashboard: ["view"],
+
+  // Tasks & Projects
+  tasks: ["view", "create", "edit", "delete", "assign"],
+  projects: ["view", "create", "edit", "delete", "archive"],
+  automation_workflows: ["view", "create", "edit", "delete", "run"],
+
   // Collaboration
   calendar: ["view", "create", "edit", "delete"],
   drive: ["view", "upload", "edit", "delete", "share"],
@@ -52,20 +64,28 @@ export const MODULE_PERMISSIONS = {
   recruitment_talent_pool: ["view", "add", "search"],
   recruitment_analytics: ["view", "export"],
 
-  // Tasks & Projects
-  tasks: ["view", "create", "edit", "delete", "assign"],
-  projects: ["view", "create", "edit", "delete", "archive"],
-  automation_workflows: ["view", "create", "edit", "delete", "run"],
 
-  // Admin
-  members: ["view", "create", "edit", "delete",],
 };
 
 export const DASHBOARD_MODULES = [
   {
-    category: "Administration",
+    category: "Admin_Dashboard",
     modules: [
-      { id: "members", name: "Employee Management" },
+      { id: "admin_dashboard", name: "Admin_Dashboard" },
+    ]
+  },
+  {
+    category: "Dashboard",
+    modules: [
+      { id: "dashboard", name: "Dashboard" },
+    ]
+  },
+  {
+    category: "Management",
+    modules: [
+      { id: "tasks", name: "Tasks" },
+      { id: "projects", name: "Projects" },
+      { id: "automation_workflows", name: "Automated Workflows" },
     ]
   },
   {
@@ -134,13 +154,6 @@ export const DASHBOARD_MODULES = [
       { id: "recruitment_analytics", name: "Recruitment Analytics" },
     ]
   },
-  {
-    category: "Management",
-    modules: [
-      { id: "tasks", name: "Tasks" },
-      { id: "projects", name: "Projects" },
-      { id: "automation_workflows", name: "Automated Workflows" },
-    ]
-  },
+  
 
 ];

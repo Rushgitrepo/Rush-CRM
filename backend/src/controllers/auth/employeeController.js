@@ -225,7 +225,13 @@ const update = async (req, res, next) => {
       [id, orgId]
     );
 
-    res.json(finalResult.rows[0]);
+    const updatedUser = finalResult.rows[0];
+
+    // Emit real-time update event
+    const realtimeService = require('../../services/realtimeService');
+    realtimeService.emitUserUpdated(id, updatedUser);
+
+    res.json(updatedUser);
   } catch (err) {
     await client.query('ROLLBACK').catch(() => { });
     next(err);

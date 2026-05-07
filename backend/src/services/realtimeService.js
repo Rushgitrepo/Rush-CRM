@@ -434,6 +434,10 @@ class RealtimeService {
     this.io.to(`org:${orgId}`).emit('workgroup:updated', payload);
   }
 
+  emitUserUpdated(userId, payload) {
+    this.io.to(`user:${userId}`).emit('user:updated', payload);
+  }
+
   emitPresenceUpdate(orgId, userId, isOnline, lastSeenAt) {
     this.io.to(`org:${orgId}`).emit('presence:update', {
       userId,
