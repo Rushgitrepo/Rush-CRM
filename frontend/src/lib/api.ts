@@ -441,6 +441,11 @@ export const crmDocumentsApi = {
     formData.append('file', file);
     return api.post<any>(`/crm-documents/${entityType}/${entityId}`, formData);
   },
+  uploadTemp: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post<any>(`/crm-documents/upload-temp`, formData);
+  },
   delete: (id: string) => api.delete(`/crm-documents/${id}`),
 };
 

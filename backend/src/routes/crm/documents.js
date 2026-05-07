@@ -10,6 +10,7 @@ const upload = getUploader('crm', 20, 'document');
 router.use(auth, requireOrg);
 
 router.get('/:entityType/:entityId', documentController.getByEntity);
+router.post('/upload-temp', upload.single('file'), documentController.uploadTemp);
 router.post('/:entityType/:entityId', upload.single('file'), documentController.upload);
 router.delete('/:id', documentController.remove);
 
