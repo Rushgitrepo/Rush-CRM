@@ -407,7 +407,7 @@ export default function AdminDashboardPage() {
                     </thead>
                     <tbody className="divide-y divide-border/50">
                       {pendingInvites.map((p) => (
-                        <tr key={`${p.email}-${p.createdAt}`} className="bg-amber-50/60 text-sm">
+                        <tr key={`${p.email}-${p.createdAt}`} className="text-sm">
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
                               <Avatar className="h-9 w-9 border border-amber-200">

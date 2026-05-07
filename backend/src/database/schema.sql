@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS organizations (
     name character varying(255) NOT NULL,
     domain character varying(255),
     settings jsonb DEFAULT '{}'::jsonb,
+    logo_url character varying(500),
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
 );
@@ -677,6 +678,9 @@ CREATE TABLE IF NOT EXISTS deals (
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     closed_at timestamp without time zone,
     source character varying(100),
+    import_id uuid,
+    created_by uuid,
+    pipeline character varying(100),
     campaign_id uuid,
     utm_source character varying(100),
     utm_medium character varying(100),

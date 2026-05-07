@@ -711,26 +711,111 @@ const remove = async (req, res, next) => {
   }
 };
 
+const bulkRemove = async (req, res, next) => {
+  const client = await db.pool.connect();
+  try {
+    const { ids } = req.body;
+    console.log(`[bulkRemove] Request to delete ${ids?.length || 0} deals by user ${req.user.id}`);
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'No IDs provided or invalid format' });
+    }
+
+    // Clean up IDs to ensure they are valid UUIDs/strings and unique
+    const cleanIds = [...new Set(ids.filter(id => id && typeof id === 'string'))];
+    
+    if (cleanIds.length === 0) {
+      console.warn(`[bulkRemove] No valid IDs found in request for user ${req.user.id}`);
+      return res.status(400).json({ error: 'No valid IDs provided' });
+    }
+
+    await client.query('BEGIN');
+
+    // 1. Delete associated data for all IDs
+    await client.query(
+      `DELETE FROM public.activities WHERE deal_id = ANY($1) AND org_id = $2`,
+      [cleanIds, req.user.orgId]
+    );
+
+    await client.query(
+      `DELETE FROM public.crm_activities WHERE entity_type = 'deal' AND entity_id = ANY($1) AND org_id = $2`,
+      [cleanIds, req.user.orgId]
+    );
+
+    await client.query(
+      `DELETE FROM public.crm_comments WHERE entity_type = 'deal' AND entity_id = ANY($1) AND org_id = $2`,
+      [cleanIds, req.user.orgId]
+    );
+
+    await client.query(
+      `DELETE FROM public.crm_documents WHERE entity_type = 'deal' AND entity_id = ANY($1) AND org_id = $2`,
+      [cleanIds, req.user.orgId]
+    );
+
+    await client.query(
+      `DELETE FROM public.deal_contacts WHERE deal_id = ANY($1) AND org_id = $2`,
+      [cleanIds, req.user.orgId]
+    );
+
+    await client.query(
+      `DELETE FROM public.deal_signing_parties WHERE deal_id = ANY($1) AND org_id = $2`,
+      [cleanIds, req.user.orgId]
+    );
+
+    // 2. Finally delete the deals
+    const result = await client.query(
+      `DELETE FROM public.deals WHERE id = ANY($1) AND org_id = $2 RETURNING id`,
+      [cleanIds, req.user.orgId]
+    );
+
+    await client.query('COMMIT');
+    
+    res.json({ 
+      message: `${result.rows.length} deals deleted successfully`,
+      deletedCount: result.rows.length,
+      requestedCount: cleanIds.length
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[BulkRemove Error]:', err);
+    next(err);
+  } finally {
+    client.release();
+  }
+};
+
 
 const getStats = async (req, res, next) => {
   try {
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+    const userId = req.user.id;
+    const orgId = req.user.orgId;
+
+    let filter = 'WHERE org_id = $1';
+    const params = [orgId];
+
+    if (!isAdmin) {
+      filter += ` AND (assigned_to = $2 OR owner_id = $2)`;
+      params.push(userId);
+    }
+
     const stats = await db.query(
       `SELECT 
         COUNT(*) FILTER (WHERE status = 'open') as open_deals,
         COUNT(*) FILTER (WHERE status = 'won') as won_deals,
         COUNT(*) FILTER (WHERE status = 'lost') as lost_deals,
-        COALESCE(SUM(value) FILTER (WHERE status = 'won'), 0) as total_won_value,
-        COALESCE(SUM(value) FILTER (WHERE status = 'open'), 0) as total_open_value,
+        COALESCE(SUM(value) FILTER (WHERE status = 'open'), 0) as pipeline_value,
+        COALESCE(SUM(value) FILTER (WHERE status = 'won'), 0) as won_value,
         COUNT(*) as total_deals
-       FROM public.deals WHERE org_id = $1`,
-      [req.user.orgId]
+       FROM public.deals ${filter}`,
+      params
     );
 
     const stageStats = await db.query(
       `SELECT stage, COUNT(*), COALESCE(SUM(value), 0) as value, AVG(probability) as avg_probability
-       FROM public.deals WHERE org_id = $1 AND status = 'open'
+       FROM public.deals ${filter} AND status = 'open'
        GROUP BY stage`,
-      [req.user.orgId]
+      params
     );
 
     res.json({
@@ -1123,6 +1208,7 @@ module.exports = {
   updateStage,
   updateStatus,
   remove,
+  bulkRemove,
   getStats,
   getStages,
   createStage,

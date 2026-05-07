@@ -142,6 +142,7 @@ export const leadsApi = {
   getStats: () => api.get<any>('/leads/stats'),
   convertToDeal: (id: string) => api.post<any>(`/leads/${id}/convert-to-deal`, {}),
   importLeads: (leads: any[]) => api.post<any>('/leads/import', { leads }),
+  bulkDelete: (ids: string[]) => api.post<{ message: string; deletedCount: number }>('/leads/bulk-delete', { ids }),
 };
 
 export const dealsApi = {
@@ -158,6 +159,7 @@ export const dealsApi = {
   removeSigningParty: (id: string, contactId: string) => api.delete(`/deals/${id}/signing-parties/${contactId}`),
   convertToCustomer: (id: string) => api.post<any>(`/deals/${id}/convert-to-customer`, {}),
   delete: (id: string) => api.delete(`/deals/${id}`),
+  bulkDelete: (ids: string[]) => api.post<{ message: string; deletedCount: number }>('/deals/bulk-delete', { ids }),
   getStats: () => api.get<any>('/deals/stats'),
 };
 

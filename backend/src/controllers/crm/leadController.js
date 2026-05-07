@@ -793,9 +793,90 @@ const remove = async (req, res, next) => {
   }
 };
 
+const bulkRemove = async (req, res, next) => {
+  const client = await db.pool.connect();
+  try {
+    const { ids } = req.body;
+    console.log(`[bulkRemove] Request to delete ${ids?.length || 0} leads by user ${req.user.id}`);
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'No IDs provided or invalid format' });
+    }
+
+    // Clean up IDs to ensure they are valid UUIDs/strings and unique
+    const cleanIds = [...new Set(ids.filter(id => id && typeof id === 'string'))];
+    
+    if (cleanIds.length === 0) {
+      console.warn(`[bulkRemove] No valid IDs found in request for user ${req.user.id}`);
+      return res.status(400).json({ error: 'No valid IDs provided' });
+    }
+
+    await client.query('BEGIN');
+
+    // 1. Delete associated data for all IDs
+    // Using a single transaction to ensure data integrity
+    await client.query(
+      `DELETE FROM public.activities WHERE lead_id = ANY($1) AND org_id = $2`,
+      [cleanIds, req.user.orgId]
+    );
+
+    await client.query(
+      `DELETE FROM public.crm_activities WHERE entity_type = 'lead' AND entity_id = ANY($1) AND org_id = $2`,
+      [cleanIds, req.user.orgId]
+    );
+
+    await client.query(
+      `DELETE FROM public.crm_comments WHERE entity_type = 'lead' AND entity_id = ANY($1) AND org_id = $2`,
+      [cleanIds, req.user.orgId]
+    );
+
+    await client.query(
+      `DELETE FROM public.crm_documents WHERE entity_type = 'lead' AND entity_id = ANY($1) AND org_id = $2`,
+      [cleanIds, req.user.orgId]
+    );
+
+    await client.query(
+      `DELETE FROM public.lead_workspace_access WHERE lead_id = ANY($1)`,
+      [cleanIds]
+    );
+
+    // 2. Finally delete the leads
+    const result = await client.query(
+      `DELETE FROM public.leads WHERE id = ANY($1) AND org_id = $2 RETURNING id`,
+      [cleanIds, req.user.orgId]
+    );
+
+    await client.query('COMMIT');
+    
+    res.json({ 
+      message: `${result.rows.length} leads deleted successfully`,
+      deletedCount: result.rows.length,
+      requestedCount: cleanIds.length
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[BulkRemove Error]:', err);
+    next(err);
+  } finally {
+    client.release();
+  }
+};
+
 
 const getStats = async (req, res, next) => {
   try {
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+    const userId = req.user.id;
+    const orgId = req.user.orgId;
+
+    let filter = 'WHERE org_id = $1';
+    const params = [orgId];
+
+    if (!isAdmin) {
+      filter += ` AND (assigned_to = $2 OR owner_id = $2 OR user_id = $2 OR created_by = $2)`;
+      params.push(userId);
+    }
+
     const stats = await db.query(
       `SELECT 
         COUNT(*) FILTER (WHERE status = 'new') as new_leads,
@@ -804,15 +885,15 @@ const getStats = async (req, res, next) => {
         COUNT(*) FILTER (WHERE status = 'lost') as lost_leads,
         COALESCE(SUM(value) FILTER (WHERE status != 'lost'), 0) as total_value,
         COUNT(*) as total_leads
-       FROM public.leads WHERE org_id = $1`,
-      [req.user.orgId]
+       FROM public.leads ${filter}`,
+      params
     );
 
     const stageStats = await db.query(
       `SELECT stage, COUNT(*), COALESCE(SUM(value), 0) as value
-       FROM public.leads WHERE org_id = $1
+       FROM public.leads ${filter}
        GROUP BY stage`,
-      [req.user.orgId]
+      params
     );
 
     res.json({
@@ -1212,6 +1293,7 @@ module.exports = {
   update,
   updateStage,
   remove,
+  bulkRemove,
   getStats,
   getStages,
   createStage,

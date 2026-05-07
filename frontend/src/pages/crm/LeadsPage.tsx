@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Sparkles, Mail, Phone, Building2, Filter, Download, Upload, MoreHorizontal, Edit, Trash2, Eye, Globe, XCircle } from "lucide-react";
-import { useLeads, useDeleteLead } from "@/hooks/useCrmData";
+import { useLeads, useDeleteLead, useBulkDeleteLeads } from "@/hooks/useCrmData";
 import { useUpdateLead } from "@/hooks/useCrmMutations";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -57,7 +57,7 @@ export default function LeadsPage() {
   const [showBulkActions, setShowBulkActions] = useState(false);
   const [advancedFilters, setAdvancedFilters] = useState<any[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize, setPageSize] = useState(100);
 
   const { data: dbLeads, isLoading, isError } = useLeads({
     search,
@@ -66,6 +66,7 @@ export default function LeadsPage() {
     limit: pageSize
   });
   const deleteLead = useDeleteLead();
+  const bulkDeleteLeads = useBulkDeleteLeads();
   const updateLead = useUpdateLead();
 
   const leads: LeadRow[] = useMemo(() => {
@@ -144,13 +145,10 @@ export default function LeadsPage() {
 
     if (await confirm(`Are you sure you want to delete ${selectedLeads.length} leads?`, { variant: 'destructive', title: 'Confirm Bulk Deletion' })) {
       try {
-        for (const leadId of selectedLeads) {
-          await deleteLead.mutateAsync(leadId);
-        }
+        await bulkDeleteLeads.mutateAsync(selectedLeads);
         setSelectedLeads([]);
-        toast.success(`${selectedLeads.length} leads deleted successfully`);
       } catch (error) {
-        // Mutations handle their own error toasts
+        // Error handled by mutation
       }
     }
   };
@@ -352,7 +350,7 @@ export default function LeadsPage() {
               <Globe className="h-4 w-4 mr-2" />
               External Sources
             </Button>
-            <Button variant="outline" size="sm" onClick={() => navigate('/crm/leads/import')}>
+            <Button variant="outline" size="sm" onClick={() => navigate('/crm/leads/import?type=lead')}>
               <Upload className="h-4 w-4 mr-2" />
               Import
             </Button>
@@ -445,7 +443,9 @@ export default function LeadsPage() {
               data={filtered}
               columns={columns}
               isLoading={isLoading}
-              pageSize={10}
+              pageSize={pageSize}
+              selectedRows={selectedLeads}
+              onSelectionChange={(ids) => setSelectedLeads(ids as string[])}
               emptyState={
                 <EmptyState
                   title="No leads yet"

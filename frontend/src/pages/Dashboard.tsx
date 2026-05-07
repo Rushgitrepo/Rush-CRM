@@ -140,7 +140,7 @@ export default function Dashboard() {
           <StatTile label="Total Leads" value={leadOverview?.total_leads ?? "—"} sub="all time" icon={UserPlus} color="bg-primary" onClick={() => navigate("/crm/leads")} />
         </div>
         <div className="col-span-2 sm:col-span-2 lg:col-span-2">
-          <StatTile label="Open Deals" value={dealOverview?.open_deals ?? "—"} sub={`$${Number(dealOverview?.total_open_value || 0).toLocaleString()} pipeline`} icon={Handshake} color="bg-violet-500" onClick={() => navigate("/crm/deals")} />
+          <StatTile label="Open Deals" value={dealOverview?.open_deals ?? "—"} sub={`$${Number(dealOverview?.pipeline_value || 0).toLocaleString()} pipeline`} icon={Handshake} color="bg-violet-500" onClick={() => navigate("/crm/deals")} />
         </div>
         {/* Tasks */}
         <div className="col-span-2 sm:col-span-2 lg:col-span-2">
