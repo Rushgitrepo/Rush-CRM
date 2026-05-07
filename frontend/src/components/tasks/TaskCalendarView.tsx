@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   ChevronLeft, ChevronRight, Circle, Clock, CheckCircle2,
-  Calendar as CalendarIcon, Plus,
+  Calendar as CalendarIcon, Plus, Star,
 } from "lucide-react";
 import {
   format,
@@ -32,9 +32,10 @@ interface TaskCalendarViewProps {
   tasks: Task[];
   onEditTask?: (task: Task) => void;
   onCreateTask?: (date: Date) => void;
+  onToggleStar?: (task: Task) => void;
 }
 
-export function TaskCalendarView({ tasks, onEditTask, onCreateTask }: TaskCalendarViewProps) {
+export function TaskCalendarView({ tasks, onEditTask, onCreateTask, onToggleStar }: TaskCalendarViewProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
@@ -219,15 +220,26 @@ export function TaskCalendarView({ tasks, onEditTask, onCreateTask }: TaskCalend
                 return (
                   <div
                     key={task.id}
-                    className="p-4 rounded-xl border border-border bg-card hover:shadow-md transition-all cursor-pointer"
+                    className="group p-4 rounded-xl border border-border bg-card hover:shadow-md transition-all cursor-pointer"
                     onClick={() => onEditTask?.(task)}
                   >
                     <div className="flex items-start gap-3 mb-2">
                       <StatusIcon className={cn("h-4 w-4 mt-0.5", status.color)} />
                       <div className="flex-1 min-w-0">
-                        <h4 className="font-medium text-sm text-foreground mb-1">
-                          {task.title}
-                        </h4>
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <h4 className="font-medium text-sm text-foreground">
+                            {task.title}
+                          </h4>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onToggleStar?.(task);
+                            }}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                          >
+                            <Star className={cn("h-3.5 w-3.5", task.is_starred ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground")} />
+                          </button>
+                        </div>
                         {task.description && (
                           <p className="text-xs text-muted-foreground line-clamp-2">
                             {task.description}

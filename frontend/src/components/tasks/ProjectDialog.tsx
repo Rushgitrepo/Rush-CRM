@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,7 +24,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Calendar as CalendarIcon, FolderKanban, Palette } from "lucide-react";
+import { Calendar as CalendarIcon, FolderKanban, Palette, User } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import type { Project } from "@/hooks/useTasks";
@@ -32,6 +34,7 @@ interface ProjectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   project?: Project | null;
+  members: any[];
   onSubmit: (data: any) => void;
 }
 
@@ -58,8 +61,10 @@ export function ProjectDialog({
   open,
   onOpenChange,
   project,
+  members,
   onSubmit,
 }: ProjectDialogProps) {
+  const { profile, userRole } = useAuth();
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -67,6 +72,8 @@ export function ProjectDialog({
     color: "bg-blue-500",
     start_date: undefined as Date | undefined,
     end_date: undefined as Date | undefined,
+    managerId: "",
+    canAssign: false,
   });
 
   // Update form when project changes (for editing)
@@ -77,8 +84,10 @@ export function ProjectDialog({
         description: project.description || "",
         status: project.status || "planning",
         color: project.color || "bg-blue-500",
-        start_date: project.start_date ? new Date(project.start_date) : undefined,
-        end_date: project.end_date ? new Date(project.end_date) : undefined,
+        start_date: (project as any).start_date || (project as any).startDate ? new Date((project as any).start_date || (project as any).startDate) : undefined,
+        end_date: (project as any).end_date || (project as any).endDate ? new Date((project as any).end_date || (project as any).endDate) : undefined,
+        managerId: (project as any).manager_id || (project as any).managerId || "",
+        canAssign: (project as any).can_assign ?? (project as any).canAssign ?? false,
       });
     } else {
       // Reset form for new project
@@ -89,17 +98,25 @@ export function ProjectDialog({
         color: "bg-blue-500",
         start_date: undefined,
         end_date: undefined,
+        managerId: "",
+        canAssign: false,
       });
     }
   }, [project, open]);
+
+  const isAdmin = userRole?.role === 'admin' || userRole?.role === 'super_admin';
+  const isCreator = !project || project.created_by === profile?.id;
+  const canEditCoreFields = isAdmin || isCreator;
 
   const handleSubmit = () => {
     if (!formData.name.trim()) return;
 
     onSubmit({
       ...formData,
-      start_date: formData.start_date ? formData.start_date.toISOString() : null,
-      end_date: formData.end_date ? formData.end_date.toISOString() : null,
+      startDate: formData.start_date ? formData.start_date.toISOString() : null,
+      endDate: formData.end_date ? formData.end_date.toISOString() : null,
+      managerId: formData.managerId || null,
+      canAssign: formData.canAssign,
     });
   };
 
@@ -125,6 +142,7 @@ export function ProjectDialog({
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               className="text-base h-12"
+              disabled={!canEditCoreFields}
               autoFocus
             />
           </div>
@@ -140,6 +158,7 @@ export function ProjectDialog({
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               className="min-h-[100px] resize-none"
+              disabled={!canEditCoreFields}
             />
           </div>
 
@@ -265,6 +284,63 @@ export function ProjectDialog({
                   />
                 </PopoverContent>
               </Popover>
+            </div>
+          </div>
+
+          {/* Manager & Delegation */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium flex items-center gap-2">
+                <User className="h-4 w-4" />
+                Assign To
+                {!canEditCoreFields && !formData.canAssign && (
+                  <span className="flex items-center gap-1 text-[10px] text-red-500 font-semibold">
+                    <div className="h-2 w-2 rounded-full bg-red-500" />
+                    Delegation OFF
+                  </span>
+                )}
+              </Label>
+              {/* Show dropdown if: admin/creator OR delegation is ON */}
+              {(canEditCoreFields || formData.canAssign) ? (
+                <Select
+                  value={formData.managerId || "none"}
+                  onValueChange={(value) => setFormData({ ...formData, managerId: value === "none" ? "" : value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Assign a manager..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {members.map((member) => (
+                      <SelectItem key={member.id} value={member.id}>
+                        {member.full_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="flex h-10 w-full items-center justify-between rounded-md border border-red-500/40 bg-red-500/5 px-3 py-2 text-sm cursor-not-allowed opacity-60">
+                  <span className="text-muted-foreground">
+                    {formData.managerId
+                      ? members.find((m) => m.id === formData.managerId)?.full_name || "Assigned"
+                      : "Delegation is OFF"}
+                  </span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground/50"><path d="m6 9 6 6 6-6" /></svg>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 rounded-xl border border-primary/10 bg-primary/5 flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label className="text-sm font-semibold">Allow Delegation</Label>
+                <p className="text-xs text-muted-foreground">
+                  Allow manager to assign projects and manage members.
+                </p>
+              </div>
+              <Switch
+                checked={formData.canAssign}
+                onCheckedChange={(checked) => setFormData({ ...formData, canAssign: checked })}
+              />
             </div>
           </div>
         </div>

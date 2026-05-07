@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
-  Circle, Clock, CheckCircle2, Calendar, Plus, GripVertical,
+  Circle, Clock, CheckCircle2, Calendar, Plus, GripVertical, Star,
 } from "lucide-react";
 import { format, isToday, isTomorrow, isPast } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -30,7 +30,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 const COLUMNS = [
-  { id: "new", label: "New", icon: Circle, color: "text-blue-500", bg: "bg-blue-50 dark:bg-blue-950/20" },
+  { id: "new", label: "Inbox", icon: Circle, color: "text-blue-500", bg: "bg-blue-50 dark:bg-blue-950/20" },
   { id: "in_progress", label: "In Progress", icon: Clock, color: "text-orange-500", bg: "bg-orange-50 dark:bg-orange-950/20" },
   { id: "completed", label: "Completed", icon: CheckCircle2, color: "text-green-500", bg: "bg-green-50 dark:bg-green-950/20" },
 ];
@@ -46,9 +46,10 @@ interface TaskBoardViewProps {
   tasks: Task[];
   onEditTask?: (task: Task) => void;
   onCreateTask?: (status: string) => void;
+  onToggleStar?: (task: Task) => void;
 }
 
-function TaskCard({ task, onEdit }: { task: Task; onEdit?: (task: Task) => void }) {
+function TaskCard({ task, onEdit, onToggleStar }: { task: Task; onEdit?: (task: Task) => void; onToggleStar?: (task: Task) => void }) {
   const {
     attributes,
     listeners,
@@ -98,7 +99,18 @@ function TaskCard({ task, onEdit }: { task: Task; onEdit?: (task: Task) => void 
             <h4 className="font-medium text-sm text-foreground flex-1">
               {task.title}
             </h4>
-            <div className={cn("h-2 w-2 rounded-full shrink-0 mt-1", priority.dot)} />
+            <div className="flex flex-col items-end gap-2">
+              <div className={cn("h-2 w-2 rounded-full shrink-0 mt-1", priority.dot)} />
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleStar?.(task);
+                }}
+                className="opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <Star className={cn("h-3.5 w-3.5", task.is_starred ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground")} />
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -108,6 +120,25 @@ function TaskCard({ task, onEdit }: { task: Task; onEdit?: (task: Task) => void 
         <p className="text-xs text-muted-foreground line-clamp-2 mb-3 ml-6">
           {task.description}
         </p>
+      )}
+
+      {/* Task Progress */}
+      {task.progress !== undefined && task.progress > 0 && (
+        <div className="mb-3 ml-6">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] text-muted-foreground">Progress</span>
+            <span className="text-[10px] font-medium text-foreground">{task.progress}%</span>
+          </div>
+          <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
+            <div 
+              className={cn(
+                "h-full transition-all",
+                task.progress === 100 ? "bg-green-500" : "bg-primary"
+              )}
+              style={{ width: `${task.progress}%` }}
+            />
+          </div>
+        </div>
       )}
 
       {/* Task Meta */}
@@ -151,11 +182,13 @@ function DroppableColumn({
   tasks,
   onEditTask,
   onCreateTask,
+  onToggleStar,
 }: {
   column: typeof COLUMNS[0];
   tasks: Task[];
   onEditTask?: (task: Task) => void;
   onCreateTask?: (status: string) => void;
+  onToggleStar?: (task: Task) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: column.id,
@@ -200,7 +233,14 @@ function DroppableColumn({
               Drop tasks here or click + to add
             </div>
           ) : (
-            tasks.map((task) => <TaskCard key={task.id} task={task} onEdit={onEditTask} />)
+            tasks.map((task) => (
+              <TaskCard 
+                key={task.id} 
+                task={task} 
+                onEdit={onEditTask} 
+                onToggleStar={onToggleStar}
+              />
+            ))
           )}
         </div>
       </SortableContext>
@@ -208,7 +248,7 @@ function DroppableColumn({
   );
 }
 
-export function TaskBoardView({ tasks, onEditTask, onCreateTask }: TaskBoardViewProps) {
+export function TaskBoardView({ tasks, onEditTask, onCreateTask, onToggleStar }: TaskBoardViewProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const updateTask = useUpdateTask();
 
@@ -286,6 +326,7 @@ export function TaskBoardView({ tasks, onEditTask, onCreateTask }: TaskBoardView
               tasks={columnTasks}
               onEditTask={onEditTask}
               onCreateTask={onCreateTask}
+              onToggleStar={onToggleStar}
             />
           );
         })}

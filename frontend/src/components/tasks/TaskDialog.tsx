@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,16 +18,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Calendar as CalendarIcon, Flag, FolderKanban, User } from "lucide-react";
+import {
+  Calendar as CalendarIcon,
+  Flag,
+  FolderKanban,
+  User,
+} from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import type { Project, Task } from "@/hooks/useTasks";
+import { useProjectMembers, type Project, type Task } from "@/hooks/useTasks";
 
 interface TaskDialogProps {
   open: boolean;
@@ -56,6 +64,7 @@ export function TaskDialog({
   initialDate,
   onSubmit,
 }: TaskDialogProps) {
+  const { profile, userRole } = useAuth();
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -64,6 +73,8 @@ export function TaskDialog({
     project_id: "",
     assigned_to: "",
     due_date: undefined as Date | undefined,
+    progress: 0,
+    can_assign: false,
   });
 
   // Update form when task changes (for editing) or initial values change
@@ -74,9 +85,11 @@ export function TaskDialog({
         description: task.description || "",
         priority: task.priority || "normal",
         status: task.status || "new",
-        project_id: task.project_id || "",
-        assigned_to: task.assigned_to || "",
-        due_date: task.due_date ? new Date(task.due_date) : undefined,
+        project_id: (task as any).project_id || (task as any).projectId || "",
+        assigned_to: (task as any).assigned_to || (task as any).assignedTo || "",
+        due_date: (task as any).due_date || (task as any).dueDate ? new Date((task as any).due_date || (task as any).dueDate) : undefined,
+        progress: (task as any).progress || 0,
+        can_assign: (task as any).can_assign ?? (task as any).canAssign ?? false,
       });
     } else {
       // Reset form for new task with initial values
@@ -88,6 +101,13 @@ export function TaskDialog({
         project_id: "",
         assigned_to: "",
         due_date: initialDate || undefined,
+        progress:
+          initialStatus === "completed"
+            ? 100
+            : initialStatus === "in_progress"
+              ? 20
+              : 0,
+        can_assign: false,
       });
     }
   }, [task, initialStatus, initialDate, open]);
@@ -97,15 +117,73 @@ export function TaskDialog({
 
     onSubmit({
       ...formData,
-      project_id: formData.project_id || null,
-      assigned_to: formData.assigned_to || null,
-      due_date: formData.due_date ? formData.due_date.toISOString() : null,
+      projectId: formData.project_id || null,
+      assignedTo: formData.assigned_to === "none" ? null : (formData.assigned_to || null),
+      dueDate: formData.due_date ? formData.due_date.toISOString() : null,
+      canAssign: formData.can_assign,
     });
   };
 
+  const isAdmin = userRole?.role === 'admin' || userRole?.role === 'super_admin';
+  const isManager = userRole?.role === 'manager' || userRole?.role === 'hr_manager' || userRole?.role === 'inventory_manager';
+
+  const currentProject = projects.find(p => p.id === formData.project_id);
+
+  // Task creator check (for editing core fields)
+  const isTaskCreator = !task || task.created_by === profile?.id;
+  const canEditCoreFields = isAdmin || isTaskCreator;
+
+  // Project owner/creator check — project banane wala hamesha assign kar sakta hai
+  const isProjectOwner = Boolean(
+    currentProject?.created_by === profile?.id ||
+    currentProject?.owner_id === profile?.id
+  );
+
+  // Project delegation:
+  // - Existing task: use joined project_can_assign (most accurate)
+  // - New task: use currentProject.can_assign from projects list
+  const projectDelegationAllowed = Boolean(
+    task
+      ? ((task as any)?.project_can_assign ?? currentProject?.can_assign ?? false)
+      : (currentProject?.can_assign ?? false)
+  );
+
+  // Is current user the project manager (not owner)?
+  const isProjectManager = Boolean(
+    (task as any)?.project_manager_id === profile?.id ||
+    currentProject?.manager_id === profile?.id
+  );
+
+  // Can modify assignment:
+  // - Admin/super_admin: always YES
+  // - System manager roles: always YES
+  // - Project owner/creator: always YES (jo project banata hai wo hamesha assign kar sakta hai)
+  // - Project manager: only if delegation is ON
+  // - Task assignee: only if task-level can_assign is ON
+  const canModifyAssignment =
+    isAdmin ||
+    isManager ||
+    isProjectOwner ||
+    (isProjectManager && projectDelegationAllowed) ||
+    (!!task && task.assigned_to === profile?.id && !!task.can_assign);
+
+  // Can grant/see delegation toggle:
+  // - Admin/super_admin: always YES
+  // - System manager roles: always YES
+  // - Project owner: always YES
+  // - Project manager with delegation ON: YES
+  const canGrantDelegation =
+    isAdmin ||
+    isManager ||
+    isProjectOwner ||
+    (isProjectManager && projectDelegationAllowed);
+
+  const { data: projectMembers = [] } = useProjectMembers(formData.project_id || null);
+  const displayMembers = projectMembers.length > 0 ? projectMembers : members;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[95vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold">
             {task ? "Edit Task" : "Create New Task"}
@@ -123,7 +201,8 @@ export function TaskDialog({
               placeholder="Enter task title..."
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              className="text-base h-12"
+              className="text-lg font-semibold h-12"
+              disabled={!canEditCoreFields}
               autoFocus
             />
           </div>
@@ -137,8 +216,11 @@ export function TaskDialog({
               id="description"
               placeholder="Add task description..."
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="min-h-[120px] resize-none"
+              onChange={(e) =>
+                setFormData({ ...formData, description: e.target.value })
+              }
+              className="min-h-[100px] resize-none"
+              disabled={!canEditCoreFields}
             />
           </div>
 
@@ -152,7 +234,10 @@ export function TaskDialog({
               </Label>
               <Select
                 value={formData.project_id}
-                onValueChange={(value) => setFormData({ ...formData, project_id: value })}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, project_id: value })
+                }
+                disabled={!canEditCoreFields}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select project" />
@@ -175,7 +260,9 @@ export function TaskDialog({
               </Label>
               <Select
                 value={formData.priority}
-                onValueChange={(value) => setFormData({ ...formData, priority: value })}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, priority: value })
+                }
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -195,24 +282,43 @@ export function TaskDialog({
               <Label className="text-sm font-medium flex items-center gap-2">
                 <User className="h-4 w-4" />
                 Assignee
+                {!canModifyAssignment && (
+                  <span className="flex items-center gap-1 text-[10px] text-red-500 font-semibold">
+                    <div className="h-2 w-2 rounded-full bg-red-500" />
+                    No permission
+                  </span>
+                )}
               </Label>
-              <Select
-                value={formData.assigned_to}
-                onValueChange={(value) => setFormData({ ...formData, assigned_to: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Assign to..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {members.map((member) => (
-                    <SelectItem key={member.id} value={member.id}>
-                      {member.full_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {canModifyAssignment ? (
+                <Select
+                  value={formData.assigned_to || "none"}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, assigned_to: value === "none" ? "" : value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Assign to..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {displayMembers.map((member: any) => (
+                      <SelectItem key={member.id} value={member.id}>
+                        {member.full_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="flex h-10 w-full items-center justify-between rounded-md border border-red-500/40 bg-red-500/5 px-3 py-2 text-sm cursor-not-allowed opacity-60">
+                  <span className="text-muted-foreground">
+                    {formData.assigned_to
+                      ? displayMembers.find((m: any) => m.id === formData.assigned_to)?.full_name || "Assigned"
+                      : "No permission to assign"}
+                  </span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground/50"><path d="m6 9 6 6 6-6" /></svg>
+                </div>
+              )}
             </div>
-
             {/* Due Date */}
             <div className="space-y-2">
               <Label className="text-sm font-medium flex items-center gap-2">
@@ -225,7 +331,7 @@ export function TaskDialog({
                     variant="outline"
                     className={cn(
                       "w-full justify-start text-left font-normal",
-                      !formData.due_date && "text-muted-foreground"
+                      !formData.due_date && "text-muted-foreground",
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
@@ -240,12 +346,92 @@ export function TaskDialog({
                   <Calendar
                     mode="single"
                     selected={formData.due_date}
-                    onSelect={(date) => setFormData({ ...formData, due_date: date })}
+                    onSelect={(date) =>
+                      setFormData({ ...formData, due_date: date })
+                    }
                     initialFocus
                   />
                 </PopoverContent>
               </Popover>
             </div>
+
+            {/* Status */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Status</Label>
+              <Select
+                value={formData.status}
+                onValueChange={(value) => {
+                  let newProgress = formData.progress;
+                  if (value === "completed") newProgress = 100;
+                  else if (value === "new") newProgress = 0;
+                  else if (
+                    value === "in_progress" &&
+                    (formData.progress === 0 || formData.progress === 100)
+                  )
+                    newProgress = 20;
+
+                  setFormData({
+                    ...formData,
+                    status: value,
+                    progress: newProgress,
+                  });
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="new">Inbox</SelectItem>
+                  <SelectItem value="in_progress">In Progress</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Progress Slider (Only for In Progress or Completed) */}
+            {formData.status !== "new" && (
+              <div className="space-y-4 col-span-2 pt-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium">Task Progress</Label>
+                  <span className="text-sm font-bold text-primary">
+                    {formData.progress}%
+                  </span>
+                </div>
+                <Slider
+                  value={[formData.progress]}
+                  onValueChange={(vals) =>
+                    setFormData({ ...formData, progress: vals[0] })
+                  }
+                  max={100}
+                  step={5}
+                  disabled={formData.status === "completed"}
+                  className="py-4"
+                />
+                <div className="flex justify-between text-[10px] text-muted-foreground px-1">
+                  <span>0%</span>
+                  <span>25%</span>
+                  <span>50%</span>
+                  <span>75%</span>
+                  <span>100%</span>
+                </div>
+              </div>
+            )}
+
+            {/* Delegation Permission (Only for Admins/Managers) */}
+            {canGrantDelegation && (
+              <div className="col-span-2 p-4 rounded-xl border border-primary/10 bg-primary/5 flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-semibold">Allow Delegation</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Allow the assignee to assign this task to others or create sub-tasks.
+                  </p>
+                </div>
+                <Switch
+                  checked={formData.can_assign}
+                  onCheckedChange={(checked) => setFormData({ ...formData, can_assign: checked })}
+                />
+              </div>
+            )}
           </div>
         </div>
 

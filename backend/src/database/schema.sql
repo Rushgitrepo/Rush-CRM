@@ -2381,6 +2381,7 @@ CREATE TABLE IF NOT EXISTS projects (
     completed_at timestamp with time zone,
     estimated_hours numeric,
     actual_hours numeric,
+    can_assign boolean DEFAULT false,
     updated_by uuid
 );
 
@@ -2652,11 +2653,13 @@ CREATE TABLE IF NOT EXISTS tasks (
     updated_at timestamp with time zone DEFAULT now(),
     parent_task_id uuid,
     milestone_id uuid,
+    is_starred boolean DEFAULT false,
+    progress integer DEFAULT 0,
+    can_assign boolean DEFAULT false,
     start_date date,
     end_date date,
     estimated_hours numeric,
     actual_hours numeric,
-    progress integer DEFAULT 0,
     tags text[],
     attachments jsonb,
     dependencies uuid[],

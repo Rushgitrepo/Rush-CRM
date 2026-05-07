@@ -30,7 +30,7 @@ export function TopBar({
   isMobile?: boolean; 
 }) {
   const navigate = useNavigate();
-  const { profile, userRole, signOut } = useAuth();
+  const { profile, userRole, signOut, hasPermission } = useAuth();
   const { organization } = useOrganization();
   const [searchTerm, setSearchTerm] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
@@ -245,7 +245,7 @@ export function TopBar({
             <DropdownMenuLabel>My Account</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => navigate('/settings')}>Profile Settings</DropdownMenuItem>
-            {(userRole?.role === 'admin' || userRole?.role === 'super_admin') && (
+            {hasPermission('admin_dashboard', 'view') && (
               <DropdownMenuItem onClick={() => navigate('/admin-dashboard')}>Admin Dashboard</DropdownMenuItem>
             )}
             <DropdownMenuItem onClick={() => navigate('/admin/users')}>Organization Settings</DropdownMenuItem>
