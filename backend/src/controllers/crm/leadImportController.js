@@ -159,10 +159,11 @@ const suggestFieldMappings = (headers) => {
   return mappings;
 };
 
-// Import leads with field mapping
+// Import leads or deals with field mapping
 const importLeads = async (req, res, next) => {
   try {
-    const { filePath, fieldMapping, workspaceId, skipDuplicates = true } = req.body;
+    const { filePath, fieldMapping, workspaceId, skipDuplicates = true, entityType = 'lead' } = req.body;
+    const tableName = entityType === 'deal' ? 'deals' : 'leads';
 
     if (!filePath || !fieldMapping) {
       return res.status(400).json({ error: 'File path and field mapping are required' });
@@ -176,8 +177,8 @@ const importLeads = async (req, res, next) => {
     // Create import record
     const importRecord = await db.query(
       `INSERT INTO lead_imports 
-       (org_id, workspace_id, imported_by, source_type, file_name, file_path, field_mapping, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       (org_id, workspace_id, imported_by, source_type, file_name, file_path, field_mapping, status, entity_type)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
       [
         req.user.orgId,
@@ -187,7 +188,8 @@ const importLeads = async (req, res, next) => {
         path.basename(filePath),
         filePath,
         JSON.stringify(fieldMapping),
-        'processing'
+        'processing',
+        entityType
       ]
     );
 
@@ -239,7 +241,7 @@ const importLeads = async (req, res, next) => {
         // Check for duplicates
         if (skipDuplicates && leadData.email) {
           const existing = await db.query(
-            'SELECT id FROM leads WHERE org_id = $1 AND email = $2',
+            `SELECT id FROM ${tableName} WHERE org_id = $1 AND email = $2`,
             [req.user.orgId, leadData.email]
           );
           if (existing.rows.length > 0) {
@@ -310,6 +312,21 @@ const importLeads = async (req, res, next) => {
           }
         }
 
+        // Add custom fields mapping
+        const customFieldsObj = {};
+        Object.entries(leadData).forEach(([key, val]) => {
+          if (key.startsWith('custom_')) {
+            const fieldName = key.replace('custom_', '');
+            customFieldsObj[fieldName] = val;
+          }
+        });
+
+        if (Object.keys(customFieldsObj).length > 0) {
+          columns.push('custom_fields');
+          values.push(JSON.stringify(customFieldsObj));
+          paramIndex++;
+        }
+
         // Set defaults for missing fields
         if (!leadData.source) {
           columns.push('source');
@@ -325,21 +342,21 @@ const importLeads = async (req, res, next) => {
         // Build placeholders
         const placeholders = values.map((_, idx) => `$${idx + 1}`).join(', ');
 
-        // Insert lead
+        // Insert record
         const result = await db.query(
-          `INSERT INTO leads (${columns.join(', ')}) 
+          `INSERT INTO ${tableName} (${columns.join(', ')}) 
            VALUES (${placeholders})
            RETURNING id`,
           values
         );
         const leadId = result.rows[0].id;
         
-        // Log individual lead activity
+        // Log individual activity
         await db.query(
           `INSERT INTO crm_activities 
            (org_id, user_id, entity_type, entity_id, activity_type, title, description)
-           VALUES ($1, $2, 'lead', $3, 'created', 'Lead Imported', $4)`,
-          [req.user.orgId, req.user.id, leadId, `Lead imported via bulk upload from ${path.basename(filePath)}`]
+           VALUES ($1, $2, $3, $4, 'created', $5, $6)`,
+          [req.user.orgId, req.user.id, entityType, leadId, `${entityType === 'lead' ? 'Lead' : 'Deal'} Imported`, `${entityType === 'lead' ? 'Lead' : 'Deal'} imported via bulk upload from ${path.basename(filePath)}`]
         );
 
         successful++;
@@ -354,11 +371,11 @@ const importLeads = async (req, res, next) => {
       await db.query(
         `INSERT INTO crm_activities 
          (org_id, user_id, entity_type, entity_id, activity_type, title, description)
-         VALUES ($1, $2, 'system', $1, 'import', 'Bulk Lead Import', $3)`,
+         VALUES ($1, $2, 'system', $1, 'import', 'Bulk ${entityType === 'lead' ? 'Lead' : 'Deal'} Import', $3)`,
         [
           req.user.orgId, 
           req.user.id, 
-          `Successfully imported ${successful} leads from ${path.basename(filePath)} (${failed} failed, ${duplicates} duplicates skipped)`
+          `Successfully imported ${successful} ${entityType === 'lead' ? 'leads' : 'deals'} from ${path.basename(filePath)} (${failed} failed, ${duplicates} duplicates skipped)`
         ]
       );
     }
@@ -396,7 +413,7 @@ const importLeads = async (req, res, next) => {
 // Get import history
 const getImportHistory = async (req, res, next) => {
   try {
-    const { page = 1, limit = 20, workspaceId } = req.query;
+    const { page = 1, limit = 20, workspaceId, entityType } = req.query;
     const offset = (page - 1) * limit;
 
     let query = `
@@ -411,6 +428,12 @@ const getImportHistory = async (req, res, next) => {
     if (workspaceId) {
       query += ` AND li.workspace_id = $${paramIndex}`;
       params.push(workspaceId);
+      paramIndex++;
+    }
+    
+    if (entityType) {
+      query += ` AND li.entity_type = $${paramIndex}`;
+      params.push(entityType);
       paramIndex++;
     }
 

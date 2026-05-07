@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Upload, FileSpreadsheet, CheckCircle, XCircle, ArrowRight } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
+import { getCustomFieldTemplates } from '@/utils/crm/customFieldsRegistry';
 
 interface FieldMapping {
   [csvField: string]: string | null;
@@ -20,7 +21,11 @@ interface DetectedFields {
 
 export default function LeadImportPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
+  const initialType = (searchParams.get('type') as 'lead' | 'deal') || 'lead';
+  
+  const [entityType, setEntityType] = useState<'lead' | 'deal'>(initialType);
   const [step, setStep] = useState<'upload' | 'mapping' | 'importing' | 'complete'>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [detectedFields, setDetectedFields] = useState<DetectedFields | null>(null);
@@ -54,10 +59,14 @@ export default function LeadImportPage() {
     { value: 'city', label: 'City' },
     { value: 'state', label: 'State/Province' },
     { value: 'zipCode', label: 'Zip/Postal Code' },
-    { value: 'linkedIn', label: 'LinkedIn Profile' },
-    { value: 'facebook', label: 'Facebook Profile' },
     { value: 'twitter', label: 'Twitter Handle' },
   ];
+
+  const customFields = getCustomFieldTemplates(entityType);
+  const availableCustomFields = customFields.map(cf => ({
+    value: `custom_${cf.key}`,
+    label: cf.key
+  }));
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -97,7 +106,8 @@ export default function LeadImportPage() {
         filePath: detectedFields.filePath,
         fieldMapping,
         workspaceId: workspaceId || null,
-        skipDuplicates
+        skipDuplicates,
+        entityType
       });
 
       setImportResult(data);
@@ -115,8 +125,31 @@ export default function LeadImportPage() {
   return (
     <div className="max-w-6xl mx-auto p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Import Leads</h1>
-        <p className="text-muted-foreground">Upload CSV or Excel file to import leads</p>
+        <h1 className="text-2xl font-bold text-foreground">Import {entityType === 'lead' ? 'Leads' : 'Deals'}</h1>
+        <p className="text-muted-foreground">Upload CSV or Excel file to import {entityType === 'lead' ? 'leads' : 'deals'}</p>
+      </div>
+
+      <div className="mb-8 flex gap-4 p-1 bg-muted/50 rounded-lg w-fit mx-auto border shadow-sm">
+        <button
+          onClick={() => setEntityType('lead')}
+          className={`px-6 py-2 rounded-md text-sm font-semibold transition-all ${
+            entityType === 'lead' 
+              ? 'bg-primary text-primary-foreground shadow-sm' 
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+          }`}
+        >
+          Import Leads
+        </button>
+        <button
+          onClick={() => setEntityType('deal')}
+          className={`px-6 py-2 rounded-md text-sm font-semibold transition-all ${
+            entityType === 'deal' 
+              ? 'bg-primary text-primary-foreground shadow-sm' 
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+          }`}
+        >
+          Import Deals
+        </button>
       </div>
 
       {/* Progress Steps */}
@@ -216,6 +249,15 @@ export default function LeadImportPage() {
                         </option>
                       ))}
                     </optgroup>
+                    {availableCustomFields.length > 0 && (
+                      <optgroup label="Custom Fields">
+                        {availableCustomFields.map((field) => (
+                          <option key={field.value} value={field.value}>
+                            {field.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
                 </div>
               </div>
@@ -246,7 +288,7 @@ export default function LeadImportPage() {
               disabled={loading}
               className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-all shadow-md active:scale-[0.98] font-semibold"
             >
-              {loading ? 'Importing...' : 'Import Leads'}
+              {loading ? 'Importing...' : `Import ${entityType === 'lead' ? 'Leads' : 'Deals'}`}
             </button>
           </div>
         </div>
@@ -290,22 +332,22 @@ export default function LeadImportPage() {
 
           {importResult.successful > 0 && (
             <div className="mb-6">
-              <h3 className="font-semibold mb-3 text-foreground">Successfully Imported Leads</h3>
+              <h3 className="font-semibold mb-3 text-foreground">Successfully Imported {entityType === 'lead' ? 'Leads' : 'Deals'}</h3>
               <div className="bg-muted/50 rounded-lg p-4 max-h-96 overflow-y-auto border">
                 <div className="text-sm text-muted-foreground mb-2">
-                  {importResult.successful} lead(s) have been imported with all their information including:
+                  {importResult.successful} {entityType === 'lead' ? 'lead(s)' : 'deal(s)'} have been imported with all their information including:
                 </div>
                 <ul className="list-disc list-inside text-sm text-foreground space-y-1 ml-2">
                   <li>Contact Information (Name, Email, Phone)</li>
                   <li>Company Details</li>
-                  <li>Lead Status & Source</li>
+                  <li>{entityType === 'lead' ? 'Lead' : 'Deal'} Status & Source</li>
                   <li>Custom Fields & Notes</li>
                   <li>All mapped data from your file</li>
                 </ul>
                 <div className="mt-4 p-3 bg-primary/10 rounded border border-primary/20">
                   <p className="text-sm text-primary font-medium">
-                    💡 All imported leads are now available in your CRM with complete information. 
-                    Click "View Leads" below to see them.
+                    💡 All imported {entityType === 'lead' ? 'leads' : 'deals'} are now available in your CRM with complete information. 
+                    Click "View {entityType === 'lead' ? 'Leads' : 'Deals'}" below to see them.
                   </p>
                 </div>
               </div>
@@ -325,10 +367,10 @@ export default function LeadImportPage() {
               Import More
             </button>
             <button
-              onClick={() => navigate('/crm/leads')}
+              onClick={() => navigate(entityType === 'lead' ? '/crm/leads' : '/crm/deals')}
               className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-all shadow-md active:scale-[0.98] font-semibold"
             >
-              View All Leads
+              View All {entityType === 'lead' ? 'Leads' : 'Deals'}
             </button>
           </div>
         </div>
