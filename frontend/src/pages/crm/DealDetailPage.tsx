@@ -61,8 +61,7 @@ const fallbackStages = [
   {
     id: "drawings_received",
     label: "Drawings Received",
-    description: "Initial drawings submitted",
-    color: "bg-blue-500",
+    color: "bg-blue-600",
     bgColor: "bg-blue-50",
     textColor: "text-blue-700",
     borderColor: "border-blue-200",
@@ -71,91 +70,82 @@ const fallbackStages = [
   {
     id: "awaiting_proposal",
     label: "Awaiting Proposal",
-    description: "Preparing proposal",
-    color: "bg-yellow-500",
-    bgColor: "bg-yellow-50",
-    textColor: "text-yellow-700",
-    borderColor: "border-yellow-200",
+    color: "bg-blue-600",
+    bgColor: "bg-blue-50",
+    textColor: "text-blue-700",
+    borderColor: "border-blue-200",
     icon: Clock
   },
   {
     id: "proposal_sent",
     label: "Proposal Sent",
-    description: "Proposal under review",
-    color: "bg-purple-500",
-    bgColor: "bg-purple-50",
-    textColor: "text-purple-700",
-    borderColor: "border-purple-200",
+    color: "bg-blue-600",
+    bgColor: "bg-blue-50",
+    textColor: "text-blue-700",
+    borderColor: "border-blue-200",
     icon: Send
   },
   {
     id: "proposal_approved",
     label: "Proposal Approved",
-    description: "Ready to proceed",
-    color: "bg-green-500",
-    bgColor: "bg-green-50",
-    textColor: "text-green-700",
-    borderColor: "border-green-200",
+    color: "bg-blue-600",
+    bgColor: "bg-blue-50",
+    textColor: "text-blue-700",
+    borderColor: "border-blue-200",
     icon: CheckCircle
   },
   {
     id: "invoice_sent",
     label: "Invoice Sent",
-    description: "Awaiting payment",
-    color: "bg-indigo-500",
-    bgColor: "bg-indigo-50",
-    textColor: "text-indigo-700",
-    borderColor: "border-indigo-200",
+    color: "bg-blue-600",
+    bgColor: "bg-blue-50",
+    textColor: "text-blue-700",
+    borderColor: "border-blue-200",
     icon: DollarSign
   },
   {
     id: "project_approved",
     label: "Project Approved",
-    description: "Project confirmed",
-    color: "bg-emerald-500",
-    bgColor: "bg-emerald-50",
-    textColor: "text-emerald-700",
-    borderColor: "border-emerald-200",
+    color: "bg-blue-600",
+    bgColor: "bg-blue-50",
+    textColor: "text-blue-700",
+    borderColor: "border-blue-200",
     icon: Award
   },
   {
     id: "in_progress",
     label: "In Progress",
-    description: "Work in progress",
-    color: "bg-orange-500",
-    bgColor: "bg-orange-50",
-    textColor: "text-orange-700",
-    borderColor: "border-orange-200",
+    color: "bg-blue-600",
+    bgColor: "bg-blue-50",
+    textColor: "text-blue-700",
+    borderColor: "border-blue-200",
     icon: Activity
   },
   {
     id: "awaiting_payment",
     label: "Awaiting Payment",
-    description: "Payment pending",
-    color: "bg-red-500",
-    bgColor: "bg-red-50",
-    textColor: "text-red-700",
-    borderColor: "border-red-200",
+    color: "bg-blue-600",
+    bgColor: "bg-blue-50",
+    textColor: "text-blue-700",
+    borderColor: "border-blue-200",
     icon: DollarSign
   },
   {
     id: "project_delivered",
     label: "Delivered",
-    description: "Project completed",
-    color: "bg-teal-500",
-    bgColor: "bg-teal-50",
-    textColor: "text-teal-700",
-    borderColor: "border-teal-200",
+    color: "bg-blue-600",
+    bgColor: "bg-blue-50",
+    textColor: "text-blue-700",
+    borderColor: "border-blue-200",
     icon: CheckCircle
   },
   {
     id: "close_deal",
     label: "Closed",
-    description: "Deal finalized",
-    color: "bg-muted/400",
-    bgColor: "bg-muted/40",
-    textColor: "text-foreground",
-    borderColor: "",
+    color: "bg-blue-600",
+    bgColor: "bg-blue-50",
+    textColor: "text-blue-700",
+    borderColor: "border-blue-200",
     icon: Award
   },
 ];
@@ -1094,9 +1084,6 @@ export default function DealDetailPage() {
                       isActive ? "text-blue-600" : isPassed ? "text-emerald-600" : "text-muted-foreground"
                     )}>
                       {stage.label}
-                    </div>
-                    <div className="text-xs  max-w-20 leading-tight">
-                      {stage.description}
                     </div>
                   </div>
                   {index < pipelineStages.length - 1 && (

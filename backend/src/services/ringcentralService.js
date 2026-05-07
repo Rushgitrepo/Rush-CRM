@@ -111,12 +111,34 @@ async function getAuthenticatedPlatform(orgId, userId) {
       const sdk = createSDK();
       const platform = sdk.platform();
 
+      // Use the actual stored expiry so the SDK knows when to refresh.
+      // Hardcoding 3600 here would make ensureLoggedIn() always think the token
+      // is fresh and never trigger a refresh, causing silent 401 failures.
+      const storedExpiresAt = stored.expires_at ? new Date(stored.expires_at).getTime() : 0;
+      const remainingSeconds = storedExpiresAt
+        ? Math.max(0, Math.floor((storedExpiresAt - Date.now()) / 1000))
+        : 0; // 0 forces a refresh attempt
+
       await platform.auth().setData({
         token_type: stored.token_type || 'bearer',
         access_token: stored.access_token,
         refresh_token: stored.refresh_token,
-        expires_in: 3600,
+        expires_in: remainingSeconds,
         refresh_token_expires_in: 604800,
+      });
+
+      // When the SDK auto-refreshes during an API call (e.g. on 401), persist the
+      // new tokens immediately so subsequent requests don't re-use the revoked ones.
+      platform.on('refreshSuccess', async () => {
+        try {
+          const freshData = platform.auth().data();
+          if (freshData && (freshData.access_token || freshData.accessToken)) {
+            await upsertTokens(orgId, userId, freshData);
+            console.log(`[RC] Auto-persisted refreshed tokens for user ${userId}`);
+          }
+        } catch (saveErr) {
+          console.warn('[RC] Failed to persist auto-refreshed tokens:', saveErr.message);
+        }
       });
 
       // Let the SDK handle refresh automatically

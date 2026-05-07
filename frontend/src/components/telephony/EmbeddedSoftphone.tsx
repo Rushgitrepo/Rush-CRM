@@ -147,39 +147,16 @@ export function EmbeddedSoftphone() {
   };
 
   if (activeProvider === 'ringcentral') {
-    if (rcCurrentTab === 'widget') {
-      const clientId = import.meta.env.VITE_RINGCENTRAL_CLIENT_ID || '';
-      const redirectUri = import.meta.env.VITE_RINGCENTRAL_REDIRECT_URI || 'http://localhost:8080/redirect.html';
-      const rcAppUrl = clientId
-        ? `https://apps.ringcentral.com/integration/ringcentral-embeddable/latest/app.html?clientId=${clientId}&appServer=https://platform.ringcentral.com&redirectUri=${encodeURIComponent(redirectUri)}&defaultAutoLogCallEnabled=1&defaultAutoLogSmsEnabled=1&multipleTabsSupport=1&discovery=1`
-        : `https://apps.ringcentral.com/integration/ringcentral-embeddable/latest/app.html?redirectUri=${encodeURIComponent(redirectUri)}&defaultAutoLogCallEnabled=1&defaultAutoLogSmsEnabled=1&multipleTabsSupport=1&discovery=1`;
-
-      return (
-        <div className="relative h-full w-full flex flex-col">
-          <div className="flex items-center gap-1 p-2 border-b bg-muted/30">
-            <Button variant="ghost" size="sm" className="text-xs gap-1" onClick={() => setRcCurrentTab('dialer')}>
-              <Keyboard className="h-3 w-3" /> Back to Native
-            </Button>
-          </div>
-          <div className="flex-1">
-            <iframe
-              ref={iframeRef}
-              src={rcAppUrl}
-              width="100%"
-              height="100%"
-              allow="autoplay; microphone"
-              className="border-0"
-              title="RingCentral Softphone"
-            />
-          </div>
-        </div>
-      );
-    }
+    const clientId = import.meta.env.VITE_RINGCENTRAL_CLIENT_ID || '';
+    const redirectUri = import.meta.env.VITE_RINGCENTRAL_REDIRECT_URI || 'http://localhost:8080/redirect.html';
+    const rcAppUrl = clientId
+      ? `https://apps.ringcentral.com/integration/ringcentral-embeddable/latest/app.html?clientId=${clientId}&appServer=https://platform.ringcentral.com&redirectUri=${encodeURIComponent(redirectUri)}&defaultAutoLogCallEnabled=1&defaultAutoLogSmsEnabled=1&multipleTabsSupport=1&discovery=1`
+      : `https://apps.ringcentral.com/integration/ringcentral-embeddable/latest/app.html?redirectUri=${encodeURIComponent(redirectUri)}&defaultAutoLogCallEnabled=1&defaultAutoLogSmsEnabled=1&multipleTabsSupport=1&discovery=1`;
 
     return (
       <div className="flex flex-col h-full bg-card overflow-hidden">
-        {/* RC Native Header/Tabs */}
-        <div className="grid grid-cols-3 border-b">
+        {/* RC Native Header/Tabs — hidden when on widget tab */}
+        <div className={cn("grid grid-cols-3 border-b", rcCurrentTab === 'widget' && 'hidden')}>
           <button
             onClick={() => setRcCurrentTab('dialer')}
             className={cn("py-3 text-xs font-semibold flex flex-col items-center gap-1 transition-colors", rcCurrentTab === 'dialer' ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:bg-muted/50")}
@@ -196,14 +173,34 @@ export function EmbeddedSoftphone() {
           </button>
           <button
             onClick={() => setRcCurrentTab('widget')}
-            className={cn("py-3 text-xs font-semibold flex flex-col items-center gap-1 transition-colors", (rcCurrentTab as string) === 'widget' ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:bg-muted/50")}
+            className={cn("py-3 text-xs font-semibold flex flex-col items-center gap-1 transition-colors", rcCurrentTab === 'widget' ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:bg-muted/50")}
           >
             <History className="h-4 w-4" />
             History/Widget
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        {/* RC Embeddable Widget — always mounted to keep session alive, hidden on other tabs */}
+        <div className={cn("relative flex flex-col", rcCurrentTab === 'widget' ? "flex-1" : "hidden")}>
+          <div className="flex items-center gap-1 p-2 border-b bg-muted/30">
+            <Button variant="ghost" size="sm" className="text-xs gap-1" onClick={() => setRcCurrentTab('dialer')}>
+              <Keyboard className="h-3 w-3" /> Back to Native
+            </Button>
+          </div>
+          <div className="flex-1 min-h-0" style={{ height: 'calc(100% - 41px)' }}>
+            <iframe
+              ref={iframeRef}
+              src={rcAppUrl}
+              width="100%"
+              height="100%"
+              allow="autoplay; microphone"
+              className="border-0"
+              title="RingCentral Softphone"
+            />
+          </div>
+        </div>
+
+        <div className={cn("flex-1 overflow-y-auto p-4 space-y-6", rcCurrentTab === 'widget' && 'hidden')}>
           {rcCurrentTab === 'dialer' && (
             <div className="space-y-6">
               <div className="text-center space-y-1">

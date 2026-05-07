@@ -228,52 +228,47 @@ const defaultPipelineStages = [
   {
     id: "new",
     label: "New Lead",
-    color: "bg-primary",
-    bgColor: "bg-primary/5",
-    textColor: "text-primary",
-    borderColor: "border-primary/20",
-    icon: AlertCircle,
-    description: "Fresh lead, needs initial contact"
+    color: "bg-blue-600",
+    bgColor: "bg-blue-50",
+    textColor: "text-blue-700",
+    borderColor: "border-blue-200",
+    icon: AlertCircle
   },
   {
     id: "contacted",
     label: "Contacted",
-    color: "bg-yellow-500",
-    bgColor: "bg-yellow-50",
-    textColor: "text-yellow-700",
-    borderColor: "border-yellow-200",
-    icon: PhoneCall,
-    description: "Initial contact made"
+    color: "bg-blue-600",
+    bgColor: "bg-blue-50",
+    textColor: "text-blue-700",
+    borderColor: "border-blue-200",
+    icon: PhoneCall
   },
   {
     id: "qualified",
     label: "Qualified",
-    color: "bg-green-500",
-    bgColor: "bg-green-50",
-    textColor: "text-green-700",
-    borderColor: "border-green-200",
-    icon: CheckCircle,
-    description: "Lead meets criteria"
+    color: "bg-blue-600",
+    bgColor: "bg-blue-50",
+    textColor: "text-blue-700",
+    borderColor: "border-blue-200",
+    icon: CheckCircle
   },
   {
     id: "proposal",
     label: "Proposal Sent",
-    color: "bg-purple-500",
-    bgColor: "bg-purple-50 dark:bg-purple-900/20",
-    textColor: "text-purple-700",
-    borderColor: "border-purple-200",
-    icon: Send,
-    description: "Proposal delivered"
+    color: "bg-blue-600",
+    bgColor: "bg-blue-50 dark:bg-blue-900/20",
+    textColor: "text-blue-700",
+    borderColor: "border-blue-200",
+    icon: Send
   },
   {
     id: "negotiation",
     label: "Negotiation",
-    color: "bg-orange-500",
-    bgColor: "bg-orange-50 dark:bg-orange-900/20",
-    textColor: "text-orange-700",
-    borderColor: "border-orange-200",
-    icon: Target,
-    description: "Terms being discussed"
+    color: "bg-blue-600",
+    bgColor: "bg-blue-50 dark:bg-blue-900/20",
+    textColor: "text-blue-700",
+    borderColor: "border-blue-200",
+    icon: Target
   },
   {
     id: "unqualified",
@@ -282,8 +277,7 @@ const defaultPipelineStages = [
     bgColor: "bg-red-50 dark:bg-red-900/20",
     textColor: "text-red-700",
     borderColor: "border-red-200",
-    icon: XCircle,
-    description: "Does not meet criteria"
+    icon: XCircle
   },
 ];
 
@@ -333,10 +327,9 @@ export default function LeadDetailPage() {
     return {
       id: s.stage_key,
       label: s.stage_label,
-      description: fallback?.description || "Custom stage",
-      color: s.color || fallback?.color || "bg-muted/400",
-      bgColor: fallback?.bgColor || "bg-muted/40",
-      textColor: fallback?.textColor || "text-foreground",
+      color: s.color || fallback?.color || "bg-blue-600",
+      bgColor: fallback?.bgColor || "bg-blue-50",
+      textColor: fallback?.textColor || "text-blue-700",
       borderColor: fallback?.borderColor || "",
       icon: fallback?.icon || Clock,
       dbId: s.id,
@@ -926,7 +919,7 @@ export default function LeadDetailPage() {
                     className={cn(
                       "flex-1 relative cursor-pointer transition-all duration-300 rounded-xl p-4 border-2 group",
                       isActive && !isUnqualified
-                        ? `${stage.bgColor} ${stage.borderColor} ${stage.textColor} shadow-lg transform scale-105`
+                        ? "bg-blue-600 border-blue-600 text-white shadow-lg transform scale-105"
                         : isActive && isUnqualified
                           ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-400 shadow-lg"
                           : isPassed && !isUnqualified
@@ -938,7 +931,7 @@ export default function LeadDetailPage() {
                       <div className={cn(
                         "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all",
                         isActive && !isUnqualified
-                          ? stage.color + " text-white shadow-md"
+                          ? "bg-blue-600 text-white shadow-md"
                           : isActive && isUnqualified
                             ? "bg-red-500 text-white shadow-md"
                             : isPassed && !isUnqualified
@@ -946,7 +939,7 @@ export default function LeadDetailPage() {
                               : "bg-muted text-muted-foreground group-hover:bg-muted-foreground"
                       )}>
                         {isPassed && !isUnqualified ? (
-                          <CheckCircle className="h-5 w-5" />
+                          <Check className="h-5 w-5" />
                         ) : isActive ? (
                           <stage.icon className="h-5 w-5" />
                         ) : (
@@ -955,7 +948,6 @@ export default function LeadDetailPage() {
                       </div>
                       <div className="flex-1">
                         <p className="font-semibold text-sm">{stage.label}</p>
-                        <p className="text-xs opacity-75">{stage.description}</p>
                       </div>
                     </div>
                     {isActive && (
