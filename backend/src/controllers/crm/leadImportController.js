@@ -284,31 +284,55 @@ const importLeads = async (req, res, next) => {
           companyPhone: 'company_phone',
           designation: 'designation',
           source: 'source',
+          sourceInfo: 'source_info',
           status: 'status',
           stage: 'stage',
+          pipeline: 'pipeline',
           value: 'value',
           currency: 'currency',
           priority: 'priority',
           website: 'website',
           address: 'address',
-          notes: 'notes',
-          agentName: 'agent_name',
-          serviceInterested: 'service_interested',
-          companySize: 'company_size',
-          decisionMaker: 'decision_maker',
-          industry: 'source_info',
           country: 'address',
           city: 'address',
           state: 'address',
           zipCode: 'address',
+          notes: 'notes',
+          agentName: 'agent_name',
+          assignedTo: 'assigned_to',
+          serviceInterested: 'service_interested',
+          companySize: 'company_size',
+          decisionMaker: 'decision_maker',
+          industry: 'source_info',
           linkedIn: 'website',
           facebook: 'website',
           twitter: 'website',
           interactionNotes: 'interaction_notes',
+          lastContactedDate: 'last_contacted_date',
+          nextFollowUpDate: 'next_follow_up_date',
           expectedCloseDate: 'expected_close_date',
+          externalSourceId: 'external_source_id',
+          responsiblePerson: 'responsible_person',
           tags: 'tags',
-          pipeline: 'pipeline',
           createdAt: 'created_at',
+          // Deal-specific fields
+          probability: 'probability',
+          description: 'description',
+          clientType: 'client_type',
+          projectType: 'project_type',
+          paymentMethod: 'payment_method',
+          invoiceLink: 'invoice_link',
+          hourlyRate: 'hourly_rate',
+          hoursOfWork: 'hours_of_work',
+          proposalAmount: 'proposal_amount',
+          invoiceAmount: 'invoice_amount',
+          scope: 'scope',
+          projectBlueprints: 'project_blueprints',
+          availableToEveryone: 'available_to_everyone',
+          quotationReceived: 'quotation_received',
+          qaStatus: 'qa_status',
+          feedback: 'feedback',
+          feedbackDetails: 'feedback_details',
         };
 
         for (const [frontendField, dbColumn] of Object.entries(fieldMap)) {
@@ -316,7 +340,7 @@ const importLeads = async (req, res, next) => {
             columns.push(dbColumn);
             
             // Handle special data types
-            if (frontendField === 'value') {
+            if (['value', 'probability', 'hourlyRate', 'hoursOfWork', 'proposalAmount', 'invoiceAmount'].includes(frontendField)) {
               values.push(parseFloat(leadData[frontendField]) || null);
             } else if (frontendField === 'tags') {
               const tagValue = leadData[frontendField];
