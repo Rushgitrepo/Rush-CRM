@@ -20,18 +20,17 @@ export function DroppableSection({ id, children, className, editing }: Droppable
       ref={setNodeRef}
       className={cn(
         className,
-        editing && "transition-all duration-200",
-        isOver && editing && "ring-2 ring-primary ring-offset-2 bg-primary/5"
+        "relative transition-all duration-200",
+        editing && !children && "min-h-[60px] border-2 border-dashed border-muted-foreground/20 rounded-xl flex items-center justify-center bg-muted/5 group-hover:bg-muted/10",
+        isOver && editing && "ring-2 ring-primary ring-offset-4 bg-primary/5 rounded-xl z-10 scale-[1.01]"
       )}
     >
-      {children}
-      {isOver && editing && (
-        <div className="absolute inset-0 pointer-events-none bg-primary/10 rounded-lg border-2 border-dashed border-primary flex items-center justify-center">
-          <span className="text-sm font-medium text-primary bg-white px-3 py-1 rounded-full shadow-lg">
-            Drop field here
-          </span>
+      {editing && !children && (
+        <div className="flex flex-col items-center gap-1 opacity-40">
+          <p className="text-xs font-medium">Drop fields here</p>
         </div>
       )}
+      {children}
     </div>
   );
 }

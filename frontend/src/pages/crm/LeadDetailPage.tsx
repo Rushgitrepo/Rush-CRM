@@ -23,7 +23,7 @@ import { EntityFilesSection } from "@/components/crm/EntityFilesSection";
 import { CustomFieldsSection, DraggableFieldItem } from "@/components/crm/CustomFieldsSection";
 import { CustomFieldInput } from "@/components/crm/CustomFieldInput";
 import { GripVertical } from "lucide-react";
-import { FieldDragWrapper } from "@/components/crm/FieldDragWrapper";
+import { FieldDragWrapper, DroppableField } from "@/components/crm/FieldDragWrapper";
 import { DroppableSection } from "@/components/crm/DroppableSection";
 import { mergeFieldsWithTemplates, saveCustomFieldTemplates } from "@/utils/crm/customFieldsRegistry";
 import { sanitizePayload } from "@/utils/crm/sanitize";
@@ -513,51 +513,58 @@ export default function LeadDetailPage() {
 
   const set = (key: string, val: unknown) => setForm(prev => ({ ...prev, [key]: val }));
 
-  const handleFieldDropToSection = (fieldKey: string, fieldValue: string, sectionId: string) => {
+  const handleFieldDropToSection = (fieldKey: string, fieldValue: string, sectionId: string, updatedFields?: CustomField[]) => {
     setCustomFields(prev => {
-      const updated = prev.map(f => f.id === fieldKey ? { ...f, sectionId } : f);
+      const updated = updatedFields || prev.map(f => f.id === fieldKey ? { ...f, sectionId } : f);
       // Persist this change globally to the registry so new leads follow this layout
       saveCustomFieldTemplates('lead', updated);
       return updated;
     });
   };
 
-  const renderDroppedFields = (sectionId: string) => {
-    const sectionFields = customFields.filter(f => f.sectionId === sectionId);
+  const renderDroppedFields = (sectionId: string, isTop = false, afterFieldId?: string) => {
+    const sectionFields = customFields.filter(f => 
+      f.sectionId === sectionId && 
+      (afterFieldId ? f.afterFieldId === afterFieldId : (!f.afterFieldId || f.afterFieldId.startsWith(sectionId + '-top')))
+    );
     if (sectionFields.length === 0) return null;
 
-    const updateField = (id: string, updates: Partial<CustomField>) => {
-      setCustomFields(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
-    };
-
     return (
-      <div className="mt-6 pt-6 border-t border-dashed border-border space-y-4">
-        <div className="flex items-center gap-2 mb-2">
-          <Badge variant="outline" className="text-[10px] uppercase tracking-wider bg-primary/5 text-primary border-primary/20">
-            Custom Fields
-          </Badge>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className={cn(
+        "space-y-4",
+        afterFieldId ? "mt-4 ml-4 pl-4 border-l-2 border-primary/20" : 
+        (isTop ? "mb-6 pb-6 border-b border-dashed" : "mt-6 pt-6 border-t border-dashed"),
+        "border-border"
+      )}>
+        {!afterFieldId && (
+          <div className="flex items-center gap-2 mb-2">
+            <Badge variant="outline" className="text-[10px] uppercase tracking-wider bg-primary/5 text-primary border-primary/20">
+              {isTop ? 'Top Custom Fields' : 'Custom Fields'}
+            </Badge>
+          </div>
+        )}
+        <div className={cn("grid gap-6", afterFieldId ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2")}>
           <SortableContext items={sectionFields.map(f => f.id)} strategy={verticalListSortingStrategy}>
             {sectionFields.map((field) => (
               <DraggableFieldItem key={field.id} fieldKey={field.id}>
                 <div className="group relative">
                   <div className="flex items-center justify-between mb-1.5">
                     <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{field.key}</Label>
-                    {editing && (
-                      <DraggableFieldItem fieldKey={field.id} isHandle>
-                        <div className="p-1 cursor-grab active:cursor-grabbing text-primary hover:text-primary-foreground hover:bg-primary rounded transition-all">
-                          <GripVertical className="h-3.5 w-3.5" />
-                        </div>
-                      </DraggableFieldItem>
-                    )}
+                    <DraggableFieldItem fieldKey={field.id} isHandle>
+                      <div className="p-1 cursor-grab active:cursor-grabbing text-primary hover:text-primary-foreground hover:bg-primary rounded transition-all opacity-0 group-hover:opacity-100">
+                        <GripVertical className="h-3 w-3" />
+                      </div>
+                    </DraggableFieldItem>
                   </div>
-                  
                   <CustomFieldInput
                     field={field}
                     editing={editing}
-                    updateField={updateField}
-                    entityType="lead"
+                    onUpdate={(updates) => {
+                      setCustomFields(prev => prev.map(f => f.id === field.id ? { ...f, ...updates } : f));
+                    }}
+                    onDelete={() => {
+                      setCustomFields(prev => prev.filter(f => f.id !== field.id));
+                    }}
                     entityId={id}
                   />
                 </div>
@@ -1055,481 +1062,580 @@ export default function LeadDetailPage() {
             >
               <div className="space-y-8">
                 {/* Lead and Company Details */}
-                <DroppableSection id="lead-company-details" editing={editing}>
-                  <Card className="border   shadow-sm">
-                    <CardHeader className="border-b bg-muted/30 rounded-t-lg">
+                <Card className="border shadow-sm overflow-hidden">
+                  <DroppableSection id="lead-company-details-top" editing={editing}>
+                    <CardHeader className="border-b bg-muted/30 hover:bg-muted/50 transition-colors">
                       <CardTitle className="flex items-center gap-3 text-xl">
                         Lead and Company Details
                       </CardTitle>
                       <CardDescription>Core contact, company, and ownership details.</CardDescription>
                     </CardHeader>
-                    <CardContent className="p-8">
+                    <div className="p-8 pb-0">
+                      {renderDroppedFields("lead-company-details-top", true)}
+                    </div>
+                  </DroppableSection>
+                  <CardContent className="p-8 pt-4">
+
+                    <DroppableSection id="lead-company-details" editing={editing}>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-b pb-8 mb-8">
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium text-foreground flex items-center gap-2">
-                            <Briefcase className="h-4 w-4" />
-                            Pipeline
-                          </Label>
-                          <Select value={(form.pipeline as string) || "default"} onValueChange={(v) => set("pipeline", v)} disabled={!editing}>
-                            <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
-                              <SelectValue placeholder="Select pipeline" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="default">Standard Pipeline</SelectItem>
-                              <SelectItem value="marketing">Marketing Pipeline</SelectItem>
-                              <SelectItem value="sales">Sales Pipeline</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium text-foreground">Stage</Label>
-                          <Select value={(form.stage as string) || ""} onValueChange={(v) => set("stage", v)} disabled={!editing}>
-                            <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
-                              <SelectValue placeholder="Select stage" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {pipelineStages.map(stage => (
-                                <SelectItem key={stage.id} value={stage.id}>{stage.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium text-foreground">Customer Type</Label>
-                          <Select value={(form.customer_type as string) || ""} onValueChange={(v) => set("customer_type", v)} disabled={!editing}>
-                            <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
-                              <SelectValue placeholder="not selected" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {customerTypeOptions.map(opt => (
-                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium text-foreground flex items-center gap-2">
-                            <Users className="h-4 w-4" />
-                            Lead owner
-                          </label>
-                          {editing ? (
-                            <Select
-                              value={form.assigned_to || "unassigned"}
-                              onValueChange={(v) => set("assigned_to", v === "unassigned" ? null : v)}
-                            >
-                              <SelectTrigger className="bg-background border-border">
-                                <SelectValue placeholder="Select owner..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="unassigned">Unassigned</SelectItem>
-                                {members.map((m) => (
-                                  <SelectItem key={m.id} value={m.id}>
-                                    <div className="flex items-center gap-2">
-                                      <Avatar className="h-5 w-5">
-                                        <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
-                                          {m.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                                        </AvatarFallback>
-                                      </Avatar>
-                                      {m.full_name}
-                                    </div>
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <div className="h-10 px-3 py-2 border rounded-lg bg-muted/40 flex items-center gap-2">
-                              {form.assigned_to ? (
-                                <>
-                                  <Avatar className="h-6 w-6">
-                                    <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
-                                      {members.find(m => m.id === form.assigned_to)?.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <span className="text-foreground font-medium">
-                                    {members.find(m => m.id === form.assigned_to)?.full_name || 'Assigned User'}
-                                  </span>
-                                </>
-                              ) : (
-                                <span className="text-muted-foreground italic">Unassigned</span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        <Field
-                          label="Created Date"
-                          value={editing ? (form.createdAt as string) : (form.createdAt ? format(new Date(form.createdAt as string), 'MMM d, yyyy HH:mm') : 'Not specified')}
-                          onChange={(v) => set("createdAt", v)}
-                          editing={editing}
-                          type="datetime-local"
-                          icon={<CalendarIcon className="h-4 w-4" />}
-                          entityId={id}
-                        />
-
-                        <Field
-                          label="Lead name"
-                          value={form.title as string}
-                          onChange={(v) => set("title", v)}
-                          editing={editing}
-                          icon={<User className="h-4 w-4" />}
-                          required
-                          entityId={id}
-                        />
-                        <Field
-                          label="Company name"
-                          value={form.company_name as string}
-                          onChange={(v) => set("company_name", v)}
-                          editing={editing}
-                          icon={<Building2 className="h-4 w-4" />}
-                          entityId={id}
-                        />
-                        <Field
-                          label="Designation"
-                          value={form.designation as string}
-                          onChange={(v) => set("designation", v)}
-                          editing={editing}
-                          icon={<Briefcase className="h-4 w-4" />}
-                          entityId={id}
-                        />
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium text-foreground">Personal Number</Label>
-                          <div className="flex items-stretch gap-2">
-                            {editing ? (
-                              <Input
-                                value={(form.phone as string) || ""}
-                                onChange={(e) => set("phone", e.target.value)}
-                                placeholder="+1 (555) 123-4567"
-                                className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1"
-                              />
-                            ) : (
-                              <div className="h-10 px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-center flex-1">
-                                {(form.phone as string) ? (
-                                  <ClickToCall
-                                    phoneNumber={form.phone as string}
-                                    entityType="lead"
-                                    entityId={id}
-                                    className="text-sm font-medium text-foreground"
-                                  />
-                                ) : (
-                                  <span className="text-muted-foreground italic">Not specified</span>
-                                )}
-                              </div>
-                            )}
-                            <Select value={(form.phone_type as string) || ""} onValueChange={(v) => set("phone_type", v)} disabled={!editing}>
-                              <SelectTrigger className="h-10 w-[160px] border-border">
-                                <SelectValue placeholder="Work Phone" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {phoneTypeOptions.map(opt => (
-                                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium text-foreground">Personal E-mail</Label>
-                          <div className="flex items-stretch gap-2">
-                            {editing ? (
-                              <Input
-                                type="email"
-                                value={(form.email as string) || ""}
-                                onChange={(e) => set("email", e.target.value)}
-                                placeholder="john@example.com"
-                                className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1"
-                              />
-                            ) : (
-                              <div className="h-10 px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-center flex-1 overflow-hidden">
-                                {(form.email as string) ? (
-                                  <a href={`mailto:${form.email}`} className="text-primary hover:underline font-medium break-words w-full">{form.email as string}</a>
-                                ) : (
-                                  <span className="text-muted-foreground italic">Not specified</span>
-                                )}
-                              </div>
-                            )}
-                            <Select value={(form.email_type as string) || ""} onValueChange={(v) => set("email_type", v)} disabled={!editing}>
-                              <SelectTrigger className="h-10 w-[140px] border-border">
-                                <SelectValue placeholder="Work" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {emailTypeOptions.map(opt => (
-                                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium text-foreground">Website</Label>
-                          <div className="flex items-stretch gap-2">
-                            {editing ? (
-                              <Input
-                                value={(form.website as string) || ""}
-                                onChange={(e) => set("website", e.target.value)}
-                                placeholder="https://example.com"
-                                className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1"
-                              />
-                            ) : (
-                              <div className="h-10 px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-center flex-1 overflow-hidden">
-                                {(form.website as string) ? (
-                                  <a href={String(form.website)} target="_blank" rel="noreferrer" className="text-primary hover:underline font-medium break-words w-full">{form.website as string}</a>
-                                ) : (
-                                  <span className="text-muted-foreground italic">Not specified</span>
-                                )}
-                              </div>
-                            )}
-                            <Select value={(form.website_type as string) || ""} onValueChange={(v) => set("website_type", v)} disabled={!editing}>
-                              <SelectTrigger className="h-10 w-[160px] border-border">
-                                <SelectValue placeholder="Corporate" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {websiteTypeOptions.map(opt => (
-                                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-
-                        <div className="md:col-span-2 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <Label className="text-sm font-medium text-foreground flex items-center gap-1">
-                              <MapPin className="h-4 w-4" />
-                              Address
+                        <DroppableField id="fixed-lead-company-details-pipeline" editing={editing}>
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium text-foreground flex items-center gap-2">
+                              <Briefcase className="h-4 w-4" />
+                              Pipeline
                             </Label>
-                            <span className="text-xs text-primary">expand</span>
+                            <Select value={(form.pipeline as string) || "default"} onValueChange={(v) => set("pipeline", v)} disabled={!editing}>
+                              <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
+                                <SelectValue placeholder="Select pipeline" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="default">Standard Pipeline</SelectItem>
+                                <SelectItem value="marketing">Marketing Pipeline</SelectItem>
+                                <SelectItem value="sales">Sales Pipeline</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </div>
-                          {editing ? (
-                            <Textarea
-                              value={(form.address as string) || ""}
-                              onChange={(e) => set("address", e.target.value)}
-                              className="min-h-[84px] resize-none border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                              placeholder="Address"
-                            />
-                          ) : (
-                            <div className="min-h-[84px] px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-start overflow-hidden">
-                              <span className="whitespace-pre-wrap break-words text-foreground font-medium w-full">
-                                {(form.address as string) || <span className="text-muted-foreground italic">Not specified</span>}
-                              </span>
-                            </div>
-                          )}
-                        </div>
+                        </DroppableField>
+                        {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-pipeline")}
 
-                        <Field
-                          label="Company Phone Number"
-                          value={form.company_phone as string}
-                          onChange={(v) => set("company_phone", v)}
-                          editing={editing}
-                          type="tel"
-                          icon={<Phone className="h-4 w-4" />}
-                          entityId={id}
-                        />
-                        <Field
-                          label="Company Email"
-                          value={form.company_email as string}
-                          onChange={(v) => set("company_email", v)}
-                          editing={editing}
-                          icon={<Mail className="h-4 w-4" />}
-                          entityId={id}
-                        />
+                        <DroppableField id="fixed-lead-company-details-stage" editing={editing}>
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium text-foreground">Stage</Label>
+                            <Select value={(form.stage as string) || ""} onValueChange={(v) => set("stage", v)} disabled={!editing}>
+                              <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
+                                <SelectValue placeholder="Select stage" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {pipelineStages.map(stage => (
+                                  <SelectItem key={stage.id} value={stage.id}>{stage.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </DroppableField>
+                        {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-stage")}
+
+                        <DroppableField id="fixed-lead-company-details-customer_type" editing={editing}>
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium text-foreground">Customer Type</Label>
+                            <Select value={(form.customer_type as string) || ""} onValueChange={(v) => set("customer_type", v)} disabled={!editing}>
+                              <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
+                                <SelectValue placeholder="not selected" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {customerTypeOptions.map(opt => (
+                                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </DroppableField>
+                        {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-customer_type")}
+
+                        <DroppableField id="fixed-lead-company-details-assigned_to" editing={editing}>
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                              <Users className="h-4 w-4" />
+                              Lead owner
+                            </label>
+                            {editing ? (
+                              <Select
+                                value={form.assigned_to || "unassigned"}
+                                onValueChange={(v) => set("assigned_to", v === "unassigned" ? null : v)}
+                              >
+                                <SelectTrigger className="bg-background border-border">
+                                  <SelectValue placeholder="Select owner..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="unassigned">Unassigned</SelectItem>
+                                  {members.map((m) => (
+                                    <SelectItem key={m.id} value={m.id}>
+                                      <div className="flex items-center gap-2">
+                                        <Avatar className="h-5 w-5">
+                                          <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+                                            {m.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                                          </AvatarFallback>
+                                        </Avatar>
+                                        {m.full_name}
+                                      </div>
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <div className="h-10 px-3 py-2 border rounded-lg bg-muted/40 flex items-center gap-2">
+                                {form.assigned_to ? (
+                                  <>
+                                    <Avatar className="h-6 w-6">
+                                      <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+                                        {members.find(m => m.id === form.assigned_to)?.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <span className="text-foreground font-medium">
+                                      {members.find(m => m.id === form.assigned_to)?.full_name || 'Assigned User'}
+                                    </span>
+                                  </>
+                                ) : (
+                                  <span className="text-muted-foreground italic">Unassigned</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </DroppableField>
+                        {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-assigned_to")}
+
+                        <DroppableField id="fixed-lead-company-details-createdAt" editing={editing}>
+                          <Field
+                            label="Created Date"
+                            value={editing ? (form.createdAt as string) : (form.createdAt ? format(new Date(form.createdAt as string), 'MMM d, yyyy HH:mm') : 'Not specified')}
+                            onChange={(v) => set("createdAt", v)}
+                            editing={editing}
+                            type="datetime-local"
+                            icon={<CalendarIcon className="h-4 w-4" />}
+                            entityId={id}
+                          />
+                        </DroppableField>
+                        {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-createdAt")}
+
+                        <DroppableField id="fixed-lead-company-details-contact_person" editing={editing}>
+                          <Field
+                            label="Contact Person"
+                            value={form.contact_person as string}
+                            onChange={(v) => set("contact_person", v)}
+                            editing={editing}
+                            icon={<User className="h-4 w-4" />}
+                            entityId={id}
+                          />
+                        </DroppableField>
+                        {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-contact_person")}
+
+                        <DroppableField id="fixed-lead-company-details-title" editing={editing}>
+                          <Field
+                            label="Title"
+                            value={form.title as string}
+                            onChange={(v) => set("title", v)}
+                            editing={editing}
+                            icon={<Tag className="h-4 w-4" />}
+                            entityId={id}
+                          />
+                        </DroppableField>
+                        {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-title")}
+
+                        <DroppableField id="fixed-lead-company-details-company_name" editing={editing}>
+                          <Field
+                            label="Company Name"
+                            value={form.company_name as string}
+                            onChange={(v) => set("company_name", v)}
+                            editing={editing}
+                            icon={<Building2 className="h-4 w-4" />}
+                            entityId={id}
+                          />
+                        </DroppableField>
+                        {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-company_name")}
+                        
+                        <DroppableField id="fixed-lead-company-details-industry" editing={editing}>
+                          <Field
+                            label="Industry"
+                            value={form.industry as string}
+                            onChange={(v) => set("industry", v)}
+                            editing={editing}
+                            icon={<Activity className="h-4 w-4" />}
+                            entityId={id}
+                          />
+                        </DroppableField>
+                        {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-industry")}
+
+                        <DroppableField id="fixed-lead-company-details-designation" editing={editing}>
+                          <Field
+                            label="Designation"
+                            value={form.designation as string}
+                            onChange={(v) => set("designation", v)}
+                            editing={editing}
+                            icon={<Briefcase className="h-4 w-4" />}
+                            entityId={id}
+                          />
+                        </DroppableField>
+                        {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-designation")}
+                        <DroppableField id="fixed-lead-company-details-phone" editing={editing}>
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium text-foreground">Personal Number</Label>
+                            <div className="flex items-stretch gap-2">
+                              {editing ? (
+                                <Input
+                                  value={(form.phone as string) || ""}
+                                  onChange={(e) => set("phone", e.target.value)}
+                                  placeholder="+1 (555) 123-4567"
+                                  className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1"
+                                />
+                              ) : (
+                                <div className="h-10 px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-center flex-1">
+                                  {(form.phone as string) ? (
+                                    <ClickToCall
+                                      phoneNumber={form.phone as string}
+                                      entityType="lead"
+                                      entityId={id}
+                                      className="text-sm font-medium text-foreground"
+                                    />
+                                  ) : (
+                                    <span className="text-muted-foreground italic">Not specified</span>
+                                  )}
+                                </div>
+                              )}
+                              <Select value={(form.phone_type as string) || ""} onValueChange={(v) => set("phone_type", v)} disabled={!editing}>
+                                <SelectTrigger className="h-10 w-[160px] border-border">
+                                  <SelectValue placeholder="Work Phone" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {phoneTypeOptions.map(opt => (
+                                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        </DroppableField>
+                        {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-phone")}
+
+                        <DroppableField id="fixed-lead-company-details-email" editing={editing}>
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium text-foreground">Personal E-mail</Label>
+                            <div className="flex items-stretch gap-2">
+                              {editing ? (
+                                <Input
+                                  type="email"
+                                  value={(form.email as string) || ""}
+                                  onChange={(e) => set("email", e.target.value)}
+                                  placeholder="john@example.com"
+                                  className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1"
+                                />
+                              ) : (
+                                <div className="h-10 px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-center flex-1 overflow-hidden">
+                                  {(form.email as string) ? (
+                                    <a href={`mailto:${form.email}`} className="text-primary hover:underline font-medium break-words w-full">{form.email as string}</a>
+                                  ) : (
+                                    <span className="text-muted-foreground italic">Not specified</span>
+                                  )}
+                                </div>
+                              )}
+                              <Select value={(form.email_type as string) || ""} onValueChange={(v) => set("email_type", v)} disabled={!editing}>
+                                <SelectTrigger className="h-10 w-[140px] border-border">
+                                  <SelectValue placeholder="Work" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {emailTypeOptions.map(opt => (
+                                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        </DroppableField>
+                        {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-email")}
+
+                        <DroppableField id="fixed-lead-company-details-website" editing={editing}>
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium text-foreground">Website</Label>
+                            <div className="flex items-stretch gap-2">
+                              {editing ? (
+                                <Input
+                                  value={(form.website as string) || ""}
+                                  onChange={(e) => set("website", e.target.value)}
+                                  placeholder="https://example.com"
+                                  className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1"
+                                />
+                              ) : (
+                                <div className="h-10 px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-center flex-1 overflow-hidden">
+                                  {(form.website as string) ? (
+                                    <a href={String(form.website)} target="_blank" rel="noreferrer" className="text-primary hover:underline font-medium break-words w-full">{form.website as string}</a>
+                                  ) : (
+                                    <span className="text-muted-foreground italic">Not specified</span>
+                                  )}
+                                </div>
+                              )}
+                              <Select value={(form.website_type as string) || ""} onValueChange={(v) => set("website_type", v)} disabled={!editing}>
+                                <SelectTrigger className="h-10 w-[160px] border-border">
+                                  <SelectValue placeholder="Corporate" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {websiteTypeOptions.map(opt => (
+                                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        </DroppableField>
+                        {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-website")}
+
+                        <DroppableField id="fixed-lead-company-details-address" editing={editing}>
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-sm font-medium text-foreground flex items-center gap-1">
+                                <MapPin className="h-4 w-4" />
+                                Address
+                              </Label>
+                              <span className="text-xs text-primary">expand</span>
+                            </div>
+                            {editing ? (
+                              <Textarea
+                                value={(form.address as string) || ""}
+                                onChange={(e) => set("address", e.target.value)}
+                                className="min-h-[84px] resize-none border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                                placeholder="Address"
+                              />
+                            ) : (
+                              <div className="min-h-[84px] px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-start overflow-hidden">
+                                <span className="whitespace-pre-wrap break-words text-foreground font-medium w-full">
+                                  {(form.address as string) || <span className="text-muted-foreground italic">Not specified</span>}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </DroppableField>
+                        {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-address")}
+
+                        <DroppableField id="fixed-lead-company-details-company_phone" editing={editing}>
+                          <Field
+                            label="Company Phone Number"
+                            value={form.company_phone as string}
+                            onChange={(v) => set("company_phone", v)}
+                            editing={editing}
+                            type="tel"
+                            icon={<Phone className="h-4 w-4" />}
+                            entityId={id}
+                          />
+                        </DroppableField>
+                        {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-company_phone")}
+
+                        <DroppableField id="fixed-lead-company-details-company_email" editing={editing}>
+                          <Field
+                            label="Company Email"
+                            value={form.company_email as string}
+                            onChange={(v) => set("company_email", v)}
+                            editing={editing}
+                            icon={<Mail className="h-4 w-4" />}
+                            entityId={id}
+                          />
+                        </DroppableField>
+                        {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-company_email")}
                       </div>
+                    </DroppableSection>
+                    
+                    <DroppableSection id="lead-company-details" editing={editing} className="mt-6">
                       {renderDroppedFields("lead-company-details")}
-                    </CardContent>
-                  </Card>
-                </DroppableSection>
+                    </DroppableSection>
+                  </CardContent>
+                </Card>
                 {/* Activity & Interaction Tracking */}
-                <DroppableSection id="activity-tracking" editing={editing}>
-                  <Card className="border   shadow-sm">
-                    <CardHeader className="border-b bg-muted/30 rounded-t-lg">
+                <Card className="border shadow-sm overflow-hidden">
+                  <DroppableSection id="activity-tracking-top" editing={editing}>
+                    <CardHeader className="border-b bg-muted/30 hover:bg-muted/50 transition-colors">
                       <CardTitle className="flex items-center gap-3 text-xl">
                         Activity & Interaction Tracking
                       </CardTitle>
                       <CardDescription>Track touchpoints and follow-up timing.</CardDescription>
                     </CardHeader>
-                    <CardContent className="p-8">
+                    <div className="p-8 pb-0">
+                      {renderDroppedFields("activity-tracking-top", true)}
+                    </div>
+                  </DroppableSection>
+                  <CardContent className="p-8 pt-4">
+
+                    <DroppableSection id="activity-tracking" editing={editing}>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <Field
-                          label="Last Contacted Date"
-                          value={form.last_contacted_date as string}
-                          onChange={(v) => set("last_contacted_date", v)}
-                          editing={editing}
-                          type="date"
-                          icon={<CalendarIcon className="h-4 w-4" />}
-                          entityId={id}
-                        />
-                        <Field
-                          label="Next Follow-up Date"
-                          value={form.next_follow_up_date as string}
-                          onChange={(v) => set("next_follow_up_date", v)}
-                          editing={editing}
-                          type="date"
-                          icon={<CalendarIcon className="h-4 w-4" />}
-                          entityId={id}
-                        />
-                        <div className="md:col-span-2">
+                        <DroppableField id="fixed-activity-tracking-last_contacted_date" editing={editing}>
                           <Field
-                            label="All Interaction Notes With Dates"
-                            value={form.interaction_notes as string}
-                            onChange={(v) => set("interaction_notes", v)}
+                            label="Last Contacted Date"
+                            value={form.last_contacted_date as string}
+                            onChange={(v) => set("last_contacted_date", v)}
                             editing={editing}
-                            multiline
-                            icon={<FileText className="h-4 w-4" />}
-                            placeholder="Add interaction notes..."
+                            type="date"
+                            icon={<CalendarIcon className="h-4 w-4" />}
                             entityId={id}
                           />
+                        </DroppableField>
+                        {renderDroppedFields("activity-tracking", false, "fixed-activity-tracking-last_contacted_date")}
+
+                        <DroppableField id="fixed-activity-tracking-next_follow_up_date" editing={editing}>
+                          <Field
+                            label="Next Follow-up Date"
+                            value={form.next_follow_up_date as string}
+                            onChange={(v) => set("next_follow_up_date", v)}
+                            editing={editing}
+                            type="date"
+                            icon={<CalendarIcon className="h-4 w-4" />}
+                            entityId={id}
+                          />
+                        </DroppableField>
+                        {renderDroppedFields("activity-tracking", false, "fixed-activity-tracking-next_follow_up_date")}
+
+                        <div className="md:col-span-2">
+                          <DroppableField id="fixed-activity-tracking-interaction_notes" editing={editing}>
+                            <Field
+                              label="All Interaction Notes With Dates"
+                              value={form.interaction_notes as string}
+                              onChange={(v) => set("interaction_notes", v)}
+                              editing={editing}
+                              multiline
+                              icon={<FileText className="h-4 w-4" />}
+                              placeholder="Add interaction notes..."
+                              entityId={id}
+                            />
+                          </DroppableField>
+                          {renderDroppedFields("activity-tracking", false, "fixed-activity-tracking-interaction_notes")}
                         </div>
                       </div>
+                    </DroppableSection>
+                    
+                    <DroppableSection id="activity-tracking" editing={editing} className="mt-6">
                       {renderDroppedFields("activity-tracking")}
-                    </CardContent>
-                  </Card>
-                </DroppableSection>
+                    </DroppableSection>
+                  </CardContent>
+                </Card>
 
                 {/* Qualification & Opportunity */}
-                <DroppableSection id="qualification-opportunity" editing={editing}>
-                  <Card className="border   shadow-sm">
-                    <CardHeader className="border-b bg-muted/30 rounded-t-lg">
+                <Card className="border shadow-sm overflow-hidden">
+                  <DroppableSection id="qualification-opportunity-top" editing={editing}>
+                    <CardHeader className="border-b bg-muted/30 hover:bg-muted/50 transition-colors">
                       <CardTitle className="flex items-center gap-3 text-xl">
-
                         Qualification & Opportunity
                       </CardTitle>
                       <CardDescription>Capture the sales potential and buying intent.</CardDescription>
                     </CardHeader>
-                    <CardContent className="p-8">
+                    <div className="p-8 pb-0">
+                      {renderDroppedFields("qualification-opportunity-top", true)}
+                    </div>
+                  </DroppableSection>
+                  <CardContent className="p-8 pt-4">
+
+                    <DroppableSection id="qualification-opportunity" editing={editing}>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium text-foreground flex items-center gap-1">
-                            <Star className="h-4 w-4" />
-                            Service Interested
-                          </Label>
-                          <CreatableSelect
-                            label="Service Interested"
-                            value={(form.service_interested as string) || ""}
-                            onChange={(v) => set("service_interested", v)}
-                            options={defaultServiceOptions}
-                            disabled={!editing}
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium text-foreground">Company Size</Label>
-                          <Select value={(form.company_size as string) || ""} onValueChange={(v) => set("company_size", v)} disabled={!editing}>
-                            <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
-                              <SelectValue placeholder="Company Size" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {companySizeOptions.map(opt => (
-                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium text-foreground">Estimated Opportunity Value</Label>
-                          <div className="flex items-stretch gap-2">
-                            <Input
-                              type="number"
-                              value={form.value !== undefined && form.value !== null ? String(form.value) : ""}
-                              onChange={(e) => set("value", e.target.value ? Number(e.target.value) : null)}
+                        <DroppableField id="fixed-qualification-opportunity-service_interested" editing={editing}>
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium text-foreground flex items-center gap-1">
+                              <Star className="h-4 w-4" />
+                              Service Interested
+                            </Label>
+                            <CreatableSelect
+                              label="Service Interested"
+                              value={(form.service_interested as string) || ""}
+                              onChange={(v) => set("service_interested", v)}
+                              options={defaultServiceOptions}
                               disabled={!editing}
-                              placeholder="0"
-                              className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1"
                             />
-                            <Select value={(form.currency as string) || ""} onValueChange={(v) => set("currency", v)} disabled={!editing}>
-                              <SelectTrigger className="h-10 w-[170px] border-border">
-                                <SelectValue placeholder="US Dollar" />
+                          </div>
+                        </DroppableField>
+                        {renderDroppedFields("qualification-opportunity", false, "fixed-qualification-opportunity-service_interested")}
+
+                        <DroppableField id="fixed-qualification-opportunity-company_size" editing={editing}>
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium text-foreground">Company Size</Label>
+                            <Select value={(form.company_size as string) || ""} onValueChange={(v) => set("company_size", v)} disabled={!editing}>
+                              <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
+                                <SelectValue placeholder="Company Size" />
                               </SelectTrigger>
                               <SelectContent>
-                                {currencyOptions.map(opt => (
+                                {companySizeOptions.map(opt => (
                                   <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
                           </div>
-                        </div>
+                        </DroppableField>
+                        {renderDroppedFields("qualification-opportunity", false, "fixed-qualification-opportunity-company_size")}
 
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium text-foreground">Decision Maker Identified</Label>
-                          <Select value={(form.decision_maker as string) || ""} onValueChange={(v) => set("decision_maker", v)} disabled={!editing}>
-                            <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
-                              <SelectValue placeholder="not selected" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {yesNoOptions.map(opt => (
-                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
+                        <DroppableField id="fixed-qualification-opportunity-value" editing={editing}>
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium text-foreground">Estimated Opportunity Value</Label>
+                            <div className="flex items-stretch gap-2">
+                              <Input
+                                type="number"
+                                value={form.value !== undefined && form.value !== null ? String(form.value) : ""}
+                                onChange={(e) => set("value", e.target.value ? Number(e.target.value) : null)}
+                                disabled={!editing}
+                                placeholder="0"
+                                className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1"
+                              />
+                              <Select value={(form.currency as string) || ""} onValueChange={(v) => set("currency", v)} disabled={!editing}>
+                                <SelectTrigger className="h-10 w-[170px] border-border">
+                                  <SelectValue placeholder="US Dollar" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {currencyOptions.map(opt => (
+                                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        </DroppableField>
+                        {renderDroppedFields("qualification-opportunity", false, "fixed-qualification-opportunity-value")}
 
-                        <Field
-                          label="Expected Close Date"
-                          value={form.expected_close_date as string}
-                          onChange={(v) => set("expected_close_date", v)}
-                          editing={editing}
-                          type="date"
-                          icon={<CalendarIcon className="h-4 w-4" />}
-                          entityId={id}
-                        />
+                        <DroppableField id="fixed-qualification-opportunity-decision_maker" editing={editing}>
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium text-foreground">Decision Maker Identified</Label>
+                            <Select value={(form.decision_maker as string) || ""} onValueChange={(v) => set("decision_maker", v)} disabled={!editing}>
+                              <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
+                                <SelectValue placeholder="not selected" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {yesNoOptions.map(opt => (
+                                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </DroppableField>
+                        {renderDroppedFields("qualification-opportunity", false, "fixed-qualification-opportunity-decision_maker")}
 
-                        <Field
-                          label="Responsible Person"
-                          value={form.responsible_person as string}
-                          onChange={(v) => set("responsible_person", v)}
-                          editing={editing}
-                          icon={<User className="h-4 w-4" />}
-                          entityId={id}
-                        />
+                        <DroppableField id="fixed-qualification-opportunity-expected_close_date" editing={editing}>
+                          <Field
+                            label="Expected Close Date"
+                            value={form.expected_close_date as string}
+                            onChange={(v) => set("expected_close_date", v)}
+                            editing={editing}
+                            type="date"
+                            icon={<CalendarIcon className="h-4 w-4" />}
+                            entityId={id}
+                          />
+                        </DroppableField>
+                        {renderDroppedFields("qualification-opportunity", false, "fixed-qualification-opportunity-expected_close_date")}
+
+                        <DroppableField id="fixed-qualification-opportunity-responsible_person" editing={editing}>
+                          <Field
+                            label="Responsible Person"
+                            value={form.responsible_person as string}
+                            onChange={(v) => set("responsible_person", v)}
+                            editing={editing}
+                            icon={<User className="h-4 w-4" />}
+                            entityId={id}
+                          />
+                        </DroppableField>
+                        {renderDroppedFields("qualification-opportunity", false, "fixed-qualification-opportunity-responsible_person")}
                       </div>
                       {renderDroppedFields("qualification-opportunity")}
-                    </CardContent>
-                  </Card>
-                </DroppableSection>
+                    </DroppableSection>
+                  </CardContent>
+                </Card>
 
                 {/* Source */}
-                <DroppableSection id="source-section" editing={editing}>
-                  <Card className="border   shadow-sm">
-                    <CardHeader className="border-b bg-muted/30 rounded-t-lg">
+                <Card className="border shadow-sm overflow-hidden">
+                  <DroppableSection id="source-section-top" editing={editing}>
+                    <CardHeader className="border-b bg-muted/30 hover:bg-muted/50 transition-colors">
                       <CardTitle className="flex items-center gap-3 text-xl">
                         Source
                       </CardTitle>
                       <CardDescription>Record where the lead came from and any source context.</CardDescription>
                     </CardHeader>
-                    <CardContent className="p-8">
+                  </DroppableSection>
+                  <CardContent className="p-8">
+                    <DroppableSection id="source-section" editing={editing}>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <Field
-                          label="Created on"
-                          value={editing ? (form.createdAt as string) : (lead.created_at ? format(new Date(lead.created_at), "MMM d, yyyy") : "Not specified")}
-                          onChange={(v) => set("createdAt", v)}
-                          editing={editing}
-                          type="datetime-local"
-                          icon={<CalendarIcon className="h-4 w-4" />}
-                          entityId={id}
-                        />
-
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium text-foreground">Source</Label>
-                          <Select value={(form.source as string) || ""} onValueChange={(v) => set("source", v)} disabled={!editing}>
-                            <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
-                              <SelectValue placeholder="Call" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {sourceOptions.map(opt => (
-                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
                         <div className="md:col-span-2 space-y-2">
                           <Label className="text-sm font-medium text-foreground">Source Information</Label>
                           {editing ? (
                             <Textarea
-                              value={displayJsonValue(form.source_info)}
+                              value={displayJsonValue(form.source_info) || ""}
                               onChange={(e) => set("source_info", e.target.value)}
                               placeholder="Source Information"
                               className="min-h-[110px] resize-none border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
@@ -1565,11 +1671,11 @@ export default function LeadDetailPage() {
                           placeholder="e.g. CRM-123"
                           entityId={id}
                         />
+                        {renderDroppedFields("source-section")}
                       </div>
-                      {renderDroppedFields("source-section")}
-                    </CardContent>
-                  </Card>
-                </DroppableSection>
+                    </DroppableSection>
+                  </CardContent>
+                </Card>
 
                 <CustomFieldsSection
                   fields={customFields}
