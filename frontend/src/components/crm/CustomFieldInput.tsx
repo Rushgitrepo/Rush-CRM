@@ -49,19 +49,18 @@ export function CustomFieldInput({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!entityType || !entityId) {
-      updateField(field.id, { value: file.name });
-      toast.info(`File selected: ${file.name}. It will be uploaded when you save.`);
-      return;
-    }
-
     setUploading(true);
     try {
-      const response = await crmDocumentsApi.upload(entityType, entityId, file);
-      // Backend returns the document object with file_path
-      const doc = response; // Based on ApiClient, it returns the data directly
-      const filePath = doc.file_path || doc.path || file.name;
+      let response;
+      if (!entityType || !entityId) {
+        // Temporary upload for new records
+        response = await crmDocumentsApi.uploadTemp(file);
+      } else {
+        // Associated upload for existing records
+        response = await crmDocumentsApi.upload(entityType, entityId, file);
+      }
       
+      const filePath = response.file_path || response.path || file.name;
       updateField(field.id, { value: filePath });
       toast.success(`File uploaded successfully: ${file.name}`);
     } catch (error) {

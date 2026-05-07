@@ -88,8 +88,29 @@ const remove = async (req, res, next) => {
   }
 };
 
+const uploadTemp = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const file = req.file;
+    const filePath = `/uploads/crm/${file.filename}`;
+
+    res.status(201).json({ 
+      file_path: filePath, 
+      file_name: file.originalname,
+      mime_type: file.mimetype,
+      file_size: file.size
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getByEntity,
   upload,
   remove,
+  uploadTemp
 };
