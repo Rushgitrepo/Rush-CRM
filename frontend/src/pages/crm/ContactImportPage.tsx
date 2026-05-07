@@ -230,10 +230,10 @@ export default function ContactImportPage() {
       )}
 
       {/* Step 2: Field Mapping */}
-      {(step === 'mapping' || step === 'importing') && detectedFields && (
+      {step === 'mapping' && detectedFields && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
           <h2 className="text-xl font-semibold text-gray-900 mb-1">Map Your Fields</h2>
-          <p className="text-gray-500 text-sm mb-6">
+          <p className="text-muted-foreground text-sm mb-6">
             Match your file columns to contact fields. We've pre-filled suggested mappings.
           </p>
 
@@ -284,11 +284,42 @@ export default function ContactImportPage() {
             </button>
             <button
               onClick={handleImport}
-              disabled={loading || step === 'importing'}
+              disabled={loading}
               className="flex-1 px-5 py-2.5 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-all shadow-md active:scale-[0.98]"
             >
-              {step === 'importing' ? 'Importing contacts…' : 'Import Contacts'}
+              Import Contacts
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 2.5: Importing Loading State */}
+      {step === 'importing' && (
+        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-20 flex flex-col items-center justify-center text-center">
+          <div className="relative w-24 h-24 mb-8">
+            <div className="absolute inset-0 border-4 border-primary/20 rounded-full"></div>
+            <div className="absolute inset-0 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Users className="h-8 w-8 text-primary animate-bounce" />
+            </div>
+          </div>
+          
+          <h2 className="text-2xl font-bold text-gray-900 mb-3">Importing Contacts</h2>
+          <p className="text-gray-500 max-w-sm mb-8">
+            We are currently processing your file and creating contacts in your database. 
+            This usually takes a few moments...
+          </p>
+          
+          <div className="w-full max-w-md h-2 bg-gray-100 rounded-full overflow-hidden mb-4">
+            <div className="h-full bg-primary animate-pulse w-full"></div>
+          </div>
+          
+          <div className="flex items-center gap-2 text-xs font-bold text-primary uppercase tracking-widest">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+            </span>
+            Processing {detectedFields?.totalRows || ''} Contacts
           </div>
         </div>
       )}

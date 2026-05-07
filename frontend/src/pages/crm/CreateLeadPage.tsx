@@ -65,6 +65,9 @@ const leadSchema = z.object({
   pipeline: z.string().optional(),
   responsiblePerson: z.string().optional(),
   externalSourceId: z.string().optional(),
+  agentName: z.string().optional(),
+  priority: z.string().optional(),
+  tags: z.string().optional(),
 });
 
 type LeadForm = z.infer<typeof leadSchema>;
@@ -103,6 +106,13 @@ const sourceOptions = [
   { value: "advertisement", label: "Advertisement" },
   { value: "partner", label: "Partner" },
   { value: "other", label: "Other" },
+];
+
+const priorityOptions = [
+  { value: "low", label: "Low" },
+  { value: "medium", label: "Medium" },
+  { value: "high", label: "High" },
+  { value: "urgent", label: "Urgent" },
 ];
 
 const companySizeOptions = [
@@ -303,6 +313,9 @@ export default function CreateLeadPage() {
       assignedTo: null,
       expectedCloseDate: "",
       pipeline: "default",
+      agentName: "",
+      priority: "medium",
+      tags: "",
     },
   });
 
@@ -369,6 +382,9 @@ export default function CreateLeadPage() {
       pipeline: data.pipeline || 'default',
       responsiblePerson: data.responsiblePerson || null,
       externalSourceId: data.externalSourceId || null,
+      agentName: data.agentName || null,
+      priority: data.priority || null,
+      tags: data.tags ? data.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
       customFields: customFields.reduce((acc, field) => {
         if (field.key.trim()) {
           acc[field.key.trim()] = { 
@@ -399,28 +415,28 @@ export default function CreateLeadPage() {
     });
   };
 
-  const handleFieldDropToSection = (fieldKey: string, fieldValue: string, sectionId: string) => {
+  const handleFieldDropToSection = (fieldKey: string, fieldValue: string, sectionId: string, updatedFields?: CustomField[]) => {
     setCustomFields(prev => {
-      const updated = prev.map(f => f.id === fieldKey ? { ...f, sectionId } : f);
+      const updated = updatedFields || prev.map(f => f.id === fieldKey ? { ...f, sectionId } : f);
       // Persist this change globally to the registry so new leads follow this layout
       saveCustomFieldTemplates('lead', updated);
       return updated;
     });
   };
 
-  const renderDroppedFields = (sectionId: string) => {
+  const renderDroppedFields = (sectionId: string, isTop = false) => {
     const sectionFields = customFields.filter(f => f.sectionId === sectionId);
     if (sectionFields.length === 0) return null;
 
-    const updateField = (id: string, updates: Partial<CustomField>) => {
-      setCustomFields(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
-    };
-
     return (
-      <div className="mt-6 pt-6 border-t border-dashed border-border space-y-4">
+      <div className={cn(
+        "space-y-4",
+        isTop ? "mb-6 pb-6 border-b border-dashed" : "mt-6 pt-6 border-t border-dashed",
+        "border-border"
+      )}>
         <div className="flex items-center gap-2 mb-2">
           <Badge variant="outline" className="text-[10px] uppercase tracking-wider bg-primary/5 text-primary border-primary/20">
-            Custom Fields
+            {isTop ? 'Top Custom Fields' : 'Custom Fields'}
           </Badge>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -431,16 +447,17 @@ export default function CreateLeadPage() {
                   <div className="flex items-center justify-between mb-1.5">
                     <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{field.key}</Label>
                     <DraggableFieldItem fieldKey={field.id} isHandle>
-                      <div className="p-1 cursor-grab active:cursor-grabbing text-primary hover:text-primary-foreground hover:bg-primary rounded transition-all">
-                        <GripVertical className="h-3.5 w-3.5" />
+                      <div className="p-1 cursor-grab active:cursor-grabbing text-primary hover:text-primary-foreground hover:bg-primary rounded transition-all opacity-0 group-hover:opacity-100">
+                        <GripVertical className="h-3 w-3" />
                       </div>
                     </DraggableFieldItem>
                   </div>
-                  
                   <CustomFieldInput
                     field={field}
                     editing={true}
-                    updateField={updateField}
+                    updateField={(id, updates) => {
+                      setCustomFields(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
+                    }}
                     entityType="lead"
                   />
                 </div>
@@ -481,17 +498,23 @@ export default function CreateLeadPage() {
           editing={true}
         >
           <div className="space-y-6">
-            <DroppableSection id="lead-company-details" editing={true}>
-              <Card className="border shadow-sm rounded-xl">
-                <CardHeader className="border-b">
-                  <SectionTitle
-                    icon={Building2}
-                    title="Lead and Company Details"
-                    description="Core contact, company, and ownership details."
-                  />
+            <Card className="border shadow-sm overflow-hidden">
+              <DroppableSection id="lead-company-details-top" editing={true}>
+                <CardHeader className="border-b bg-muted/30 hover:bg-muted/50 transition-colors">
+                  <CardTitle className="flex items-center gap-2">
+                    <Building2 className="h-5 w-5 text-primary" />
+                    Lead & Company Details
+                  </CardTitle>
+                  <CardDescription>Core contact and company information</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-5 p-6">
-                  <div className="grid gap-5 md:grid-cols-3">
+              </DroppableSection>
+              <CardContent className="p-6">
+                <DroppableSection id="lead-company-details-top" editing={true}>
+                  {renderDroppedFields("lead-company-details-top", true)}
+                </DroppableSection>
+
+                <DroppableSection id="lead-company-details" editing={true}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-foreground flex items-center gap-2">
                         <Briefcase className="h-4 w-4" />
@@ -570,7 +593,7 @@ export default function CreateLeadPage() {
                     <LabeledInput label="Lead name" placeholder="Lead #" fieldProps={register("title")} error={errors.title?.message} />
                   </div>
 
-                  <div className="grid gap-5 md:grid-cols-2">
+                  <div className="grid gap-5 md:grid-cols-2 mt-5">
                     <LabeledInput label="Company name" placeholder="Company name" fieldProps={register("companyName")} error={errors.companyName?.message} />
                     <LabeledInput label="Designation" placeholder="Job title / designation" fieldProps={register("designation")} error={errors.designation?.message} />
 
@@ -590,9 +613,6 @@ export default function CreateLeadPage() {
                           className="w-[160px] h-11"
                           error={errors.phoneType?.message}
                         />
-                        <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0 text-muted-foreground">
-                          <ChevronDown className="h-4 w-4" />
-                        </Button>
                       </div>
                       {errors.phone && <p className="text-xs text-destructive">{errors.phone.message}</p>}
                     </div>
@@ -614,9 +634,6 @@ export default function CreateLeadPage() {
                           className="w-[160px] h-11"
                           error={errors.emailType?.message}
                         />
-                        <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0 text-muted-foreground">
-                          <ChevronDown className="h-4 w-4" />
-                        </Button>
                       </div>
                       {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
                     </div>
@@ -637,9 +654,6 @@ export default function CreateLeadPage() {
                           className="w-[160px] h-11"
                           error={errors.websiteType?.message}
                         />
-                        <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0 text-muted-foreground">
-                          <ChevronDown className="h-4 w-4" />
-                        </Button>
                       </div>
                       {errors.website && <p className="text-xs text-destructive">{errors.website.message}</p>}
                     </div>
@@ -647,7 +661,6 @@ export default function CreateLeadPage() {
                     <div className="md:col-span-2 space-y-2">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-medium text-foreground">Address</Label>
-                        <span className="text-xs text-primary">expand</span>
                       </div>
                       <Textarea
                         placeholder="Address"
@@ -661,44 +674,49 @@ export default function CreateLeadPage() {
                     <LabeledInput label="Company Email" placeholder="info@company.com" fieldProps={register("companyEmail")} type="email" error={errors.companyEmail?.message} />
                   </div>
                   {renderDroppedFields("lead-company-details")}
-                </CardContent>
-              </Card>
-            </DroppableSection>
+                </DroppableSection>
+              </CardContent>
+            </Card>
 
-            <DroppableSection id="activity-tracking" editing={true}>
-              <Card className="border shadow-sm rounded-xl">
-                <CardHeader className="border-b">
-                  <SectionTitle
-                    icon={CalendarDays}
-                    title="Activity & Interaction Tracking"
-                    description="Track touchpoints and follow-up timing."
-                  />
+            <Card className="border shadow-sm overflow-hidden">
+              <DroppableSection id="activity-tracking-top" editing={true}>
+                <CardHeader className="border-b bg-muted/30 hover:bg-muted/50 transition-colors">
+                  <CardTitle className="flex items-center gap-2">
+                    <CalendarDays className="h-5 w-5 text-primary" />
+                    Activity & Interaction
+                  </CardTitle>
+                  <CardDescription>Track touchpoints and follow-up timing</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-5 p-6">
+              </DroppableSection>
+              <CardContent className="p-6">
+                <DroppableSection id="activity-tracking-top" editing={true}>
+                  {renderDroppedFields("activity-tracking-top", true)}
+                </DroppableSection>
+
+                <DroppableSection id="activity-tracking" editing={true}>
                   <div className="grid gap-5 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-foreground">Last Contacted Date</Label>
                       <Input type="date" {...register("lastContactedDate")} className={cn("h-10", errors.lastContactedDate && "border-destructive")} />
-                      {errors.lastContactedDate && <p className="text-xs text-destructive">{errors.lastContactedDate.message}</p>}
                     </div>
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-foreground">Next Follow-up Date</Label>
                       <Input type="date" {...register("nextFollowUpDate")} className={cn("h-10", errors.nextFollowUpDate && "border-destructive")} />
-                      {errors.nextFollowUpDate && <p className="text-xs text-destructive">{errors.nextFollowUpDate.message}</p>}
                     </div>
                   </div>
 
-                  <LabeledTextarea
-                    label="All Interaction Notes With Dates"
-                    placeholder="Add interaction notes..."
-                    fieldProps={register("interactionNotes")}
-                    rows={8}
-                    error={errors.interactionNotes?.message}
-                  />
+                  <div className="mt-5">
+                    <LabeledTextarea
+                      label="All Interaction Notes With Dates"
+                      placeholder="Add interaction notes..."
+                      fieldProps={register("interactionNotes")}
+                      rows={8}
+                    />
+                  </div>
                   {renderDroppedFields("activity-tracking")}
-                </CardContent>
-              </Card>
-            </DroppableSection>
+                </DroppableSection>
+              </CardContent>
+            </Card>
 
             <DroppableSection id="qualification-opportunity" editing={true}>
               <Card className="border shadow-sm rounded-xl">
@@ -723,13 +741,12 @@ export default function CreateLeadPage() {
                         options={serviceOptions}
                         disabled={false}
                       />
-                      {errors.serviceInterested && <p className="text-xs text-destructive">{errors.serviceInterested.message}</p>}
                     </div>
 
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-foreground">Company Size</Label>
                       <Select value={watch("companySize")} onValueChange={v => setValue("companySize", v)}>
-                        <SelectTrigger className={cn("h-10", errors.companySize && "border-destructive")}>
+                        <SelectTrigger className="h-10">
                           <SelectValue placeholder="Company Size" />
                         </SelectTrigger>
                         <SelectContent>
@@ -738,7 +755,6 @@ export default function CreateLeadPage() {
                           ))}
                         </SelectContent>
                       </Select>
-                      {errors.companySize && <p className="text-xs text-destructive">{errors.companySize.message}</p>}
                     </div>
 
                     <div className="space-y-2">
@@ -748,7 +764,7 @@ export default function CreateLeadPage() {
                           type="number"
                           placeholder="0"
                           {...register("value")}
-                          className={cn("h-10 flex-1", errors.value && "border-destructive")}
+                          className={cn("h-10 flex-1")}
                         />
                         <InlineSelect
                           value={watch("currency")}
@@ -756,17 +772,14 @@ export default function CreateLeadPage() {
                           placeholder="US Dollar"
                           options={currencyOptions}
                           className="w-[170px] h-10"
-                          error={errors.currency?.message}
                         />
                       </div>
-                      {errors.value && <p className="text-xs text-destructive">{errors.value.message}</p>}
                     </div>
 
                     <LabeledInput
                       label="Decision Maker Identified"
                       placeholder="not selected"
                       fieldProps={register("decisionMaker")}
-                      error={errors.decisionMaker?.message}
                     />
 
                     <div className="space-y-2">
@@ -774,8 +787,7 @@ export default function CreateLeadPage() {
                         <CalendarIcon className="h-4 w-4" />
                         Expected Close Date
                       </Label>
-                      <Input type="date" {...register("expectedCloseDate")} className={cn("h-10", errors.expectedCloseDate && "border-destructive")} />
-                      {errors.expectedCloseDate && <p className="text-xs text-destructive">{errors.expectedCloseDate.message}</p>}
+                      <Input type="date" {...register("expectedCloseDate")} className="h-10" />
                     </div>
 
                     <div className="space-y-2">
@@ -804,15 +816,14 @@ export default function CreateLeadPage() {
                       <Input 
                         type="date" 
                         {...register("createdAt")} 
-                        className={cn("h-10", errors.createdAt && "border-destructive")} 
+                        className="h-10" 
                       />
-                      {errors.createdAt && <p className="text-xs text-destructive">{errors.createdAt.message}</p>}
                     </div>
 
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-foreground">Source</Label>
                       <Select value={watch("source")} onValueChange={v => setValue("source", v)}>
-                        <SelectTrigger className={cn("h-10", errors.source && "border-destructive")}>
+                        <SelectTrigger className="h-10">
                           <SelectValue placeholder="Call" />
                         </SelectTrigger>
                         <SelectContent>
@@ -821,7 +832,6 @@ export default function CreateLeadPage() {
                           ))}
                         </SelectContent>
                       </Select>
-                      {errors.source && <p className="text-xs text-destructive">{errors.source.message}</p>}
                     </div>
 
                     <div className="md:col-span-2 space-y-2">
@@ -829,9 +839,8 @@ export default function CreateLeadPage() {
                       <Textarea
                         placeholder="Source Information"
                         {...register("sourceInfo")}
-                        className={cn("min-h-[110px]", errors.sourceInfo && "border-destructive")}
+                        className="min-h-[110px]"
                       />
-                      {errors.sourceInfo && <p className="text-xs text-destructive">{errors.sourceInfo.message}</p>}
                     </div>
 
                     <div className="space-y-2">
@@ -839,14 +848,37 @@ export default function CreateLeadPage() {
                       <Input placeholder="e.g. CRM-123" {...register("externalSourceId")} className="h-10" />
                     </div>
 
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground">Agent Name</Label>
+                      <Input placeholder="Agent name" {...register("agentName")} className="h-10" />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground">Priority</Label>
+                      <Select value={watch("priority")} onValueChange={v => setValue("priority", v)}>
+                        <SelectTrigger className="h-10">
+                          <SelectValue placeholder="Select priority" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {priorityOptions.map(opt => (
+                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground">Tags</Label>
+                      <Input placeholder="e.g. hot-lead, enterprise, Q2" {...register("tags")} className="h-10" />
+                    </div>
+
                     <div className="md:col-span-2 space-y-2">
                       <Label className="text-sm font-medium text-foreground">Additional Notes</Label>
                       <Textarea
                         placeholder="Add any extra context"
                         {...register("notes")}
-                        className={cn("min-h-[110px]", errors.notes && "border-destructive")}
+                        className="min-h-[110px]"
                       />
-                      {errors.notes && <p className="text-xs text-destructive">{errors.notes.message}</p>}
                     </div>
                   </div>
                   {renderDroppedFields("source-section")}

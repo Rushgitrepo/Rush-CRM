@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, FileSpreadsheet, CheckCircle, XCircle, ArrowRight, Sparkles, Download } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle, XCircle, ArrowRight, Sparkles, Download, FileUp, Database } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
@@ -38,12 +38,16 @@ export default function LeadImportPage() {
 
   const commonFields = [
     { value: 'title', label: entityType === 'deal' ? 'Deal Title' : 'Lead name' },
+    { value: 'name', label: 'Full Name' },
+    { value: 'firstName', label: 'First Name' },
+    { value: 'lastName', label: 'Last Name' },
     { value: 'email', label: entityType === 'deal' ? 'Email' : 'Personal E-mail' },
     { value: 'phone', label: entityType === 'deal' ? 'Phone' : 'Personal Number' },
     { value: 'company', label: 'Company name' },
     { value: 'companyEmail', label: 'Company Email' },
     { value: 'companyPhone', label: entityType === 'deal' ? 'Company Phone' : 'Company Phone Number' },
     { value: 'designation', label: 'Designation' },
+    { value: 'jobTitle', label: 'Job Title' },
     { value: 'pipeline', label: 'Pipeline' },
     { value: 'stage', label: 'Stage' },
     { value: 'status', label: 'Status' },
@@ -52,34 +56,37 @@ export default function LeadImportPage() {
     { value: 'value', label: entityType === 'deal' ? 'Deal Value' : 'Estimated Opportunity Value' },
     { value: 'currency', label: 'Currency' },
     { value: 'website', label: 'Website' },
+    { value: 'websiteType', label: 'Website Type' },
     { value: 'address', label: 'Address' },
-    { value: 'country', label: 'Country' },
     { value: 'city', label: 'City' },
-    { value: 'state', label: 'State/Province' },
-    { value: 'zipCode', label: 'Zip/Postal Code' },
-    { value: 'notes', label: entityType === 'deal' ? 'Description' : 'Additional Notes' },
+    { value: 'state', label: 'State' },
+    { value: 'zip', label: 'Zip/Postal Code' },
+    { value: 'country', label: 'Country' },
+    { value: 'notes', label: entityType === 'deal' ? 'Notes' : 'Additional Notes' },
     { value: 'agentName', label: entityType === 'deal' ? 'Sales Agent' : 'Agent Name' },
     { value: 'assignedTo', label: entityType === 'deal' ? 'Responsible Person' : 'Lead owner' },
     { value: 'serviceInterested', label: 'Service Interested' },
     { value: 'companySize', label: 'Company Size' },
-    { value: 'decisionMaker', label: 'Decision Maker' },
-    { value: 'industry', label: 'Industry/Sector' },
+    { value: 'industry', label: 'Industry' },
+    { value: 'decisionMaker', label: entityType === 'deal' ? 'Decision Maker' : 'Decision Maker Identified' },
     { value: 'priority', label: 'Priority' },
     { value: 'tags', label: 'Tags (Comma separated)' },
     { value: 'expectedCloseDate', label: 'Expected Close Date' },
     { value: 'nextFollowUpDate', label: 'Next Follow-up Date' },
     { value: 'externalSourceId', label: 'External Source ID' },
-    { value: 'twitter', label: 'Twitter Handle' },
     { value: 'createdAt', label: 'Created Date' },
   ];
 
   const leadOnlyFields = [
+    { value: 'customerType', label: 'Customer Type' },
     { value: 'interactionNotes', label: 'All Interaction Notes With Dates' },
     { value: 'lastContactedDate', label: 'Last Contacted Date' },
     { value: 'responsiblePerson', label: 'Responsible Person' },
   ];
 
   const dealOnlyFields = [
+    { value: 'contactName', label: 'Contact Name' },
+    { value: 'description', label: 'Description' },
     { value: 'probability', label: 'Probability (%)' },
     { value: 'clientType', label: 'Client Type' },
     { value: 'projectType', label: 'Project Type' },
@@ -274,12 +281,21 @@ export default function LeadImportPage() {
                 </span>
               </div>
 
-              {loading && (
-                <div className="mt-6 flex flex-col items-center gap-2 animate-in fade-in slide-in-from-bottom-2">
-                  <div className="h-1 w-48 bg-muted rounded-full overflow-hidden">
-                    <div className="h-full bg-primary animate-progress origin-left"></div>
+              {loading && step === 'upload' && (
+                <div className="mt-12 flex flex-col items-center gap-6 animate-in fade-in zoom-in duration-500">
+                  <div className="relative">
+                    <div className="h-20 w-20 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <FileUp className="h-8 w-8 text-primary animate-pulse" />
+                    </div>
                   </div>
-                  <p className="text-sm text-primary font-medium">Analyzing your file...</p>
+                  <div className="text-center space-y-2">
+                    <p className="text-xl font-semibold tracking-tight">Analyzing your file...</p>
+                    <p className="text-muted-foreground">Preparing your data for field mapping and import.</p>
+                  </div>
+                  <div className="h-1.5 w-64 bg-muted rounded-full overflow-hidden">
+                    <div className="h-full bg-primary animate-progress origin-left shadow-[0_0_10px_rgba(var(--primary),0.3)]"></div>
+                  </div>
                 </div>
               )}
             </div>
@@ -413,6 +429,37 @@ export default function LeadImportPage() {
             >
               {loading ? 'Importing...' : `Import ${entityType === 'lead' ? 'Leads' : 'Deals'}`}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 2.5: Importing Loading State */}
+      {step === 'importing' && (
+        <div className="bg-card rounded-xl shadow-lg border p-20 flex flex-col items-center justify-center text-center">
+          <div className="relative w-24 h-24 mb-8">
+            <div className="absolute inset-0 border-4 border-primary/20 rounded-full"></div>
+            <div className="absolute inset-0 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Upload className="h-8 w-8 text-primary animate-bounce" />
+            </div>
+          </div>
+          
+          <h2 className="text-2xl font-bold text-foreground mb-3">Importing Your Data</h2>
+          <p className="text-muted-foreground max-w-sm mb-8">
+            We are currently processing your file and creating {entityType === 'lead' ? 'leads' : 'deals'}. 
+            This usually takes a few seconds...
+          </p>
+          
+          <div className="w-full max-w-md h-2 bg-muted rounded-full overflow-hidden mb-4">
+            <div className="h-full bg-primary animate-progress origin-left"></div>
+          </div>
+          
+          <div className="flex items-center gap-2 text-xs font-bold text-primary uppercase tracking-widest">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+            </span>
+            Processing {detectedFields?.totalRows || ''} Rows
           </div>
         </div>
       )}

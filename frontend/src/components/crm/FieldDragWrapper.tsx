@@ -8,22 +8,24 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { toast } from "sonner";
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 
 interface CustomField {
   id: string;
   key: string;
   value: string;
   sectionId?: string;
+  afterFieldId?: string; // New: ID of the field (fixed or custom) this field should follow
 }
 
 interface FieldDragWrapperProps {
   children: React.ReactNode;
   customFields: CustomField[];
   onCustomFieldsChange: (fields: CustomField[]) => void;
-  onFieldDropToSection: (fieldKey: string, fieldValue: string, sectionId: string) => void;
+  onFieldDropToSection: (fieldKey: string, fieldValue: string, sectionId: string, updatedFields?: CustomField[]) => void;
   editing: boolean;
 }
 
@@ -62,7 +64,7 @@ export function FieldDragWrapper({
     }
 
     const fieldId = active.id as string;
-    let targetSectionId = over.id as string;
+    let targetId = over.id as string;
 
     if (!editing) return;
 
@@ -72,10 +74,34 @@ export function FieldDragWrapper({
 
     const field = customFields[fieldIndex];
 
-    // If the target is another field (sortable item), use that field's sectionId
-    const targetField = customFields.find(f => f.id === targetSectionId);
+    // Check if target is a fixed field
+    const isFixedField = targetId.startsWith('fixed-');
+    
+    // If target is another custom field
+    const targetField = customFields.find(f => f.id === targetId);
+
+    // Identify target section
+    let targetSectionId = targetId;
     if (targetField) {
       targetSectionId = targetField.sectionId || "custom-fields";
+    } else if (isFixedField) {
+      // For fixed fields, we need to extract the section they belong to
+      // We'll pass the section as a data attribute or prefix
+      // For now, let's assume the ID format is fixed-[sectionId]-[fieldName]
+      const parts = targetId.split('-');
+      if (parts.length >= 3) {
+        // e.g., fixed-lead-company-details-pipeline
+        // Reconstruct sectionId from parts
+        if (targetId.includes('lead-company-details')) targetSectionId = 'lead-company-details';
+        else if (targetId.includes('activity-tracking')) targetSectionId = 'activity-tracking';
+        else if (targetId.includes('qualification-opportunity')) targetSectionId = 'qualification-opportunity';
+        else if (targetId.includes('source-section')) targetSectionId = 'source-section';
+        else if (targetId.includes('deal-info')) targetSectionId = 'deal-info';
+        else if (targetId.includes('contact-info')) targetSectionId = 'contact-info';
+        else if (targetId.includes('company-info')) targetSectionId = 'company-info';
+        else if (targetId.includes('about-deal')) targetSectionId = 'about-deal';
+        else if (targetId.includes('more-section')) targetSectionId = 'more-section';
+      }
     }
 
     // List of valid section IDs across leads and deals
@@ -95,29 +121,48 @@ export function FieldDragWrapper({
       "marketing-qualification"
     ];
 
-    // If the target is not a known section and not another field, it's an invalid drop
-    if (!validSections.includes(targetSectionId)) {
-      console.warn(`Dropped on invalid target: ${targetSectionId}`);
-      // Special case: if it's a sortable item, we already handled it above.
-      // If it's still not in validSections, it might be a sub-element ID.
-      // For now, let's allow it if it's not null, but prioritize valid sections.
+    const isValidSection = validSections.some(s => targetSectionId === s || targetSectionId === `${s}-top`);
+    
+    if (!isValidSection && !targetField && !isFixedField) {
+      console.warn(`Dropped on invalid target: ${targetId}`);
       return;
     }
 
-    // If dropping into a different section than it's currently in
+    const newCustomFields = [...customFields];
     const currentSectionId = field.sectionId || "custom-fields";
     
-    if (currentSectionId !== targetSectionId) {
-      const newCustomFields = [...customFields];
-      newCustomFields[fieldIndex] = { ...field, sectionId: targetSectionId };
-      onCustomFieldsChange(newCustomFields);
-      
-      onFieldDropToSection(field.key, field.value, targetSectionId);
-      
-      const sectionName = targetSectionId === "custom-fields" ? "Custom Fields" : 
-                         targetSectionId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-      toast.success(`Field "${field.key || "New Field"}" moved to ${sectionName}`);
+    // Update the field with new section and placement info
+    const updatedField = { 
+      ...field, 
+      sectionId: targetSectionId,
+      afterFieldId: isFixedField ? targetId : (targetField ? targetField.id : undefined)
+    };
+    
+    newCustomFields[fieldIndex] = updatedField;
+    
+    let finalFields = newCustomFields;
+    if (targetField) {
+      const oldIndex = fieldIndex;
+      const newIndex = newCustomFields.findIndex(f => f.id === targetField.id);
+      finalFields = arrayMove(newCustomFields, oldIndex, newIndex);
+    } else if (targetSectionId.endsWith('-top')) {
+      const oldIndex = fieldIndex;
+      finalFields = arrayMove(newCustomFields, oldIndex, 0);
+      // Remove afterFieldId if moving to top
+      finalFields[0] = { ...finalFields[0], afterFieldId: undefined };
+    } else if (isFixedField) {
+      // When dropping on a fixed field, we keep it in the array but it will be rendered 
+      // specially by the parent component using afterFieldId
     }
+    
+    onCustomFieldsChange(finalFields);
+    onFieldDropToSection(field.key, field.value, targetSectionId, finalFields);
+    
+    const displayTarget = isFixedField 
+      ? targetId.split('-').pop()?.replace(/_/g, ' ') 
+      : targetSectionId.replace(/-top$/, '').replace(/-/g, ' ');
+      
+    toast.success(`Placed "${field.key}" near ${displayTarget}`);
   };
 
   if (!editing) {
@@ -148,5 +193,32 @@ export function FieldDragWrapper({
         ) : null}
       </DragOverlay>
     </DndContext>
+  );
+}
+
+import { useDroppable } from "@dnd-kit/core";
+
+export function DroppableField({ id, children, editing, className }: { id: string, children: React.ReactNode, editing: boolean, className?: string }) {
+  const { isOver, setNodeRef } = useDroppable({
+    id,
+    disabled: !editing,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "relative transition-all duration-200",
+        isOver && editing && "ring-2 ring-primary ring-offset-4 bg-primary/5 rounded-xl z-10 scale-[1.02] shadow-lg",
+        className
+      )}
+    >
+      {children}
+      {isOver && editing && (
+        <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-primary text-white text-[10px] px-2 py-0.5 rounded-full z-20 whitespace-nowrap animate-bounce">
+          Drop after this field
+        </div>
+      )}
+    </div>
   );
 }

@@ -28,7 +28,7 @@ import { CreatableSelect } from "@/components/crm/CreatableSelect";
 import { EntityFilesSection } from "@/components/crm/EntityFilesSection";
 import { CustomFieldsSection, DraggableFieldItem } from "@/components/crm/CustomFieldsSection";
 import { CustomFieldInput } from "@/components/crm/CustomFieldInput";
-import { FieldDragWrapper } from "@/components/crm/FieldDragWrapper";
+import { FieldDragWrapper, DroppableField } from "@/components/crm/FieldDragWrapper";
 import { DroppableSection } from "@/components/crm/DroppableSection";
 import { GripVertical } from "lucide-react";
 
@@ -585,59 +585,58 @@ export default function DealDetailPage() {
 
   const set = (key: string, val: unknown) => setForm(prev => ({ ...prev, [key]: val }));
 
-  const handleFieldDropToSection = (fieldKey: string, fieldValue: string, sectionId: string) => {
+  const handleFieldDropToSection = (fieldKey: string, fieldValue: string, sectionId: string, updatedFields?: CustomField[]) => {
     setCustomFields(prev => {
-      const updated = prev.map(f => f.id === fieldKey ? { ...f, sectionId } : f);
+      const updated = updatedFields || prev.map(f => f.id === fieldKey ? { ...f, sectionId } : f);
       // Persist this change globally to the registry so new deals follow this layout
       saveCustomFieldTemplates('deal', updated);
       return updated;
     });
   };
 
-  const renderDroppedFields = (sectionId: string) => {
-    const sectionFields = customFields.filter(f => f.sectionId === sectionId);
+  const renderDroppedFields = (sectionId: string, isTop = false, afterFieldId?: string) => {
+    let sectionFields = customFields.filter(f => f.sectionId === sectionId);
+    
+    if (afterFieldId) {
+      // Return fields specifically anchored AFTER this field
+      sectionFields = sectionFields.filter(f => f.afterFieldId === afterFieldId);
+    } else if (isTop) {
+      // Return fields that have NO anchor (start of section)
+      sectionFields = sectionFields.filter(f => !f.afterFieldId);
+    } else {
+      // Legacy behavior or catch-all if no anchor specified
+      // For now, if we're not asking for top or specific anchor, return nothing to avoid duplicates
+      return null;
+    }
+
     if (sectionFields.length === 0) return null;
 
-    const updateField = (id: string, updates: Partial<CustomField>) => {
-      setCustomFields(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
-    };
-
     return (
-      <div className="mt-6 pt-6 border-t border-dashed border-border space-y-4">
-        <div className="flex items-center gap-2 mb-2">
-          <Badge variant="outline" className="text-[10px] uppercase tracking-wider bg-primary/5 text-primary border-primary/20">
-            Custom Fields
-          </Badge>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <SortableContext items={sectionFields.map(f => f.id)} strategy={verticalListSortingStrategy}>
-            {sectionFields.map((field) => (
-              <DraggableFieldItem key={field.id} fieldKey={field.id}>
-                <div className="group relative">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{field.key}</Label>
-                    {editing && (
-                      <DraggableFieldItem fieldKey={field.id} isHandle>
-                        <div className="p-1 cursor-grab active:cursor-grabbing text-primary hover:text-primary-foreground hover:bg-primary rounded transition-all">
-                          <GripVertical className="h-3.5 w-3.5" />
-                        </div>
-                      </DraggableFieldItem>
-                    )}
-                  </div>
-                  
-                  <CustomFieldInput
-                    field={field}
-                    editing={editing}
-                    updateField={updateField}
-                    entityType="deal"
-                    entityId={id}
-                  />
+      <>
+        {sectionFields.map((field) => (
+          <DraggableFieldItem key={field.id} fieldKey={field.id}>
+            <div className="group relative space-y-2">
+              <div className="flex items-center justify-between mb-1.5">
+                <Label className="text-sm font-medium text-foreground">{field.label || field.key}</Label>
+                <div className="p-1 cursor-grab active:cursor-grabbing text-primary hover:text-primary-foreground hover:bg-primary rounded transition-all opacity-0 group-hover:opacity-100">
+                  <GripVertical className="h-3 w-3" />
                 </div>
-              </DraggableFieldItem>
-            ))}
-          </SortableContext>
-        </div>
-      </div>
+              </div>
+              <CustomFieldInput
+                field={field}
+                editing={editing}
+                onUpdate={(updates) => {
+                  setCustomFields(prev => prev.map(f => f.id === field.id ? { ...f, ...updates } : f));
+                }}
+                onDelete={() => {
+                  setCustomFields(prev => prev.filter(f => f.id !== field.id));
+                }}
+                entityId={id}
+              />
+            </div>
+          </DraggableFieldItem>
+        ))}
+      </>
     );
   };
 
@@ -1117,18 +1116,23 @@ export default function DealDetailPage() {
             >
               <div className="space-y-6">
                 {/* Deal Information Card */}
-                <DroppableSection id="deal-info" editing={editing}>
-                  <Card className="shadow-lg border-0  backdrop-blur-sm">
-                    <CardHeader className="pb-4">
+                <Card className="shadow-lg border-0 backdrop-blur-sm overflow-hidden">
+                  <DroppableSection id="deal-info-top" editing={editing}>
+                    <CardHeader className="pb-4 hover:bg-muted/30 transition-colors">
                       <div className="flex items-center gap-3">
-
                         <div>
                           <CardTitle className="text-lg text-foreground">Deal Information</CardTitle>
                           <CardDescription className="text-muted-foreground">Core details about this deal</CardDescription>
                         </div>
                       </div>
                     </CardHeader>
-                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="px-6 pb-2">
+                      {renderDroppedFields("deal-info-top", true)}
+                    </div>
+                  </DroppableSection>
+                  <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                    <DroppableSection id="deal-info" editing={editing} className="grid grid-cols-1 md:grid-cols-2 gap-4 md:col-span-2">
                       <div className="md:col-span-2">
                         <Field
                           label="Deal Title"
@@ -1249,60 +1253,80 @@ export default function DealDetailPage() {
                           </div>
                         )}
                       </div>
-                      <Field
-                        label="External Source ID"
-                        value={form.external_source_id as string}
-                        onChange={(val) => set("external_source_id", val)}
-                        editing={editing}
-                        icon={<ExternalLink className="h-4 w-4" />}
-                        placeholder="e.g., EXT-12345"
-                      />
-                      <Field
-                        label="Probability (%)"
-                        value={form.probability?.toString()}
-                        onChange={(val) => set("probability", parseInt(val) || 0)}
-                        editing={editing}
-                        icon={<Target className="h-4 w-4" />}
-                        type="number"
-                      />
-                      <Field
-                        label="Created Date"
-                        value={editing ? (form.createdAt as string) : (form.createdAt && isValid(new Date(form.createdAt as string)) ? format(new Date(form.createdAt as string), 'MMM d, yyyy HH:mm') : 'Not specified')}
-                        onChange={(v) => set("createdAt", v)}
-                        editing={editing}
-                        type="datetime-local"
-                        icon={<CalendarIcon className="h-4 w-4" />}
-                        entityId={id}
-                      />
-                      <div className="md:col-span-2">
+                      <DroppableField id="fixed-deal-details-external_source_id" editing={editing}>
                         <Field
-                          label="Description"
-                          value={form.description as string}
-                          onChange={(val) => set("description", val)}
+                          label="External Source ID"
+                          value={form.external_source_id as string}
+                          onChange={(val) => set("external_source_id", val)}
                           editing={editing}
-                          icon={<FileText className="h-4 w-4" />}
-                          multiline
-                          placeholder="Describe the deal details..."
+                          icon={<ExternalLink className="h-4 w-4" />}
+                          placeholder="e.g., EXT-12345"
                         />
+                      </DroppableField>
+                      {renderDroppedFields("deal-details", false, "fixed-deal-details-external_source_id")}
+                      <DroppableField id="fixed-deal-details-probability" editing={editing}>
+                        <Field
+                          label="Probability (%)"
+                          value={form.probability?.toString()}
+                          onChange={(val) => set("probability", parseInt(val) || 0)}
+                          editing={editing}
+                          icon={<Target className="h-4 w-4" />}
+                          type="number"
+                        />
+                      </DroppableField>
+                      {renderDroppedFields("deal-details", false, "fixed-deal-details-probability")}
+                      <DroppableField id="fixed-deal-details-created_date" editing={editing}>
+                        <Field
+                          label="Created Date"
+                          value={editing ? (form.createdAt as string) : (form.createdAt && isValid(new Date(form.createdAt as string)) ? format(new Date(form.createdAt as string), 'MMM d, yyyy HH:mm') : 'Not specified')}
+                          onChange={(v) => set("createdAt", v)}
+                          editing={editing}
+                          type="datetime-local"
+                          icon={<CalendarIcon className="h-4 w-4" />}
+                          entityId={id}
+                        />
+                      </DroppableField>
+                      {renderDroppedFields("deal-details", false, "fixed-deal-details-created_date")}
+                      <div className="md:col-span-2">
+                        <DroppableField id="fixed-deal-details-description" editing={editing}>
+                          <Field
+                            label="Description"
+                            value={form.description as string}
+                            onChange={(val) => set("description", val)}
+                            editing={editing}
+                            icon={<FileText className="h-4 w-4" />}
+                            multiline
+                            placeholder="Describe the deal details..."
+                          />
+                        </DroppableField>
+                        {renderDroppedFields("deal-details", false, "fixed-deal-details-description")}
                       </div>
+                    </DroppableSection>
+                    
+                    <DroppableSection id="deal-info" editing={editing} className="md:col-span-2 mt-4">
                       {renderDroppedFields("deal-info")}
-                    </CardContent>
-                  </Card>
-                </DroppableSection>
+                    </DroppableSection>
+                  </CardContent>
+                </Card>
 
                 {/* Contact Information Card */}
-                <DroppableSection id="contact-info" editing={editing}>
-                  <Card className="shadow-lg border-0  backdrop-blur-sm">
-                    <CardHeader className="pb-4">
+                <Card className="shadow-lg border-0 backdrop-blur-sm overflow-hidden">
+                  <DroppableSection id="contact-info-top" editing={editing}>
+                    <CardHeader className="pb-4 hover:bg-muted/30 transition-colors">
                       <div className="flex items-center gap-3">
-
                         <div>
                           <CardTitle className="text-lg text-foreground">Contact Information</CardTitle>
                           <CardDescription className="text-muted-foreground">Details of the primary contact</CardDescription>
                         </div>
                       </div>
                     </CardHeader>
-                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="px-6 pb-2">
+                      {renderDroppedFields("contact-info-top", true)}
+                    </div>
+                  </DroppableSection>
+                  <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                    <DroppableSection id="contact-info" editing={editing} className="grid grid-cols-1 md:grid-cols-2 gap-4 md:col-span-2">
                       <div className="md:col-span-2">
                         <div className="space-y-2">
                           <label className="text-sm font-medium text-foreground flex items-center gap-2">
@@ -1377,24 +1401,32 @@ export default function DealDetailPage() {
                           placeholder="Full address"
                         />
                       </div>
+                    </DroppableSection>
+                    
+                    <DroppableSection id="contact-info" editing={editing} className="md:col-span-2 mt-4">
                       {renderDroppedFields("contact-info")}
-                    </CardContent>
-                  </Card>
-                </DroppableSection>
+                    </DroppableSection>
+                  </CardContent>
+                </Card>
 
                 {/* Company Information Card */}
-                <DroppableSection id="company-info" editing={editing}>
-                  <Card className="shadow-lg border-0  backdrop-blur-sm">
-                    <CardHeader className="pb-4">
+                <Card className="shadow-lg border-0 backdrop-blur-sm overflow-hidden">
+                  <DroppableSection id="company-info-top" editing={editing}>
+                    <CardHeader className="pb-4 hover:bg-muted/30 transition-colors">
                       <div className="flex items-center gap-3">
-
                         <div>
                           <CardTitle className="text-lg text-foreground">Company Information</CardTitle>
                           <CardDescription className="text-muted-foreground">Organizational details</CardDescription>
                         </div>
                       </div>
                     </CardHeader>
-                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="px-6 pb-2">
+                      {renderDroppedFields("company-info-top", true)}
+                    </div>
+                  </DroppableSection>
+                  <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                    <DroppableSection id="company-info" editing={editing} className="grid grid-cols-1 md:grid-cols-2 gap-4 md:col-span-2">
                       <div className="md:col-span-2">
                         <div className="space-y-2">
                           <label className="text-sm font-medium text-foreground flex items-center gap-2">
@@ -1464,10 +1496,13 @@ export default function DealDetailPage() {
                         icon={<Users className="h-4 w-4" />}
                         placeholder="e.g., 50-100 employees"
                       />
-                    </CardContent>
-                    {renderDroppedFields("company-info")}
-                  </Card>
-                </DroppableSection>
+                    </DroppableSection>
+                    
+                    <DroppableSection id="company-info" editing={editing} className="md:col-span-2 mt-4">
+                      {renderDroppedFields("company-info")}
+                    </DroppableSection>
+                  </CardContent>
+                </Card>
 
                 <DroppableSection id="about-deal" editing={editing}>
                   <Card className="border   shadow-sm rounded-xl">

@@ -137,6 +137,13 @@ const suggestFieldMappings = (headers) => {
     // caller -> title/name
     // first reply -> interaction_notes
     // last reply -> interaction_notes
+    
+    // CRM Specific patterns from user files
+    lastContactedDate: /^(last[\s_]?contacted[\s_]?date|response[\s_]?date|last[\s_]?reply|first[\s_]?reply|last[\s_]?touch)$/i,
+    nextFollowUpDate: /^(next[\s_]?follow[\s_]?up[\s_]?date|follow[\s_]?up[\s_]?date|second[\s_]?follow[\s_]?up|follow[\s_]?up)$/i,
+    interactionNotes: /^(interaction[\s_]?notes|client[\s_]?responses|responses|conversation|discussion)$/i,
+    agentName: /^(agent|sales[\s_]?rep|assigned[\s_]?to|owner|handler|marketer[\s_]?name|handled[\s_]?by)$/i,
+    createdAt: /^(date|created[\s_]?at|entry[\s_]?date|submission[\s_]?date|query[\s_]?date)$/i,
   };
 
   headers.forEach(header => {
@@ -145,6 +152,24 @@ const suggestFieldMappings = (headers) => {
     // Skip serial number fields
     if (/^(sr|s\.?no|serial|#|no\.)$/i.test(lowerHeader)) {
       mappings[header] = null;
+      return;
+    }
+
+    // Special case for Email/Name headers that might have extra spaces from user files
+    if (/email/i.test(lowerHeader)) {
+      mappings[header] = 'email';
+      return;
+    }
+    if (/name/i.test(lowerHeader) && !/company/i.test(lowerHeader)) {
+      mappings[header] = 'name';
+      return;
+    }
+    if (/phone|contact[\s_]?number/i.test(lowerHeader)) {
+      mappings[header] = 'phone';
+      return;
+    }
+    if (/company/i.test(lowerHeader)) {
+      mappings[header] = 'companyName';
       return;
     }
     
@@ -161,6 +186,51 @@ const suggestFieldMappings = (headers) => {
   });
 
   return mappings;
+};
+
+// Robust date parser for imports
+const parseImportDate = (dateStr) => {
+  if (!dateStr) return null;
+  
+  // If it's already a Date object or a timestamp number
+  if (dateStr instanceof Date) return dateStr;
+  if (typeof dateStr === 'number') {
+    // Handle Excel serial dates
+    if (dateStr > 25569) {
+      return new Date((dateStr - 25569) * 86400 * 1000);
+    }
+    return new Date(dateStr);
+  }
+
+  const str = String(dateStr).trim();
+  if (!str) return null;
+
+  // Try parsing as ISO
+  let d = new Date(str);
+  if (!isNaN(d.getTime())) return d;
+
+  // Try DD/MM/YYYY or MM/DD/YYYY
+  const parts = str.split(/[\/\-\.]/);
+  if (parts.length === 3) {
+    const p1 = parseInt(parts[0]);
+    const p2 = parseInt(parts[1]);
+    const p3 = parseInt(parts[2]);
+
+    // Assume YYYY at the end or beginning
+    if (p3 > 1000) {
+      // Could be DD/MM/YYYY or MM/DD/YYYY
+      // Try to guess based on values
+      if (p1 > 12) { // DD/MM/YYYY
+        d = new Date(p3, p2 - 1, p1);
+      } else { // MM/DD/YYYY
+        d = new Date(p3, p1 - 1, p2);
+      }
+    } else if (p1 > 1000) { // YYYY/MM/DD
+      d = new Date(p1, p2 - 1, p3);
+    }
+  }
+
+  return isNaN(d.getTime()) ? null : d;
 };
 
 // Import leads or deals with field mapping
@@ -230,8 +300,46 @@ const importLeads = async (req, res, next) => {
         // Map fields
         const leadData = {};
         for (const [csvField, dbField] of Object.entries(fieldMapping)) {
-          if (dbField && row[csvField]) {
-            leadData[dbField] = row[csvField];
+          if (dbField && row[csvField] !== undefined && row[csvField] !== null && row[csvField] !== '') {
+            const value = String(row[csvField]).trim();
+            if (!value) continue;
+            
+            // If the field already has a value, concatenate or merge
+            if (leadData[dbField]) {
+              const nonConcatenateFields = ['value', 'probability', 'hourlyRate', 'hoursOfWork', 'proposalAmount', 'invoiceAmount', 'lastContactedDate', 'nextFollowUpDate', 'expectedCloseDate', 'createdAt'];
+              const spaceFields = ['title', 'name', 'firstName', 'lastName', 'contactName', 'contactFirstName', 'contactLastName', 'company', 'companyName', 'address', 'city', 'state', 'zip', 'country', 'agentName', 'designation', 'jobTitle'];
+              
+              if (dbField === 'tags') {
+                leadData[dbField] = `${leadData[dbField]}, ${value}`;
+              } else if (spaceFields.includes(dbField)) {
+                leadData[dbField] += ` ${value}`;
+              } else if (!nonConcatenateFields.includes(dbField) || dbField.startsWith('custom_')) {
+                leadData[dbField] += ` | ${value}`;
+              } else {
+                // For strictly single-value fields (dates, numbers), keep the latest
+                leadData[dbField] = value;
+              }
+            } else {
+              leadData[dbField] = value;
+            }
+          }
+        }
+
+        // Pre-processing: Merge city/state/zip/country into address if address is mapped
+        const addressComponents = [];
+        if (leadData.city) addressComponents.push(leadData.city);
+        if (leadData.state) addressComponents.push(leadData.state);
+        if (leadData.zip) addressComponents.push(leadData.zip);
+        if (leadData.country) addressComponents.push(leadData.country);
+        
+        if (addressComponents.length > 0) {
+          const compStr = addressComponents.join(', ');
+          if (leadData.address) {
+            if (!leadData.address.includes(compStr)) {
+              leadData.address = `${leadData.address}, ${compStr}`;
+            }
+          } else {
+            leadData.address = compStr;
           }
         }
 
@@ -255,36 +363,25 @@ const importLeads = async (req, res, next) => {
         }
 
         // Build dynamic INSERT query based on available fields
-        const columns = ['org_id', 'workspace_id', 'import_id', 'created_by'];
-        const values = [req.user.orgId, workspaceId || null, importId, req.user.id];
-        let paramIndex = 5;
-
-        // Add title/name (required)
-        if (entityType === 'deal') {
-          columns.push('title');
-          values.push(leadData.title || leadData.name);
-          paramIndex++;
-        } else {
-          columns.push('title', 'name');
-          values.push(leadData.title || leadData.name, leadData.name || leadData.title);
-          paramIndex += 2;
-        }
-
-        // Map all other fields dynamically
+        const dbFieldsData = {};
         const fieldMap = {
           email: 'email',
           phone: 'phone',
           firstName: entityType === 'deal' ? 'contact_first_name' : 'first_name',
           lastName: entityType === 'deal' ? 'contact_last_name' : 'last_name',
-          contactFirstName: entityType === 'deal' ? 'contact_first_name' : 'first_name',
-          contactLastName: entityType === 'deal' ? 'contact_last_name' : 'last_name',
+          name: 'name',
+          title: 'title',
           company: 'company_name',
           companyName: 'company_name',
           companyEmail: 'company_email',
           companyPhone: 'company_phone',
-          designation: 'designation',
+          designation: entityType === 'deal' ? 'designation' : 'designation', // both have it
+          jobTitle: entityType === 'deal' ? 'designation' : 'job_title', // Deals use designation for job title
+          customerType: 'customer_type',
           source: 'source',
           sourceInfo: 'source_info',
+          contactName: 'contact_name',
+          description: 'description',
           status: 'status',
           stage: 'stage',
           pipeline: 'pipeline',
@@ -293,10 +390,6 @@ const importLeads = async (req, res, next) => {
           priority: 'priority',
           website: 'website',
           address: 'address',
-          country: 'address',
-          city: 'address',
-          state: 'address',
-          zipCode: 'address',
           notes: 'notes',
           agentName: 'agent_name',
           assignedTo: 'assigned_to',
@@ -304,20 +397,18 @@ const importLeads = async (req, res, next) => {
           companySize: 'company_size',
           decisionMaker: 'decision_maker',
           industry: 'source_info',
-          linkedIn: 'website',
-          facebook: 'website',
-          twitter: 'website',
+          phoneType: 'phone_type',
+          emailType: 'email_type',
+          websiteType: 'website_type',
           interactionNotes: 'interaction_notes',
           lastContactedDate: 'last_contacted_date',
           nextFollowUpDate: 'next_follow_up_date',
           expectedCloseDate: 'expected_close_date',
           externalSourceId: 'external_source_id',
-          responsiblePerson: 'responsible_person',
           tags: 'tags',
           createdAt: 'created_at',
-          // Deal-specific fields
+          // Deal-specific
           probability: 'probability',
-          description: 'description',
           clientType: 'client_type',
           projectType: 'project_type',
           paymentMethod: 'payment_method',
@@ -335,31 +426,97 @@ const importLeads = async (req, res, next) => {
           feedbackDetails: 'feedback_details',
         };
 
+        // Populate dbFieldsData from mapped leadData
         for (const [frontendField, dbColumn] of Object.entries(fieldMap)) {
-          if (leadData[frontendField] !== undefined && leadData[frontendField] !== null) {
-            columns.push(dbColumn);
-            
+          if (leadData[frontendField] !== undefined && leadData[frontendField] !== null && leadData[frontendField] !== '') {
+            let value = leadData[frontendField];
+            let finalValue;
+
             // Handle special data types
             if (['value', 'probability', 'hourlyRate', 'hoursOfWork', 'proposalAmount', 'invoiceAmount'].includes(frontendField)) {
-              values.push(parseFloat(leadData[frontendField]) || null);
+              finalValue = parseFloat(value) || 0;
             } else if (frontendField === 'tags') {
-              const tagValue = leadData[frontendField];
-              if (Array.isArray(tagValue)) {
-                values.push(tagValue);
-              } else if (typeof tagValue === 'string') {
-                // Split by comma and clean up whitespace
-                values.push(tagValue.split(',').map(t => t.trim()).filter(Boolean));
+              if (Array.isArray(value)) {
+                finalValue = value;
+              } else if (typeof value === 'string') {
+                finalValue = value.split(',').map(t => t.trim()).filter(Boolean);
               } else {
-                values.push([]);
+                finalValue = [];
+              }
+            } else if (['lastContactedDate', 'nextFollowUpDate', 'expectedCloseDate', 'createdAt'].includes(frontendField)) {
+              finalValue = parseImportDate(value);
+            } else {
+              finalValue = typeof value === 'string' ? value.trim() : value;
+            }
+
+            if (dbFieldsData[dbColumn]) {
+              // Concatenate for text-based database columns if they come from different frontend fields
+              const nonConcatenateColumns = ['value', 'probability', 'hourly_rate', 'hours_of_work', 'proposal_amount', 'invoice_amount', 'last_contacted_date', 'next_follow_up_date', 'expected_close_date', 'created_at', 'tags'];
+              
+              if (!nonConcatenateColumns.includes(dbColumn)) {
+                if (!dbFieldsData[dbColumn].includes(String(finalValue))) {
+                   dbFieldsData[dbColumn] = `${dbFieldsData[dbColumn]} | ${finalValue}`;
+                }
+              } else if (dbColumn === 'tags') {
+                const existingTags = Array.isArray(dbFieldsData[dbColumn]) ? dbFieldsData[dbColumn] : [];
+                const newTags = Array.isArray(finalValue) ? finalValue : [];
+                dbFieldsData[dbColumn] = [...new Set([...existingTags, ...newTags])];
+              } else {
+                dbFieldsData[dbColumn] = finalValue;
               }
             } else {
-              values.push(leadData[frontendField]);
+              dbFieldsData[dbColumn] = finalValue;
             }
-            paramIndex++;
           }
         }
 
-        // Add custom fields mapping
+        // 1. Title/Name fallback (required)
+        if (!dbFieldsData.title && !dbFieldsData.name) {
+          if (leadData.title || leadData.name) {
+             dbFieldsData.title = leadData.title || leadData.name;
+             if (entityType !== 'deal') {
+               dbFieldsData.name = leadData.name || leadData.title;
+             }
+          } else {
+            errors.push({ row: i + 1, error: 'Title/Name is required' });
+            failed++;
+            continue;
+          }
+        } else if (dbFieldsData.title && !dbFieldsData.name && entityType !== 'deal') {
+           dbFieldsData.name = dbFieldsData.title;
+        } else if (!dbFieldsData.title && dbFieldsData.name) {
+           dbFieldsData.title = dbFieldsData.name;
+        }
+
+        // 2. Source default
+        if (!dbFieldsData.source) dbFieldsData.source = 'import';
+        
+        // 3. Pipeline default
+        if (!dbFieldsData.pipeline) dbFieldsData.pipeline = entityType === 'deal' ? 'deals' : 'leads';
+
+        // 4. Stage default
+        if (!dbFieldsData.stage) dbFieldsData.stage = entityType === 'deal' ? 'qualification' : 'unqualified';
+        
+        // 5. Status default
+        if (!dbFieldsData.status) dbFieldsData.status = entityType === 'deal' ? 'open' : 'unqualified';
+
+        const columns = ['org_id', 'workspace_id', 'import_id', 'created_by'];
+        const values = [req.user.orgId, workspaceId || null, importId, req.user.id];
+
+        // Push all processed dbFieldsData to columns/values
+        for (const [col, val] of Object.entries(dbFieldsData)) {
+          columns.push(col);
+          if (col === 'source_info' && typeof val === 'string') {
+            // If source_info was concatenated as a string, wrap it in an object for JSONB compatibility
+            values.push(JSON.stringify({ info: val }));
+          } else if (typeof val === 'object' && val !== null) {
+            values.push(JSON.stringify(val));
+          } else {
+            values.push(val);
+          }
+        }
+
+        // Handle custom fields
         const customFieldsObj = {};
         Object.entries(leadData).forEach(([key, val]) => {
           if (key.startsWith('custom_')) {
@@ -371,25 +528,6 @@ const importLeads = async (req, res, next) => {
         if (Object.keys(customFieldsObj).length > 0) {
           columns.push('custom_fields');
           values.push(JSON.stringify(customFieldsObj));
-          paramIndex++;
-        }
-
-        // Set defaults for missing fields
-        if (!leadData.source) {
-          columns.push('source');
-          values.push('import');
-          paramIndex++;
-        }
-        if (!leadData.status) {
-          columns.push('status');
-          values.push(entityType === 'deal' ? 'open' : 'unqualified');
-          paramIndex++;
-        }
-
-        if (!leadData.stage) {
-          columns.push('stage');
-          values.push('unqualified');
-          paramIndex++;
         }
 
         // Build placeholders
