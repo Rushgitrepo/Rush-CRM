@@ -9,6 +9,7 @@ import { useSortable, SortableContext, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import { useDroppable } from "@dnd-kit/core";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import { useRef } from "react";
 import { CustomFieldInput } from "./CustomFieldInput";
 
@@ -140,7 +141,7 @@ export function CustomFieldsSection({
               <Button
                 type="button"
                 variant="link"
-                onClick={addField}
+                onClick={() => addField("string")}
                 className="mt-2 text-primary"
               >
                 Click here to add the first field
@@ -207,7 +208,14 @@ function FieldRow({
           </DraggableFieldItem>
         )}
         <div className="flex-1 w-full space-y-1.5">
-          <Label className="text-xs font-medium text-slate-500 uppercase tracking-wider ml-1">Field Name</Label>
+          <div className="flex items-center justify-between ml-1">
+            <Label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Field Name</Label>
+            {field.type && (
+              <Badge variant="outline" className="text-[9px] h-4 px-1.5 font-bold uppercase bg-slate-50 text-slate-500 border-slate-200">
+                {field.type}
+              </Badge>
+            )}
+          </div>
           <Input
             placeholder="e.g. Preferred Language"
             value={field.key}
