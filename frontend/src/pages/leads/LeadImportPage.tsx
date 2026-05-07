@@ -36,35 +36,71 @@ export default function LeadImportPage() {
   const [importResult, setImportResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
-  const availableFields = [
-    { value: 'title', label: 'Lead Name/Title/Caller' },
-    { value: 'email', label: 'Email Address' },
-    { value: 'phone', label: 'Phone Number' },
-    { value: 'company', label: 'Company Name' },
+  const commonFields = [
+    { value: 'title', label: entityType === 'deal' ? 'Deal Title' : 'Lead name' },
+    { value: 'email', label: entityType === 'deal' ? 'Email' : 'Personal E-mail' },
+    { value: 'phone', label: entityType === 'deal' ? 'Phone' : 'Personal Number' },
+    { value: 'company', label: 'Company name' },
     { value: 'companyEmail', label: 'Company Email' },
-    { value: 'companyPhone', label: 'Company Phone' },
-    { value: 'designation', label: 'Designation/Job Title' },
-    { value: 'source', label: 'Lead Source/First Intent' },
-    { value: 'status', label: 'Status/Current Status/Stage' },
-    { value: 'value', label: 'Deal Value/Offer Amount' },
-    { value: 'website', label: 'Website URL' },
-    { value: 'address', label: 'Address/Location/City' },
-    { value: 'notes', label: 'Notes/Leads Notes/Description' },
-    { value: 'agentName', label: 'Agent/Sales Rep/Handler' },
-    { value: 'serviceInterested', label: 'Service/Product Interested' },
-    { value: 'companySize', label: 'Company Size/Employees' },
-    { value: 'decisionMaker', label: 'Decision Maker' },
-    { value: 'interactionNotes', label: 'Interaction/First Reply/Last Reply' },
-    { value: 'industry', label: 'Industry/Sector' },
+    { value: 'companyPhone', label: entityType === 'deal' ? 'Company Phone' : 'Company Phone Number' },
+    { value: 'designation', label: 'Designation' },
+    { value: 'pipeline', label: 'Pipeline' },
+    { value: 'stage', label: 'Stage' },
+    { value: 'status', label: 'Status' },
+    { value: 'source', label: 'Source' },
+    { value: 'sourceInfo', label: 'Source Information' },
+    { value: 'value', label: entityType === 'deal' ? 'Deal Value' : 'Estimated Opportunity Value' },
+    { value: 'currency', label: 'Currency' },
+    { value: 'website', label: 'Website' },
+    { value: 'address', label: 'Address' },
     { value: 'country', label: 'Country' },
     { value: 'city', label: 'City' },
     { value: 'state', label: 'State/Province' },
     { value: 'zipCode', label: 'Zip/Postal Code' },
-    { value: 'twitter', label: 'Twitter Handle' },
-    { value: 'priority', label: 'Priority (Low/Medium/High)' },
+    { value: 'notes', label: entityType === 'deal' ? 'Description' : 'Additional Notes' },
+    { value: 'agentName', label: entityType === 'deal' ? 'Sales Agent' : 'Agent Name' },
+    { value: 'assignedTo', label: entityType === 'deal' ? 'Responsible Person' : 'Lead owner' },
+    { value: 'serviceInterested', label: 'Service Interested' },
+    { value: 'companySize', label: 'Company Size' },
+    { value: 'decisionMaker', label: 'Decision Maker' },
+    { value: 'industry', label: 'Industry/Sector' },
+    { value: 'priority', label: 'Priority' },
     { value: 'tags', label: 'Tags (Comma separated)' },
     { value: 'expectedCloseDate', label: 'Expected Close Date' },
-    { value: 'createdAt', label: 'Created On / Date Created' },
+    { value: 'nextFollowUpDate', label: 'Next Follow-up Date' },
+    { value: 'externalSourceId', label: 'External Source ID' },
+    { value: 'twitter', label: 'Twitter Handle' },
+    { value: 'createdAt', label: 'Created Date' },
+  ];
+
+  const leadOnlyFields = [
+    { value: 'interactionNotes', label: 'All Interaction Notes With Dates' },
+    { value: 'lastContactedDate', label: 'Last Contacted Date' },
+    { value: 'responsiblePerson', label: 'Responsible Person' },
+  ];
+
+  const dealOnlyFields = [
+    { value: 'probability', label: 'Probability (%)' },
+    { value: 'clientType', label: 'Client Type' },
+    { value: 'projectType', label: 'Project Type' },
+    { value: 'availableToEveryone', label: 'Available to everyone' },
+    { value: 'quotationReceived', label: 'Quotation Received' },
+    { value: 'paymentMethod', label: 'Payment Method' },
+    { value: 'invoiceLink', label: 'Invoice Link' },
+    { value: 'hourlyRate', label: 'Hourly Rate' },
+    { value: 'hoursOfWork', label: 'Hours Of Work' },
+    { value: 'proposalAmount', label: 'Proposal Amount' },
+    { value: 'invoiceAmount', label: 'Invoice Amount' },
+    { value: 'scope', label: 'Scope' },
+    { value: 'projectBlueprints', label: 'Project Blueprints' },
+    { value: 'qaStatus', label: 'QA Status' },
+    { value: 'feedback', label: 'Feedback' },
+    { value: 'feedbackDetails', label: 'Project Feedback Details' },
+  ];
+
+  const availableFields = [
+    ...commonFields,
+    ...(entityType === 'lead' ? leadOnlyFields : dealOnlyFields),
   ];
 
   const customFields = getCustomFieldTemplates(entityType);
