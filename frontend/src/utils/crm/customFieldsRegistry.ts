@@ -2,6 +2,7 @@
 export interface CustomFieldTemplate {
   key: string;
   type: string;
+  sectionId?: string;
 }
 
 /**
@@ -27,7 +28,8 @@ export const saveCustomFieldTemplates = (entityType: 'lead' | 'deal', fields: { 
       .filter(f => f.key && f.key.trim() !== '')
       .map(f => ({
         key: f.key.trim(),
-        type: f.type || 'string'
+        type: (f as any).type || 'string',
+        sectionId: (f as any).sectionId
       }));
 
     // Deduplicate to ensure unique field keys
@@ -52,14 +54,19 @@ export const mergeFieldsWithTemplates = (
   const merged = [...existingFields];
 
   templates.forEach(template => {
-    const exists = merged.find(f => f.key === template.key);
-    if (!exists) {
+    const existingIndex = merged.findIndex(f => f.key === template.key);
+    if (existingIndex !== -1) {
+      // Update existing field's sectionId to match template
+      if (template.sectionId) {
+        merged[existingIndex] = { ...merged[existingIndex], sectionId: template.sectionId };
+      }
+    } else {
       merged.push({
         id: `template-${Math.random().toString(36).substr(2, 9)}`,
         key: template.key,
         value: "",
         type: template.type,
-        sectionId: "custom-fields"
+        sectionId: template.sectionId || "custom-fields"
       });
     }
   });

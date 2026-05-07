@@ -514,7 +514,12 @@ export default function LeadDetailPage() {
   const set = (key: string, val: unknown) => setForm(prev => ({ ...prev, [key]: val }));
 
   const handleFieldDropToSection = (fieldKey: string, fieldValue: string, sectionId: string) => {
-    console.log(`Field ${fieldKey} moved to ${sectionId}`);
+    setCustomFields(prev => {
+      const updated = prev.map(f => f.id === fieldKey ? { ...f, sectionId } : f);
+      // Persist this change globally to the registry so new leads follow this layout
+      saveCustomFieldTemplates('lead', updated);
+      return updated;
+    });
   };
 
   const renderDroppedFields = (sectionId: string) => {

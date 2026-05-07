@@ -68,6 +68,14 @@ const leadSchema = z.object({
 
 type LeadForm = z.infer<typeof leadSchema>;
 
+interface CustomField {
+  id: string;
+  key: string;
+  value: string;
+  type?: string;
+  sectionId?: string;
+}
+
 const stageOptions = [
   { value: "new", label: "New" },
   { value: "contacted", label: "Contacted" },
@@ -311,14 +319,14 @@ export default function CreateLeadPage() {
 
   const [contactId, setContactId] = useState<string | null>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
-  const [customFields, setCustomFields] = useState<{ id: string; key: string; value: string; type?: string; sectionId?: string }[]>(() => {
+  const [customFields, setCustomFields] = useState<CustomField[]>(() => {
     const templates = getCustomFieldTemplates('lead');
     return templates.map(t => ({
       id: `template-${Math.random().toString(36).substr(2, 9)}`,
       key: t.key,
       value: "",
       type: t.type,
-      sectionId: "custom-fields"
+      sectionId: t.sectionId || "custom-fields"
     }));
   });
 
@@ -391,7 +399,12 @@ export default function CreateLeadPage() {
   };
 
   const handleFieldDropToSection = (fieldKey: string, fieldValue: string, sectionId: string) => {
-    console.log(`Field ${fieldKey} moved to ${sectionId}`);
+    setCustomFields(prev => {
+      const updated = prev.map(f => f.id === fieldKey ? { ...f, sectionId } : f);
+      // Persist this change globally to the registry so new leads follow this layout
+      saveCustomFieldTemplates('lead', updated);
+      return updated;
+    });
   };
 
   const renderDroppedFields = (sectionId: string) => {
