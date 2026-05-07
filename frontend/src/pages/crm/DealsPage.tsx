@@ -1,12 +1,13 @@
 import { useMemo, useState, Suspense, lazy } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Sparkles, Phone, Mail, Building2, Layers, MoreHorizontal, Edit, Trash2, Eye, Download, Upload, XCircle } from "lucide-react";
-import { useDeals, useDeleteDeal } from "@/hooks/useCrmData";
+import { useDeals, useDeleteDeal, useBulkDeleteDeals } from "@/hooks/useCrmData";
 import { useUpdateDeal } from "@/hooks/useCrmMutations";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Checkbox } from "@/components/ui/checkbox";
 import { PageHeader } from "@/components/crm/ui/PageHeader";
 import { DataToolbar } from "@/components/crm/ui/DataToolbar";
 import { EntityTable, EntityColumn } from "@/components/crm/ui/EntityTable";
@@ -53,9 +54,18 @@ export default function DealsPage() {
   const [status, setStatus] = useState("all");
   const [sortBy, setSortBy] = useState("recent");
   const [selectedDeals, setSelectedDeals] = useState<string[]>([]);
+  const [pageSize, setPageSize] = useState(100);
+  const [currentPage, setCurrentPage] = useState(1);
 
-  const { data: dbDeals, isLoading, isError } = useDeals();
+  const { data: dbDeals, isLoading, isError } = useDeals({
+    search,
+    stage: stage !== "all" ? stage : undefined,
+    status: status !== "all" ? status : undefined,
+    page: currentPage,
+    limit: pageSize
+  });
   const deleteDeal = useDeleteDeal();
+  const bulkDeleteDeals = useBulkDeleteDeals();
   const updateDeal = useUpdateDeal();
 
   const handleSelectAll = (checked: boolean) => {
@@ -79,13 +89,10 @@ export default function DealsPage() {
 
     if (await confirm(`Are you sure you want to delete ${selectedDeals.length} deals?`, { variant: 'destructive', title: 'Confirm Bulk Deletion' })) {
       try {
-        for (const dealId of selectedDeals) {
-          await deleteDeal.mutateAsync(dealId);
-        }
+        await bulkDeleteDeals.mutateAsync(selectedDeals);
         setSelectedDeals([]);
-        toast.success(`${selectedDeals.length} deals deleted successfully`);
       } catch (error) {
-        // Error is handled by the mutate call above
+        // Error is handled by mutation
       }
     }
   };
@@ -163,6 +170,23 @@ export default function DealsPage() {
   }, [deals, search, stage, status, sortBy]);
 
   const columns: EntityColumn<DealRow>[] = [
+    {
+      key: "select",
+      header: (
+        <Checkbox
+          checked={selectedDeals.length === filtered.length && filtered.length > 0}
+          onCheckedChange={(checked) => handleSelectAll(checked as boolean)}
+        />
+      ),
+      render: (deal) => (
+        <div onClick={(e) => e.stopPropagation()}>
+          <Checkbox
+            checked={selectedDeals.includes(deal.id)}
+            onCheckedChange={(checked) => handleSelectDeal(deal.id, checked as boolean)}
+          />
+        </div>
+      ),
+    },
     {
       key: "name",
       header: "Deal",
@@ -316,7 +340,7 @@ export default function DealsPage() {
                 </Button>
               </div>
             )}
-            <Button variant="outline" size="sm" onClick={() => navigate("/crm/leads/import")}>
+            <Button variant="outline" size="sm" onClick={() => navigate("/crm/leads/import?type=deal")}>
               <Upload className="h-4 w-4 mr-2" />
               Import
             </Button>
@@ -383,9 +407,23 @@ export default function DealsPage() {
         ]}
         onViewChange={(v) => setView(v as ViewType)}
       >
-        <Button variant="outline" size="sm" onClick={() => { setStage("all"); setStatus("all"); setSearch(""); }}>
-          Reset
+        <Button variant="outline" size="sm" onClick={() => { setStage("all"); setStatus("all"); setWorkspaceFilter("all"); }}>
+          Reset Filters
         </Button>
+        {filtered.length > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleSelectAll(selectedDeals.length !== filtered.length)}
+          >
+            {selectedDeals.length === filtered.length ? 'Deselect All' : 'Select All'}
+          </Button>
+        )}
+        {selectedDeals.length > 0 && (
+          <Button variant="outline" size="sm" onClick={() => setSelectedDeals([])}>
+            Clear Selection
+          </Button>
+        )}
       </DataToolbar>
 
       {view === "list" && (
@@ -395,7 +433,9 @@ export default function DealsPage() {
               data={filtered}
               columns={columns}
               isLoading={isLoading}
-              pageSize={10}
+              pageSize={pageSize}
+              selectedRows={selectedDeals}
+              onSelectionChange={(ids) => setSelectedDeals(ids as string[])}
               emptyState={
                 <EmptyState
                   title="No deals yet"

@@ -22,5 +22,6 @@ router.put('/:id', dealController.update);
 router.patch('/:id/stage', dealController.updateStage);
 router.patch('/:id/status', dealController.updateStatus);
 router.delete('/:id', dealController.remove);
+router.post('/bulk-delete', dealController.bulkRemove);
 
 module.exports = router;

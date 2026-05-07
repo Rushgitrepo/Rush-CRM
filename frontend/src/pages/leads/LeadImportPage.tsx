@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Upload, FileSpreadsheet, CheckCircle, XCircle, ArrowRight } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle, XCircle, ArrowRight, Sparkles, Download } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
+import { Button } from '@/components/ui/button';
 import { getCustomFieldTemplates } from '@/utils/crm/customFieldsRegistry';
 
 interface FieldMapping {
@@ -182,23 +183,105 @@ export default function LeadImportPage() {
 
       {/* Step 1: Upload */}
       {step === 'upload' && (
-        <div className="bg-card rounded-lg shadow border p-8">
-          <div className="border-2 border-dashed border-border rounded-lg p-12 text-center">
-            <Upload className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium text-foreground mb-2">Upload your file</h3>
-            <p className="text-muted-foreground mb-6 font-medium">CSV or Excel files up to 10MB</p>
-            <label className="inline-flex items-center px-6 py-2.5 bg-primary text-primary-foreground rounded-lg cursor-pointer hover:bg-primary/90 transition-all shadow-md active:scale-95">
-              <FileSpreadsheet className="mr-2 h-5 w-5" />
-              Choose File
-              <input
-                type="file"
-                accept=".csv,.xlsx,.xls"
-                onChange={handleFileUpload}
-                className="hidden"
-                disabled={loading}
-              />
-            </label>
-            {loading && <p className="mt-4 text-muted-foreground">Processing file...</p>}
+        <div className="bg-card rounded-xl shadow-lg border p-10">
+          <div className="max-w-2xl mx-auto">
+            <div className="border-2 border-dashed border-primary/20 hover:border-primary/50 rounded-2xl p-12 text-center bg-muted/30 transition-all group">
+              <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
+                <Upload className="h-10 w-10 text-primary" />
+              </div>
+              
+              <h3 className="text-xl font-bold text-foreground mb-3">Upload your data file</h3>
+              <p className="text-muted-foreground mb-8 max-w-sm mx-auto">
+                Select a spreadsheet containing your {entityType === 'lead' ? 'leads' : 'deals'}. 
+                We support both standard CSV and modern Excel formats.
+              </p>
+
+              <div className="flex justify-center gap-6 mb-8">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-950/40 rounded-lg flex items-center justify-center border border-emerald-200 dark:border-emerald-800">
+                    <FileSpreadsheet className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">EXCEL</span>
+                </div>
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-12 h-12 bg-blue-100 dark:bg-blue-950/40 rounded-lg flex items-center justify-center border border-blue-200 dark:border-blue-800">
+                    <FileSpreadsheet className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <span className="text-xs font-semibold text-blue-700 dark:text-blue-400">CSV</span>
+                </div>
+              </div>
+
+              <label className="inline-flex items-center px-8 py-3 bg-primary text-primary-foreground rounded-xl cursor-pointer hover:bg-primary/90 transition-all shadow-xl active:scale-95 font-bold">
+                <Upload className="mr-2 h-5 w-5" />
+                Browse Files
+                <input
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                  disabled={loading}
+                />
+              </label>
+              
+              <div className="mt-8 flex items-center justify-center gap-4 text-xs font-medium text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <CheckCircle className="h-3 w-3 text-emerald-500" />
+                  Max size: 10MB
+                </span>
+                <span className="flex items-center gap-1">
+                  <CheckCircle className="h-3 w-3 text-emerald-500" />
+                  UTF-8 Supported
+                </span>
+                <span className="flex items-center gap-1">
+                  <CheckCircle className="h-3 w-3 text-emerald-500" />
+                  XLSX, XLS, CSV
+                </span>
+              </div>
+
+              {loading && (
+                <div className="mt-6 flex flex-col items-center gap-2 animate-in fade-in slide-in-from-bottom-2">
+                  <div className="h-1 w-48 bg-muted rounded-full overflow-hidden">
+                    <div className="h-full bg-primary animate-progress origin-left"></div>
+                  </div>
+                  <p className="text-sm text-primary font-medium">Analyzing your file...</p>
+                </div>
+              )}
+            </div>
+            
+            <div className="mt-8 p-6 bg-primary/5 rounded-2xl border border-primary/10">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h4 className="font-bold text-foreground mb-2 flex items-center gap-2 text-sm">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    Pro Tip: Quick Import
+                  </h4>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Our smart mapper will automatically detect your columns. Ensure your first row contains headers like 
+                    <span className="font-semibold text-foreground px-1">Name</span>, 
+                    <span className="font-semibold text-foreground px-1">Email</span>, and 
+                    <span className="font-semibold text-foreground px-1">Phone</span> for the best results.
+                  </p>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="shrink-0 bg-background hover:bg-muted"
+                  onClick={() => {
+                    const headers = availableFields.map(f => f.label).join(',');
+                    const sampleRow = "John Doe,john@example.com,+1234567890,Acme Corp,contact@acme.com,+10987654321,Sales Manager,Web Search,New,50000,https://acme.com,123 Business St,Interested in CRM,Jane Smith,CRM Setup,50,Yes,Met at conference,Software,USA,San Francisco,CA,94105,jdoe_twitter,High,\"tag1,tag2\",2024-12-31,2024-05-07";
+                    const blob = new Blob([`${headers}\n${sampleRow}`], { type: 'text/csv' });
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `rush-crm-${entityType}-sample.csv`;
+                    a.click();
+                  }}
+                >
+                  <Download className="h-3.5 w-3.5 mr-2" />
+                  Sample CSV
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       )}

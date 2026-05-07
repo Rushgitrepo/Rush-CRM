@@ -260,14 +260,24 @@ const importLeads = async (req, res, next) => {
         let paramIndex = 5;
 
         // Add title/name (required)
-        columns.push('title', 'name');
-        values.push(leadData.title || leadData.name, leadData.name || leadData.title);
-        paramIndex += 2;
+        if (entityType === 'deal') {
+          columns.push('title');
+          values.push(leadData.title || leadData.name);
+          paramIndex++;
+        } else {
+          columns.push('title', 'name');
+          values.push(leadData.title || leadData.name, leadData.name || leadData.title);
+          paramIndex += 2;
+        }
 
         // Map all other fields dynamically
         const fieldMap = {
           email: 'email',
           phone: 'phone',
+          firstName: entityType === 'deal' ? 'contact_first_name' : 'first_name',
+          lastName: entityType === 'deal' ? 'contact_last_name' : 'last_name',
+          contactFirstName: entityType === 'deal' ? 'contact_first_name' : 'first_name',
+          contactLastName: entityType === 'deal' ? 'contact_last_name' : 'last_name',
           company: 'company_name',
           companyName: 'company_name',
           companyEmail: 'company_email',
@@ -308,8 +318,16 @@ const importLeads = async (req, res, next) => {
             // Handle special data types
             if (frontendField === 'value') {
               values.push(parseFloat(leadData[frontendField]) || null);
-            } else if (frontendField === 'tags' && Array.isArray(leadData[frontendField])) {
-              values.push(leadData[frontendField]);
+            } else if (frontendField === 'tags') {
+              const tagValue = leadData[frontendField];
+              if (Array.isArray(tagValue)) {
+                values.push(tagValue);
+              } else if (typeof tagValue === 'string') {
+                // Split by comma and clean up whitespace
+                values.push(tagValue.split(',').map(t => t.trim()).filter(Boolean));
+              } else {
+                values.push([]);
+              }
             } else {
               values.push(leadData[frontendField]);
             }
@@ -340,7 +358,13 @@ const importLeads = async (req, res, next) => {
         }
         if (!leadData.status) {
           columns.push('status');
-          values.push('new');
+          values.push(entityType === 'deal' ? 'open' : 'unqualified');
+          paramIndex++;
+        }
+
+        if (!leadData.stage) {
+          columns.push('stage');
+          values.push('unqualified');
           paramIndex++;
         }
 

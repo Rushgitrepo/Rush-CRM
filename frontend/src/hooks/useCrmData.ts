@@ -13,7 +13,7 @@ export function useLeads(params?: { stage?: string; status?: string; search?: st
       const response = await leadsApi.getAll({
         ...params,
         page: params?.page || 1,
-        limit: params?.limit || 50
+        limit: params?.limit || 100
       });
       return response.data;
     },
@@ -94,6 +94,20 @@ export function useDeleteLead() {
   });
 }
 
+export function useBulkDeleteLeads() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (ids: string[]) => leadsApi.bulkDelete(ids),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['leads', 'stats'] });
+      toast.success(data.message || 'Leads deleted successfully');
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
+
 // Stage/Status specific update hooks for better UX
 export function useUpdateLeadStage() {
   const queryClient = useQueryClient();
@@ -126,18 +140,22 @@ export function useLeadStats() {
   });
 }
 
-export function useDeals(params?: { stage?: string; status?: string; search?: string }) {
+export function useDeals(params?: { page?: number; limit?: number; stage?: string; status?: string; search?: string }) {
   return useQuery({
     queryKey: ['deals', params],
     queryFn: async () => {
-      const response = await dealsApi.getAll(params);
+      const response = await dealsApi.getAll({
+        ...params,
+        page: params?.page || 1,
+        limit: params?.limit || 100
+      });
       return response.data;
     },
     staleTime: STALE_TIME,
-    gcTime: GC_TIME, // Updated from cacheTime to gcTime
-    refetchOnWindowFocus: true, // Enable refetch on window focus
-    refetchOnMount: true, // Enable refetch on mount
-    placeholderData: (previousData) => previousData, // Updated from keepPreviousData
+    gcTime: GC_TIME,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -223,6 +241,20 @@ export function useDeleteDeal() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deals'] });
       toast.success('Deal deleted successfully');
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
+
+export function useBulkDeleteDeals() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (ids: string[]) => dealsApi.bulkDelete(ids),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['deals'] });
+      queryClient.invalidateQueries({ queryKey: ['deals', 'stats'] });
+      toast.success(data.message || 'Deals deleted successfully');
     },
     onError: (error: Error) => toast.error(error.message),
   });

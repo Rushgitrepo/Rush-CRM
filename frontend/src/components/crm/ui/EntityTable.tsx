@@ -23,6 +23,8 @@ interface EntityTableProps<T> {
   skeletonRows?: number;
   onRowClick?: (row: T) => void;
   ariaLabel?: string;
+  selectedRows?: (string | number)[];
+  onSelectionChange?: (selectedIds: (string | number)[]) => void;
 }
 
 export function EntityTable<T extends { id?: string | number }>({
@@ -34,6 +36,8 @@ export function EntityTable<T extends { id?: string | number }>({
   skeletonRows = 5,
   onRowClick,
   ariaLabel,
+  selectedRows = [],
+  onSelectionChange,
 }: EntityTableProps<T>) {
   const [page, setPage] = useState(1);
   const [sortKey, setSortKey] = useState<string | null>(null);
@@ -66,6 +70,29 @@ export function EntityTable<T extends { id?: string | number }>({
     }
   };
 
+  const handleSelectRow = (id: string | number, checked: boolean) => {
+    if (!onSelectionChange) return;
+    if (checked) {
+      onSelectionChange([...selectedRows, id]);
+    } else {
+      onSelectionChange(selectedRows.filter(rowId => rowId !== id));
+    }
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (!onSelectionChange) return;
+    if (checked) {
+      const allIds = paged.map(row => (row as any).id).filter(Boolean);
+      const uniqueIds = Array.from(new Set([...selectedRows, ...allIds]));
+      onSelectionChange(uniqueIds);
+    } else {
+      const pageIds = paged.map(row => (row as any).id);
+      onSelectionChange(selectedRows.filter(id => !pageIds.includes(id)));
+    }
+  };
+
+  const isAllSelected = paged.length > 0 && paged.every(row => selectedRows.includes((row as any).id));
+
   return (
     <div className="space-y-3">
       {/* Mobile cards */}
@@ -80,26 +107,41 @@ export function EntityTable<T extends { id?: string | number }>({
           ))}
         {!isLoading && paged.length === 0 && emptyState}
         {!isLoading &&
-          paged.map((row, idx) => (
-            <button
-              key={(row as any).id ?? idx}
-              onClick={() => onRowClick?.(row)}
-              className="w-full text-left rounded-xl border bg-card p-4 shadow-sm hover:shadow-md transition"
-            >
-              <div className="text-sm font-semibold text-foreground">{columns[0]?.render ? columns[0].render(row) : String((row as any)[columns[0].key])}</div>
-              <div className="text-sm text-muted-foreground mt-1">
-                {columns[1]?.render ? columns[1].render(row) : columns[1] ? String((row as any)[columns[1].key] ?? "—") : null}
-              </div>
-              <div className="flex flex-wrap gap-2 mt-3">
-                {columns.slice(2, 5).map((col) => (
-                  <div key={String(col.key)} className="text-xs text-muted-foreground">
-                    <span className="font-medium text-foreground/80 mr-1">{col.header}:</span>
-                    {col.render ? col.render(row) : String((row as any)[col.key] ?? "—")}
+          paged.map((row, idx) => {
+            const id = (row as any).id;
+            const isSelected = selectedRows.includes(id);
+            return (
+              <div key={id ?? idx} className={cn("relative group rounded-xl border bg-card p-4 shadow-sm hover:shadow-md transition", isSelected && "border-primary bg-primary/5")}>
+                {onSelectionChange && (
+                  <div className="absolute top-4 right-4">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={(e) => handleSelectRow(id, e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    />
                   </div>
-                ))}
+                )}
+                <button
+                  onClick={() => onRowClick?.(row)}
+                  className="w-full text-left"
+                >
+                  <div className="text-sm font-semibold text-foreground pr-8">{columns[0]?.render ? columns[0].render(row) : String((row as any)[columns[0].key])}</div>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    {columns[1]?.render ? columns[1].render(row) : columns[1] ? String((row as any)[columns[1].key] ?? "—") : null}
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {columns.slice(2, 5).map((col) => (
+                      <div key={String(col.key)} className="text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground/80 mr-1">{col.header}:</span>
+                        {col.render ? col.render(row) : String((row as any)[col.key] ?? "—")}
+                      </div>
+                    ))}
+                  </div>
+                </button>
               </div>
-            </button>
-          ))}
+            );
+          })}
       </div>
 
       {/* Desktop table */}
@@ -107,6 +149,16 @@ export function EntityTable<T extends { id?: string | number }>({
         <Table aria-label={ariaLabel}>
           <TableHeader className="bg-muted/40">
             <TableRow>
+              {onSelectionChange && (
+                <TableHead className="w-[40px] px-4">
+                  <input
+                    type="checkbox"
+                    checked={isAllSelected}
+                    onChange={(e) => handleSelectAll(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                </TableHead>
+              )}
               {columns.map((col) => (
                 <TableHead
                   key={String(col.key)}
@@ -125,6 +177,7 @@ export function EntityTable<T extends { id?: string | number }>({
             {isLoading &&
               Array.from({ length: skeletonRows }).map((_, idx) => (
                 <TableRow key={idx}>
+                  {onSelectionChange && <TableCell className="px-4"><Skeleton className="h-4 w-4" /></TableCell>}
                   {columns.map((col) => (
                     <TableCell key={String(col.key)} className="py-4">
                       <Skeleton className="h-4 w-24" />
@@ -134,23 +187,37 @@ export function EntityTable<T extends { id?: string | number }>({
               ))}
             {!isLoading && paged.length === 0 && (
               <TableRow>
-                <TableCell colSpan={columns.length} className="text-center py-10 text-muted-foreground">
+                <TableCell colSpan={columns.length + (onSelectionChange ? 1 : 0)} className="text-center py-10 text-muted-foreground">
                   {emptyState}
                 </TableCell>
               </TableRow>
             )}
             {!isLoading &&
-              paged.map((row, idx) => (
-                <TableRow
-                  key={(row as any).id ?? idx}
-                  className={cn(onRowClick && "cursor-pointer hover:bg-muted/40")}
-                  onClick={() => onRowClick?.(row)}
-                >
-                  {columns.map((col) => (
-                    <TableCell key={String(col.key)} className={cn("py-4", col.align === "right" && "text-right")}>{col.render ? col.render(row) : String((row as any)[col.key] ?? "—")}</TableCell>
-                  ))}
-                </TableRow>
-              ))}
+              paged.map((row, idx) => {
+                const id = (row as any).id;
+                const isSelected = selectedRows.includes(id);
+                return (
+                  <TableRow
+                    key={id ?? idx}
+                    className={cn(onRowClick && "cursor-pointer hover:bg-muted/40", isSelected && "bg-primary/5")}
+                    onClick={() => onRowClick?.(row)}
+                  >
+                    {onSelectionChange && (
+                      <TableCell className="px-4" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => handleSelectRow(id, e.target.checked)}
+                          className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                        />
+                      </TableCell>
+                    )}
+                    {columns.map((col) => (
+                      <TableCell key={String(col.key)} className={cn("py-4", col.align === "right" && "text-right")}>{col.render ? col.render(row) : String((row as any)[col.key] ?? "—")}</TableCell>
+                    ))}
+                  </TableRow>
+                );
+              })}
           </TableBody>
         </Table>
       </div>

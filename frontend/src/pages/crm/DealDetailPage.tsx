@@ -1030,7 +1030,7 @@ export default function DealDetailPage() {
             </div>
             <div className="flex items-center gap-1 mt-2 text-sm text-emerald-600 dark:text-emerald-400">
               <TrendingUp className="h-4 w-4" />
-              <span>${dealStats?.overview?.total_won_value ? Number(dealStats.overview.total_won_value).toLocaleString() : '0'} won</span>
+              <span>${dealStats?.overview?.won_value ? Number(dealStats.overview.won_value).toLocaleString() : '0'} won</span>
             </div>
           </div>
         </div>

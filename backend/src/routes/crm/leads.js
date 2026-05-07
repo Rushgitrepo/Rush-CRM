@@ -17,5 +17,6 @@ router.post('/:id/convert-to-deal', leadController.convertToDeal);
 router.put('/:id', leadController.update);
 router.patch('/:id/stage', leadController.updateStage);
 router.delete('/:id', leadController.remove);
+router.post('/bulk-delete', leadController.bulkRemove);
 
 module.exports = router;

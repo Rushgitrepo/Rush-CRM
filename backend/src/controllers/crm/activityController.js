@@ -43,18 +43,39 @@ const getByEntity = async (req, res, next) => {
 const getRecent = async (req, res, next) => {
   try {
     const { limit = 20 } = req.query;
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+    const userId = req.user.id;
+    const orgId = req.user.orgId;
 
-    const result = await db.query(
-      `SELECT a.*, 
-              COALESCE(p.full_name, 'System') as user_name, 
-              COALESCE(p.avatar_url, 'https://api.dicebear.com/7.x/initials/svg?seed=System') as user_avatar
-       FROM public.activities a
-       LEFT JOIN public.profiles p ON p.id = a.owner_id
-       WHERE a.org_id = $1
-       ORDER BY a.created_at DESC
-       LIMIT $2`,
-      [req.user.orgId, limit]
-    );
+    let query = `
+      SELECT a.*, 
+             COALESCE(p.full_name, 'System') as user_name, 
+             COALESCE(p.avatar_url, 'https://api.dicebear.com/7.x/initials/svg?seed=System') as user_avatar
+      FROM public.activities a
+      LEFT JOIN public.profiles p ON p.id = a.owner_id
+    `;
+
+    const queryParams = [orgId, limit];
+
+    if (!isAdmin) {
+      query += `
+        LEFT JOIN public.leads l ON a.lead_id = l.id
+        LEFT JOIN public.deals d ON a.deal_id = d.id
+        WHERE a.org_id = $1 
+        AND (
+          a.owner_id = $3 OR
+          (a.lead_id IS NOT NULL AND (l.owner_id = $3 OR l.assigned_to = $3)) OR
+          (a.deal_id IS NOT NULL AND (d.owner_id = $3 OR d.assigned_to = $3))
+        )
+      `;
+      queryParams.push(userId);
+    } else {
+      query += ` WHERE a.org_id = $1 `;
+    }
+
+    query += ` ORDER BY a.created_at DESC LIMIT $2`;
+
+    const result = await db.query(query, queryParams);
 
     res.json(result.rows.map(row => ({
       ...row,
