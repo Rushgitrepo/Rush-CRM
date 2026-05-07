@@ -228,7 +228,7 @@ export function LeadsKanbanView({ leads, onCreateLead }: LeadsKanbanViewProps) {
           <div
             key={column.id}
             className={cn(
-              "flex-shrink-0 w-80 bg-white rounded-xl border border-slate-200 transition-colors shadow-sm",
+              "flex-shrink-0 w-80 rounded-xl border border-slate-200 transition-colors shadow-sm",
               dragOverColumn === column.id
                 ? "border-primary bg-slate-50"
                 : "border-slate-200"
@@ -297,7 +297,7 @@ export function LeadsKanbanView({ leads, onCreateLead }: LeadsKanbanViewProps) {
                   key={lead.id}
                   draggable
                   onDragStart={(e) => handleDragStart(e, lead.id)}
-                  className="bg-white border border-slate-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing group"
+                  className="border border-slate-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing group"
                 >
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-2">

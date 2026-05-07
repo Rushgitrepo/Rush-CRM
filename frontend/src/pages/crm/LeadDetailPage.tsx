@@ -288,27 +288,14 @@ const defaultPipelineStages = [
 ];
 
 const getStatusColor = (status: string) => {
-  switch (status?.toLowerCase()) {
-    case 'qualified': return 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50';
-    case 'contacted': return 'bg-primary/5 text-primary border-primary/20';
-    case 'unqualified': return 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-900/50';
-    case 'new': return 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-900/50';
-    case 'proposal': return 'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-900/50';
-    case 'negotiation': return 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-900/50';
-    default: return ' text-muted-foreground ';
-  }
+  const stage = defaultPipelineStages.find(s => s.id === status);
+  return stage ? `${stage.bgColor} ${stage.textColor} ${stage.borderColor}` : 'bg-muted/40 text-foreground ';
 };
 
 const getStatusIcon = (status: string) => {
-  switch (status?.toLowerCase()) {
-    case 'qualified': return <CheckCircle className="h-4 w-4" />;
-    case 'contacted': return <PhoneCall className="h-4 w-4" />;
-    case 'unqualified': return <XCircle className="h-4 w-4" />;
-    case 'new': return <AlertCircle className="h-4 w-4" />;
-    case 'proposal': return <Send className="h-4 w-4" />;
-    case 'negotiation': return <Target className="h-4 w-4" />;
-    default: return <Clock className="h-4 w-4" />;
-  }
+  const stage = defaultPipelineStages.find(s => s.id === status);
+  const IconComponent = stage?.icon || Clock;
+  return <IconComponent className="h-4 w-4" />;
 };
 export default function LeadDetailPage() {
   const { id } = useParams<{ id: string }>();
