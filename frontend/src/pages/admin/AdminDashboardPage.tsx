@@ -85,7 +85,13 @@ const DEPARTMENTS = [
 ];
 
 export default function AdminDashboardPage() {
-  const { userRole, user, refreshProfile, updateProfilePermissions, hasPermission } = useAuth();
+  const {
+    userRole,
+    user,
+    refreshProfile,
+    updateProfilePermissions,
+    hasPermission,
+  } = useAuth();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -114,7 +120,16 @@ export default function AdminDashboardPage() {
   const showToast = (
     type: "success" | "error",
     message: string,
-    options?: { duration?: number; position?: "top-left" | "top-center" | "top-right" | "bottom-left" | "bottom-center" | "bottom-right" }
+    options?: {
+      duration?: number;
+      position?:
+        | "top-left"
+        | "top-center"
+        | "top-right"
+        | "bottom-left"
+        | "bottom-center"
+        | "bottom-right";
+    },
   ) => {
     if (type === "success") {
       toast.success(message, options);
@@ -143,7 +158,10 @@ export default function AdminDashboardPage() {
             role: variables.role || "employee",
             createdAt: new Date().toISOString(),
           },
-          ...prev.filter((p) => p.email.toLowerCase() !== String(variables.email).toLowerCase()),
+          ...prev.filter(
+            (p) =>
+              p.email.toLowerCase() !== String(variables.email).toLowerCase(),
+          ),
         ]);
       }
       showToast("success", "Employee created successfully");
@@ -213,13 +231,18 @@ export default function AdminDashboardPage() {
 
   const handleCreateNew = () => {
     const canCreateMembers =
-      hasPermission("members", "create") || hasPermission("employees", "create");
+      hasPermission("admin_dashboard", "create") ||
+      hasPermission("employees", "create");
 
     if (!canCreateMembers) {
-      showToast("error", "You don't have permission to view Team members page", {
-        position: "bottom-right",
-        duration: 4000,
-      });
+      showToast(
+        "error",
+        "You don't have permission to view Team members page",
+        {
+          position: "bottom-right",
+          duration: 4000,
+        },
+      );
       return;
     }
     setEditingUser(null);
@@ -253,7 +276,8 @@ export default function AdminDashboardPage() {
 
   const handleEditClick = (targetUser: any) => {
     const canEditMembers =
-      hasPermission("members", "edit") || hasPermission("employees", "edit");
+      hasPermission("admin_dashboard", "edit") ||
+      hasPermission("employees", "edit");
 
     if (!canEditMembers) {
       showToast("error", "You don't have permission to edit team members", {
@@ -268,7 +292,8 @@ export default function AdminDashboardPage() {
 
   const handleDeleteClick = (targetUser: any) => {
     const canDeleteMembers =
-      hasPermission("members", "delete") || hasPermission("employees", "delete");
+      hasPermission("admin_dashboard", "delete") ||
+      hasPermission("employees", "delete");
 
     if (!canDeleteMembers) {
       showToast("error", "You don't have permission to delete team members", {
@@ -319,18 +344,22 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     if (!users?.length) return;
-    const activeEmails = new Set(users.map((u: any) => String(u.email || "").toLowerCase()));
-    console.log('Active emails:', Array.from(activeEmails));
-    console.log('Pending invites before filter:', pendingInvites);
+    const activeEmails = new Set(
+      users.map((u: any) => String(u.email || "").toLowerCase()),
+    );
+    console.log("Active emails:", Array.from(activeEmails));
+    console.log("Pending invites before filter:", pendingInvites);
     setPendingInvites((prev) => {
-      const filtered = prev.filter((p) => !activeEmails.has(p.email.toLowerCase()));
-      console.log('Pending invites after filter:', filtered);
+      const filtered = prev.filter(
+        (p) => !activeEmails.has(p.email.toLowerCase()),
+      );
+      console.log("Pending invites after filter:", filtered);
       return filtered;
     });
   }, [users]);
 
   return (
-    <PermissionGuard module="members" action="view">
+    <PermissionGuard module="admin_dashboard" action="view">
       <div className="p-6 space-y-6 max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
@@ -407,12 +436,20 @@ export default function AdminDashboardPage() {
                     </thead>
                     <tbody className="divide-y divide-border/50">
                       {pendingInvites.map((p) => (
-                        <tr key={`${p.email}-${p.createdAt}`} className="text-sm">
+                        <tr
+                          key={`${p.email}-${p.createdAt}`}
+                          className="bg-amber-50/60 text-sm"
+                        >
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
                               <Avatar className="h-9 w-9 border border-amber-200">
                                 <AvatarFallback className="bg-amber-100 text-amber-700 font-bold">
-                                  {p.fullName?.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)}
+                                  {p.fullName
+                                    ?.split(" ")
+                                    .map((n: string) => n[0])
+                                    .join("")
+                                    .toUpperCase()
+                                    .slice(0, 2)}
                                 </AvatarFallback>
                               </Avatar>
                               <div className="flex flex-col">
@@ -429,17 +466,27 @@ export default function AdminDashboardPage() {
                             </div>
                           </td>
                           <td className="px-6 py-4">
-                            <Badge variant="outline" className="capitalize border-none px-2 py-0.5 bg-amber-100 text-amber-700">
+                            <Badge
+                              variant="outline"
+                              className="capitalize border-none px-2 py-0.5 bg-amber-100 text-amber-700"
+                            >
                               {p.role.replace("_", " ")}
                             </Badge>
                           </td>
-                          <td className="px-6 py-4 text-muted-foreground">--</td>
+                          <td className="px-6 py-4 text-muted-foreground">
+                            --
+                          </td>
                           <td className="px-6 py-4">
-                            <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-700">
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] border-amber-300 text-amber-700"
+                            >
                               Invite Sent
                             </Badge>
                           </td>
-                          <td className="px-6 py-4 text-right text-xs text-muted-foreground">--</td>
+                          <td className="px-6 py-4 text-right text-xs text-muted-foreground">
+                            --
+                          </td>
                         </tr>
                       ))}
                       {filteredUsers?.map((u) => (
@@ -478,12 +525,13 @@ export default function AdminDashboardPage() {
                           <td className="px-6 py-4">
                             <Badge
                               variant="outline"
-                              className={`capitalize border-none px-2 py-0.5 ${u.role === "super_admin"
+                              className={`capitalize border-none px-2 py-0.5 ${
+                                u.role === "super_admin"
                                   ? "bg-indigo-500/10 text-indigo-500"
                                   : u.role === "admin"
                                     ? "bg-emerald-500/10 text-emerald-500"
                                     : "bg-slate-500/10 text-slate-500"
-                                }`}
+                              }`}
                             >
                               {u.role?.replace("_", " ")}
                             </Badge>
@@ -566,7 +614,7 @@ export default function AdminDashboardPage() {
 
         {/* User Form Dialog */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0 border-none shadow-2xl">
+          <DialogContent className="max-w-4xl max-h-[95vh] overflow-hidden flex flex-col p-0 border-none shadow-2xl">
             <div className="p-6 bg-gradient-to-br from-primary/5 via-background to-background border-b border-border/50">
               <DialogHeader>
                 <div className="flex items-center gap-3 mb-2">
@@ -602,8 +650,9 @@ export default function AdminDashboardPage() {
                   {[1, 2].map((i) => (
                     <div
                       key={i}
-                      className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${i <= addMemberStep ? "bg-primary" : "bg-primary/10"
-                        }`}
+                      className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+                        i <= addMemberStep ? "bg-primary" : "bg-primary/10"
+                      }`}
                     />
                   ))}
                 </div>
@@ -783,6 +832,8 @@ export default function AdminDashboardPage() {
                     <ModulePermissionEditor
                       selectedModules={selectedModules}
                       setSelectedModules={setSelectedModules}
+                      availableUsers={users}
+                      filterRole={formData.role}
                     />
                   </div>
                 )}

@@ -1,5 +1,6 @@
 const db = require('../../config/database');
 const notificationService = require('../../services/notificationService');
+const realtimeService = require('../../services/realtimeService');
 
 const getAll = async (req, res, next) => {
   try {
@@ -8,40 +9,49 @@ const getAll = async (req, res, next) => {
 
     const isAdmin = req.user.role === 'super_admin' || req.user.role === 'admin';
 
-    let query = `SELECT * FROM public.tasks WHERE org_id = $1`;
+    let query = `
+      SELECT t.*,
+             p.name        AS project_name,
+             p.color       AS project_color,
+             p.can_assign  AS project_can_assign,
+             p.manager_id  AS project_manager_id,
+             p.created_by  AS project_created_by,
+             p.owner_id    AS project_owner_id,
+             u.full_name   AS assigned_to_name
+      FROM public.tasks t
+      LEFT JOIN public.projects p ON t.project_id = p.id
+      LEFT JOIN users u ON t.assigned_to = u.id
+      WHERE t.org_id = $1`;
+
     const params = [req.user.orgId];
     let paramIndex = 2;
 
     if (!isAdmin) {
-      query += ` AND (assigned_to = $${paramIndex} OR created_by = $${paramIndex})`;
+      query += ` AND (t.assigned_to = $${paramIndex} OR t.created_by = $${paramIndex})`;
       params.push(req.user.id);
       paramIndex++;
     }
 
-    // Only add filters if they have actual values (not undefined or 'undefined' strings)
     if (projectId && projectId !== 'undefined') {
-      query += ` AND project_id = $${paramIndex}`;
+      query += ` AND t.project_id = $${paramIndex}`;
       params.push(projectId);
       paramIndex++;
     }
 
     if (status && status !== 'undefined') {
-      query += ` AND status = $${paramIndex}`;
+      query += ` AND t.status = $${paramIndex}`;
       params.push(status);
       paramIndex++;
     }
 
     if (assignedTo && assignedTo !== 'undefined') {
-      query += ` AND assigned_to = $${paramIndex}`;
+      query += ` AND t.assigned_to = $${paramIndex}`;
       params.push(assignedTo);
       paramIndex++;
     }
 
-    query += ` ORDER BY sort_order ASC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    query += ` ORDER BY t.sort_order ASC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     params.push(limit, offset);
-
-    console.log('Task query:', query);
-    console.log('Task params:', params);
 
     const result = await db.query(query, params);
     res.json(result.rows);
@@ -56,7 +66,18 @@ const getById = async (req, res, next) => {
     const { id } = req.params;
 
     const result = await db.query(
-      'SELECT * FROM public.tasks WHERE id = $1 AND org_id = $2',
+      `SELECT t.*,
+              p.name        AS project_name,
+              p.color       AS project_color,
+              p.can_assign  AS project_can_assign,
+              p.manager_id  AS project_manager_id,
+              p.created_by  AS project_created_by,
+              p.owner_id    AS project_owner_id,
+              u.full_name   AS assigned_to_name
+       FROM public.tasks t
+       LEFT JOIN public.projects p ON t.project_id = p.id
+       LEFT JOIN users u ON t.assigned_to = u.id
+       WHERE t.id = $1 AND t.org_id = $2`,
       [id, req.user.orgId]
     );
 
@@ -72,17 +93,15 @@ const getById = async (req, res, next) => {
 
 const create = async (req, res, next) => {
   try {
-    console.log('Creating task with data:', req.body);
-    const { 
-      title, description, projectId, assignedTo, dueDate, priority, status, 
-      parentTaskId, recurrence_rule 
+    const {
+      title, description, projectId, assignedTo, dueDate, priority, status,
+      parentTaskId, recurrence_rule, progress, can_assign
     } = req.body;
 
     if (!title || !title.trim()) {
       return res.status(400).json({ error: 'Task title is required' });
     }
 
-    // Get the next sort order
     const maxOrder = await db.query(
       'SELECT COALESCE(MAX(sort_order), 0) + 1 as next_order FROM public.tasks WHERE org_id = $1',
       [req.user.orgId]
@@ -90,32 +109,32 @@ const create = async (req, res, next) => {
 
     const result = await db.query(
       `INSERT INTO public.tasks (
-        org_id, project_id, title, description, assigned_to, due_date, 
+        org_id, project_id, title, description, assigned_to, due_date,
         priority, status, parent_task_id, sort_order, created_by,
-        is_recurring, recurrence_pattern
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        is_recurring, recurrence_pattern, progress, can_assign
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
        RETURNING *`,
       [
-        req.user.orgId, 
-        projectId || null, 
-        title.trim(), 
-        description || null, 
-        assignedTo || null, 
-        dueDate || null, 
-        priority || 'normal', 
-        status || 'new', 
-        parentTaskId || null, 
-        maxOrder.rows[0].next_order, 
+        req.user.orgId,
+        projectId || null,
+        title.trim(),
+        description || null,
+        (assignedTo === '' ? null : assignedTo) || null,
+        (dueDate === '' ? null : dueDate) || null,
+        priority || 'normal',
+        status || 'new',
+        parentTaskId || null,
+        maxOrder.rows[0].next_order,
         req.user.id,
         !!recurrence_rule && recurrence_rule !== 'none',
-        recurrence_rule || null
+        recurrence_rule || null,
+        progress || (status === 'completed' ? 100 : 0),
+        can_assign || false,
       ]
     );
 
-    console.log('Task created successfully:', result.rows[0]);
     const task = result.rows[0];
 
-    // Notify assignee (if different from creator)
     if (task.assigned_to && task.assigned_to !== req.user.id) {
       notificationService.notify(
         req.user.orgId,
@@ -129,6 +148,7 @@ const create = async (req, res, next) => {
       );
     }
 
+    realtimeService.broadcastToOrg(req.user.orgId, 'task:created', task);
     res.status(201).json(task);
   } catch (err) {
     console.error('Task creation error:', err);
@@ -139,32 +159,37 @@ const create = async (req, res, next) => {
 const update = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { 
-      title, description, assignedTo, dueDate, priority, status, 
-      recurrence_rule 
+    const {
+      title, description, assignedTo, dueDate, priority, status,
+      recurrence_rule, is_starred, progress, can_assign
     } = req.body;
 
     const fields = [];
     const values = [];
-    let paramIndex = 1;
+    let p = 1;
 
-    if (title !== undefined) { fields.push(`title = $${paramIndex++}`); values.push(title); }
-    if (description !== undefined) { fields.push(`description = $${paramIndex++}`); values.push(description); }
-    if (assignedTo !== undefined) { fields.push(`assigned_to = $${paramIndex++}`); values.push(assignedTo); }
-    if (dueDate !== undefined) { fields.push(`due_date = $${paramIndex++}`); values.push(dueDate); }
-    if (priority !== undefined) { fields.push(`priority = $${paramIndex++}`); values.push(priority); }
-    if (status !== undefined) { 
-      fields.push(`status = $${paramIndex++}`); values.push(status);
+    if (title !== undefined)       { fields.push(`title = $${p++}`);         values.push(title); }
+    if (description !== undefined) { fields.push(`description = $${p++}`);   values.push(description); }
+    if (assignedTo !== undefined)  { fields.push(`assigned_to = $${p++}`);   values.push(assignedTo === '' ? null : assignedTo); }
+    if (dueDate !== undefined)     { fields.push(`due_date = $${p++}`);       values.push(dueDate === '' ? null : dueDate); }
+    if (priority !== undefined)    { fields.push(`priority = $${p++}`);       values.push(priority); }
+    if (status !== undefined) {
+      fields.push(`status = $${p++}`);
+      values.push(status);
       if (status === 'completed') {
         fields.push(`completed_at = now()`);
+        fields.push(`progress = 100`);
       }
     }
+    if (progress !== undefined)    { fields.push(`progress = $${p++}`);       values.push(progress); }
+    if (can_assign !== undefined)  { fields.push(`can_assign = $${p++}`);     values.push(can_assign); }
     if (recurrence_rule !== undefined) {
-      fields.push(`is_recurring = $${paramIndex++}`);
+      fields.push(`is_recurring = $${p++}`);
       values.push(!!recurrence_rule && recurrence_rule !== 'none');
-      fields.push(`recurrence_pattern = $${paramIndex++}`);
+      fields.push(`recurrence_pattern = $${p++}`);
       values.push(recurrence_rule || null);
     }
+    if (is_starred !== undefined)  { fields.push(`is_starred = $${p++}`);     values.push(is_starred); }
 
     if (fields.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
@@ -174,8 +199,8 @@ const update = async (req, res, next) => {
     values.push(id, req.user.orgId);
 
     const result = await db.query(
-      `UPDATE public.tasks SET ${fields.join(', ')} 
-       WHERE id = $${paramIndex} AND org_id = $${paramIndex + 1}
+      `UPDATE public.tasks SET ${fields.join(', ')}
+       WHERE id = $${p} AND org_id = $${p + 1}
        RETURNING *`,
       values
     );
@@ -186,11 +211,11 @@ const update = async (req, res, next) => {
 
     const updatedTask = result.rows[0];
 
-    // Notify new assignee if assignment changed
-    if (assignedTo && assignedTo !== req.user.id) {
+    const cleanAssignedTo = assignedTo === '' ? null : assignedTo;
+    if (cleanAssignedTo && cleanAssignedTo !== req.user.id) {
       notificationService.notify(
         req.user.orgId,
-        assignedTo,
+        cleanAssignedTo,
         'task_assigned',
         'Task Assigned to You',
         `${req.user.full_name || req.user.email} assigned you the task "${updatedTask.title}"`,
@@ -200,6 +225,7 @@ const update = async (req, res, next) => {
       );
     }
 
+    realtimeService.broadcastToOrg(req.user.orgId, 'task:updated', updatedTask);
     res.json(updatedTask);
   } catch (err) {
     next(err);
@@ -221,7 +247,7 @@ const updateStatus = async (req, res, next) => {
     values.push(id, req.user.orgId);
 
     const result = await db.query(
-      `UPDATE public.tasks SET ${fields.join(', ')} 
+      `UPDATE public.tasks SET ${fields.join(', ')}
        WHERE id = $2 AND org_id = $3
        RETURNING *`,
       values
@@ -233,7 +259,6 @@ const updateStatus = async (req, res, next) => {
 
     const doneTask = result.rows[0];
 
-    // Notify creator when task is completed (if different from the one marking it done)
     if (status === 'completed' && doneTask.created_by && doneTask.created_by !== req.user.id) {
       notificationService.notify(
         req.user.orgId,
@@ -247,6 +272,7 @@ const updateStatus = async (req, res, next) => {
       );
     }
 
+    realtimeService.broadcastToOrg(req.user.orgId, 'task:updated', doneTask);
     res.json(doneTask);
   } catch (err) {
     next(err);
@@ -266,6 +292,7 @@ const remove = async (req, res, next) => {
       return res.status(404).json({ error: 'Task not found' });
     }
 
+    realtimeService.broadcastToOrg(req.user.orgId, 'task:deleted', { id });
     res.json({ message: 'Task deleted' });
   } catch (err) {
     next(err);
