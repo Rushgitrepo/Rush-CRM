@@ -324,6 +324,7 @@ export const projectsApi = {
   update: (id: string, data: any) => api.put<any>(`/projects/${id}`, data),
   delete: (id: string) => api.delete(`/projects/${id}`),
   getStats: () => api.get<any>('/projects/stats'),
+  getMembers: (id: string) => api.get<any[]>(`/projects/${id}/members`),
 };
 
 const normalizeTaskFilters = (params?: { project_id?: string; projectId?: string; status?: string; assigned_to?: string; assignedTo?: string }) => {
@@ -358,6 +359,9 @@ const serializeTaskPayload = (data: any) => ({
   parentTaskId: data.parentTaskId ?? data.parent_task_id,
   sortOrder: data.sortOrder ?? data.sort_order,
   tags: data.tags,
+  is_starred: data.is_starred ?? data.isStarred,
+  progress: data.progress,
+  can_assign: data.can_assign ?? data.canAssign,
 });
 
 export const tasksApi = {

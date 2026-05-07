@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/contexts/AuthContext";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -11,15 +12,26 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Circle, Clock, CheckCircle2, Flag, Calendar,
   MoreHorizontal, Star, Trash2, Edit,
 } from "lucide-react";
 import { format, isToday, isTomorrow, isPast } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useUpdateTask, useDeleteTask, type Task } from "@/hooks/useTasks";
+import { TaskDetailPanel } from "@/components/tasks/TaskDetailPanel";
 
 const STATUS_CONFIG = {
-  new: { label: "New", icon: Circle, color: "text-blue-500" },
+  new: { label: "Inbox", icon: Circle, color: "text-blue-500" },
   in_progress: { label: "In Progress", icon: Clock, color: "text-orange-500" },
   completed: { label: "Completed", icon: CheckCircle2, color: "text-green-500" },
 };
@@ -34,12 +46,18 @@ const PRIORITY_CONFIG = {
 interface TaskListViewProps {
   tasks: Task[];
   onEditTask?: (task: Task) => void;
+  onToggleStar?: (task: Task) => void;
 }
 
-export function TaskListView({ tasks, onEditTask }: TaskListViewProps) {
+export function TaskListView({ tasks, onEditTask, onToggleStar }: TaskListViewProps) {
+  const { profile, userRole } = useAuth();
+  const isAdmin = userRole?.role === 'admin' || userRole?.role === 'super_admin';
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
+  const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
+  const [detailTask, setDetailTask] = useState<Task | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   const toggleTask = (taskId: string) => {
     const newSelected = new Set(selectedTasks);
@@ -66,8 +84,14 @@ export function TaskListView({ tasks, onEditTask }: TaskListViewProps) {
   };
 
   const handleDelete = (taskId: string) => {
-    if (confirm("Are you sure you want to delete this task?")) {
-      deleteTask.mutate(taskId);
+    setTaskToDelete(taskId);
+  };
+
+  const confirmDelete = () => {
+    if (taskToDelete) {
+      deleteTask.mutate(taskToDelete, {
+        onSuccess: () => setTaskToDelete(null)
+      });
     }
   };
 
@@ -105,30 +129,45 @@ export function TaskListView({ tasks, onEditTask }: TaskListViewProps) {
           <div
             key={task.id}
             className={cn(
-              "group flex items-center gap-4 p-4 rounded-xl border transition-all hover:shadow-md",
+              "group relative flex items-center gap-4 p-5 rounded-2xl border transition-all duration-300 cursor-pointer",
               task.status === "completed"
-                ? "bg-muted/30 border-border/50"
-                : "bg-card border-border hover:border-primary/50"
+                ? "bg-muted/10 border-border/40"
+                : "bg-card border-border hover:border-primary/20 hover:shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] hover:-translate-y-0.5"
             )}
+            onClick={() => {
+              setDetailTask(task);
+              setDetailOpen(true);
+            }}
           >
+            {/* Progress Bar Background (Bottom) */}
+            {task.progress !== undefined && task.progress > 0 && task.status !== 'completed' && (
+              <div className="absolute bottom-0 left-0 right-0 h-1 overflow-hidden rounded-b-2xl opacity-30 group-hover:opacity-100 transition-opacity">
+                <div
+                  className={cn("h-full transition-all duration-500", priority.dot.replace('bg-', 'bg-'))}
+                  style={{ width: `${task.progress}%` }}
+                />
+              </div>
+            )}
+
             {/* Checkbox */}
             <Checkbox
               checked={selectedTasks.has(task.id)}
               onCheckedChange={() => toggleTask(task.id)}
-              className="shrink-0"
+              onClick={(e) => e.stopPropagation()}
+              className="shrink-0 h-5 w-5 rounded-md border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
             />
 
             {/* Status Icon */}
-            <div className={cn("shrink-0", status.color)}>
+            <div className={cn("shrink-0 p-2 rounded-xl bg-muted/50", status.color)}>
               <StatusIcon className="h-5 w-5" />
             </div>
 
             {/* Task Content */}
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-3 mb-1">
+              <div className="flex items-center gap-3 mb-1.5">
                 <h3
                   className={cn(
-                    "font-medium text-sm",
+                    "font-semibold text-base tracking-tight",
                     task.status === "completed"
                       ? "line-through text-muted-foreground"
                       : "text-foreground"
@@ -138,19 +177,28 @@ export function TaskListView({ tasks, onEditTask }: TaskListViewProps) {
                 </h3>
 
                 {/* Priority Indicator */}
-                <div className="flex items-center gap-1.5">
-                  <div className={cn("h-2 w-2 rounded-full", priority.dot)} />
-                  <span className={cn("text-xs font-medium", priority.color)}>
-                    {priority.label}
-                  </span>
+                <div className={cn(
+                  "flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
+                  priority.color.replace('text-', 'bg-').replace('500', '500/10'),
+                  priority.color
+                )}>
+                  <div className={cn("h-1.5 w-1.5 rounded-full", priority.dot)} />
+                  {priority.label}
                 </div>
+
+                {/* Progress Indicator */}
+                {task.progress !== undefined && task.progress > 0 && task.status !== 'completed' && (
+                  <div className="flex items-center gap-2 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold">
+                    {task.progress}%
+                  </div>
+                )}
               </div>
 
               {/* Meta Info */}
-              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <div className="flex items-center gap-5 text-xs text-muted-foreground">
                 {task.project_name && (
-                  <span className="flex items-center gap-1">
-                    <div className={cn("h-2 w-2 rounded-full", task.project_color || "bg-primary")} />
+                  <span className="flex items-center gap-1.5 font-medium">
+                    <div className={cn("h-2 w-2 rounded-full ring-2 ring-background", task.project_color || "bg-primary")} />
                     {task.project_name}
                   </span>
                 )}
@@ -158,37 +206,49 @@ export function TaskListView({ tasks, onEditTask }: TaskListViewProps) {
                 {task.due_date && (
                   <span
                     className={cn(
-                      "flex items-center gap-1",
-                      isOverdue && "text-red-500 font-medium"
+                      "flex items-center gap-1.5",
+                      isOverdue ? "text-red-500 font-semibold" : "opacity-80"
                     )}
                   >
-                    <Calendar className="h-3 w-3" />
+                    <Calendar className="h-3.5 w-3.5" />
                     {formatDueDate(task.due_date)}
                   </span>
                 )}
 
                 {task.assigned_to_name && (
-                  <span className="flex items-center gap-1">
-                    <Avatar className="h-4 w-4">
-                      <AvatarFallback className="text-[8px]">
+                  <span className="flex items-center gap-2 group/avatar">
+                    <Avatar className="h-5 w-5 ring-2 ring-background transition-transform group-hover/avatar:scale-110">
+                      <AvatarFallback className="text-[9px] font-bold bg-primary/5 text-primary">
                         {task.assigned_to_name.slice(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    {task.assigned_to_name}
+                    <span className="group-hover/avatar:text-foreground transition-colors">
+                      {task.assigned_to_name}
+                    </span>
                   </span>
                 )}
               </div>
+
+              {/* Description preview */}
+              {task.description && (
+                <p className="text-xs text-muted-foreground/60 mt-1.5 line-clamp-1 max-w-lg">
+                  {task.description}
+                </p>
+              )}
             </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-8 w-8 p-0"
+                className={cn(
+                  "h-9 w-9 p-0 rounded-xl transition-all",
+                  task.is_starred ? "text-yellow-400 bg-yellow-400/5 hover:bg-yellow-400/10" : "opacity-0 group-hover:opacity-100 text-muted-foreground hover:bg-muted"
+                )}
                 onClick={() => handleToggleStar(task)}
               >
-                <Star className={cn("h-4 w-4", task.is_starred && "fill-yellow-400 text-yellow-400")} />
+                <Star className={cn("h-4.5 w-4.5", task.is_starred && "fill-current")} />
               </Button>
 
               <DropdownMenu>
@@ -209,7 +269,7 @@ export function TaskListView({ tasks, onEditTask }: TaskListViewProps) {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => handleStatusChange(task, "new")}>
                     <Circle className="h-4 w-4 mr-2 text-blue-500" />
-                    Mark as New
+                    Mark as Inbox
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleStatusChange(task, "in_progress")}>
                     <Clock className="h-4 w-4 mr-2 text-orange-500" />
@@ -220,19 +280,51 @@ export function TaskListView({ tasks, onEditTask }: TaskListViewProps) {
                     Mark as Completed
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem 
-                    className="text-destructive"
-                    onClick={() => handleDelete(task.id)}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete
-                  </DropdownMenuItem>
+                  {(isAdmin || task.created_by === profile?.id) && (
+                    <DropdownMenuItem
+                      className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                      onClick={() => handleDelete(task.id)}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
           </div>
         );
       })}
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!taskToDelete} onOpenChange={(open) => !open && setTaskToDelete(null)}>
+        <AlertDialogContent className="bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-foreground">Delete Task</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground">
+              Are you sure you want to delete this task? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-muted hover:bg-muted/80 text-foreground border-border">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground shadow-lg shadow-destructive/20"
+            >
+              {deleteTask.isPending ? "Deleting..." : "Yes, Delete Task"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Task Detail Panel */}
+      <TaskDetailPanel
+        task={detailTask}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        onEdit={onEditTask}
+      />
     </div>
   );
 }

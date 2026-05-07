@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { api, authApi } from '@/lib/api';
 import { LoadingScreen } from '@/components/ui/loading-screen';
+import { getSocket } from '@/hooks/useRealtime';
 
 interface Profile {
   id: string;
@@ -119,6 +120,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       window.clearInterval(intervalId);
     };
   }, []);
+
+  // Listen for real-time profile/permission updates
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const socket = getSocket();
+    if (!socket) return;
+
+    const handleUserUpdate = (updatedUser: any) => {
+      console.log('Real-time user update received:', updatedUser.id);
+      if (updatedUser.id === user.id) {
+        fetchUserData();
+      }
+    };
+
+    socket.on('user:updated', handleUserUpdate);
+
+    return () => {
+      socket.off('user:updated', handleUserUpdate);
+    };
+  }, [user?.id]);
 
   const signIn = async (email: string, password: string) => {
     try {

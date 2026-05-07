@@ -5,6 +5,17 @@
  */
 const MODULE_PERMISSIONS = {
   // Admin
+  admin_dashboard: ["view", "create", "edit", "delete"],
+
+  //Dashboard
+  dashboard: ["view"],
+
+  // Tasks & Projects
+  tasks: ["view", "create", "edit", "delete", "assign"],
+  projects: ["view", "create", "edit", "delete", "archive"],
+  automation_workflows: ["view", "create", "edit", "delete", "run"],
+
+  // Admin
   members: ["view"],
   admin_roles: ["view"],
   admin_settings: ["view"],
@@ -57,24 +68,29 @@ const MODULE_PERMISSIONS = {
   recruitment_talent_pool: ["view", "add", "search"],
   recruitment_analytics: ["view", "export"],
 
-  // Tasks & Projects
-  tasks: ["view", "create", "edit", "delete", "assign"],
-  projects: ["view", "create", "edit", "delete", "archive"],
-  automation_workflows: ["view", "create", "edit", "delete", "run"],
 
-  // Admin
-  members: ["view", "create", "edit", "delete"],
-  admin_roles: ["view", "create", "edit", "delete"],
-  admin_settings: ["view", "edit"],
+
 };
 
 const DASHBOARD_MODULES = [
   {
-    category: "Admin",
+    category: "Admin_Dashboard",
     modules: [
-      { id: "members", name: "Members" },
-      { id: "admin_roles", name: "Roles" },
-      { id: "admin_settings", name: "Settings" },
+      { id: "admin_dashboard", name: "Dashboard" },
+    ]
+  },
+  {
+    category: "Dashboard",
+    modules: [
+      { id: "dashboard", name: "Dashboard" },
+    ]
+  },
+  {
+    category: "Management",
+    modules: [
+      { id: "tasks", name: "Tasks" },
+      { id: "projects", name: "Projects" },
+      { id: "automation_workflows", name: "Automated Workflows" },
     ]
   },
   {
@@ -143,22 +159,6 @@ const DASHBOARD_MODULES = [
       { id: "recruitment_analytics", name: "Recruitment Analytics" },
     ]
   },
-  {
-    category: "Management",
-    modules: [
-      { id: "tasks", name: "Tasks" },
-      { id: "projects", name: "Projects" },
-      { id: "automation_workflows", name: "Automated Workflows" },
-    ]
-  },
-  {
-    category: "Administration",
-    modules: [
-      { id: "members", name: "Employee Management" },
-      { id: "admin_roles", name: "Role Management" },
-      { id: "admin_settings", name: "System Settings" },
-    ]
-  }
 ];
 
 module.exports = {
