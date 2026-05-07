@@ -126,6 +126,10 @@ const suggestFieldMappings = (headers) => {
     
     // Dates and tracking
     interactionNotes: /^(interaction|conversation|discussion|first[\s_]?reply|last[\s_]?reply)$/i,
+    createdAt: /^(created[\s_]?at|created[\s_]?on|date[\s_]?created|registration[\s_]?date|signup[\s_]?date)$/i,
+    expectedCloseDate: /^(expected[\s_]?close[\s_]?date|close[\s_]?date|deal[\s_]?date)$/i,
+    tags: /^(tags|labels|category|categories)$/i,
+    priority: /^(priority|importance|urgency)$/i,
     
     // Additional mappings for your specific fields
     // sr no -> skip (internal reference)
@@ -294,6 +298,7 @@ const importLeads = async (req, res, next) => {
           expectedCloseDate: 'expected_close_date',
           tags: 'tags',
           pipeline: 'pipeline',
+          createdAt: 'created_at',
         };
 
         for (const [frontendField, dbColumn] of Object.entries(fieldMap)) {
