@@ -94,7 +94,28 @@ export function CustomFieldInput({
             {field.value.split('/').pop() || "Download File"}
           </button>
         ) : field.type === "money" ? (
-          <span className="text-foreground font-medium">${field.value || '0.00'}</span>
+          <span className="text-foreground font-medium flex items-center gap-1.5">
+            <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
+            {field.value || '0.00'}
+          </span>
+        ) : field.type === "number" ? (
+          <span className="text-foreground font-medium flex items-center gap-1.5">
+            <Hash className="h-3.5 w-3.5 text-muted-foreground" />
+            {field.value || '0'}
+          </span>
+        ) : field.type === "date" || field.type === "datetime" ? (
+          <span className="text-foreground font-medium flex items-center gap-1.5">
+            <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+            {field.value || <span className="text-muted-foreground italic">Not specified</span>}
+          </span>
+        ) : field.type === "list" && field.value ? (
+          <div className="flex flex-wrap gap-1.5">
+            {field.value.split(',').filter(v => v.trim()).map((item, i) => (
+              <span key={i} className="bg-primary/10 text-primary text-[10px] px-2.5 py-0.5 rounded-full font-semibold border border-primary/20 shadow-sm">
+                {item.trim()}
+              </span>
+            ))}
+          </div>
         ) : (
           <span className="text-foreground font-medium break-all">{field.value || <span className="text-muted-foreground italic">Not specified</span>}</span>
         )}
@@ -103,6 +124,47 @@ export function CustomFieldInput({
   }
 
   switch (field.type) {
+    case "list":
+      return (
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-1.5 min-h-[40px] p-2 border border-border rounded-lg bg-background focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+            {field.value && field.value.split(',').filter(v => v.trim()).map((item, i) => (
+              <span key={i} className="inline-flex items-center gap-1 bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded-full font-medium border border-primary/20">
+                {item.trim()}
+                <button 
+                  type="button"
+                  onClick={() => {
+                    const items = field.value.split(',').filter(v => v.trim());
+                    items.splice(i, 1);
+                    updateField(field.id, { value: items.join(',') });
+                  }}
+                  className="hover:text-destructive transition-colors font-bold"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+            <input
+              placeholder={!field.value ? "Type and press enter to add items..." : "Add item..."}
+              className="flex-1 bg-transparent border-none outline-none text-sm min-w-[120px]"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  const val = e.currentTarget.value.trim();
+                  if (val) {
+                    const existing = field.value ? field.value.split(',').map(v => v.trim()) : [];
+                    if (!existing.includes(val)) {
+                      updateField(field.id, { value: [...existing, val].join(',') });
+                      e.currentTarget.value = '';
+                    }
+                  }
+                }
+              }}
+            />
+          </div>
+          <p className="text-[10px] text-muted-foreground ml-1 italic">Type and press enter to add values to the list</p>
+        </div>
+      );
     case "boolean":
       return (
         <Select

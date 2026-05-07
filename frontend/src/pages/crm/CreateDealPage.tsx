@@ -16,6 +16,7 @@ import { EntitySearchSelect } from "@/components/crm/EntitySearchSelect";
 import { CustomFieldsSection, DraggableFieldItem } from "@/components/crm/CustomFieldsSection";
 import { FieldDragWrapper } from "@/components/crm/FieldDragWrapper";
 import { DroppableSection } from "@/components/crm/DroppableSection";
+import { CustomFieldInput } from "@/components/crm/CustomFieldInput";
 import { GripVertical } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useContacts, useCompanies, useCreateDeal } from "@/hooks/useCrmData";
@@ -247,28 +248,12 @@ export default function CreateDealPage() {
                     </DraggableFieldItem>
                   </div>
                   
-                  {field.type === "boolean" ? (
-                    <Select
-                      value={field.value}
-                      onValueChange={(v) => updateField(field.id, { value: v })}
-                    >
-                      <SelectTrigger className="h-10 border-border">
-                        <SelectValue placeholder="Select Yes/No" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Yes">Yes</SelectItem>
-                        <SelectItem value="No">No</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      type={field.type === "date" ? "date" : field.type === "datetime" ? "datetime-local" : field.type === "number" || field.type === "money" ? "number" : "text"}
-                      placeholder={field.type === "money" ? "0.00" : "Enter value..."}
-                      value={field.value}
-                      onChange={(e) => updateField(field.id, { value: e.target.value })}
-                      className="h-10 border-border focus-visible:ring-primary/20"
-                    />
-                  )}
+                  <CustomFieldInput
+                    field={field}
+                    editing={true}
+                    updateField={updateField}
+                    entityType="deal"
+                  />
                 </div>
               </DraggableFieldItem>
             ))}
