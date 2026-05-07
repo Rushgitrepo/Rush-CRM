@@ -294,6 +294,14 @@ const importLeads = async (req, res, next) => {
     let duplicates = 0;
     const errors = [];
 
+    // Fetch all stages for the org to perform case-insensitive matching
+    const stagesResult = await db.query(
+      'SELECT stage_key, stage_label, pipeline FROM pipeline_stages WHERE org_id = $1',
+      [req.user.orgId]
+    );
+    const existingStages = stagesResult.rows;
+
+
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       try {
@@ -470,6 +478,13 @@ const importLeads = async (req, res, next) => {
           }
         }
 
+        // Pre-sync: If stage is mapped but status is not, use stage for status (and vice versa)
+        if (dbFieldsData.stage && !dbFieldsData.status) {
+          dbFieldsData.status = dbFieldsData.stage;
+        } else if (!dbFieldsData.stage && dbFieldsData.status) {
+          dbFieldsData.stage = dbFieldsData.status;
+        }
+
         // 1. Title/Name fallback (required)
         if (!dbFieldsData.title && !dbFieldsData.name) {
           if (leadData.title || leadData.name) {
@@ -494,11 +509,33 @@ const importLeads = async (req, res, next) => {
         // 3. Pipeline default
         if (!dbFieldsData.pipeline) dbFieldsData.pipeline = entityType === 'deal' ? 'deals' : 'leads';
 
-        // 4. Stage default
-        if (!dbFieldsData.stage) dbFieldsData.stage = entityType === 'deal' ? 'qualification' : 'unqualified';
+        // 4. Stage & Status matching/defaults
+        const currentPipeline = dbFieldsData.pipeline || (entityType === 'deal' ? 'deals' : 'leads');
+        const defaultStage = entityType === 'deal' ? 'qualification' : 'unqualified';
         
-        // 5. Status default
-        if (!dbFieldsData.status) dbFieldsData.status = entityType === 'deal' ? 'open' : 'unqualified';
+        if (dbFieldsData.stage) {
+          const rawStage = dbFieldsData.stage.trim().toLowerCase();
+          
+          // Find case-insensitive match in existing stages for this pipeline
+          const matchedStage = existingStages.find(s => 
+            s.pipeline === currentPipeline && 
+            (s.stage_key.toLowerCase() === rawStage || s.stage_label.toLowerCase() === rawStage)
+          );
+
+          if (matchedStage) {
+            dbFieldsData.stage = matchedStage.stage_key;
+          } else {
+            // No match found, fallback to default
+            dbFieldsData.stage = defaultStage;
+          }
+        } else {
+          dbFieldsData.stage = defaultStage;
+        }
+        
+        if (!dbFieldsData.status) {
+          dbFieldsData.status = dbFieldsData.stage; // Keep them in sync
+        }
+
 
         const columns = ['org_id', 'workspace_id', 'import_id', 'created_by'];
         const values = [req.user.orgId, workspaceId || null, importId, req.user.id];
