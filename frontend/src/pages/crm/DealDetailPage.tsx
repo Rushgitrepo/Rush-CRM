@@ -8,7 +8,7 @@ import {
   TrendingUp, Users, Target, Award, Briefcase, Calendar as CalendarIcon,
   History, Plus, Edit3, Send, PhoneCall, Video, MessageCircle,
   BarChart3, PieChart, TrendingDown, Eye, Filter, Search, Settings, X,
-  Check, Printer, Download, Share2
+  Check, Printer, Download, Share2, EyeOff
 } from "lucide-react";
 import { ClickToCall } from "@/components/telephony/ClickToCall";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,7 @@ import { InlineCompanyDialog } from "@/components/crm/InlineCompanyDialog";
 import { DealBlueprintsSection } from "@/components/crm/deals/DealBlueprintsSection";
 import { DealTasksSection } from "@/components/crm/deals/DealTasksSection";
 import { ChangeResponsibleDialog } from "@/components/crm/deals/ChangeResponsibleDialog";
+import { DeleteConfirmationDialog } from "@/components/crm/DeleteConfirmationDialog";
 import { useDeal } from "@/hooks/useCrmInteractions";
 import { useUpdateDeal, useDeleteDeal, useLinkDealContact, useUnlinkDealContact, useLinkSigningParty, useUnlinkSigningParty, useConvertDealToCustomer } from "@/hooks/useCrmMutations";
 import { useCreateActivity } from "@/hooks/useCrmInteractions";
@@ -330,10 +331,19 @@ export default function DealDetailPage() {
   const { data: companies } = useCompanies();
   const { data: signingParties } = useSigningParties();
   const { data: dealStats } = useDealStats();
-  const { data: dbStages } = useDealPipelineStages();
+  
+  const [showStageManager, setShowStageManager] = useState(false);
+  const [newStageName, setNewStageName] = useState("");
+  const [editingStageId, setEditingStageId] = useState<string | null>(null);
+  const [editingStageName, setEditingStageName] = useState("");
+
+  const { data: dbStages = [] } = useDealPipelineStages(showStageManager);
   const createStage = useCreateDealPipelineStage();
   const deleteStage = useDeleteDealPipelineStage();
   const updateStage = useUpdateDealPipelineStage();
+
+  const [stageToDelete, setStageToDelete] = useState<string | null>(null);
+  const [showDeleteDealDialog, setShowDeleteDealDialog] = useState(false);
 
   const [editing, setEditing] = useState(() => window.location.pathname.endsWith('/edit'));
   const [form, setForm] = useState<Record<string, unknown>>({});
@@ -348,10 +358,6 @@ export default function DealDetailPage() {
   const [selectedSigningPartyId, setSelectedSigningPartyId] = useState<string | null>(null);
   const [sidebarTab, setSidebarTab] = useState("activity");
   const [interactionTab, setInteractionTab] = useState("activity");
-  const [showStageManager, setShowStageManager] = useState(false);
-  const [newStageName, setNewStageName] = useState("");
-  const [editingStageId, setEditingStageId] = useState<string | null>(null);
-  const [editingStageName, setEditingStageName] = useState("");
   const activitySectionRef = useRef<HTMLDivElement>(null);
 
   const handleScrollToActivity = (tab: string = "activity", innerTab: string = "activity") => {
@@ -400,24 +406,26 @@ export default function DealDetailPage() {
     },
   });
 
-  // Keep the original built-in deal pipeline stages, then append custom stages.
-  const customPipelineStages = (dbStages || [])
-    .filter(s => !fallbackStages.some(f => f.id === s.stage_key))
-    .map(s => ({
+  // Combine DB stages with visual fallback data (colors/icons)
+  const pipelineStages = dbStages.map(s => {
+    const fallback = fallbackStages.find(f => f.id === s.stage_key);
+    return {
       id: s.stage_key,
       label: s.stage_label,
-      description: "Custom stage",
-      color: "bg-muted/400",
-      bgColor: "bg-muted/40",
-      textColor: "text-foreground",
-      borderColor: "",
-      icon: Clock,
+      description: fallback?.description || "Custom stage",
+      color: s.color || fallback?.color || "bg-muted/400",
+      bgColor: fallback?.bgColor || "bg-muted/40",
+      textColor: fallback?.textColor || "text-foreground",
+      borderColor: fallback?.borderColor || "",
+      icon: fallback?.icon || Clock,
       dbId: s.id,
-    }));
+      is_active: s.is_active,
+      probability: s.probability
+    };
+  });
 
-  const pipelineStages = [...fallbackStages, ...customPipelineStages];
-
-  const stageOptions = pipelineStages.map(s => ({ value: s.id, label: s.label }));
+  const activePipelineStages = pipelineStages.filter(s => s.is_active);
+  const stageOptions = activePipelineStages.map(s => ({ value: s.id, label: s.label }));
 
   useEffect(() => {
     if (deal) {
@@ -1994,34 +2002,42 @@ export default function DealDetailPage() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              {fallbackStages.map(s => (
-                <div key={s.id} className="flex items-center justify-between px-3 py-2 rounded-lg border bg-muted/30">
-                  <span className="text-sm font-medium">{s.label}</span>
-                  <Badge variant="outline" className="text-[10px]">Default</Badge>
-                </div>
-              ))}
-              {customPipelineStages.map(s => (
-                <div key={s.id} className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-primary/5">
-                  {editingStageId === (s as any).dbId ? (
+            <div className="space-y-2 max-h-[60vh] overflow-y-auto px-1">
+              {pipelineStages.map(s => (
+                <div key={s.dbId} className={cn(
+                  "flex items-center gap-2 px-3 py-2 rounded-lg border transition-all",
+                  s.is_active ? "bg-primary/5 border-primary/20" : "bg-muted/30 border-dashed opacity-60"
+                )}>
+                  {editingStageId === s.dbId ? (
                     <>
-                      <Input
-                        value={editingStageName}
-                        onChange={e => setEditingStageName(e.target.value)}
-                        className="h-7 text-sm flex-1"
-                        autoFocus
-                        onKeyDown={e => {
-                          if (e.key === 'Enter' && editingStageName.trim()) {
-                            updateStage.mutate({ id: (s as any).dbId, stageName: editingStageName.trim() }, {
-                              onSuccess: () => setEditingStageId(null)
-                            });
-                          }
-                          if (e.key === 'Escape') setEditingStageId(null);
-                        }}
-                      />
+                      <div className="flex-1 space-y-2">
+                        <Input
+                          value={editingStageName}
+                          onChange={e => setEditingStageName(e.target.value)}
+                          className="h-7 text-sm"
+                          autoFocus
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && editingStageName.trim()) {
+                              updateStage.mutate({ id: s.dbId, stageName: editingStageName.trim() }, {
+                                onSuccess: () => setEditingStageId(null)
+                              });
+                            }
+                            if (e.key === 'Escape') setEditingStageId(null);
+                          }}
+                        />
+                        <div className="flex items-center gap-2">
+                          <Label className="text-[10px] text-muted-foreground uppercase font-bold">Prob %</Label>
+                          <Input
+                            type="number"
+                            value={s.probability}
+                            onChange={e => updateStage.mutate({ id: s.dbId, probability: Number(e.target.value) })}
+                            className="h-6 w-16 text-[10px]"
+                          />
+                        </div>
+                      </div>
                       <Button size="icon" variant="ghost" className="h-7 w-7 text-primary"
                         disabled={!editingStageName.trim() || updateStage.isPending}
-                        onClick={() => updateStage.mutate({ id: (s as any).dbId, stageName: editingStageName.trim() }, { onSuccess: () => setEditingStageId(null) })}>
+                        onClick={() => updateStage.mutate({ id: s.dbId, stageName: editingStageName.trim() }, { onSuccess: () => setEditingStageId(null) })}>
                         <Check className="h-3.5 w-3.5" />
                       </Button>
                       <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground"
@@ -2031,13 +2047,28 @@ export default function DealDetailPage() {
                     </>
                   ) : (
                     <>
-                      <span className="text-sm font-medium flex-1">{s.label}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium truncate">{s.label}</span>
+                          {!s.is_active && <Badge variant="outline" className="text-[10px] py-0 h-4">Hidden</Badge>}
+                          {fallbackStages.some(f => f.id === s.id) && <Badge variant="secondary" className="text-[10px] py-0 h-4">Default</Badge>}
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">Probability: {s.probability || 0}%</p>
+                      </div>
+                      
                       <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary"
-                        onClick={() => { setEditingStageId((s as any).dbId); setEditingStageName(s.label); }}>
+                        onClick={() => { setEditingStageId(s.dbId); setEditingStageName(s.label); }}>
                         <Edit3 className="h-3.5 w-3.5" />
                       </Button>
+                      
+                      <Button size="icon" variant="ghost" className={cn("h-7 w-7", s.is_active ? "text-muted-foreground hover:text-orange-500" : "text-orange-500 hover:text-orange-700")}
+                        onClick={() => updateStage.mutate({ id: s.dbId, is_active: !s.is_active })}
+                        title={s.is_active ? "Hide Stage" : "Show Stage"}>
+                        {s.is_active ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                      </Button>
+
                       <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
-                        onClick={() => deleteStage.mutate((s as any).dbId)}
+                        onClick={() => setStageToDelete(s.dbId)}
                         disabled={deleteStage.isPending}>
                         <XCircle className="h-4 w-4" />
                       </Button>
@@ -2074,6 +2105,30 @@ export default function DealDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <DeleteConfirmationDialog 
+        open={!!stageToDelete}
+        onOpenChange={(open) => !open && setStageToDelete(null)}
+        onConfirm={() => {
+          if (stageToDelete) {
+            deleteStage.mutate(stageToDelete, {
+              onSuccess: () => setStageToDelete(null)
+            });
+          }
+        }}
+        isLoading={deleteStage.isPending}
+        title="Delete Pipeline Stage?"
+        description="Are you sure you want to delete this stage? This will permanently remove it from the pipeline configuration."
+      />
+
+      <DeleteConfirmationDialog 
+        open={showDeleteDealDialog}
+        onOpenChange={setShowDeleteDealDialog}
+        onConfirm={() => handleDelete()}
+        isLoading={deleteDeal.isPending}
+        title="Delete Deal?"
+        description={`Are you sure you want to delete "${deal.title}"? This action cannot be undone.`}
+      />
     </div>
   );
 }

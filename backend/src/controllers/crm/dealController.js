@@ -2,6 +2,38 @@ const db = require('../../config/database');
 const Joi = require('joi');
 const { fireWorkflows } = require('../../services/workflowEngine');
 
+const DEFAULT_DEAL_STAGES = [
+  { key: 'drawings_received', label: 'Drawings Received', color: 'bg-chart-3', prob: 10, order: 1 },
+  { key: 'awaiting_proposal', label: 'Awaiting Proposal', color: 'bg-chart-1', prob: 20, order: 2 },
+  { key: 'proposal_sent', label: 'Proposal Sent', color: 'bg-chart-4', prob: 40, order: 3 },
+  { key: 'invoice_sent', label: 'Invoice Sent', color: 'bg-chart-5', prob: 50, order: 4 },
+  { key: 'proposal_approved', label: 'Approved', color: 'bg-chart-2', prob: 60, order: 5 },
+  { key: 'in_progress', label: 'In Progress', color: 'bg-primary', prob: 80, order: 6 },
+  { key: 'project_delivered', label: 'Delivered', color: 'bg-success', prob: 95, order: 7 },
+  { key: 'revision', label: 'Revision', color: 'bg-destructive', prob: 90, order: 8 },
+  { key: 'close_deal', label: 'Closed', color: 'bg-muted-foreground', prob: 100, order: 9 },
+];
+
+async function ensureDefaultStages(orgId, pipeline = 'deals') {
+  const { rows } = await db.query(
+    'SELECT COUNT(*) FROM pipeline_stages WHERE org_id = $1 AND pipeline = $2',
+    [orgId, pipeline]
+  );
+
+  if (parseInt(rows[0].count) === 0) {
+    const defaults = pipeline === 'deals' ? DEFAULT_DEAL_STAGES : []; 
+    if (defaults.length > 0) {
+      for (const s of defaults) {
+        await db.query(
+          `INSERT INTO pipeline_stages (org_id, pipeline, stage_key, stage_label, sort_order, color, probability, is_active)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, true)`,
+          [orgId, pipeline, s.key, s.label, s.order, s.color, s.prob]
+        );
+      }
+    }
+  }
+}
+
 const createDealSchema = Joi.object({
   title: Joi.string().required(),
   contactId: Joi.string().uuid().optional().allow(null),
@@ -956,17 +988,25 @@ const convertToCustomer = async (req, res, next) => {
 
 const getStages = async (req, res, next) => {
   try {
-    const { rows } = await db.query(
-      `SELECT id, stage_label, sort_order, color, is_active FROM pipeline_stages 
-       WHERE org_id = $1 AND pipeline = 'deals' AND is_active = true ORDER BY sort_order ASC`,
-      [req.user.orgId]
-    );
+    const { all } = req.query; // 'all' to include inactive stages
+    
+    await ensureDefaultStages(req.user.orgId, 'deals');
+
+    let query = 'SELECT id, stage_key, stage_label, sort_order, color, probability, is_active FROM pipeline_stages WHERE org_id = $1 AND pipeline = $2';
+    if (all !== 'true') {
+      query += ' AND is_active = true';
+    }
+    query += ' ORDER BY sort_order ASC';
+
+    const { rows } = await db.query(query, [req.user.orgId, 'deals']);
     const stages = rows.map(row => ({
       id: row.id,
-      stage_key: row.stage_label.toLowerCase().replace(/\s+/g, '_'),
+      stage_key: row.stage_key,
       stage_label: row.stage_label,
       sort_order: row.sort_order,
-      color: row.color || 'bg-gray-500'
+      color: row.color || 'bg-gray-500',
+      probability: row.probability || 0,
+      is_active: row.is_active
     }));
     res.json(stages);
   } catch (err) {
@@ -985,16 +1025,18 @@ const createStage = async (req, res, next) => {
     );
     const sortOrder = (existing[0]?.max_order || 0) + 1;
     const { rows } = await db.query(
-      `INSERT INTO pipeline_stages (org_id, pipeline, stage_key, stage_label, sort_order, color, is_active)
-       VALUES ($1, 'deals', $2, $3, $4, $5, true) RETURNING *`,
-      [req.user.orgId, stageKey, stageName, sortOrder, '#6b7280']
+      `INSERT INTO pipeline_stages (org_id, pipeline, stage_key, stage_label, sort_order, color, probability, is_active)
+       VALUES ($1, 'deals', $2, $3, $4, $5, $6, true) RETURNING *`,
+      [req.user.orgId, stageKey, stageName, sortOrder, '#6b7280', 0]
     );
     res.status(201).json({
       id: rows[0].id,
       stage_key: rows[0].stage_key,
       stage_label: rows[0].stage_label,
       sort_order: rows[0].sort_order,
-      color: rows[0].color
+      color: rows[0].color,
+      probability: rows[0].probability,
+      is_active: rows[0].is_active
     });
   } catch (err) {
     next(err);
@@ -1004,15 +1046,56 @@ const createStage = async (req, res, next) => {
 const updateStage_custom = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { stageName } = req.body;
-    if (!stageName) return res.status(400).json({ error: 'Stage name is required' });
-    const stageKey = stageName.toLowerCase().replace(/\s+/g, '_');
+    const { stageName, color, probability, is_active, sortOrder } = req.body;
+    
+    const fields = [];
+    const values = [];
+    let idx = 1;
+
+    if (stageName !== undefined) {
+      fields.push(`stage_label = $${idx}`, `stage_key = $${idx+1}`);
+      values.push(stageName, stageName.toLowerCase().replace(/\s+/g, '_'));
+      idx += 2;
+    }
+    if (color !== undefined) {
+      fields.push(`color = $${idx}`);
+      values.push(color);
+      idx++;
+    }
+    if (probability !== undefined) {
+      fields.push(`probability = $${idx}`);
+      values.push(probability);
+      idx++;
+    }
+    if (is_active !== undefined) {
+      fields.push(`is_active = $${idx}`);
+      values.push(is_active);
+      idx++;
+    }
+    if (sortOrder !== undefined) {
+      fields.push(`sort_order = $${idx}`);
+      values.push(sortOrder);
+      idx++;
+    }
+
+    if (fields.length === 0) return res.status(400).json({ error: 'No fields to update' });
+
+    values.push(id, req.user.orgId);
     const { rows } = await db.query(
-      `UPDATE pipeline_stages SET stage_label = $1, stage_key = $2 WHERE id = $3 AND org_id = $4 AND pipeline = 'deals' RETURNING *`,
-      [stageName, stageKey, id, req.user.orgId]
+      `UPDATE pipeline_stages SET ${fields.join(', ')} WHERE id = $${idx} AND org_id = $${idx+1} AND pipeline = 'deals' RETURNING *`,
+      values
     );
+
     if (rows.length === 0) return res.status(404).json({ error: 'Stage not found' });
-    res.json({ id: rows[0].id, stage_key: rows[0].stage_key, stage_label: rows[0].stage_label, sort_order: rows[0].sort_order, color: rows[0].color });
+    res.json({
+      id: rows[0].id,
+      stage_key: rows[0].stage_key,
+      stage_label: rows[0].stage_label,
+      sort_order: rows[0].sort_order,
+      color: rows[0].color,
+      probability: rows[0].probability,
+      is_active: rows[0].is_active
+    });
   } catch (err) {
     next(err);
   }

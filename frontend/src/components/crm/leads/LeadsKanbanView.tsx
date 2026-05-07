@@ -15,14 +15,17 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { useUpdateLead, useDeleteLead, useConvertLeadToDeal } from "@/hooks/useCrmMutations";
-import { usePipelineStages, useCreatePipelineStage, useDeletePipelineStage } from "@/hooks/usePipelineStages";
+import { usePipelineStages, useCreatePipelineStage, useDeletePipelineStage, useUpdatePipelineStage } from "@/hooks/usePipelineStages";
 import { ClickToCall } from "@/components/telephony/ClickToCall";
 import { cn } from "@/lib/utils";
+import { DeleteConfirmationDialog } from "@/components/crm/DeleteConfirmationDialog";
 
 interface Lead {
   id: string;
@@ -43,24 +46,17 @@ interface Lead {
 
 interface Column {
   id: string;
-  title: string;
+  key: string;
+  label: string;
   color: string;
   isCustom?: boolean;
+  is_active?: boolean;
 }
 
 interface LeadsKanbanViewProps {
   leads: Lead[];
   onCreateLead?: () => void;
 }
-
-const defaultColumns: Column[] = [
-  { id: "new", title: "New", color: "bg-chart-1" },
-  { id: "contacted", title: "Contacted", color: "bg-warning" },
-  { id: "qualified", title: "Qualified", color: "bg-success" },
-  { id: "proposal", title: "Proposal Sent", color: "bg-purple-500" },
-  { id: "negotiation", title: "Negotiation", color: "bg-orange-500" },
-  { id: "unqualified", title: "Unqualified", color: "bg-muted-foreground" },
-];
 
 const colorOptions = [
   "bg-chart-1", "bg-warning", "bg-success", "bg-purple-500", 
@@ -73,29 +69,29 @@ export function LeadsKanbanView({ leads, onCreateLead }: LeadsKanbanViewProps) {
   const updateLead = useUpdateLead();
   const deleteLead = useDeleteLead();
   const convertLead = useConvertLeadToDeal();
-  const { data: pipelineStages = [], isLoading, error } = usePipelineStages();
+  const { data: pipelineStages = [] } = usePipelineStages();
   const createStage = useCreatePipelineStage();
+  const updateStage = useUpdatePipelineStage();
   const deleteStage = useDeletePipelineStage();
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   const [isAddStageOpen, setIsAddStageOpen] = useState(false);
+  const [isEditStageOpen, setIsEditStageOpen] = useState(false);
+  const [editingStage, setEditingStage] = useState<{id: string, label: string, color: string} | null>(null);
   const [newStageTitle, setNewStageTitle] = useState("");
+  const [editStageName, setEditStageName] = useState("");
+  const [editStageColor, setEditStageColor] = useState("");
   const [selectedColor, setSelectedColor] = useState(colorOptions[0]);
+  const [stageToDelete, setStageToDelete] = useState<string | null>(null);
+  const [leadToDelete, setLeadToDelete] = useState<string | null>(null);
 
-  // Always show default columns, add custom stages if available
-  const columns = [
-    ...defaultColumns,
-    ...(pipelineStages || []).map(stage => ({
-      id: stage.stage_key || stage.id,
-      title: stage.stage_label || stage.name,
-      color: stage.color || "bg-gray-500",
-      isCustom: true
-    }))
-  ];
-
-  // Debug logging
-  console.log('Pipeline stages:', pipelineStages);
-  console.log('Columns:', columns);
-  console.log('Loading:', isLoading, 'Error:', error);
+  const columns: Column[] = pipelineStages.map(s => ({ 
+    id: s.id, 
+    key: s.stage_key,
+    label: s.stage_label, 
+    color: s.color || "bg-gray-500", 
+    isCustom: true,
+    is_active: s.is_active 
+  })).filter(c => c.is_active !== false);
 
   const getInitials = (lead: Lead) => {
     const source =
@@ -116,8 +112,8 @@ export function LeadsKanbanView({ leads, onCreateLead }: LeadsKanbanViewProps) {
     );
   };
 
-  const getLeadsByStatus = (status: string) =>
-    leads.filter((lead) => lead.status === status);
+  const getStageLeads = (stageKey: string) => 
+    leads.filter(l => (l.stage || 'new') === stageKey);
 
   const handleDragStart = (e: React.DragEvent, leadId: string) => {
     e.dataTransfer.setData("leadId", leadId);
@@ -132,33 +128,42 @@ export function LeadsKanbanView({ leads, onCreateLead }: LeadsKanbanViewProps) {
 
   const handleDragLeave = () => setDragOverColumn(null);
 
-  const handleDrop = (e: React.DragEvent, newStatus: string) => {
+  const handleDrop = (e: React.DragEvent, newStageKey: string) => {
     e.preventDefault();
     setDragOverColumn(null);
     const leadId = e.dataTransfer.getData("leadId");
     if (!leadId) return;
     const lead = leads.find((l) => l.id === leadId);
-    if (lead && lead.status !== newStatus) {
-      updateLead.mutate({ id: leadId, status: newStatus, stage: newStatus });
+    if (lead && (lead.stage || 'new') !== newStageKey) {
+      updateLead.mutate({ id: leadId, stage: newStageKey });
     }
   };
 
   const handleAddStage = () => {
     if (!newStageTitle.trim()) return;
-    createStage.mutate({ stageName: newStageTitle });
+    createStage.mutate({ stageName: newStageTitle, color: selectedColor });
     setNewStageTitle("");
     setSelectedColor(colorOptions[0]);
     setIsAddStageOpen(false);
   };
 
-  const handleDeleteStage = (columnId: string) => {
-    // Find the stage to delete
-    const stageToDelete = pipelineStages.find(stage => 
-      (stage.stage_key || stage.id) === columnId
-    );
-    if (stageToDelete) {
-      deleteStage.mutate(stageToDelete.id);
-    }
+  const handleUpdateStage = () => {
+    if (!editingStage || !editStageName.trim()) return;
+    updateStage.mutate({ 
+      id: editingStage.id, 
+      stageName: editStageName,
+      color: editStageColor 
+    });
+    setIsEditStageOpen(false);
+    setEditingStage(null);
+  };
+
+  const handleHideStage = (id: string) => {
+    updateStage.mutate({ id, is_active: false });
+  };
+
+  const handleDeleteStage = (id: string) => {
+    setStageToDelete(id);
   };
 
   return (
@@ -216,8 +221,8 @@ export function LeadsKanbanView({ leads, onCreateLead }: LeadsKanbanViewProps) {
       </div>
       <div className="flex gap-4 overflow-x-auto pb-4">
       {columns.map((column) => {
-        const columnLeads = getLeadsByStatus(column.id);
-        const totalValue = columnLeads.reduce((sum, lead) => sum + lead.value, 0);
+        const stageLeads = getStageLeads(column.key);
+        const totalValue = stageLeads.reduce((sum, lead) => sum + lead.value, 0);
 
         return (
           <div
@@ -237,9 +242,9 @@ export function LeadsKanbanView({ leads, onCreateLead }: LeadsKanbanViewProps) {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className={`w-3 h-3 rounded-full ${column.color}`} />
-                  <h3 className="font-semibold text-slate-800">{column.title}</h3>
+                  <h3 className="font-semibold text-slate-800">{column.label}</h3>
                   <Badge variant="secondary" className="rounded-full">
-                    {columnLeads.length}
+                    {stageLeads.length}
                   </Badge>
                 </div>
                 <div className="flex items-center gap-1">
@@ -251,16 +256,33 @@ export function LeadsKanbanView({ leads, onCreateLead }: LeadsKanbanViewProps) {
                   >
                     <Plus className="h-4 w-4" />
                   </Button>
-                  {column.isCustom && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-destructive hover:text-destructive"
-                      onClick={() => handleDeleteStage(column.id)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  )}
+                  
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-7 w-7">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => {
+                        setEditingStage({ id: column.id, label: column.label, color: column.color });
+                        setEditStageName(column.label);
+                        setEditStageColor(column.color);
+                        setIsEditStageOpen(true);
+                      }}>
+                        Edit Stage
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleHideStage(column.id)}>
+                        Hide Stage
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        className="text-destructive"
+                        onClick={() => handleDeleteStage(column.id)}
+                      >
+                        Delete Stage
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
               <p className="text-sm text-slate-500 mt-1">
@@ -270,7 +292,7 @@ export function LeadsKanbanView({ leads, onCreateLead }: LeadsKanbanViewProps) {
 
             {/* Column Content */}
             <div className="p-2 space-y-2 max-h-[calc(100vh-320px)] overflow-y-auto">
-              {columnLeads.map((lead) => (
+              {stageLeads.map((lead) => (
                 <div
                   key={lead.id}
                   draggable
@@ -317,7 +339,7 @@ export function LeadsKanbanView({ leads, onCreateLead }: LeadsKanbanViewProps) {
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-destructive"
-                          onClick={() => deleteLead.mutate(lead.id)}
+                          onClick={() => setLeadToDelete(lead.id)}
                         >
                           Delete
                         </DropdownMenuItem>
@@ -355,7 +377,7 @@ export function LeadsKanbanView({ leads, onCreateLead }: LeadsKanbanViewProps) {
                 </div>
               ))}
 
-              {columnLeads.length === 0 && (
+              {stageLeads.length === 0 && (
                 <div className="text-center py-8 text-slate-500 text-sm">
                   No leads in this stage
                 </div>
@@ -365,6 +387,80 @@ export function LeadsKanbanView({ leads, onCreateLead }: LeadsKanbanViewProps) {
         );
       })}
       </div>
+      {/* Edit Stage Dialog */}
+      <Dialog open={isEditStageOpen} onOpenChange={setIsEditStageOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Stage</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Stage Name</label>
+              <Input
+                placeholder="Enter stage name..."
+                value={editStageName}
+                onChange={(e) => setEditStageName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Color</label>
+              <div className="flex gap-2 flex-wrap">
+                {[
+                  "bg-chart-1", "bg-chart-2", "bg-chart-3", "bg-chart-4", "bg-chart-5",
+                  "bg-warning", "bg-success", "bg-primary", "bg-destructive", "bg-muted-foreground",
+                  "bg-purple-500", "bg-orange-500", "bg-pink-500", "bg-blue-500", "bg-emerald-500"
+                ].map((color) => (
+                  <button
+                    key={color}
+                    className={cn(
+                      "h-8 w-8 rounded-full border-2 transition-all",
+                      color,
+                      editStageColor === color ? "border-primary scale-110" : "border-transparent"
+                    )}
+                    onClick={() => setEditStageColor(color)}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditStageOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateStage}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <DeleteConfirmationDialog 
+        open={!!stageToDelete}
+        onOpenChange={(open) => !open && setStageToDelete(null)}
+        onConfirm={() => {
+          if (stageToDelete) {
+            deleteStage.mutate(stageToDelete, {
+              onSuccess: () => setStageToDelete(null)
+            });
+          }
+        }}
+        isLoading={deleteStage.isPending}
+        title="Delete Pipeline Stage?"
+        description="Are you sure you want to delete this stage? Leads in this stage will need to be moved manually."
+      />
+
+      <DeleteConfirmationDialog 
+        open={!!leadToDelete}
+        onOpenChange={(open) => !open && setLeadToDelete(null)}
+        onConfirm={() => {
+          if (leadToDelete) {
+            deleteLead.mutate(leadToDelete, {
+              onSuccess: () => setLeadToDelete(null)
+            });
+          }
+        }}
+        isLoading={deleteLead.isPending}
+        title="Delete Lead?"
+        description="Are you sure you want to delete this lead? This action cannot be undone."
+      />
     </div>
   );
 }
