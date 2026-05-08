@@ -47,13 +47,24 @@ const update = async (req, res, next) => {
 
 const getInvites = async (req, res, next) => {
   try {
+    // Sirf woh invites dikhao jo:
+    // 1. Is org ke hain
+    // 2. User ne abhi accept nahi kiya (email users table mein nahi)
+    // 3. Abhi expire nahi hue (expires_at > now)
+    // Expired invites automatically cleanup bhi karo
+    await db.query(
+      `DELETE FROM public.invites WHERE expires_at <= now()`,
+    );
+
     const result = await db.query(
       `SELECT id, email, role, full_name, expires_at, created_at,
               NULL::uuid AS invited_by, NULL::text AS inviter_name, NULL::timestamp AS accepted_at
        FROM public.invites
        WHERE org_id = $1
+         AND expires_at > now()
          AND NOT EXISTS (
-           SELECT 1 FROM public.users u WHERE u.email = invites.email AND u.is_active = true
+           SELECT 1 FROM public.users u
+           WHERE LOWER(u.email) = LOWER(invites.email)
          )
        ORDER BY created_at DESC`,
       [req.user.orgId]
