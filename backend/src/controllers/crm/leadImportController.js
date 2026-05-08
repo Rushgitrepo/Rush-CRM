@@ -4,6 +4,20 @@ const csv = require('csv-parser');
 const XLSX = require('xlsx');
 const fs = require('fs');
 const path = require('path');
+const { ensureDefaultStages, DEFAULT_LEAD_STAGES } = require('./leadController');
+const { DEFAULT_DEAL_STAGES } = require('./dealController');
+
+/**
+ * Normalizes a string for comparison by removing special characters, 
+ * whitespace, and converting to lowercase.
+ */
+const normalizeString = (str) => {
+  if (!str) return '';
+  return str.toString()
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]/g, '');
+};
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -294,6 +308,10 @@ const importLeads = async (req, res, next) => {
     let duplicates = 0;
     const errors = [];
 
+    // Ensure default stages exist for both pipelines
+    await ensureDefaultStages(req.user.orgId, 'leads');
+    await ensureDefaultStages(req.user.orgId, 'deals');
+
     // Fetch all stages for the org to perform case-insensitive matching
     const stagesResult = await db.query(
       'SELECT stage_key, stage_label, pipeline FROM pipeline_stages WHERE org_id = $1',
@@ -515,29 +533,38 @@ const importLeads = async (req, res, next) => {
 
         // 4. Stage & Status matching/defaults
         const currentPipeline = dbFieldsData.pipeline || (entityType === 'deal' ? 'deals' : 'leads');
-        const defaultStage = entityType === 'deal' ? 'qualification' : 'unqualified';
+        const pipelineStages = existingStages.filter(s => s.pipeline === currentPipeline);
         
+        // Logical defaults based on standard keys
+        const standardDefault = entityType === 'deal' ? 'drawings_received' : 'new';
+        
+        // If we have stages in DB, use the first one as fallback, otherwise use standard
+        const fallbackStageKey = pipelineStages.length > 0 
+          ? (pipelineStages.find(s => s.stage_key === standardDefault)?.stage_key || pipelineStages[0].stage_key)
+          : standardDefault;
+
         if (dbFieldsData.stage) {
-          const rawStage = dbFieldsData.stage.trim().toLowerCase();
+          const normalizedInput = normalizeString(dbFieldsData.stage);
           
           // Find case-insensitive match in existing stages for this pipeline
-          const matchedStage = existingStages.find(s => 
-            s.pipeline === currentPipeline && 
-            (s.stage_key.toLowerCase() === rawStage || s.stage_label.toLowerCase() === rawStage)
+          const matchedStage = pipelineStages.find(s => 
+            normalizeString(s.stage_key) === normalizedInput || 
+            normalizeString(s.stage_label) === normalizedInput
           );
 
           if (matchedStage) {
             dbFieldsData.stage = matchedStage.stage_key;
           } else {
-            // No match found, fallback to default
-            dbFieldsData.stage = defaultStage;
+            // No match found, fallback to the safest default for this pipeline
+            dbFieldsData.stage = fallbackStageKey;
           }
         } else {
-          dbFieldsData.stage = defaultStage;
+          dbFieldsData.stage = fallbackStageKey;
         }
         
+        // Ensure status is synced with stage for consistency in views
         if (!dbFieldsData.status) {
-          dbFieldsData.status = dbFieldsData.stage; // Keep them in sync
+          dbFieldsData.status = dbFieldsData.stage;
         }
 
 

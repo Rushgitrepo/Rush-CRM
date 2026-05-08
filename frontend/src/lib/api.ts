@@ -198,6 +198,11 @@ export const customersApi = {
   delete: (id: string) => api.delete(`/customers/${id}`),
 };
 
+export const customFieldTemplatesApi = {
+  get: (entityType: 'lead' | 'deal') => api.get<any[]>(`/crm-custom-fields/templates/${entityType}`),
+  save: (entityType: 'lead' | 'deal', templates: any[]) => api.post<any>(`/crm-custom-fields/templates/${entityType}`, templates),
+};
+
 export const signingPartiesApi = {
   getAll: (params?: { page?: number; limit?: number; search?: string; companyId?: string }) =>
     api.get<{ data: any[]; pagination: any }>('/signing-parties', params),
