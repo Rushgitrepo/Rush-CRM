@@ -1130,36 +1130,6 @@ export default function WorkgroupsPage() {
                     />
                   </div>
 
-                  {isAdminOrOwner && (
-                    <div className="space-y-1.5">
-                      <Label htmlFor="type">Team Type</Label>
-                      <Select
-                        value={form.type}
-                        onValueChange={(value: any) =>
-                          setForm({
-                            ...form,
-                            type: value,
-                            is_private: value === "private",
-                          })
-                        }
-                      >
-                        <SelectTrigger id="type">
-                          <SelectValue placeholder="Select type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {WORKGROUP_TYPES.map((t) => (
-                            <SelectItem key={t.value} value={t.value}>
-                              <div className="flex items-center">
-                                <t.icon className="h-4 w-4 mr-2 text-muted-foreground" />
-                                {t.label}
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-
                   {/* modiator section  */}
                   {isAdminOrOwner && (
                     <div className="space-y-1.5 flex flex-col">
@@ -1213,26 +1183,35 @@ export default function WorkgroupsPage() {
                                   />
                                   None (Owner/Admin only)
                                 </CommandItem>
-                                {orgMembers.map((member: any) => (
-                                  <CommandItem
-                                    key={member.id}
-                                    value={member.full_name || member.email}
-                                    onSelect={() => {
-                                      setManageMembersUserId(member.id);
-                                      setModeratorOpen(false);
-                                    }}
-                                  >
-                                    <Check
-                                      className={cn(
-                                        "mr-2 h-4 w-4",
-                                        manageMembersUserId === member.id
-                                          ? "opacity-100"
-                                          : "opacity-0",
-                                      )}
-                                    />
-                                    {member.full_name || member.email}
-                                  </CommandItem>
-                                ))}
+                                {orgMembers.map((member: any) => {
+                                  const initials = member.full_name?.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2) || "?";
+                                  return (
+                                    <CommandItem
+                                      key={member.id}
+                                      value={member.full_name || member.email}
+                                      onSelect={() => {
+                                        setManageMembersUserId(member.id);
+                                        setModeratorOpen(false);
+                                      }}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "mr-2 h-4 w-4 shrink-0",
+                                          manageMembersUserId === member.id
+                                            ? "opacity-100"
+                                            : "opacity-0",
+                                        )}
+                                      />
+                                      <Avatar className="h-6 w-6 shrink-0 mr-2">
+                                        <AvatarImage src={getAvatarUrl(member.avatar_url)} />
+                                        <AvatarFallback className="bg-primary/10 text-primary text-[9px] font-bold">
+                                          {initials}
+                                        </AvatarFallback>
+                                      </Avatar>
+                                      {member.full_name || member.email}
+                                    </CommandItem>
+                                  );
+                                })}
                               </CommandGroup>
                             </CommandList>
                           </Command>

@@ -101,7 +101,7 @@ export default function BroadcastPage() {
     try {
       const saved = localStorage.getItem("broadcast_pinned_items");
       if (saved) return new Set(JSON.parse(saved));
-    } catch {}
+    } catch { }
     return new Set();
   });
 
@@ -139,6 +139,7 @@ export default function BroadcastPage() {
     selectedUserIds: [] as string[],
   });
   const [employeeSearch, setEmployeeSearch] = useState("");
+  const [moderatorSearch, setModeratorSearch] = useState("");
 
   const resetForm = () => {
     setForm({
@@ -155,6 +156,7 @@ export default function BroadcastPage() {
     setAvatarPreview(null);
     setAvatarFile(null);
     setEmployeeSearch("");
+    setModeratorSearch("");
   };
 
   // Realtime: auto-refresh when workgroup is updated (member added, etc.)
@@ -266,6 +268,19 @@ export default function BroadcastPage() {
     return () => ids.forEach((id) => unsubscribeFromWorkgroup(id));
   }, [broadcasts, subscribeToWorkgroup, unsubscribeFromWorkgroup]);
 
+  // Helper: form permissions (add/delete/send) ko WorkgroupDetailView ke
+  // expected keys (add_members/delete_members) mein map karo
+  const buildModeratorPermissions = (perms: typeof form.moderatorPermissions) => ({
+    add_members: perms.add,
+    delete_members: perms.delete,
+    send: perms.send,
+    // WorkgroupDetailView ke baaki defaults
+    edit_group: false,
+    delete_group: false,
+    lock_chat: false,
+    lock_reactions: false,
+  });
+
   const handleCreate = () => {
     if (!form.name.trim()) {
       toast.error("Broadcast name is required");
@@ -284,7 +299,9 @@ export default function BroadcastPage() {
           member_manager_user_id:
             form.moderatorId === "none" ? null : form.moderatorId,
           moderator_permissions:
-            form.moderatorId === "none" ? null : form.moderatorPermissions,
+            form.moderatorId === "none"
+              ? null
+              : buildModeratorPermissions(form.moderatorPermissions),
         },
       },
       {
@@ -293,7 +310,7 @@ export default function BroadcastPage() {
           if (avatarFile && newWg?.id) {
             try {
               await workgroupsApi.uploadAvatar(newWg.id, avatarFile);
-            } catch {}
+            } catch { }
           }
 
           // Add selected members
@@ -340,7 +357,9 @@ export default function BroadcastPage() {
           member_manager_user_id:
             form.moderatorId === "none" ? null : form.moderatorId,
           moderator_permissions:
-            form.moderatorId === "none" ? null : form.moderatorPermissions,
+            form.moderatorId === "none"
+              ? null
+              : buildModeratorPermissions(form.moderatorPermissions),
         },
       },
       {
@@ -349,7 +368,7 @@ export default function BroadcastPage() {
           if (avatarFile && editing?.id) {
             try {
               await workgroupsApi.uploadAvatar(editing.id, avatarFile);
-            } catch {}
+            } catch { }
           }
           queryClient.invalidateQueries({ queryKey: ["workgroups"] });
           setEditing(null);
@@ -362,14 +381,16 @@ export default function BroadcastPage() {
 
   const openEdit = (wg: Workgroup) => {
     setEditing(wg);
+    const savedPerms = wg.settings?.moderator_permissions as any;
     setForm({
       name: wg.name,
       description: wg.description || "",
       moderatorId: (wg.settings?.member_manager_user_id as string) || "none",
-      moderatorPermissions: wg.settings?.moderator_permissions || {
-        add: true,
-        delete: true,
-        send: true,
+      moderatorPermissions: {
+        // DB mein add_members/delete_members keys hain, form mein add/delete
+        add: savedPerms?.add_members ?? savedPerms?.add ?? true,
+        delete: savedPerms?.delete_members ?? savedPerms?.delete ?? true,
+        send: savedPerms?.send ?? true,
       },
       selectedUserIds: [],
     });
@@ -507,11 +528,10 @@ export default function BroadcastPage() {
               <div
                 key={wg.id}
                 onClick={() => setSelectedId(wg.id)}
-                className={`relative group flex flex-col rounded-xl border-2 border-indigo-200 p-4 cursor-pointer hover:shadow-md ${
-                  unreadCount > 0
-                    ? "bg-primary/10 border-primary shadow-sm shadow-primary/20 hover:border-primary"
-                    : "bg-card hover:border-indigo-300"
-                }`}
+                className={`relative group flex flex-col rounded-xl border-2 border-indigo-200 p-4 cursor-pointer hover:shadow-md ${unreadCount > 0
+                  ? "bg-primary/10 border-primary shadow-sm shadow-primary/20 hover:border-primary"
+                  : "bg-card hover:border-indigo-300"
+                  }`}
               >
                 {unreadCount > 0 && (
                   <div className="absolute top-0 left-0 bottom-0 w-1.5 bg-primary rounded-l-xl" />
@@ -582,9 +602,8 @@ export default function BroadcastPage() {
                   {/* Top Row */}
                   <div className="flex items-center justify-between gap-2">
                     <h3
-                      className={`font-bold truncate ${
-                        unreadCount > 0 ? "text-primary" : "text-foreground"
-                      }`}
+                      className={`font-bold truncate ${unreadCount > 0 ? "text-primary" : "text-foreground"
+                        }`}
                     >
                       {wg.name}
                     </h3>
@@ -592,10 +611,10 @@ export default function BroadcastPage() {
                     {(wg.settings?.member_manager_user_id === user?.id ||
                       wg.settings?.manage_member_user_id === user?.id ||
                       (wg as any).manage_member_user_id === user?.id) && (
-                      <Badge className="shrink-0 text-[9px] px-1.5 py-0 bg-muted text-green-500 border-green-300 dark:text-green-500 dark:border-green-700 font-bold">
-                        Moderator
-                      </Badge>
-                    )}
+                        <Badge className="shrink-0 text-[9px] px-1.5 py-0 bg-muted text-green-500 border-green-300 dark:text-green-500 dark:border-green-700 font-bold">
+                          Moderator
+                        </Badge>
+                      )}
                   </div>
 
                   {/* Bottom Row */}
@@ -645,11 +664,10 @@ export default function BroadcastPage() {
               <div
                 key={wg.id}
                 onClick={() => setSelectedId(wg.id)}
-                className={`relative group flex items-center gap-4 rounded-xl border-2 border-indigo-200 p-4 cursor-pointer hover:shadow-md transition-all ${
-                  unreadCount > 0
-                    ? "bg-primary/10 border-primary shadow-sm shadow-primary/20 hover:border-primary"
-                    : "bg-card hover:border-indigo-300"
-                }`}
+                className={`relative group flex items-center gap-4 rounded-xl border-2 border-indigo-200 p-4 cursor-pointer hover:shadow-md transition-all ${unreadCount > 0
+                  ? "bg-primary/10 border-primary shadow-sm shadow-primary/20 hover:border-primary"
+                  : "bg-card hover:border-indigo-300"
+                  }`}
               >
                 {unreadCount > 0 && (
                   <div className="absolute top-0 left-0 bottom-0 w-1.5 bg-primary rounded-l-xl" />
@@ -692,10 +710,10 @@ export default function BroadcastPage() {
                     {(wg.settings?.member_manager_user_id === user?.id ||
                       wg.settings?.manage_member_user_id === user?.id ||
                       wg.manage_member_user_id === user?.id) && (
-                      <Badge className="h-5 px-1.5 text-[10px] bg-indigo-600 text-white font-bold">
-                        Moderator
-                      </Badge>
-                    )}
+                        <Badge className="h-5 px-1.5 text-[10px] bg-indigo-600 text-white font-bold">
+                          Moderator
+                        </Badge>
+                      )}
                   </div>
 
                   {unreadCount > 0 && wg.last_message_sender_name ? (
@@ -864,22 +882,66 @@ export default function BroadcastPage() {
             </div>
             <div className="space-y-2">
               <Label>Moderator</Label>
-              <Select
-                value={form.moderatorId}
-                onValueChange={(val) => setForm({ ...form, moderatorId: val })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a moderator" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None (Owner only)</SelectItem>
-                  {orgMembers.map((u) => (
-                    <SelectItem key={u.id} value={u.id}>
-                      {u.full_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* Search + avatar dropdown for moderator */}
+              <div className="rounded-md border border-input bg-background overflow-hidden">
+                <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground shrink-0"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
+                  <input
+                    className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                    placeholder="Search moderator..."
+                    value={moderatorSearch}
+                    onChange={e => setModeratorSearch(e.target.value)}
+                  />
+                  {form.moderatorId && form.moderatorId !== "none" && (
+                    <button
+                      type="button"
+                      onClick={() => { setForm({ ...form, moderatorId: "none" }); setModeratorSearch(""); }}
+                      className="text-muted-foreground hover:text-destructive text-xs shrink-0"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                <div className="max-h-44 overflow-y-auto">
+                  {/* None option */}
+                  <button
+                    type="button"
+                    onClick={() => { setForm({ ...form, moderatorId: "none" }); setModeratorSearch(""); }}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-muted/50 transition-colors text-sm ${form.moderatorId === "none" || !form.moderatorId ? "bg-primary/5 text-primary font-medium" : ""}`}
+                  >
+                    <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center shrink-0 text-muted-foreground text-xs font-bold">—</div>
+                    None (Owner only)
+                  </button>
+                  {orgMembers
+                    .filter(u => {
+                      const q = moderatorSearch.toLowerCase();
+                      return !q || u.full_name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q);
+                    })
+                    .map((u) => {
+                      const initials = u.full_name?.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2) || "?";
+                      const isSelected = form.moderatorId === u.id;
+                      return (
+                        <button
+                          key={u.id}
+                          type="button"
+                          onClick={() => { setForm({ ...form, moderatorId: u.id }); setModeratorSearch(""); }}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-muted/50 transition-colors ${isSelected ? "bg-primary/5" : ""}`}
+                        >
+                          <Avatar className="h-7 w-7 shrink-0">
+                            <AvatarImage src={getAvatarUrl(u.avatar_url)} />
+                            <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-bold">
+                              {initials}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className={`text-sm truncate ${isSelected ? "font-medium text-primary" : "text-foreground"}`}>
+                            {u.full_name}
+                          </span>
+                          {isSelected && <span className="ml-auto text-primary text-xs">✓</span>}
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
               <p className="text-[10px] text-muted-foreground mt-1">
                 Moderators can manage members and content based on permissions.
               </p>
@@ -933,27 +995,7 @@ export default function BroadcastPage() {
                       Delete
                     </Label>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="perm-send"
-                      checked={form.moderatorPermissions.send}
-                      onCheckedChange={(checked) =>
-                        setForm({
-                          ...form,
-                          moderatorPermissions: {
-                            ...form.moderatorPermissions,
-                            send: !!checked,
-                          },
-                        })
-                      }
-                    />
-                    <Label
-                      htmlFor="perm-send"
-                      className="text-xs font-normal cursor-pointer"
-                    >
-                      Send
-                    </Label>
-                  </div>
+
                 </div>
               </div>
             )}
@@ -1021,38 +1063,51 @@ export default function BroadcastPage() {
                         ?.toLowerCase()
                         .includes(employeeSearch.toLowerCase()),
                   )
-                  .map((u) => (
-                    <div
-                      key={u.id}
-                      className="flex items-center space-x-2 p-1 hover:bg-muted rounded transition-colors"
-                    >
-                      <Checkbox
-                        id={`user-${u.id}`}
-                        checked={form.selectedUserIds.includes(u.id)}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setForm({
-                              ...form,
-                              selectedUserIds: [...form.selectedUserIds, u.id],
-                            });
-                          } else {
-                            setForm({
-                              ...form,
-                              selectedUserIds: form.selectedUserIds.filter(
-                                (id) => id !== u.id,
-                              ),
-                            });
-                          }
+                  .map((u) => {
+                    const initials = u.full_name?.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2) || "?";
+                    return (
+                      <div
+                        key={u.id}
+                        className="flex items-center gap-2 p-1 hover:bg-muted rounded transition-colors cursor-pointer"
+                        onClick={() => {
+                          const checked = !form.selectedUserIds.includes(u.id);
+                          setForm({
+                            ...form,
+                            selectedUserIds: checked
+                              ? [...form.selectedUserIds, u.id]
+                              : form.selectedUserIds.filter((id) => id !== u.id),
+                          });
                         }}
-                      />
-                      <Label
-                        htmlFor={`user-${u.id}`}
-                        className="text-sm font-normal cursor-pointer flex-1"
                       >
-                        {u.full_name}
-                      </Label>
-                    </div>
-                  ))}
+                        <Checkbox
+                          id={`user-${u.id}`}
+                          checked={form.selectedUserIds.includes(u.id)}
+                          onCheckedChange={(checked) => {
+                            setForm({
+                              ...form,
+                              selectedUserIds: checked
+                                ? [...form.selectedUserIds, u.id]
+                                : form.selectedUserIds.filter((id) => id !== u.id),
+                            });
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <Avatar className="h-6 w-6 shrink-0">
+                          <AvatarImage src={getAvatarUrl(u.avatar_url)} />
+                          <AvatarFallback className="bg-primary/10 text-primary text-[9px] font-bold">
+                            {initials}
+                          </AvatarFallback>
+                        </Avatar>
+                        <Label
+                          htmlFor={`user-${u.id}`}
+                          className="text-sm font-normal cursor-pointer flex-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {u.full_name}
+                        </Label>
+                      </div>
+                    );
+                  })}
               </div>
             </div>
           </div>
@@ -1069,7 +1124,7 @@ export default function BroadcastPage() {
 
       {/* Edit Dialog */}
       <Dialog open={!!editing} onOpenChange={() => setEditing(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg max-h-[95vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Broadcast</DialogTitle>
           </DialogHeader>
@@ -1149,22 +1204,64 @@ export default function BroadcastPage() {
             </div>
             <div className="space-y-2">
               <Label>Moderator</Label>
-              <Select
-                value={form.moderatorId}
-                onValueChange={(val) => setForm({ ...form, moderatorId: val })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a moderator" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None (Owner only)</SelectItem>
-                  {orgMembers.map((u) => (
-                    <SelectItem key={u.id} value={u.id}>
-                      {u.full_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="rounded-md border border-input bg-background overflow-hidden">
+                <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground shrink-0"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
+                  <input
+                    className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                    placeholder="Search moderator..."
+                    value={moderatorSearch}
+                    onChange={e => setModeratorSearch(e.target.value)}
+                  />
+                  {form.moderatorId && form.moderatorId !== "none" && (
+                    <button
+                      type="button"
+                      onClick={() => { setForm({ ...form, moderatorId: "none" }); setModeratorSearch(""); }}
+                      className="text-muted-foreground hover:text-destructive text-xs shrink-0"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                <div className="max-h-44 overflow-y-auto">
+                  <button
+                    type="button"
+                    onClick={() => { setForm({ ...form, moderatorId: "none" }); setModeratorSearch(""); }}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-muted/50 transition-colors text-sm ${form.moderatorId === "none" || !form.moderatorId ? "bg-primary/5 text-primary font-medium" : ""}`}
+                  >
+                    <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center shrink-0 text-muted-foreground text-xs font-bold">—</div>
+                    None (Owner only)
+                  </button>
+                  {orgMembers
+                    .filter(u => {
+                      const q = moderatorSearch.toLowerCase();
+                      return !q || u.full_name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q);
+                    })
+                    .map((u) => {
+                      const initials = u.full_name?.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2) || "?";
+                      const isSelected = form.moderatorId === u.id;
+                      return (
+                        <button
+                          key={u.id}
+                          type="button"
+                          onClick={() => { setForm({ ...form, moderatorId: u.id }); setModeratorSearch(""); }}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-muted/50 transition-colors ${isSelected ? "bg-primary/5" : ""}`}
+                        >
+                          <Avatar className="h-7 w-7 shrink-0">
+                            <AvatarImage src={getAvatarUrl(u.avatar_url)} />
+                            <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-bold">
+                              {initials}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className={`text-sm truncate ${isSelected ? "font-medium text-primary" : "text-foreground"}`}>
+                            {u.full_name}
+                          </span>
+                          {isSelected && <span className="ml-auto text-primary text-xs">✓</span>}
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
             </div>
 
             {form.moderatorId !== "none" && (
@@ -1213,27 +1310,6 @@ export default function BroadcastPage() {
                       className="text-xs font-normal cursor-pointer"
                     >
                       Delete
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="edit-perm-send"
-                      checked={form.moderatorPermissions.send}
-                      onCheckedChange={(checked) =>
-                        setForm({
-                          ...form,
-                          moderatorPermissions: {
-                            ...form.moderatorPermissions,
-                            send: !!checked,
-                          },
-                        })
-                      }
-                    />
-                    <Label
-                      htmlFor="edit-perm-send"
-                      className="text-xs font-normal cursor-pointer"
-                    >
-                      Send
                     </Label>
                   </div>
                 </div>

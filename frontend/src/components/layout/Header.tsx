@@ -248,7 +248,7 @@ export function TopBar({
             {hasPermission('admin_dashboard', 'view') && (
               <DropdownMenuItem onClick={() => navigate('/admin-dashboard')}>Admin Dashboard</DropdownMenuItem>
             )}
-            <DropdownMenuItem onClick={() => navigate('/admin/users')}>Organization Settings</DropdownMenuItem>
+            {/* <DropdownMenuItem onClick={() => navigate('/admin/users')}>Organization Settings</DropdownMenuItem> */}
             <DropdownMenuItem>Billing</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-destructive" onClick={handleSignOut}>
