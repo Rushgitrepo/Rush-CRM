@@ -12,6 +12,7 @@ const DEFAULT_DEAL_STAGES = [
   { key: 'project_delivered', label: 'Delivered', color: 'bg-success', prob: 95, order: 7 },
   { key: 'revision', label: 'Revision', color: 'bg-destructive', prob: 90, order: 8 },
   { key: 'close_deal', label: 'Closed', color: 'bg-muted-foreground', prob: 100, order: 9 },
+  { key: 'unqualified', label: 'Unqualified', color: 'bg-muted-foreground', prob: 0, order: 10 },
 ];
 
 async function ensureDefaultStages(orgId, pipeline = 'deals') {
@@ -93,6 +94,7 @@ const createDealSchema = Joi.object({
   lastContactedDate: Joi.date().optional().allow(null),
   nextFollowUpDate: Joi.date().optional().allow(null),
   responsiblePerson: Joi.string().uuid().optional().allow(null),
+  deadline: Joi.date().optional().allow(null),
   customFields: Joi.object().optional().allow(null),
 });
 
@@ -137,6 +139,7 @@ const normalizeDealInput = (body = {}) => {
     lostReason: getVal('lostReason', 'lost_reason'),
     workspaceId: getUuid('workspaceId', 'workspace_id'),
     responsiblePerson: getUuid('responsiblePerson', 'responsible_person'),
+    deadline: getDate('deadline', 'deadline'),
     // Additional marketing and contact fields
     contactName: getVal('contactName', 'contact_name'),
     companyName: getVal('companyName', 'company_name'),
@@ -272,13 +275,22 @@ const updateDealSchema = Joi.object({
   lastContactedDate: Joi.date().optional().allow(null),
   nextFollowUpDate: Joi.date().optional().allow(null),
   responsiblePerson: Joi.string().uuid().optional().allow(null),
+  deadline: Joi.date().optional().allow(null),
   createdAt: Joi.date().optional().allow(null),
   customFields: Joi.object().optional().allow(null),
 }).min(1);
 
 const getAll = async (req, res, next) => {
   try {
-    const { page = 1, limit = 50, stage, status, search } = req.query;
+    const { 
+      page = 1, 
+      limit = 50, 
+      stage, 
+      status, 
+      search,
+      startDate,
+      endDate
+    } = req.query;
     const offset = (page - 1) * limit;
 
     const isAdmin = req.user.role === 'super_admin' || req.user.role === 'admin';
@@ -286,10 +298,13 @@ const getAll = async (req, res, next) => {
     let query = `
       SELECT d.*,
              c.first_name as contact_first_name, c.last_name as contact_last_name, c.email as contact_email, c.phone as contact_phone,
-             co.name as linked_company_name, co.email as linked_company_email, co.phone as linked_company_phone
+             co.name as linked_company_name, co.email as linked_company_email, co.phone as linked_company_phone,
+             u.full_name as responsible_person_name,
+             u.avatar_url as responsible_person_avatar
       FROM public.deals d
       LEFT JOIN public.contacts c ON c.id = d.contact_id
       LEFT JOIN public.companies co ON co.id = d.company_id
+      LEFT JOIN public.users u ON u.id = d.assigned_to
       WHERE d.org_id = $1
     `;
     const params = [req.user.orgId];
@@ -313,8 +328,36 @@ const getAll = async (req, res, next) => {
       paramIndex++;
     }
 
+    if (startDate) {
+      query += ` AND d.created_at >= $${paramIndex}`;
+      params.push(startDate);
+      paramIndex++;
+    }
+
+    if (endDate) {
+      query += ` AND d.created_at <= $${paramIndex}`;
+      params.push(endDate);
+      paramIndex++;
+    }
+
     if (search) {
-      query += ` AND (d.title ILIKE $${paramIndex} OR co.name ILIKE $${paramIndex})`;
+      query += ` AND (
+        d.title ILIKE $${paramIndex} OR 
+        d.notes ILIKE $${paramIndex} OR 
+        d.source ILIKE $${paramIndex} OR 
+        d.description ILIKE $${paramIndex} OR
+        d.designation ILIKE $${paramIndex} OR
+        d.address ILIKE $${paramIndex} OR
+        d.tags::text ILIKE $${paramIndex} OR
+        d.client_type ILIKE $${paramIndex} OR
+        d.project_type ILIKE $${paramIndex} OR
+        d.company_name ILIKE $${paramIndex} OR
+        d.contact_name ILIKE $${paramIndex} OR
+        c.first_name ILIKE $${paramIndex} OR
+        c.last_name ILIKE $${paramIndex} OR
+        c.email ILIKE $${paramIndex} OR
+        co.name ILIKE $${paramIndex}
+      )`;
       params.push(`%${search}%`);
       paramIndex++;
     }
@@ -387,10 +430,13 @@ const getById = async (req, res, next) => {
     const result = await db.query(
       `SELECT d.*,
               c.first_name as contact_first_name, c.last_name as contact_last_name, c.email as contact_email, c.phone as contact_phone,
-              co.name as linked_company_name, co.email as linked_company_email, co.phone as linked_company_phone
+              co.name as linked_company_name, co.email as linked_company_email, co.phone as linked_company_phone,
+              u.full_name as responsible_person_name,
+              u.avatar_url as responsible_person_avatar
        FROM public.deals d
        LEFT JOIN public.contacts c ON c.id = d.contact_id
        LEFT JOIN public.companies co ON co.id = d.company_id
+       LEFT JOIN public.users u ON u.id = d.assigned_to
        WHERE d.id = $1 AND d.org_id = $2`,
       [id, req.user.orgId]
     );
@@ -463,7 +509,7 @@ const create = async (req, res, next) => {
       hoursOfWork, hourlyRate, hourlyRateCurrency, proposalAmount, proposalCurrency, invoiceAmount, invoiceCurrency,
       firstMessage, lastTouch, workspaceId, sourceInfo, projectBlueprints,
       phoneType, emailType, websiteType, customerType,
-      lastContactedDate, nextFollowUpDate, responsiblePerson, customFields
+      lastContactedDate, nextFollowUpDate, responsiblePerson, deadline, customFields
     } = value;
 
     const result = await db.query(
@@ -478,14 +524,14 @@ const create = async (req, res, next) => {
          hours_of_work, hourly_rate, hourly_rate_currency, proposal_amount, proposal_currency, invoice_amount, invoice_currency,
          first_message, last_touch, workspace_id, source_info, project_blueprints,
          phone_type, email_type, website_type, customer_type, 
-         last_contacted_date, next_follow_up_date, responsible_person, custom_fields
+         last_contacted_date, next_follow_up_date, responsible_person, deadline, custom_fields
        )
        VALUES (
          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 
          $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26,
          $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38,
          $39, $40, $41, $42, $43, $44, $45, $46, $47, $48,
-         $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60
+         $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61
        )
        RETURNING *`,
       [
@@ -498,7 +544,7 @@ const create = async (req, res, next) => {
         hoursOfWork, hourlyRate, hourlyRateCurrency, proposalAmount, proposalCurrency, invoiceAmount, invoiceCurrency,
         firstMessage, lastTouch, workspaceId, sourceInfo, serializeBlueprintsField(projectBlueprints),
         phoneType, emailType, websiteType, customerType,
-        lastContactedDate, nextFollowUpDate, responsiblePerson,
+        lastContactedDate, nextFollowUpDate, responsiblePerson, deadline,
         customFields ? JSON.stringify(customFields) : '{}'
       ]
     );
@@ -592,6 +638,7 @@ const update = async (req, res, next) => {
       lastTouch: 'last_touch',
       lastContactedDate: 'last_contacted_date',
       nextFollowUpDate: 'next_follow_up_date',
+      deadline: 'deadline',
       createdAt: 'created_at',
     };
 
@@ -599,7 +646,7 @@ const update = async (req, res, next) => {
       const dbField = dbFieldMapping[key] || fieldMapping[key];
       if (dbField && val !== undefined) {
         fields.push(`${dbField} = $${paramIndex}`);
-        const isDate = ['expectedCloseDate', 'lastTouch', 'lastContactedDate', 'nextFollowUpDate', 'createdAt'].includes(key);
+        const isDate = ['expectedCloseDate', 'lastTouch', 'lastContactedDate', 'nextFollowUpDate', 'deadline', 'createdAt'].includes(key);
         const isJson = ['project_blueprints', 'custom_fields'].includes(dbField);
         
         let dbValue = val;

@@ -242,18 +242,31 @@ const updateLeadSchema = Joi.object({
 
 const getAll = async (req, res, next) => {
   try {
-    const { page = 1, limit = 50, stage, status, search, workspaceId, external_source_id } = req.query;
+    const { 
+      page = 1, 
+      limit = 50, 
+      stage, 
+      status, 
+      search, 
+      workspaceId, 
+      external_source_id,
+      startDate,
+      endDate
+    } = req.query;
     const offset = (page - 1) * limit;
 
     let query = `
       SELECT l.*, 
              c.first_name as contact_first_name, c.last_name as contact_last_name, c.email as contact_email, c.phone as contact_phone,
              co.name as linked_company_name, co.email as linked_company_email, co.phone as linked_company_phone,
-             w.name as workspace_name
+             w.name as workspace_name,
+             u.full_name as responsible_person_name,
+             u.avatar_url as responsible_person_avatar
       FROM public.leads l
       LEFT JOIN public.contacts c ON c.id = l.contact_id
       LEFT JOIN public.companies co ON co.id = l.company_id
       LEFT JOIN public.workgroups w ON w.id = l.workspace_id
+      LEFT JOIN public.users u ON u.id = l.assigned_to
       WHERE l.org_id = $1
     `;
     const params = [req.user.orgId];
@@ -273,9 +286,7 @@ const getAll = async (req, res, next) => {
       query += ` AND l.workspace_id = $${paramIndex}`;
       params.push(workspaceId);
       paramIndex++;
-    } else if (isAdmin) {
-      // Admins see all leads in the org — no extra filter
-    } else {
+    } else if (!isAdmin) {
       // Regular users: must own/be assigned, or have workspace access
       query += ` AND (
         l.assigned_to = $${paramIndex} OR l.owner_id = $${paramIndex} OR l.user_id = $${paramIndex} OR l.created_by = $${paramIndex} OR
@@ -312,8 +323,31 @@ const getAll = async (req, res, next) => {
       paramIndex++;
     }
 
+    if (startDate) {
+      query += ` AND l.created_at >= $${paramIndex}`;
+      params.push(startDate);
+      paramIndex++;
+    }
+
+    if (endDate) {
+      query += ` AND l.created_at <= $${paramIndex}`;
+      params.push(endDate);
+      paramIndex++;
+    }
+
     if (search) {
-      query += ` AND (l.title ILIKE $${paramIndex} OR l.name ILIKE $${paramIndex} OR l.email ILIKE $${paramIndex} OR co.name ILIKE $${paramIndex})`;
+      query += ` AND (
+        l.title ILIKE $${paramIndex} OR 
+        l.name ILIKE $${paramIndex} OR 
+        l.email ILIKE $${paramIndex} OR 
+        l.phone ILIKE $${paramIndex} OR
+        l.company_name ILIKE $${paramIndex} OR
+        l.notes ILIKE $${paramIndex} OR
+        l.source ILIKE $${paramIndex} OR
+        l.designation ILIKE $${paramIndex} OR
+        l.address ILIKE $${paramIndex} OR
+        co.name ILIKE $${paramIndex}
+      )`;
       params.push(`%${search}%`);
       paramIndex++;
     }
@@ -418,11 +452,14 @@ const getById = async (req, res, next) => {
         `SELECT l.*,
                 c.id as contact_id, c.first_name as contact_first_name, c.last_name as contact_last_name, c.email as contact_email, c.phone as contact_phone, 
                 co.id as company_id, co.name as linked_company_name, co.email as linked_company_email, co.phone as linked_company_phone,
-                w.name as workspace_name
+                w.name as workspace_name,
+                u.full_name as responsible_person_name,
+                u.avatar_url as responsible_person_avatar
          FROM public.leads l
          LEFT JOIN public.contacts c ON c.id = l.contact_id
          LEFT JOIN public.companies co ON co.id = l.company_id
          LEFT JOIN public.workgroups w ON w.id = l.workspace_id
+         LEFT JOIN public.users u ON u.id = l.assigned_to
          WHERE l.id = $1 AND l.org_id = $2`,
         [id, req.user.orgId]
       );

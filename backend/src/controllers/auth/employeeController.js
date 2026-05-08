@@ -5,7 +5,7 @@ const { v4: uuidv4 } = require('uuid');
 // GET /api/members — all users with optional filters
 const getAll = async (req, res, next) => {
   try {
-    const { page = 1, limit = 50, search, role, status, department } = req.query;
+    const { page = 1, limit = 50, search, role, status, department, includeSelf, includeSuperAdmin } = req.query;
     const offset = (page - 1) * limit;
 
     const params = [];
@@ -15,10 +15,16 @@ const getAll = async (req, res, next) => {
     conditions.push(`u.org_id = $${params.length + 1}`);
     params.push(req.user.orgId);
 
-    // Never show super_admins, never show the requester themselves
-    conditions.push(`u.role != 'super_admin'`);
-    conditions.push(`u.id != $${params.length + 1}`);
-    params.push(req.user.id);
+    // Filter out super_admins unless requested
+    if (includeSuperAdmin !== 'true') {
+      conditions.push(`u.role != 'super_admin'`);
+    }
+    
+    // Filter out the requester themselves unless requested
+    if (includeSelf !== 'true') {
+      conditions.push(`u.id != $${params.length + 1}`);
+      params.push(req.user.id);
+    }
 
     // Status filter — default shows ALL (active + inactive)
     if (status && status !== 'all') {
