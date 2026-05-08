@@ -30,10 +30,13 @@ const getAll = async (req, res, next) => {
     if (!isAdmin) {
       // User can see task if:
       // - they are assigned to it OR created it
+      // - OR they delegated it to someone (delegated_by = current user)
+      //   so User 2 can still see and manage tasks they forwarded to User 3
       // - OR they are the project manager/owner/creator (project-level access)
       query += ` AND (
         t.assigned_to = $${paramIndex} OR
         t.created_by = $${paramIndex} OR
+        t.delegated_by = $${paramIndex} OR
         (t.project_id IS NOT NULL AND EXISTS (
           SELECT 1 FROM public.projects pr
           WHERE pr.id = t.project_id
@@ -178,13 +181,61 @@ const update = async (req, res, next) => {
       recurrence_rule, is_starred, progress, can_assign
     } = req.body;
 
+    // Pehle task fetch karo permission check ke liye
+    const taskCheck = await db.query(
+      'SELECT created_by, assigned_to, can_assign, delegated_by FROM public.tasks WHERE id = $1 AND org_id = $2',
+      [id, req.user.orgId]
+    );
+    if (taskCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    const existingTask = taskCheck.rows[0];
+
+    const isAdmin = req.user.role === 'super_admin' || req.user.role === 'admin';
+    const isManager = ['manager', 'hr_manager', 'inventory_manager'].includes(req.user.role);
+    const isTaskCreator = existingTask.created_by === req.user.id;
+    const isAssignee = existingTask.assigned_to === req.user.id;
+    const isDelegator = existingTask.delegated_by === req.user.id;
+    const delegationAllowed = existingTask.can_assign === true;
+
+    // Koi update kar sakta hai agar:
+    // 1. Admin/manager/creator
+    // 2. Current assignee jise delegation mili hai
+    // 3. Delegator (jo pehle assignee tha aur usne forward kiya) — wo can_assign toggle kar sake
+    const canModifyTask = isAdmin || isManager || isTaskCreator || (isAssignee && delegationAllowed) || isDelegator;
+    if (!canModifyTask) {
+      return res.status(403).json({ error: 'You do not have permission to update this task' });
+    }
+
+    // can_assign aur assignedTo change karne ki permission:
+    // Admin/manager/creator — full control
+    // Current assignee with delegation — can re-assign + set can_assign for next person
+    // Delegator — sirf can_assign toggle kar sakta hai (User 2 User 3 ki permission ON/OFF kare)
+    const canChangeAssignment = isAdmin || isManager || isTaskCreator || (isAssignee && delegationAllowed);
+    const canChangeCanAssign = isAdmin || isManager || isTaskCreator || (isAssignee && delegationAllowed) || isDelegator;
+
     const fields = [];
     const values = [];
     let p = 1;
 
-    if (title !== undefined)       { fields.push(`title = $${p++}`);         values.push(title); }
-    if (description !== undefined) { fields.push(`description = $${p++}`);   values.push(description); }
-    if (assignedTo !== undefined)  { fields.push(`assigned_to = $${p++}`);   values.push(assignedTo === '' ? null : assignedTo); }
+    if (title !== undefined && (isAdmin || isManager || isTaskCreator)) {
+      fields.push(`title = $${p++}`);
+      values.push(title);
+    }
+    if (description !== undefined && (isAdmin || isManager || isTaskCreator)) {
+      fields.push(`description = $${p++}`);
+      values.push(description);
+    }
+    if (assignedTo !== undefined && canChangeAssignment) {
+      fields.push(`assigned_to = $${p++}`);
+      values.push(assignedTo === '' ? null : assignedTo);
+      // Jab assignee task kisi aur ko delegate kare, delegated_by set karo
+      // taake current user (delegator) task apni list mein dekh sake
+      if (isAssignee && delegationAllowed) {
+        fields.push(`delegated_by = $${p++}`);
+        values.push(req.user.id);
+      }
+    }
     if (dueDate !== undefined)     { fields.push(`due_date = $${p++}`);       values.push(dueDate === '' ? null : dueDate); }
     if (priority !== undefined)    { fields.push(`priority = $${p++}`);       values.push(priority); }
     if (status !== undefined) {
@@ -196,7 +247,11 @@ const update = async (req, res, next) => {
       }
     }
     if (progress !== undefined)    { fields.push(`progress = $${p++}`);       values.push(progress); }
-    if (can_assign !== undefined)  { fields.push(`can_assign = $${p++}`);     values.push(can_assign); }
+    // can_assign: delegator (User 2) bhi toggle kar sakta hai User 3 ke liye
+    if (can_assign !== undefined && canChangeCanAssign) {
+      fields.push(`can_assign = $${p++}`);
+      values.push(can_assign);
+    }
     if (recurrence_rule !== undefined) {
       fields.push(`is_recurring = $${p++}`);
       values.push(!!recurrence_rule && recurrence_rule !== 'none');
