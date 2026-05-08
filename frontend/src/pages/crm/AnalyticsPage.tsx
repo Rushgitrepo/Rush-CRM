@@ -14,19 +14,37 @@ const monthLabel = (dateStr?: string) => {
 };
 
 export default function CRMAnalyticsPage() {
-  const { data: leads } = useLeads();
-  const { data: deals } = useDeals();
+  const { data: leadsData } = useLeads();
+  const { data: dealsData } = useDeals();
+
+  const leads = useMemo(() => {
+    if (Array.isArray(leadsData)) return leadsData;
+    if (leadsData && typeof leadsData === 'object') {
+      const dataObj = leadsData as any;
+      return dataObj.data || dataObj.leads || [];
+    }
+    return [];
+  }, [leadsData]);
+
+  const deals = useMemo(() => {
+    if (Array.isArray(dealsData)) return dealsData;
+    if (dealsData && typeof dealsData === 'object') {
+      const dataObj = dealsData as any;
+      return dataObj.data || dataObj.deals || [];
+    }
+    return [];
+  }, [dealsData]);
 
   const monthlyData = useMemo(() => {
     const months: Record<string, { month: string; leads: number; deals: number; revenue: number }> = {};
 
-    (leads || []).forEach((l: any) => {
+    leads.forEach((l: any) => {
       const m = monthLabel(l.created_at) || "N/A";
       if (!months[m]) months[m] = { month: m, leads: 0, deals: 0, revenue: 0 };
       months[m].leads += 1;
     });
 
-    (deals || []).forEach((d: any) => {
+    deals.forEach((d: any) => {
       const m = monthLabel(d.created_at) || "N/A";
       if (!months[m]) months[m] = { month: m, leads: 0, deals: 0, revenue: 0 };
       months[m].deals += 1;
@@ -38,7 +56,7 @@ export default function CRMAnalyticsPage() {
 
   const sourceData = useMemo(() => {
     const buckets: Record<string, number> = {};
-    (leads || []).forEach((l: any) => {
+    leads.forEach((l: any) => {
       const source = (l.source || l.lead_source || "Other").toString();
       buckets[source] = (buckets[source] || 0) + 1;
     });
@@ -54,9 +72,9 @@ export default function CRMAnalyticsPage() {
   }, [leads]);
 
   const conversionData = useMemo(() => {
-    const totalLeads = leads?.length ?? 0;
-    const totalDeals = deals?.length ?? 0;
-    const closed = (deals || []).filter((d: any) => (d.status || "").toLowerCase() === "won" || (d.stage || "").includes("close")).length;
+    const totalLeads = leads.length;
+    const totalDeals = deals.length;
+    const closed = deals.filter((d: any) => (d.status || "").toLowerCase() === "won" || (d.stage || "").includes("close")).length;
     return [
       { stage: "Leads", value: totalLeads },
       { stage: "Deals", value: totalDeals },
@@ -65,26 +83,26 @@ export default function CRMAnalyticsPage() {
   }, [leads, deals]);
 
   const conversionRate = useMemo(() => {
-    const totalLeads = leads?.length ?? 0;
+    const totalLeads = leads.length;
     const closed = conversionData[2]?.value ?? 0;
     return totalLeads ? ((closed / totalLeads) * 100).toFixed(1) + "%" : "0%";
   }, [conversionData, leads]);
 
   const avgDealSize = useMemo(() => {
-    const totalDeals = deals?.length ?? 0;
-    const sum = (deals || []).reduce((acc: number, d: any) => acc + Number(d.value ?? d.amount ?? 0), 0);
+    const totalDeals = deals.length;
+    const sum = deals.reduce((acc: number, d: any) => acc + Number(d.value ?? d.amount ?? 0), 0);
     return totalDeals ? `$${Math.round(sum / totalDeals).toLocaleString()}` : "$0";
   }, [deals]);
 
   const winRate = useMemo(() => {
-    const total = deals?.length ?? 0;
-    const won = (deals || []).filter((d: any) => (d.status || "").toLowerCase() === "won").length;
+    const total = deals.length;
+    const won = deals.filter((d: any) => (d.status || "").toLowerCase() === "won").length;
     return total ? `${Math.round((won / total) * 100)}%` : "0%";
   }, [deals]);
 
   const velocity = useMemo(() => {
     const durations: number[] = [];
-    (deals || []).forEach((d: any) => {
+    deals.forEach((d: any) => {
       if (d.created_at && d.closed_at) {
         const diff = (new Date(d.closed_at).getTime() - new Date(d.created_at).getTime()) / (1000 * 60 * 60 * 24);
         if (!Number.isNaN(diff)) durations.push(diff);
@@ -100,8 +118,8 @@ export default function CRMAnalyticsPage() {
         title="Analytics"
         description="Premium dashboard of revenue, conversion, and velocity." 
         meta={[
-          { label: "Leads", value: leads?.length ?? 0, tone: "info" },
-          { label: "Deals", value: deals?.length ?? 0, tone: "success" },
+          { label: "Leads", value: leads.length, tone: "info" },
+          { label: "Deals", value: deals.length, tone: "success" },
         ]}
       />
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Sparkles, Mail, Phone, Building2, Filter, Download, Upload, MoreHorizontal, Edit, Trash2, Eye, Globe, XCircle, CheckCircle } from "lucide-react";
 import { useLeads, useDeleteLead, useBulkDeleteLeads } from "@/hooks/useCrmData";
@@ -55,7 +55,7 @@ export default function LeadsPage() {
   const { confirm } = useCustomDialog();
   const [sortBy, setSortBy] = useState("recent");
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
-  const [showBulkActions, setShowBulkActions] = useState(false);
+  const [isAllSelectedGlobally, setIsAllSelectedGlobally] = useState(false);
   const [advancedFilters, setAdvancedFilters] = useState<any[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
@@ -63,6 +63,8 @@ export default function LeadsPage() {
   const { data: dbLeads, isLoading, isError } = useLeads({
     search,
     status: status !== "all" ? status : undefined,
+    type: type !== "all" ? type : undefined,
+    workspaceId: workspaceFilter !== "all" ? workspaceFilter : undefined,
     page: currentPage,
     limit: pageSize
   });
@@ -104,6 +106,12 @@ export default function LeadsPage() {
     });
   }, [dbLeads]);
 
+  // Reset selection when filters change
+  useEffect(() => {
+    setSelectedLeads([]);
+    setIsAllSelectedGlobally(false);
+  }, [search, status, type, workspaceFilter]);
+
   const filtered = useMemo(() => {
     const term = search.toLowerCase();
     return leads
@@ -127,33 +135,31 @@ export default function LeadsPage() {
 
   const handleCreate = () => navigate("/crm/leads/create");
 
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedLeads(filtered.map(lead => lead.id));
-    } else {
-      setSelectedLeads([]);
-    }
-  };
 
-  const handleSelectLead = (leadId: string, checked: boolean) => {
-    if (checked) {
-      setSelectedLeads(prev => [...prev, leadId]);
-    } else {
-      setSelectedLeads(prev => prev.filter(id => id !== leadId));
-    }
-  };
+  const handleBulkDelete = () => {
+    if (selectedLeads.length === 0 && !isAllSelectedGlobally) return;
 
-  const handleBulkDelete = async () => {
-    if (selectedLeads.length === 0) return;
+    const count = isAllSelectedGlobally ? (dbLeads as any)?.pagination?.total : selectedLeads.length;
 
-    if (await confirm(`Are you sure you want to delete ${selectedLeads.length} leads?`, { variant: 'destructive', title: 'Confirm Bulk Deletion' })) {
-      try {
-        await bulkDeleteLeads.mutateAsync(selectedLeads);
-        setSelectedLeads([]);
-      } catch (error) {
-        // Error handled by mutation
+    confirm(`Are you sure you want to delete ${count} leads? This action cannot be undone.`, {
+      title: "Bulk Delete Leads",
+      confirmLabel: "Delete",
+      variant: "destructive",
+    }).then((confirmed) => {
+      if (confirmed) {
+        bulkDeleteLeads.mutate(
+          isAllSelectedGlobally 
+            ? { all: true, filters: { search, status, type, workspaceId: workspaceFilter } }
+            : selectedLeads, 
+          {
+            onSuccess: () => {
+              setSelectedLeads([]);
+              setIsAllSelectedGlobally(false);
+            },
+          }
+        );
       }
-    }
+    });
   };
 
   const handleBulkExport = () => {
@@ -184,18 +190,6 @@ export default function LeadsPage() {
   };
 
   const columns: EntityColumn<LeadRow>[] = [
-    {
-      key: "select",
-      header: "",
-      render: (lead) => (
-        <div onClick={(e) => e.stopPropagation()}>
-          <Checkbox
-            checked={selectedLeads.includes(lead.id)}
-            onCheckedChange={(checked) => handleSelectLead(lead.id, checked as boolean)}
-          />
-        </div>
-      ),
-    },
     {
       key: "name",
       header: "Lead",
@@ -331,21 +325,20 @@ export default function LeadsPage() {
         title="Leads"
         description="A live, filterable pipeline of every lead with fast actions."
         meta={[
-          { label: "Total", value: leads.length, tone: "info" },
-          { label: "Filtered", value: filtered.length, tone: "success" },
-          { label: "Selected", value: selectedLeads.length, tone: "warning" },
+          { label: "Total", value: (dbLeads as any)?.pagination?.total || 0, tone: "info" },
+          { label: "Selected", value: isAllSelectedGlobally ? (dbLeads as any)?.pagination?.total : selectedLeads.length, tone: "warning" },
         ]}
         actions={
           <div className="flex gap-2">
-            {selectedLeads.length > 0 && (
+            {(selectedLeads.length > 0 || isAllSelectedGlobally) && (
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={handleBulkExport}>
                   <Download className="h-4 w-4 mr-2" />
-                  Export ({selectedLeads.length})
+                  Export ({isAllSelectedGlobally ? (dbLeads as any)?.pagination?.total : selectedLeads.length})
                 </Button>
                 <Button variant="outline" size="sm" onClick={handleBulkDelete}>
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Delete ({selectedLeads.length})
+                  Delete ({isAllSelectedGlobally ? (dbLeads as any)?.pagination?.total : selectedLeads.length})
                 </Button>
               </div>
             )}
@@ -419,20 +412,6 @@ export default function LeadsPage() {
           <Button variant="outline" size="sm" onClick={() => { setType("all"); setWorkspaceFilter("all"); }}>
             Reset Filters
           </Button>
-          {filtered.length > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleSelectAll(selectedLeads.length !== filtered.length)}
-            >
-              {selectedLeads.length === filtered.length ? 'Deselect All' : 'Select All'}
-            </Button>
-          )}
-          {selectedLeads.length > 0 && (
-            <Button variant="outline" size="sm" onClick={() => setSelectedLeads([])}>
-              Clear Selection
-            </Button>
-          )}
         </div>
       </DataToolbar>
 
@@ -444,8 +423,20 @@ export default function LeadsPage() {
               columns={columns}
               isLoading={isLoading}
               pageSize={pageSize}
+              totalCount={(dbLeads as any)?.pagination?.total || filtered.length}
+              currentPage={currentPage}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setCurrentPage(1);
+              }}
               selectedRows={selectedLeads}
-              onSelectionChange={(ids) => setSelectedLeads(ids as string[])}
+              onSelectionChange={(ids) => {
+                setSelectedLeads(ids as string[]);
+                if (ids.length === 0) setIsAllSelectedGlobally(false);
+              }}
+              isAllSelectedGlobally={isAllSelectedGlobally}
+              onGlobalSelectionChange={setIsAllSelectedGlobally}
               emptyState={
                 <EmptyState
                   title="No leads yet"

@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 const GC_TIME = 5 * 60 * 1000; // 5 minutes (garbage collection time)
 const STALE_TIME = 2 * 60 * 1000; // 2 minutes
 
-export function useLeads(params?: { stage?: string; status?: string; search?: string; page?: number; limit?: number }) {
+export function useLeads(params?: { stage?: string; status?: string; search?: string; type?: string; workspaceId?: string; page?: number; limit?: number }) {
   return useQuery({
     queryKey: ['leads', params],
     queryFn: async () => {
@@ -15,7 +15,7 @@ export function useLeads(params?: { stage?: string; status?: string; search?: st
         page: params?.page || 1,
         limit: params?.limit || 100
       });
-      return response.data;
+      return response;
     },
     staleTime: STALE_TIME,
     gcTime: GC_TIME, // Updated from cacheTime to gcTime
@@ -98,7 +98,7 @@ export function useBulkDeleteLeads() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (ids: string[]) => leadsApi.bulkDelete(ids),
+    mutationFn: (payload: { ids?: string[]; all?: boolean; filters?: any } | string[]) => leadsApi.bulkDelete(payload),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['leads', 'stats'] });
@@ -149,7 +149,7 @@ export function useDeals(params?: { page?: number; limit?: number; stage?: strin
         page: params?.page || 1,
         limit: params?.limit || 100
       });
-      return response.data;
+      return response;
     },
     staleTime: STALE_TIME,
     gcTime: GC_TIME,
@@ -250,7 +250,7 @@ export function useBulkDeleteDeals() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (ids: string[]) => dealsApi.bulkDelete(ids),
+    mutationFn: (payload: { ids?: string[]; all?: boolean; filters?: any } | string[]) => dealsApi.bulkDelete(payload),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['deals'] });
       queryClient.invalidateQueries({ queryKey: ['deals', 'stats'] });
