@@ -22,6 +22,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useUpdateLead, useDeleteLead, useConvertLeadToDeal } from "@/hooks/useCrmMutations";
+import { useUpdateLeadStage } from "@/hooks/useCrmData";
 import { usePipelineStages, useCreatePipelineStage, useDeletePipelineStage, useUpdatePipelineStage } from "@/hooks/usePipelineStages";
 import { ClickToCall } from "@/components/telephony/ClickToCall";
 import { cn } from "@/lib/utils";
@@ -68,6 +69,7 @@ const colorOptions = [
 export function LeadsKanbanView({ leads, onCreateLead, selectedStage }: LeadsKanbanViewProps) {
   const navigate = useNavigate();
   const updateLead = useUpdateLead();
+  const updateLeadStage = useUpdateLeadStage();
   const deleteLead = useDeleteLead();
   const convertLead = useConvertLeadToDeal();
   const { data: pipelineStages = [] } = usePipelineStages();
@@ -136,7 +138,7 @@ export function LeadsKanbanView({ leads, onCreateLead, selectedStage }: LeadsKan
     if (!leadId) return;
     const lead = leads.find((l) => l.id === leadId);
     if (lead && (lead.stage || 'new') !== newStageKey) {
-      updateLead.mutate({ id: leadId, stage: newStageKey });
+      updateLeadStage.mutate({ id: leadId, stage: newStageKey });
     }
   };
 
@@ -237,7 +239,7 @@ export function LeadsKanbanView({ leads, onCreateLead, selectedStage }: LeadsKan
             )}
             onDragOver={(e) => handleDragOver(e, column.id)}
             onDragLeave={handleDragLeave}
-            onDrop={(e) => handleDrop(e, column.id)}
+            onDrop={(e) => handleDrop(e, column.key)}
           >
             {/* Column Header */}
             <div className="p-4 border-b">

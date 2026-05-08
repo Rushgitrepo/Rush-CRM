@@ -143,7 +143,7 @@ export function DealsKanbanView({ deals = [], selectedStage, onStageSelect }: De
                 ? "border-primary bg-primary/5"
                 : "border-border"
             )}
-            onDragOver={(e) => handleDragOver(e, stage.key)}
+            onDragOver={(e) => handleDragOver(e, stage.id)}
             onDragLeave={handleDragLeave}
             onDrop={(e) => handleDrop(e, stage.key)}
           >
