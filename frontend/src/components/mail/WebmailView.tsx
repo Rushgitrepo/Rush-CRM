@@ -61,6 +61,7 @@ interface WebmailViewProps {
   mailboxes: any[];
   onBackToIntegration: () => void;
   initialOpenComposer?: boolean;
+  initialTo?: string;
 }
 
 
@@ -93,7 +94,7 @@ function EmailListSkeleton() {
   );
 }
 
-export function WebmailView({ mailboxes, onBackToIntegration, initialOpenComposer = false }: WebmailViewProps) {
+export function WebmailView({ mailboxes, onBackToIntegration, initialOpenComposer = false, initialTo }: WebmailViewProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { syncMailbox, syncing } = useEmailSync();
@@ -235,6 +236,7 @@ export function WebmailView({ mailboxes, onBackToIntegration, initialOpenCompose
           mailboxes={mailboxes}
           replyTo={replyTo}
           forwardEmail={forwardEmail}
+          initialTo={initialTo}
         />
       </div>
     );
@@ -506,6 +508,7 @@ export function WebmailView({ mailboxes, onBackToIntegration, initialOpenCompose
         mailboxes={mailboxes}
         replyTo={replyTo}
         forwardEmail={forwardEmail}
+        initialTo={initialTo}
       />
     </div>
   );

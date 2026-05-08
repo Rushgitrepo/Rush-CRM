@@ -105,7 +105,12 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
               className="font-medium break-words w-full text-sm" 
             />
           ) : type === "email" ? (
-            <a href={`mailto:${value}`} className="text-primary hover:underline font-medium break-words w-full text-sm">{value}</a>
+            <span 
+              className="text-primary hover:underline font-medium break-words w-full text-sm cursor-pointer"
+              onClick={() => navigate("/collaboration/mail", { state: { composeTo: value } })}
+            >
+              {value}
+            </span>
           ) : (
             <span className="text-gray-900 font-medium break-words w-full text-sm">{value}</span>
           )}
@@ -336,12 +341,10 @@ export default function CustomerDetailPage() {
                       variant="outline"
                       size="sm"
                       className="gap-2 text-primary border-primary/20"
-                      asChild
+                      onClick={() => navigate("/collaboration/mail", { state: { composeTo: customer.email } })}
                     >
-                      <a href={`mailto:${customer.email}`}>
-                        <Mail className="h-4 w-4" />
-                        Email
-                      </a>
+                      <Mail className="h-4 w-4" />
+                      Email
                     </Button>
                   )}
 
@@ -619,7 +622,7 @@ export default function CustomerDetailPage() {
                   <Button
                     variant="outline"
                     className="w-full justify-start gap-2 h-10 border hover:bg-muted/50"
-                    onClick={() => window.open(`mailto:${customer.email}`, '_blank')}
+                    onClick={() => navigate("/collaboration/mail", { state: { composeTo: customer.email } })}
                   >
                     <Mail className="h-4 w-4 text-muted-foreground" />
                     <span className="truncate">Email</span>

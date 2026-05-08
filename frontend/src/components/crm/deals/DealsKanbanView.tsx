@@ -36,7 +36,13 @@ interface DealData {
   expected_close_date: string | null;
   invoice_amount?: number | null;
   companies?: { name: string } | null;
-  contacts?: { first_name: string; last_name?: string | null } | null;
+  contacts?: { 
+    first_name: string; 
+    last_name?: string | null;
+    email?: string | null;
+  } | null;
+  contact_name?: string | null;
+  deadline?: string | null;
 }
 
 // Replaced by useDealPipelineStages
@@ -138,10 +144,11 @@ export function DealsKanbanView({ deals = [], selectedStage, onStageSelect }: De
           <div
             key={stage.id}
             className={cn(
-              "flex-shrink-0 w-80 rounded-xl border transition-colors bg-muted/30",
+              "flex-shrink-0 w-80 rounded-xl border transition-colors",
+              "bg-muted/40 dark:bg-muted/20", // Improved contrast for dark mode
               dragOverColumn === stage.id
-                ? "border-primary bg-primary/5"
-                : "border-border"
+                ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                : "border-border/50"
             )}
             onDragOver={(e) => handleDragOver(e, stage.id)}
             onDragLeave={handleDragLeave}
@@ -196,7 +203,7 @@ export function DealsKanbanView({ deals = [], selectedStage, onStageSelect }: De
                 </div>
               </div>
               <p className="text-sm text-muted-foreground mt-1">
-                ${(getStageTotalValue(stage.key) / 1000).toFixed(0)}k total
+                ${getStageTotalValue(stage.key).toLocaleString()} total
               </p>
             </div>
 
@@ -212,26 +219,37 @@ export function DealsKanbanView({ deals = [], selectedStage, onStageSelect }: De
                     key={deal.id}
                     draggable
                     onDragStart={(e) => handleDragStart(e, deal.id)}
-                    className="rounded-lg border border-border bg-card p-4 cursor-grab active:cursor-grabbing hover:shadow-card transition-all group"
+                    className={cn(
+                      "rounded-lg border border-border/60 bg-card p-4 cursor-grab active:cursor-grabbing",
+                      "hover:shadow-md hover:border-primary/30 transition-all duration-200 group"
+                    )}
                   >
                     <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <GripVertical className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                        <div>
+                      <div className="flex items-start gap-2">
+                        <GripVertical className="h-4 w-4 mt-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                        <div className="flex flex-col gap-1">
                           <h4
-                            className="font-medium text-sm hover:text-primary cursor-pointer"
+                            className="font-semibold text-sm hover:text-primary cursor-pointer transition-colors"
                             onClick={() => navigate(`/crm/deals/${deal.id}`)}
+                            title="Project Name"
                           >
                             {deal.title}
                           </h4>
                           {companyName && (
-                            <p className="text-xs text-muted-foreground">{companyName}</p>
+                            <p className="text-xs font-medium text-muted-foreground" title="Customer Name">
+                              {companyName}
+                            </p>
+                          )}
+                          {(deal.contact_name || (deal.contacts ? `${deal.contacts.first_name} ${deal.contacts.last_name || ''}`.trim() : '')) && (
+                            <p className="text-xs text-muted-foreground" title="Lead/Contact Name">
+                              {deal.contact_name || (deal.contacts ? `${deal.contacts.first_name} ${deal.contacts.last_name || ''}`.trim() : '')}
+                            </p>
                           )}
                         </div>
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-7 w-7">
+                          <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0">
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -250,11 +268,20 @@ export function DealsKanbanView({ deals = [], selectedStage, onStageSelect }: De
                     </div>
 
                     <div className="space-y-3">
-                      <div className="flex items-center gap-2 text-sm">
-                        <DollarSign className="h-4 w-4 text-success" />
-                        <span className="font-semibold">
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-1 font-semibold">
+                          <DollarSign className="h-4 w-4 text-success" />
                           ${(Number(deal.value) || 0).toLocaleString()}
-                        </span>
+                        </div>
+                        {deal.deadline && (
+                          <div className="flex items-center gap-1 text-xs text-destructive font-medium" title="Deadline">
+                            <Calendar className="h-3 w-3" />
+                            {new Date(deal.deadline).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </div>
+                        )}
                       </div>
 
                       {/* Payment received indicator for Approved stage */}
@@ -276,24 +303,6 @@ export function DealsKanbanView({ deals = [], selectedStage, onStageSelect }: De
                           </div>
                         );
                       })()}
-
-                      <div>
-                        <div className="flex items-center justify-between text-xs mb-1">
-                          <span className="text-muted-foreground">Probability</span>
-                          <span className="font-medium">{prob}%</span>
-                        </div>
-                        <Progress value={prob} className="h-1.5" />
-                      </div>
-
-                      {closeDate && (
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground pt-2 border-t border-border">
-                          <Calendar className="h-3 w-3" />
-                          {new Date(closeDate).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                          })}
-                        </div>
-                      )}
                     </div>
                   </div>
                 );

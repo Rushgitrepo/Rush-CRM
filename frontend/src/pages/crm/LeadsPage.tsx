@@ -6,8 +6,9 @@ import { useUpdateLead } from "@/hooks/useCrmMutations";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { LeadsKanbanView } from "@/components/crm/leads/LeadsKanbanView";
 import { LeadsActivitiesView } from "@/components/crm/leads/LeadsActivitiesView";
 import { LeadsCalendarView } from "@/components/crm/leads/LeadsCalendarView";
@@ -44,6 +45,8 @@ type LeadRow = {
   value: number;
   type: "inbound" | "planned";
   createdAt: string;
+  responsiblePersonName?: string;
+  responsiblePersonAvatar?: string;
 };
 
 export default function LeadsPage() {
@@ -60,6 +63,8 @@ export default function LeadsPage() {
   const [advancedFilters, setAdvancedFilters] = useState<any[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
 
   const { data: dbLeads, isLoading, isError } = useLeads({
     search,
@@ -67,7 +72,9 @@ export default function LeadsPage() {
     type: type !== "all" ? type : undefined,
     workspaceId: workspaceFilter !== "all" ? workspaceFilter : undefined,
     page: currentPage,
-    limit: pageSize
+    limit: pageSize,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined
   });
   const { data: pipelineStages = [] } = usePipelineStages();
   const deleteLead = useDeleteLead();
@@ -103,6 +110,8 @@ export default function LeadsPage() {
         value: Number(l.value) || 0,
         type: inferredType,
         createdAt: l.created_at,
+        responsiblePersonName: l.responsible_person_name,
+        responsiblePersonAvatar: l.responsible_person_avatar,
       };
     });
   }, [dbLeads]);
@@ -111,28 +120,16 @@ export default function LeadsPage() {
   useEffect(() => {
     setSelectedLeads([]);
     setIsAllSelectedGlobally(false);
-  }, [search, status, type, workspaceFilter]);
+  }, [search, status, type, workspaceFilter, startDate, endDate]);
 
   const filtered = useMemo(() => {
-    const term = search.toLowerCase();
-    return leads
-      .filter((lead) => {
-        const matchesSearch = term
-          ? lead.name.toLowerCase().includes(term) ||
-          lead.company.toLowerCase().includes(term) ||
-          lead.email.toLowerCase().includes(term) ||
-          lead.source.toLowerCase().includes(term)
-          : true;
-        const matchesStatus = status === "all" || lead.status.toLowerCase() === status;
-        const matchesType = type === "all" || lead.type === type;
-        return matchesSearch && matchesStatus && matchesType;
-      })
-      .sort((a, b) => {
-        if (sortBy === "name") return a.name.localeCompare(b.name);
-        if (sortBy === "value") return b.value - a.value;
-        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
-      });
-  }, [leads, search, status, type, sortBy]);
+    // Since backend handles filtering, we just sort if needed
+    return [...leads].sort((a, b) => {
+      if (sortBy === "name") return a.name.localeCompare(b.name);
+      if (sortBy === "value") return b.value - a.value;
+      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+    });
+  }, [leads, sortBy]);
 
   const handleCreate = () => navigate("/crm/leads/create");
 
@@ -199,16 +196,22 @@ export default function LeadsPage() {
         <div className="space-y-0.5 max-w-[250px]">
           <div className="flex items-center gap-2 overflow-hidden">
             <span className="font-semibold truncate">{lead.name}</span>
-            <Badge variant="outline" className={cn(statusTone(lead.status), "whitespace-nowrap flex-shrink-0")}>
-              {lead.status || "New"}
+            <Badge variant="outline" className={cn(statusTone(lead.stage), "whitespace-nowrap flex-shrink-0 uppercase")}>
+              {lead.stage || "New"}
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground flex items-center gap-2">
             <Mail className="h-3 w-3" />
             {lead.email ? (
-              <a href={`mailto:${lead.email}`} className="hover:text-primary hover:underline transition-colors" onClick={(e) => e.stopPropagation()}>
+              <span 
+                className="hover:text-primary hover:underline transition-colors cursor-pointer" 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate("/collaboration/mail", { state: { composeTo: lead.email } });
+                }}
+              >
                 {lead.email}
-              </a>
+              </span>
             ) : (
               "—"
             )}
@@ -241,6 +244,30 @@ export default function LeadsPage() {
         <span className="font-semibold">
           {lead.value ? `$${Number(lead.value).toLocaleString()}` : "—"}
         </span>
+      ),
+    },
+    {
+      key: "responsible",
+      header: "Responsible",
+      render: (lead) => (
+        <div className="flex items-center gap-2">
+          {lead.responsiblePersonName ? (
+            <>
+              <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden border border-border/50">
+                {lead.responsiblePersonAvatar ? (
+                  <img src={lead.responsiblePersonAvatar} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <span className="text-[10px] font-bold text-primary">
+                    {lead.responsiblePersonName.split(' ').map(n => n[0]).join('').toUpperCase()}
+                  </span>
+                )}
+              </div>
+              <span className="text-xs font-medium truncate max-w-[100px]">{lead.responsiblePersonName}</span>
+            </>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+        </div>
       ),
     },
     {
@@ -362,7 +389,7 @@ export default function LeadsPage() {
       <DataToolbar
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Search name, company, email, source"
+        searchPlaceholder="Search everything (lead, company, contact, email, notes...)"
         filters={[
           {
             label: "Status",
@@ -404,15 +431,37 @@ export default function LeadsPage() {
         ]}
         onViewChange={(v) => setView(v as ViewType)}
       >
-        <div className="flex gap-2 items-center">
-          <WorkspaceFilter
-            value={workspaceFilter}
-            onChange={setWorkspaceFilter}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] font-medium text-muted-foreground uppercase px-1">From</span>
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="h-8 w-[130px] bg-muted/40 border-border/60 text-xs"
+              />
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] font-medium text-muted-foreground uppercase px-1">To</span>
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="h-8 w-[130px] bg-muted/40 border-border/60 text-xs"
+              />
+            </div>
+          </div>
 
-          />
-          <Button variant="outline" size="sm" onClick={() => { setType("all"); setWorkspaceFilter("all"); }}>
-            Reset Filters
-          </Button>
+          <div className="flex gap-2 items-center">
+            <WorkspaceFilter
+              value={workspaceFilter}
+              onChange={setWorkspaceFilter}
+            />
+            <Button variant="outline" size="sm" onClick={() => { setType("all"); setWorkspaceFilter("all"); setStartDate(""); setEndDate(""); }}>
+              Reset Filters
+            </Button>
+          </div>
         </div>
       </DataToolbar>
 

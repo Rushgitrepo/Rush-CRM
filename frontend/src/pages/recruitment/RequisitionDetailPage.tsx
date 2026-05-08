@@ -190,9 +190,12 @@ export default function RequisitionDetailPage() {
                       </div>
                       <div className="flex items-center gap-2 mt-1">
                         <Mail className="h-4 w-4 text-muted-foreground" />
-                        <a href={`mailto:${requisition.requested_by_email}`} className="text-sm text-primary hover:underline">
+                        <span 
+                          className="text-sm text-primary hover:underline cursor-pointer"
+                          onClick={() => navigate("/collaboration/mail", { state: { composeTo: requisition.requested_by_email } })}
+                        >
                           {requisition.requested_by_email}
-                        </a>
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -288,9 +291,12 @@ export default function RequisitionDetailPage() {
                         </div>
                         {step.approver_name && <p className="text-sm text-muted-foreground">{step.approver_name}</p>}
                         {step.approver_email && (
-                          <a href={`mailto:${step.approver_email}`} className="text-xs text-primary hover:underline">
+                          <span 
+                            className="text-xs text-primary hover:underline cursor-pointer"
+                            onClick={() => navigate("/collaboration/mail", { state: { composeTo: step.approver_email } })}
+                          >
                             {step.approver_email}
-                          </a>
+                          </span>
                         )}
                         {step.action_date && (
                           <p className="text-xs text-muted-foreground mt-1">

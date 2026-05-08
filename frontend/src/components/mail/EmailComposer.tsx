@@ -30,9 +30,10 @@ interface EmailComposerProps {
   mailboxes: any[];
   replyTo?: any;
   forwardEmail?: any;
+  initialTo?: string;
 }
 
-export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardEmail }: EmailComposerProps) {
+export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardEmail, initialTo }: EmailComposerProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [showCcBcc, setShowCcBcc] = useState(false);
@@ -43,7 +44,7 @@ export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardE
 
   const [form, setForm] = useState({
     mailbox_id: mailboxes[0]?.id || "",
-    to: replyTo?.from_email || "",
+    to: replyTo?.from_email || initialTo || "",
     cc: "",
     bcc: "",
     subject: replyTo

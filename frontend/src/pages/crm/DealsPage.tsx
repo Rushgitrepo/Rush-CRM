@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/crm/ui/PageHeader";
 import { DataToolbar } from "@/components/crm/ui/DataToolbar";
 import { EntityTable, EntityColumn } from "@/components/crm/ui/EntityTable";
@@ -44,6 +45,8 @@ type DealRow = {
   phone: string;
   createdAt: string;
   projectType?: string;
+  responsiblePersonName?: string;
+  responsiblePersonAvatar?: string;
 };
 
 export default function DealsPage() {
@@ -58,13 +61,17 @@ export default function DealsPage() {
   const [pageSize, setPageSize] = useState(100);
   const [currentPage, setCurrentPage] = useState(1);
   const [isAllSelectedGlobally, setIsAllSelectedGlobally] = useState(false);
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
 
   const { data: dbDeals, isLoading, isError } = useDeals({
     search,
     stage: stage !== "all" ? stage : undefined,
     status: status !== "all" ? status : undefined,
     page: currentPage,
-    limit: pageSize
+    limit: pageSize,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined
   });
   const { data: pipelineStages = [] } = useDealPipelineStages();
   const deleteDeal = useDeleteDeal();
@@ -128,7 +135,7 @@ export default function DealsPage() {
   useEffect(() => {
     setSelectedDeals([]);
     setIsAllSelectedGlobally(false);
-  }, [search, status, stage]);
+  }, [search, status, stage, startDate, endDate]);
 
   const deals: DealRow[] = useMemo(() => {
     // Handle different response formats from the API
@@ -165,30 +172,20 @@ export default function DealsPage() {
         phone: phone,
         createdAt: d.created_at,
         projectType: d.project_type,
+        responsiblePersonName: d.responsible_person_name,
+        responsiblePersonAvatar: d.responsible_person_avatar,
       };
     });
   }, [dbDeals]);
 
   const filtered = useMemo(() => {
-    const term = search.toLowerCase();
-    return deals
-      .filter((deal) => {
-        const matchesSearch = term
-          ? deal.name.toLowerCase().includes(term) ||
-          deal.company.toLowerCase().includes(term) ||
-          deal.contact.toLowerCase().includes(term) ||
-          deal.email.toLowerCase().includes(term)
-          : true;
-        const matchesStage = stage === "all" || deal.stage === stage;
-        const matchesStatus = status === "all" || deal.status.toLowerCase() === status;
-        return matchesSearch && matchesStage && matchesStatus;
-      })
-      .sort((a, b) => {
-        if (sortBy === "name") return a.name.localeCompare(b.name);
-        if (sortBy === "value") return b.value - a.value;
-        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
-      });
-  }, [deals, search, stage, status, sortBy]);
+    // Since backend handles filtering, we just sort if needed
+    return [...deals].sort((a, b) => {
+      if (sortBy === "name") return a.name.localeCompare(b.name);
+      if (sortBy === "value") return b.value - a.value;
+      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+    });
+  }, [deals, sortBy]);
 
   const columns: EntityColumn<DealRow>[] = [
     {
@@ -206,9 +203,15 @@ export default function DealsPage() {
           <p className="text-xs text-muted-foreground flex items-center gap-2">
             <Mail className="h-3 w-3" />
             {deal.email ? (
-              <a href={`mailto:${deal.email}`} className="hover:text-primary hover:underline transition-colors" onClick={(e) => e.stopPropagation()}>
+              <span 
+                className="hover:text-primary hover:underline transition-colors cursor-pointer" 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate("/collaboration/mail", { state: { composeTo: deal.email } });
+                }}
+              >
                 {deal.email}
-              </a>
+              </span>
             ) : (
               "—"
             )}
@@ -252,12 +255,36 @@ export default function DealsPage() {
       render: (deal) => <span className="font-semibold">{deal.value ? `$${Number(deal.value).toLocaleString()}` : "—"}</span>,
     },
     {
-      key: "status",
-      header: "Status",
+      key: "stage",
+      header: "Stage",
       render: (deal) => (
-        <Badge variant="outline" className={statusTone(deal.status)}>
-          {deal.status || "Open"}
+        <Badge variant="outline" className={statusTone(deal.stage)}>
+          {deal.stage || "Open"}
         </Badge>
+      ),
+    },
+    {
+      key: "responsible",
+      header: "Responsible",
+      render: (deal) => (
+        <div className="flex items-center gap-2">
+          {deal.responsiblePersonName ? (
+            <>
+              <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden border border-border/50">
+                {deal.responsiblePersonAvatar ? (
+                  <img src={deal.responsiblePersonAvatar} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <span className="text-[10px] font-bold text-primary">
+                    {deal.responsiblePersonName.split(' ').map(n => n[0]).join('').toUpperCase()}
+                  </span>
+                )}
+              </div>
+              <span className="text-xs font-medium truncate max-w-[100px]">{deal.responsiblePersonName}</span>
+            </>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+        </div>
       ),
     },
     {
@@ -362,7 +389,7 @@ export default function DealsPage() {
       <DataToolbar
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Search deal, company, contact, email"
+        searchPlaceholder="Search everything (deal, company, contact, email, notes...)"
         filters={[
           {
             label: "Stage",
@@ -402,10 +429,30 @@ export default function DealsPage() {
           { id: "kanban", label: "Kanban" },
           { id: "activities", label: "Activities" },
           { id: "calendar", label: "Calendar" },
-          { id: "automation", label: "Automation" },
+          { id: "automation", label: "Automation", icon: <Sparkles className="h-4 w-4" /> },
         ]}
         onViewChange={(v) => setView(v as ViewType)}
       >
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] font-medium text-muted-foreground uppercase px-1">From</span>
+            <Input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="h-8 w-[130px] bg-muted/40 border-border/60 text-xs"
+            />
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] font-medium text-muted-foreground uppercase px-1">To</span>
+            <Input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="h-8 w-[130px] bg-muted/40 border-border/60 text-xs"
+            />
+          </div>
+        </div>
       </DataToolbar>
 
       {view === "list" && (

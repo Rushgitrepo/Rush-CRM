@@ -2,10 +2,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usersApi, rolesApi } from '@/lib/api';
 import { toast } from 'sonner';
 
-export function useOrganizationProfiles() {
+export function useOrganizationProfiles(params?: { includeSelf?: boolean | string; includeSuperAdmin?: boolean | string }) {
   return useQuery({
-    queryKey: ['profiles'],
-    queryFn: () => usersApi.getAll(),
+    queryKey: ['profiles', params],
+    queryFn: () => usersApi.getAll(params),
   });
 }
 
