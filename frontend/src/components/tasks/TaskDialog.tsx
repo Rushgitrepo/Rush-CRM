@@ -34,7 +34,9 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { useProjectMembers, type Project, type Task } from "@/hooks/useTasks";
+import { useProjectMembers, useProject, type Project, type Task } from "@/hooks/useTasks";
+import { MemberSearchSelect } from "@/components/tasks/MemberSearchSelect";
+import { ProjectSearchSelect } from "@/components/tasks/ProjectSearchSelect";
 
 interface TaskDialogProps {
   open: boolean;
@@ -92,7 +94,7 @@ export function TaskDialog({
         can_assign: (task as any).can_assign ?? (task as any).canAssign ?? false,
       });
     } else {
-      // Reset form for new task with initial values
+      // Reset form for new task — default assignee = None
       setFormData({
         title: "",
         description: "",
@@ -112,6 +114,8 @@ export function TaskDialog({
     }
   }, [task, initialStatus, initialDate, open]);
 
+  // (no auto self-assign — user manually selects assignee)
+
   const handleSubmit = () => {
     if (!formData.title.trim()) return;
 
@@ -127,56 +131,48 @@ export function TaskDialog({
   const isAdmin = userRole?.role === 'admin' || userRole?.role === 'super_admin';
   const isManager = userRole?.role === 'manager' || userRole?.role === 'hr_manager' || userRole?.role === 'inventory_manager';
 
-  const currentProject = projects.find(p => p.id === formData.project_id);
+  // Agar task ka project_id projects list mein nahi (user member nahi), to separately fetch karo
+  const taskProjectId = task ? ((task as any).project_id || (task as any).projectId || "") : "";
+  const projectExistsInList = projects.some(p => p.id === taskProjectId);
+  const { data: fetchedProject } = useProject(
+    taskProjectId && !projectExistsInList ? taskProjectId : ""
+  );
+
+  // Merged projects list — task ka project hamesha dikhega chahe user member ho ya na ho
+  const allProjects: Project[] = fetchedProject && !projectExistsInList
+    ? [fetchedProject, ...projects]
+    : projects;
+
+  const currentProject = allProjects.find(p => p.id === formData.project_id);
 
   // Task creator check (for editing core fields)
   const isTaskCreator = !task || task.created_by === profile?.id;
   const canEditCoreFields = isAdmin || isTaskCreator;
 
-  // Project owner/creator check — project banane wala hamesha assign kar sakta hai
-  const isProjectOwner = Boolean(
-    currentProject?.created_by === profile?.id ||
-    currentProject?.owner_id === profile?.id
-  );
-
-  // Project delegation:
-  // - Existing task: use joined project_can_assign (most accurate)
-  // - New task: use currentProject.can_assign from projects list
-  const projectDelegationAllowed = Boolean(
+  // Delegation check — task level (existing task) ya project level (new task)
+  const delegationAllowed = Boolean(
     task
-      ? ((task as any)?.project_can_assign ?? currentProject?.can_assign ?? false)
-      : (currentProject?.can_assign ?? false)
+      ? task.can_assign === true
+      : false  // new task pe delegation default OFF
   );
 
-  // Is current user the project manager (not owner)?
-  const isProjectManager = Boolean(
-    (task as any)?.project_manager_id === profile?.id ||
-    currentProject?.manager_id === profile?.id
-  );
-
-  // Can modify assignment:
-  // - Admin/super_admin: always YES
-  // - System manager roles: always YES
-  // - Project owner/creator: always YES (jo project banata hai wo hamesha assign kar sakta hai)
-  // - Project manager: only if delegation is ON
-  // - Task assignee: only if task-level can_assign is ON
+  // ─── UNIFORM ASSIGNMENT RULE (project task + personal task dono same) ───
+  // Assign kar sakta hai agar:
+  // 1. Admin / super_admin
+  // 2. System manager role
+  // 3. Task creator (jo task banaya)
+  // 4. Assignee — sirf tab jab delegation ON ho (can_assign = true)
   const canModifyAssignment =
     isAdmin ||
     isManager ||
-    isProjectOwner ||
-    (isProjectManager && projectDelegationAllowed) ||
-    (!!task && task.assigned_to === profile?.id && !!task.can_assign);
+    isTaskCreator ||
+    (!!task && task.assigned_to === profile?.id && delegationAllowed);
 
-  // Can grant/see delegation toggle:
-  // - Admin/super_admin: always YES
-  // - System manager roles: always YES
-  // - Project owner: always YES
-  // - Project manager with delegation ON: YES
+  // Delegation toggle dikhao sirf admin/manager/task-creator ko
   const canGrantDelegation =
     isAdmin ||
     isManager ||
-    isProjectOwner ||
-    (isProjectManager && projectDelegationAllowed);
+    isTaskCreator;
 
   const { data: projectMembers = [] } = useProjectMembers(formData.project_id || null);
   const displayMembers = projectMembers.length > 0 ? projectMembers : members;
@@ -232,24 +228,14 @@ export function TaskDialog({
                 <FolderKanban className="h-4 w-4" />
                 Project
               </Label>
-              <Select
-                value={formData.project_id}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, project_id: value })
+              <ProjectSearchSelect
+                projects={allProjects}
+                value={formData.project_id || ""}
+                onChange={(val) =>
+                  setFormData({ ...formData, project_id: val })
                 }
                 disabled={!canEditCoreFields}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select project" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={project.id}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             </div>
 
             {/* Priority */}
@@ -290,29 +276,16 @@ export function TaskDialog({
                 )}
               </Label>
               {canModifyAssignment ? (
-                <Select
-                  value={formData.assigned_to || "none"}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, assigned_to: value === "none" ? "" : value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Assign to..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {displayMembers.map((member: any) => (
-                      <SelectItem key={member.id} value={member.id}>
-                        {member.full_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MemberSearchSelect
+                  members={displayMembers}
+                  value={formData.assigned_to || ""}
+                  onChange={(val) => setFormData({ ...formData, assigned_to: val })}
+                />
               ) : (
                 <div className="flex h-10 w-full items-center justify-between rounded-md border border-red-500/40 bg-red-500/5 px-3 py-2 text-sm cursor-not-allowed opacity-60">
                   <span className="text-muted-foreground">
                     {formData.assigned_to
-                      ? displayMembers.find((m: any) => m.id === formData.assigned_to)?.full_name || "Assigned"
+                      ? displayMembers.find((m: any) => m.id === formData.assigned_to)?.full_name || "No Assign Permission"
                       : "No permission to assign"}
                   </span>
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground/50"><path d="m6 9 6 6 6-6" /></svg>
