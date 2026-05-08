@@ -131,8 +131,8 @@ export function DealsKanbanView({ deals = [], selectedStage, onStageSelect }: De
   return (
     <div className="flex gap-4 overflow-x-auto pb-4">
       {stages.map((stage) => {
-        const stageDeals = getStageDeals(stage.id);
-        if (selectedStage && selectedStage !== stage.id) return null;
+        const stageDeals = getStageDeals(stage.key);
+        if (selectedStage && selectedStage !== stage.key) return null;
 
         return (
           <div

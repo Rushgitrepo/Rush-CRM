@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   ArrowLeft, Trash2, Save, ArrowRightLeft, Phone, Mail, Globe,
   MapPin, Building2, User, Calendar, DollarSign, Tag, FileText,
@@ -25,16 +26,15 @@ import { CustomFieldInput } from "@/components/crm/CustomFieldInput";
 import { GripVertical } from "lucide-react";
 import { FieldDragWrapper, DroppableField } from "@/components/crm/FieldDragWrapper";
 import { DroppableSection } from "@/components/crm/DroppableSection";
-import { mergeFieldsWithTemplates, saveCustomFieldTemplates } from "@/utils/crm/customFieldsRegistry";
+import { useCustomFieldTemplates, useSaveCustomFieldTemplates, useLead, useUpdateLead, useDeleteLead, useLeadStats } from "@/hooks/useCrmData";
+import { useConvertLeadToDeal } from "@/hooks/useCrmMutations";
+import { mergeFieldsWithTemplatesSync } from "@/utils/crm/customFieldsRegistry";
 import { sanitizePayload } from "@/utils/crm/sanitize";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
 import { WorkspaceShareModal } from "@/components/crm/leads/WorkspaceShareModal";
 import { DeleteConfirmationDialog } from "@/components/crm/DeleteConfirmationDialog";
-import { useLead, useInteractionHistory } from "@/hooks/useCrmInteractions";
-import { useUpdateLead, useDeleteLead, useConvertLeadToDeal } from "@/hooks/useCrmMutations";
-import { useCreateActivity } from "@/hooks/useCrmInteractions";
-import { useLeadStats } from "@/hooks/useCrmData";
+import { useInteractionHistory, useCreateActivity } from "@/hooks/useCrmInteractions";
 import { useOrganizationProfiles } from "@/hooks/useTenantQuery";
 import { usePipelineStages, useCreatePipelineStage, useDeletePipelineStage, useUpdatePipelineStage } from "@/hooks/usePipelineStages";
 import { useSoftphone } from "@/contexts/SoftphoneContext";
@@ -273,11 +273,11 @@ const defaultPipelineStages = [
   {
     id: "unqualified",
     label: "Unqualified",
-    color: "bg-red-500",
-    bgColor: "bg-red-50 dark:bg-red-900/20",
-    textColor: "text-red-700",
-    borderColor: "border-red-200",
-    icon: XCircle
+    color: "bg-emerald-500",
+    bgColor: "bg-emerald-50 dark:bg-emerald-900/20",
+    textColor: "text-emerald-700",
+    borderColor: "border-emerald-200",
+    icon: CheckCircle
   },
 ];
 
@@ -294,6 +294,7 @@ const getStatusIcon = (status: string) => {
 export default function LeadDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { profile } = useAuth();
   const { data: lead, isLoading, error } = useLead(id!);
   const updateLead = useUpdateLead();
   const deleteLead = useDeleteLead();
@@ -320,6 +321,9 @@ export default function LeadDetailPage() {
   const updateStage = useUpdatePipelineStage();
 
   const [stageToDelete, setStageToDelete] = useState<string | null>(null);
+
+  const { data: templates, isLoading: templatesLoading } = useCustomFieldTemplates('lead');
+  const saveTemplates = useSaveCustomFieldTemplates();
 
   // Combine DB stages with visual fallback data (colors/icons)
   const pipelineStages = dbStages.map(s => {
@@ -410,28 +414,21 @@ export default function LeadDetailPage() {
         createdAt: lead.created_at && isValid(new Date(lead.created_at)) ? format(new Date(lead.created_at), "yyyy-MM-dd'T'HH:mm") : "",
       });
 
-      if (lead.custom_fields && typeof lead.custom_fields === 'object') {
-        const fields = Object.entries(lead.custom_fields).map(([k, v]) => {
-          if (v && typeof v === 'object' && 'value' in v) {
-            return { 
-              id: `field-${k.replace(/\s+/g, '-').toLowerCase()}`, 
-              key: k, 
-              value: String((v as any).value), 
-              type: (v as any).type || 'string',
-              sectionId: (v as any).sectionId 
-            };
-          }
-          return { id: `field-${k.replace(/\s+/g, '-').toLowerCase()}`, key: k, value: String(v), type: 'string', sectionId: 'custom-fields' };
-        });
+      if (lead && templates) {
+        const dbCustomFields = lead.custom_fields || {};
+        const fields = Object.entries(dbCustomFields).map(([k, v]: [string, any]) => ({
+          id: `field-${k.replace(/\s+/g, '-').toLowerCase()}`,
+          key: k,
+          value: typeof v === 'object' ? v.value : String(v),
+          type: typeof v === 'object' ? v.type : 'string',
+          sectionId: typeof v === 'object' ? v.sectionId : 'custom-fields'
+        }));
         // Merge with templates to show empty "standard" custom fields
-        const mergedFields = mergeFieldsWithTemplates('lead', fields);
+        const mergedFields = mergeFieldsWithTemplatesSync(fields, templates);
         setCustomFields(mergedFields);
-      } else {
-        // No custom fields on record, show templates
-        setCustomFields(mergeFieldsWithTemplates('lead', []));
       }
     }
-  }, [lead]);
+  }, [lead, templates]);
 
   const handleSave = () => {
     const changes: Record<string, unknown> = {};
@@ -452,7 +449,7 @@ export default function LeadDetailPage() {
     const customFieldsChanged = JSON.stringify(customFieldsObj) !== JSON.stringify(leadCustomFields);
 
     if (Object.keys(changes).length === 0 && !customFieldsChanged) {
-      saveCustomFieldTemplates('lead', customFields);
+      saveTemplates.mutate({ entityType: 'lead', templates: customFields });
       setEditing(false);
       return;
     }
@@ -469,7 +466,7 @@ export default function LeadDetailPage() {
       customFields: customFieldsObj
     }), {
       onSuccess: () => {
-        saveCustomFieldTemplates('lead', customFields);
+        saveTemplates.mutate({ entityType: 'lead', templates: customFields });
         setEditing(false);
       },
     });
@@ -517,7 +514,7 @@ export default function LeadDetailPage() {
     setCustomFields(prev => {
       const updated = updatedFields || prev.map(f => f.id === fieldKey ? { ...f, sectionId } : f);
       // Persist this change globally to the registry so new leads follow this layout
-      saveCustomFieldTemplates('lead', updated);
+      saveTemplates.mutate({ entityType: 'lead', templates: updated });
       return updated;
     });
   };
@@ -853,8 +850,9 @@ export default function LeadDetailPage() {
                         <p className="font-semibold text-sm text-foreground flex-1">Manage Workspace Access</p>
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-orange-50 group transition-all"
-                        onSelect={() => {
+                        className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-emerald-50 group transition-all"
+                        onClick={(e) => {
+                          e.stopPropagation();
                           updateLead.mutate({ id: lead.id, status: 'unqualified', stage: 'unqualified' }, {
                             onSuccess: () => {
                               toast.success("Lead marked as unqualified");
@@ -869,10 +867,10 @@ export default function LeadDetailPage() {
                           });
                         }}
                       >
-                        <div className="p-2 bg-orange-50 dark:bg-orange-900/20 rounded-md group-hover:bg-orange-100 dark:group-hover:bg-orange-900/30 transition-colors">
-                          <XCircle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                        <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-md group-hover:bg-emerald-100 dark:group-hover:bg-emerald-900/30 transition-colors">
+                          <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                         </div>
-                        <p className="font-semibold text-sm text-orange-600 dark:text-orange-400 flex-1">Mark as Unqualified</p>
+                        <p className="font-semibold text-sm text-emerald-600 dark:text-emerald-400 flex-1">Mark as Unqualified</p>
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer hover:bg-red-50 text-red-600 transition-all group"
@@ -933,7 +931,7 @@ export default function LeadDetailPage() {
                       isActive && !isUnqualified
                         ? "bg-blue-600 border-blue-600 text-white shadow-lg transform scale-105"
                         : isActive && isUnqualified
-                          ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-400 shadow-lg"
+                          ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-900/50 text-emerald-700 dark:text-emerald-400 shadow-lg"
                           : isPassed && !isUnqualified
                             ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-900/50 text-emerald-700 dark:text-emerald-400"
                             : "   hover:bg-muted/50 transition-colors"
@@ -945,7 +943,7 @@ export default function LeadDetailPage() {
                         isActive && !isUnqualified
                           ? "bg-blue-600 text-white shadow-md"
                           : isActive && isUnqualified
-                            ? "bg-red-500 text-white shadow-md"
+                            ? "bg-emerald-500 text-white shadow-md"
                             : isPassed && !isUnqualified
                               ? "bg-emerald-500 text-white shadow-md"
                               : "bg-muted text-muted-foreground group-hover:bg-muted-foreground"

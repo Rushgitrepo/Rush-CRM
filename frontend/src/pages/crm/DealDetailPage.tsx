@@ -51,11 +51,11 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useSoftphone } from "@/contexts/SoftphoneContext";
-import { toast } from "sonner";
-import { format, isValid } from "date-fns";
-import { getCustomFieldTemplates, saveCustomFieldTemplates, mergeFieldsWithTemplates } from "@/utils/crm/customFieldsRegistry";
+import { useCustomFieldTemplates, useSaveCustomFieldTemplates } from "@/hooks/useCrmData";
+import { mergeFieldsWithTemplatesSync } from "@/utils/crm/customFieldsRegistry";
 import { sanitizePayload } from "@/utils/crm/sanitize";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { format, isValid } from "date-fns";
 
 const fallbackStages = [
   {
@@ -306,7 +306,7 @@ const getStatusIcon = (status: string) => {
 export default function DealDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user, userRole } = useAuth();
+  const { user, userRole, profile } = useAuth();
   const { data: deal, isLoading } = useDeal(id!);
   const updateDeal = useUpdateDeal();
   const deleteDeal = useDeleteDeal();
@@ -320,6 +320,9 @@ export default function DealDetailPage() {
   const { data: contacts } = useContacts();
   const { data: companies } = useCompanies();
   const { data: signingParties } = useSigningParties();
+  const { data: templates, isLoading: templatesLoading } = useCustomFieldTemplates('deal');
+  const saveTemplates = useSaveCustomFieldTemplates();
+
   const { data: dealStats } = useDealStats();
   
   const [showStageManager, setShowStageManager] = useState(false);
@@ -418,35 +421,31 @@ export default function DealDetailPage() {
   const stageOptions = activePipelineStages.map(s => ({ value: s.id, label: s.label }));
 
   useEffect(() => {
-    if (deal) {
-      if (deal.custom_fields && typeof deal.custom_fields === 'object') {
-        const fields = Object.entries(deal.custom_fields).map(([k, v]) => {
-          if (v && typeof v === 'object' && 'value' in v) {
-            const rawSectionId = (v as any).sectionId;
-            let sectionId = rawSectionId;
-            // Map lead section IDs to deal section IDs
-            if (rawSectionId === 'lead-company-details') sectionId = 'company-info';
-            if (rawSectionId === 'activity-tracking') sectionId = 'deal-info';
-            if (rawSectionId === 'qualification-opportunity') sectionId = 'deal-info';
-            if (rawSectionId === 'source-section') sectionId = 'more-section';
+    if (deal && templates) {
+      const dbCustomFields = (deal.custom_fields as any) || {};
+      const fields = Object.entries(dbCustomFields).map(([k, v]: [string, any]) => {
+        if (v && typeof v === 'object' && 'value' in v) {
+          const rawSectionId = (v as any).sectionId;
+          let sectionId = rawSectionId;
+          // Map lead section IDs to deal section IDs
+          if (rawSectionId === 'lead-company-details') sectionId = 'company-info';
+          if (rawSectionId === 'activity-tracking') sectionId = 'deal-info';
+          if (rawSectionId === 'qualification-opportunity') sectionId = 'deal-info';
+          if (rawSectionId === 'source-section') sectionId = 'more-section';
 
-            return { 
-              id: `field-${k.replace(/\s+/g, '-').toLowerCase()}`, 
-              key: k, 
-              value: String((v as any).value), 
-              type: (v as any).type || 'string',
-              sectionId: sectionId || 'custom-fields'
-            };
-          }
-          return { id: `field-${k.replace(/\s+/g, '-').toLowerCase()}`, key: k, value: String(v), type: 'string', sectionId: 'custom-fields' };
-        });
-        // Merge with templates to show empty "standard" custom fields
-        const mergedFields = mergeFieldsWithTemplates('deal', fields);
-        setCustomFields(mergedFields);
-      } else {
-        // No custom fields on record, show templates
-        setCustomFields(mergeFieldsWithTemplates('deal', []));
-      }
+          return { 
+            id: `field-${k.replace(/\s+/g, '-').toLowerCase()}`, 
+            key: k, 
+            value: String((v as any).value), 
+            type: (v as any).type || 'string',
+            sectionId: sectionId || 'custom-fields'
+          };
+        }
+        return { id: `field-${k.replace(/\s+/g, '-').toLowerCase()}`, key: k, value: String(v), type: 'string', sectionId: 'custom-fields' };
+      });
+      // Merge with templates to show empty "standard" custom fields
+      const mergedFields = mergeFieldsWithTemplatesSync(fields, templates);
+      setCustomFields(mergedFields);
       setForm({
         ...deal,
         expected_close_date: deal.expected_close_date && isValid(new Date(deal.expected_close_date)) ? format(new Date(deal.expected_close_date), "yyyy-MM-dd") : "",
@@ -454,7 +453,7 @@ export default function DealDetailPage() {
         createdAt: deal.created_at && isValid(new Date(deal.created_at)) ? format(new Date(deal.created_at), "yyyy-MM-dd'T'HH:mm") : "",
       });
     }
-  }, [deal]);
+  }, [deal, templates]);
 
   if (isLoading) {
     return (
@@ -505,7 +504,7 @@ export default function DealDetailPage() {
     const customFieldsChanged = JSON.stringify(customFieldsObj) !== JSON.stringify(dealCustomFields);
 
     if (Object.keys(changes).length === 0 && !customFieldsChanged) {
-      saveCustomFieldTemplates('deal', customFields);
+      saveTemplates.mutate({ entityType: 'deal', templates: customFields });
       setEditing(false);
       return;
     }
@@ -520,7 +519,7 @@ export default function DealDetailPage() {
       customFields: customFieldsObj
     }), {
       onSuccess: () => {
-        saveCustomFieldTemplates('deal', customFields);
+        saveTemplates.mutate({ entityType: 'deal', templates: customFields });
         setEditing(false);
         createActivity.mutate({
           entityType: 'deal',
@@ -589,7 +588,7 @@ export default function DealDetailPage() {
     setCustomFields(prev => {
       const updated = updatedFields || prev.map(f => f.id === fieldKey ? { ...f, sectionId } : f);
       // Persist this change globally to the registry so new deals follow this layout
-      saveCustomFieldTemplates('deal', updated);
+      saveTemplates.mutate({ entityType: 'deal', templates: updated });
       return updated;
     });
   };

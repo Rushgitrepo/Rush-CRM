@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { leadsApi, dealsApi, contactsApi, companiesApi, customersApi, vendorsApi, signingPartiesApi, productsApi, stockApi, warehousesApi, purchaseOrdersApi, salesOrdersApi, usersApi, authApi } from '@/lib/api';
+import { leadsApi, dealsApi, contactsApi, companiesApi, customersApi, vendorsApi, signingPartiesApi, productsApi, stockApi, warehousesApi, purchaseOrdersApi, salesOrdersApi, usersApi, authApi, customFieldTemplatesApi } from '@/lib/api';
 import { toast } from 'sonner';
 
 // Cache configuration for better performance
@@ -961,6 +961,29 @@ export function useUsers(params?: { search?: string }) {
     queryKey: ['users', params],
     queryFn: () => usersApi.getAll(params),
     staleTime: STALE_TIME,
+  });
+}
+
+export function useCustomFieldTemplates(entityType: 'lead' | 'deal') {
+  return useQuery({
+    queryKey: ['custom-field-templates', entityType],
+    queryFn: () => customFieldTemplatesApi.get(entityType),
+    staleTime: STALE_TIME,
+    gcTime: GC_TIME,
+  });
+}
+
+export function useSaveCustomFieldTemplates() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ entityType, templates }: { entityType: 'lead' | 'deal', templates: any[] }) =>
+      customFieldTemplatesApi.save(entityType, templates),
+    onSuccess: (_, { entityType }) => {
+      queryClient.invalidateQueries({ queryKey: ['custom-field-templates', entityType] });
+      toast.success('Custom field layout updated');
+    },
+    onError: (error: Error) => toast.error(error.message),
   });
 }
 

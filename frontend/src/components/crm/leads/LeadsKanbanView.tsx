@@ -56,6 +56,7 @@ interface Column {
 interface LeadsKanbanViewProps {
   leads: Lead[];
   onCreateLead?: () => void;
+  selectedStage?: string | null;
 }
 
 const colorOptions = [
@@ -64,7 +65,7 @@ const colorOptions = [
   "bg-teal-500", "bg-red-500", "bg-yellow-500", "bg-green-500"
 ];
 
-export function LeadsKanbanView({ leads, onCreateLead }: LeadsKanbanViewProps) {
+export function LeadsKanbanView({ leads, onCreateLead, selectedStage }: LeadsKanbanViewProps) {
   const navigate = useNavigate();
   const updateLead = useUpdateLead();
   const deleteLead = useDeleteLead();
@@ -221,6 +222,7 @@ export function LeadsKanbanView({ leads, onCreateLead }: LeadsKanbanViewProps) {
       </div>
       <div className="flex gap-4 overflow-x-auto pb-4">
       {columns.map((column) => {
+        if (selectedStage && selectedStage !== "all" && selectedStage !== column.key) return null;
         const stageLeads = getStageLeads(column.key);
         const totalValue = stageLeads.reduce((sum, lead) => sum + lead.value, 0);
 
@@ -228,21 +230,21 @@ export function LeadsKanbanView({ leads, onCreateLead }: LeadsKanbanViewProps) {
           <div
             key={column.id}
             className={cn(
-              "flex-shrink-0 w-80 rounded-xl border border-slate-200 transition-colors shadow-sm",
+              "flex-shrink-0 w-80 rounded-xl border transition-colors shadow-sm",
               dragOverColumn === column.id
                 ? "border-primary bg-slate-50"
-                : "border-slate-200"
+                : ""
             )}
             onDragOver={(e) => handleDragOver(e, column.id)}
             onDragLeave={handleDragLeave}
             onDrop={(e) => handleDrop(e, column.id)}
           >
             {/* Column Header */}
-            <div className="p-4 border-b border-slate-200 bg-slate-50/70">
+            <div className="p-4 border-b">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className={`w-3 h-3 rounded-full ${column.color}`} />
-                  <h3 className="font-semibold text-slate-800">{column.label}</h3>
+                  <h3 className="font-semibold">{column.label}</h3>
                   <Badge variant="secondary" className="rounded-full">
                     {stageLeads.length}
                   </Badge>

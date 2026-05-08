@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Sparkles, Mail, Phone, Building2, Filter, Download, Upload, MoreHorizontal, Edit, Trash2, Eye, Globe, XCircle } from "lucide-react";
+import { Plus, Sparkles, Mail, Phone, Building2, Filter, Download, Upload, MoreHorizontal, Edit, Trash2, Eye, Globe, XCircle, CheckCircle } from "lucide-react";
 import { useLeads, useDeleteLead, useBulkDeleteLeads } from "@/hooks/useCrmData";
 import { useUpdateLead } from "@/hooks/useCrmMutations";
 import { Button } from "@/components/ui/button";
@@ -20,12 +20,13 @@ import { AdvancedSearch } from "@/components/crm/ui/AdvancedSearch";
 import { useCustomDialog } from "@/contexts/DialogContext";
 import { toast } from "sonner";
 import { ClickToCall } from "@/components/telephony/ClickToCall";
+import { usePipelineStages } from "@/hooks/usePipelineStages";
 
 const statusTone = (status?: string) => {
   const s = (status || "").toLowerCase();
   if (s === "qualified") return "bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50";
   if (s === "contacted") return "bg-primary/10 dark:bg-primary/20 text-primary border-primary/20 dark:border-primary/50";
-  if (s === "unqualified") return "bg-rose-500/10 dark:bg-rose-500/20 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900/50";
+  if (s === "unqualified") return "bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50";
   return "bg-amber-500/10 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-900/50";
 };
 
@@ -65,6 +66,7 @@ export default function LeadsPage() {
     page: currentPage,
     limit: pageSize
   });
+  const { data: pipelineStages = [] } = usePipelineStages();
   const deleteLead = useDeleteLead();
   const bulkDeleteLeads = useBulkDeleteLeads();
   const updateLead = useUpdateLead();
@@ -93,6 +95,7 @@ export default function LeadsPage() {
         phone: l.phone || l.company_phone || "",
         company: l.company_name || l.company || "",
         status: l.status || "new",
+        stage: l.stage || l.status || "new",
         source: l.source || l.lead_source || "",
         value: Number(l.value) || 0,
         type: inferredType,
@@ -299,7 +302,7 @@ export default function LeadsPage() {
                   updateLead.mutate({ id: lead.id, status: 'unqualified', stage: 'unqualified' });
                 }}
               >
-                <XCircle className="h-4 w-4 mr-2 text-orange-600" />
+                <CheckCircle className="h-4 w-4 mr-2 text-emerald-600" />
                 Unqualify Lead
               </DropdownMenuItem>
               <DropdownMenuSeparator />
@@ -372,11 +375,8 @@ export default function LeadsPage() {
             value: status,
             onChange: setStatus,
             options: [
-              { label: "All statuses", value: "all" },
-              { label: "New", value: "new" },
-              { label: "Contacted", value: "contacted" },
-              { label: "Qualified", value: "qualified" },
-              { label: "Unqualified", value: "unqualified" },
+              { label: "All stages", value: "all" },
+              ...pipelineStages.map(s => ({ label: s.stage_label, value: s.stage_key }))
             ],
           },
           {
@@ -462,7 +462,7 @@ export default function LeadsPage() {
       )}
 
       {!isLoading && view === "kanban" && (
-        <LeadsKanbanView leads={filtered as any} onCreateLead={handleCreate} />
+        <LeadsKanbanView leads={filtered as any} onCreateLead={handleCreate} selectedStage={status} />
       )}
 
       {view === "activities" && <LeadsActivitiesView />}

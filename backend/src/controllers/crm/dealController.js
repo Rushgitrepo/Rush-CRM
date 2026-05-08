@@ -1252,4 +1252,5 @@ module.exports = {
   addSigningParty,
   removeSigningParty,
   convertToCustomer,
+  DEFAULT_DEAL_STAGES,
 };

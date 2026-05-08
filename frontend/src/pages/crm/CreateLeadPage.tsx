@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { cn } from "@/lib/utils";
 import {
   Loader2, Save, ArrowLeft, Building2, CalendarDays, MessageSquare,
-  ChevronDown, Sparkles, Tag, Users, Calendar as CalendarIcon, Briefcase
+  ChevronDown, Sparkles, Tag, Users, Calendar as CalendarIcon, Briefcase, GripVertical
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useOrganizationProfiles } from "@/hooks/useTenantQuery";
@@ -18,19 +19,18 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/crm/ui/PageHeader";
-import { useCreateLead } from "@/hooks/useCrmData";
 import { CreatableSelect } from "@/components/crm/CreatableSelect";
-import { CustomFieldsSection, DraggableFieldItem } from "@/components/crm/CustomFieldsSection";
-import { FieldDragWrapper } from "@/components/crm/FieldDragWrapper";
-import { DroppableSection } from "@/components/crm/DroppableSection";
-import { CustomFieldInput } from "@/components/crm/CustomFieldInput";
-import { GripVertical } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
-import { format, isValid } from "date-fns";
-import { getCustomFieldTemplates, saveCustomFieldTemplates } from "@/utils/crm/customFieldsRegistry";
+import { useCustomFieldTemplates, useSaveCustomFieldTemplates, useCreateLead } from "@/hooks/useCrmData";
+import { mergeFieldsWithTemplatesSync } from "@/utils/crm/customFieldsRegistry";
 import { sanitizePayload } from "@/utils/crm/sanitize";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import { isValid } from "date-fns";
+import { CustomFieldsSection, DraggableFieldItem } from "@/components/crm/CustomFieldsSection";
+import { CustomFieldInput } from "@/components/crm/CustomFieldInput";
+import { FieldDragWrapper, DroppableField } from "@/components/crm/FieldDragWrapper";
+import { DroppableSection } from "@/components/crm/DroppableSection";
 
 const leadSchema = z.object({
   title: z.string().min(2, "Lead name is required"),
@@ -41,7 +41,7 @@ const leadSchema = z.object({
   sourceInfo: z.string().optional(),
   value: z.string().optional(),
   currency: z.string().optional(),
-  notes: z.string().nullable().optional().or(z.literal("")),
+  notes: z.string().nullish().or(z.literal("")),
   designation: z.string().optional(),
   phone: z.string().optional(),
   phoneType: z.string().optional(),
@@ -277,7 +277,7 @@ function InlineSelect({
 
 export default function CreateLeadPage() {
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const { profile } = useAuth();
   const createLead = useCreateLead();
 
   const form = useForm<LeadForm>({
@@ -333,16 +333,23 @@ export default function CreateLeadPage() {
 
   const [contactId, setContactId] = useState<string | null>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
-  const [customFields, setCustomFields] = useState<CustomField[]>(() => {
-    const templates = getCustomFieldTemplates('lead');
-    return templates.map(t => ({
-      id: `template-${Math.random().toString(36).substr(2, 9)}`,
-      key: t.key,
-      value: "",
-      type: t.type,
-      sectionId: t.sectionId || "custom-fields"
-    }));
-  });
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
+
+  // Load templates when profile is available
+  const { data: templates, isLoading: templatesLoading } = useCustomFieldTemplates('lead');
+  const saveTemplates = useSaveCustomFieldTemplates();
+
+  useEffect(() => {
+    if (templates) {
+      setCustomFields(templates.map(t => ({
+        id: `template-${Math.random().toString(36).substr(2, 9)}`,
+        key: t.key,
+        value: "",
+        type: t.type,
+        sectionId: t.sectionId || "custom-fields"
+      })));
+    }
+  }, [templates]);
 
   const isSaving = createLead.isPending;
   const { handleSubmit, register, setValue, watch, formState: { errors } } = form;
@@ -400,17 +407,13 @@ export default function CreateLeadPage() {
     createLead.mutate(sanitizePayload(payload), {
       onSuccess: () => {
         // Save these field definitions as templates for future leads
-        saveCustomFieldTemplates('lead', customFields);
+        saveTemplates.mutate({ entityType: 'lead', templates: customFields });
         
-        toast({ title: "Lead created", description: data.title });
+        toast.success("Lead created successfully", { description: data.title });
         navigate("/crm/leads");
       },
       onError: (err: any) => {
-        toast({
-          title: "Failed to create lead",
-          description: err?.message || "Please try again",
-          variant: "destructive",
-        });
+        toast.error("Failed to create lead", { description: err?.message || "Please try again" });
       },
     });
   };
@@ -419,7 +422,7 @@ export default function CreateLeadPage() {
     setCustomFields(prev => {
       const updated = updatedFields || prev.map(f => f.id === fieldKey ? { ...f, sectionId } : f);
       // Persist this change globally to the registry so new leads follow this layout
-      saveCustomFieldTemplates('lead', updated);
+      saveTemplates.mutate({ entityType: 'lead', templates: updated });
       return updated;
     });
   };

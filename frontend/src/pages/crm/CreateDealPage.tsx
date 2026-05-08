@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -19,12 +20,14 @@ import { DroppableSection } from "@/components/crm/DroppableSection";
 import { CustomFieldInput } from "@/components/crm/CustomFieldInput";
 import { GripVertical } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { useContacts, useCompanies, useCreateDeal } from "@/hooks/useCrmData";
-import { useToast } from "@/components/ui/use-toast";
-import { format, isValid } from "date-fns";
-import { getCustomFieldTemplates, saveCustomFieldTemplates } from "@/utils/crm/customFieldsRegistry";
+import { useCustomFieldTemplates, useSaveCustomFieldTemplates, useContacts, useCompanies, useCreateDeal } from "@/hooks/useCrmData";
+import { mergeFieldsWithTemplatesSync } from "@/utils/crm/customFieldsRegistry";
 import { sanitizePayload } from "@/utils/crm/sanitize";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { User } from "lucide-react";
+import { CardDescription } from "@/components/ui/card";
+import { toast } from "sonner";
+import { isValid } from "date-fns";
 
 const dealSchema = z.object({
   title: z.string().min(2, "Deal title required"),
@@ -32,7 +35,7 @@ const dealSchema = z.object({
   stage: z.string().min(1, "Pick a stage"),
   pipeline: z.string().optional(),
   status: z.string().optional(),
-  notes: z.string().nullable().optional().or(z.literal("")),
+  notes: z.string().nullish().or(z.literal("")),
   currency: z.string().optional(),
   // Additional fields for better deal tracking
   contactName: z.string().optional(),
@@ -153,23 +156,30 @@ const companySizeOptions = [
 
 export default function CreateDealPage() {
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const { profile } = useAuth();
   const createDeal = useCreateDeal();
   const { data: contacts } = useContacts();
   const { data: companies } = useCompanies();
 
   const [contactId, setContactId] = useState<string | null>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
-  const [customFields, setCustomFields] = useState<CustomField[]>(() => {
-    const templates = getCustomFieldTemplates('deal');
-    return templates.map(t => ({
-      id: `template-${Math.random().toString(36).substr(2, 9)}`,
-      key: t.key,
-      value: "",
-      type: t.type,
-      sectionId: t.sectionId || "custom-fields"
-    }));
-  });
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
+
+  // Load templates when profile is available
+  const { data: templates, isLoading: templatesLoading } = useCustomFieldTemplates('deal');
+  const saveTemplates = useSaveCustomFieldTemplates();
+
+  useEffect(() => {
+    if (templates) {
+      setCustomFields(templates.map(t => ({
+        id: `template-${Math.random().toString(36).substr(2, 9)}`,
+        key: t.key,
+        value: "",
+        type: t.type,
+        sectionId: t.sectionId || "custom-fields"
+      })));
+    }
+  }, [templates]);
 
   const contactOptions = useMemo(() => {
     const data = (contacts as any)?.data || contacts || [];
@@ -249,7 +259,7 @@ export default function CreateDealPage() {
     setCustomFields(prev => {
       const updated = updatedFields || prev.map(f => f.id === fieldKey ? { ...f, sectionId } : f);
       // Persist this change globally to the registry so new deals follow this layout
-      saveCustomFieldTemplates('deal', updated);
+      saveTemplates.mutate({ entityType: 'deal', templates: updated });
       return updated;
     });
   };
@@ -369,13 +379,13 @@ export default function CreateDealPage() {
     createDeal.mutate(sanitizePayload(payload) as any, {
       onSuccess: () => {
         // Save these field definitions as templates for future deals
-        saveCustomFieldTemplates('deal', customFields);
+        saveTemplates.mutate({ entityType: 'deal', templates: customFields });
         
-        toast({ title: "Deal created", description: data.title });
+        toast.success("Deal created successfully", { description: data.title });
         navigate("/crm/deals");
       },
       onError: (err: any) => {
-        toast({ title: "Failed to create deal", description: err?.message || "Please try again", variant: "destructive" });
+        toast.error("Failed to create deal", { description: err?.message || "Please try again" });
       },
     });
   };

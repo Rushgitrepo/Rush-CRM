@@ -18,6 +18,7 @@ import { DealsActivitiesView } from "@/components/crm/deals/DealsActivitiesView"
 import { DealsCalendarView } from "@/components/crm/deals/DealsCalendarView";
 import { toast } from "sonner";
 import { ClickToCall } from "@/components/telephony/ClickToCall";
+import { useDealPipelineStages } from "@/hooks/usePipelineStages";
 
 const WorkflowsPage = lazy(() => import("@/pages/automation/WorkflowsPage"));
 
@@ -64,6 +65,7 @@ export default function DealsPage() {
     page: currentPage,
     limit: pageSize
   });
+  const { data: pipelineStages = [] } = useDealPipelineStages();
   const deleteDeal = useDeleteDeal();
   const bulkDeleteDeals = useBulkDeleteDeals();
   const updateDeal = useUpdateDeal();
@@ -367,11 +369,7 @@ export default function DealsPage() {
             onChange: setStage,
             options: [
               { label: "All stages", value: "all" },
-              { label: "Qualification", value: "qualification" },
-              { label: "Discovery", value: "discovery" },
-              { label: "Proposal sent", value: "proposal_sent" },
-              { label: "Negotiation", value: "negotiation" },
-              { label: "Close deal", value: "close_deal" },
+              ...pipelineStages.map(s => ({ label: s.stage_label, value: s.stage_key }))
             ],
           },
           {
