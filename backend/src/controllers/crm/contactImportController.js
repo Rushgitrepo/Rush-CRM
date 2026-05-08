@@ -169,9 +169,7 @@ const importContacts = async (req, res, next) => {
 
         // Require at least a first name or email
         if (!contactData.first_name && !contactData.email) {
-          errors.push({ row: i + 1, error: 'First name or email is required' });
-          failed++;
-          continue;
+          contactData.first_name = 'N/A';
         }
 
         // Check for duplicates by email

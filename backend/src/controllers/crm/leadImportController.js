@@ -351,11 +351,12 @@ const importLeads = async (req, res, next) => {
           }
         }
 
-        // Validate required fields
+        // Pre-fill Name/Title if missing to avoid validation error
         if (!leadData.title && !leadData.name) {
-          errors.push({ row: i + 1, error: 'Title/Name is required' });
-          failed++;
-          continue;
+          leadData.title = 'N/A';
+          if (entityType !== 'deal') {
+            leadData.name = 'N/A';
+          }
         }
 
         // Check for duplicates
@@ -493,9 +494,12 @@ const importLeads = async (req, res, next) => {
                dbFieldsData.name = leadData.name || leadData.title;
              }
           } else {
-            errors.push({ row: i + 1, error: 'Title/Name is required' });
-            failed++;
-            continue;
+            // This case is now handled by the N/A default above, 
+            // but kept as a secondary safety check
+            dbFieldsData.title = 'N/A';
+            if (entityType !== 'deal') {
+              dbFieldsData.name = 'N/A';
+            }
           }
         } else if (dbFieldsData.title && !dbFieldsData.name && entityType !== 'deal') {
            dbFieldsData.name = dbFieldsData.title;
