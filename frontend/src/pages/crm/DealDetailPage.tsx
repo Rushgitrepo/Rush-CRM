@@ -596,10 +596,19 @@ export default function DealDetailPage() {
   };
 
   const renderDroppedFields = (sectionId: string, isTop = false, afterFieldId?: string) => {
-    const sectionFields = customFields.filter(f => 
-      f.sectionId === sectionId && 
-      (afterFieldId ? f.afterFieldId === afterFieldId : (!f.afterFieldId || f.afterFieldId.startsWith(sectionId + '-top')))
-    );
+    const sectionFields = customFields.filter(f => {
+      if (f.sectionId !== sectionId) return false;
+      
+      if (afterFieldId) {
+        return f.afterFieldId === afterFieldId;
+      }
+      
+      if (isTop) {
+        return f.afterFieldId === `${sectionId}-top`;
+      }
+      
+      return !f.afterFieldId;
+    });
 
     if (sectionFields.length === 0) return null;
 

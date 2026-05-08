@@ -431,15 +431,19 @@ export default function CreateLeadPage() {
   };
 
   const renderDroppedFields = (sectionId: string, isTop = false, afterFieldId?: string) => {
-    let sectionFields = customFields.filter(f => f.sectionId === sectionId);
-    
-    if (afterFieldId) {
-      sectionFields = sectionFields.filter(f => f.afterFieldId === afterFieldId);
-    } else if (isTop) {
-      sectionFields = sectionFields.filter(f => !f.afterFieldId || f.afterFieldId.startsWith(sectionId + '-top'));
-    } else {
-      return null;
-    }
+    const sectionFields = customFields.filter(f => {
+      if (f.sectionId !== sectionId) return false;
+      
+      if (afterFieldId) {
+        return f.afterFieldId === afterFieldId;
+      }
+      
+      if (isTop) {
+        return f.afterFieldId === `${sectionId}-top`;
+      }
+      
+      return !f.afterFieldId;
+    });
 
     if (sectionFields.length === 0) return null;
 

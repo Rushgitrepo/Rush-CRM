@@ -100,7 +100,10 @@ const detectFields = async (req, res, next) => {
       headers,
       sampleData,
       suggestedMappings: fieldMappings,
-      totalRows: sampleData.length
+      totalRows: ext === '.csv' ? (await new Promise((resolve) => {
+        let count = 0;
+        fs.createReadStream(filePath).pipe(csv()).on('data', () => count++).on('end', () => resolve(count));
+      })) : (XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]).length)
     });
   } catch (err) {
     next(err);
@@ -349,6 +352,11 @@ const importLeads = async (req, res, next) => {
               leadData[dbField] = value;
             }
           }
+        }
+
+        // Skip completely empty rows
+        if (Object.keys(leadData).length === 0) {
+          continue;
         }
 
         // Pre-processing: Merge city/state/zip/country into address if address is mapped
