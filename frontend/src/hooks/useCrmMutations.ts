@@ -29,7 +29,7 @@ export function useUpdateDeal() {
     },
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['deals'] });
-      queryClient.invalidateQueries({ queryKey: ['deal', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['deals', variables.id] });
       toast.success('Deal updated successfully');
     },
     onError: (error: Error) => toast.error(error.message),
@@ -58,7 +58,7 @@ export function useUpdateLead() {
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: [ 'leads' ] });
-      queryClient.invalidateQueries({ queryKey: [ 'lead', data.id ] });
+      queryClient.invalidateQueries({ queryKey: [ 'leads', data.id ] });
       toast.success('Lead updated successfully');
     },
     onError: (error: any) => {
