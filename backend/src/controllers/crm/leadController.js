@@ -5,22 +5,17 @@ const notificationService = require('../../services/notificationService');
 
 // Map database status/stage values to frontend expected values
 const mapStatusToFrontend = (status) => {
+  if (!status) return 'new';
+  
   const statusMap = {
     'unassigned': 'new',
-    'new': 'new',
-    'contacted': 'contacted',
-    'qualified': 'qualified',
-    'unqualified': 'unqualified',
     'processed': 'qualified',
     'converted': 'qualified',
     'in_progress': 'contacted',
     'progress': 'contacted',
-    'proposal': 'proposal',
-    'negotiation': 'negotiation',
-    'proposal_sent': 'proposal',
-    'close_deal': 'qualified',
   };
-  return statusMap[status] || (status || 'new');
+  
+  return statusMap[status] || status;
 };
 
 const DEFAULT_LEAD_STAGES = [

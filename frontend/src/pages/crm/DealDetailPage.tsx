@@ -554,7 +554,12 @@ export default function DealDetailPage() {
     setForm(prev => ({ ...prev, stage: newStage }));
     if (!editing) {
       updateDeal.mutate({ id: deal.id, stage: newStage }, {
-        onSuccess: () => {
+        onSuccess: (updatedDeal) => {
+          // Sync form with actual server state
+          if (updatedDeal) {
+            setForm(prev => ({ ...prev, stage: updatedDeal.stage, status: updatedDeal.status }));
+          }
+          
           const stageName = pipelineStages.find(s => s.id === newStage)?.label || newStage;
           createActivity.mutate({
             entityType: 'deal',
@@ -563,6 +568,10 @@ export default function DealDetailPage() {
             title: `Stage changed to ${stageName}`,
             description: `Deal pipeline stage updated to ${stageName}`,
           });
+        },
+        onError: () => {
+          // Revert on error
+          setForm(prev => ({ ...prev, stage: deal.stage }));
         }
       });
     }
@@ -710,9 +719,9 @@ export default function DealDetailPage() {
                 <div>
                   <div className="flex flex-wrap items-center gap-3 mb-1">
                     <h1 className="text-xl md:text-2xl font-bold text-foreground break-words max-w-[200px] sm:max-w-none">{deal.title}</h1>
-                    <Badge className={cn("gap-1 px-3 py-1 font-medium whitespace-nowrap", getStatusColor(deal.stage))}>
-                      {getStatusIcon(deal.stage)}
-                      {pipelineStages.find(s => s.id === deal.stage)?.label || deal.stage}
+                    <Badge className={cn("gap-1 px-3 py-1 font-medium whitespace-nowrap", getStatusColor(form.stage || deal.stage))}>
+                      {getStatusIcon(form.stage || deal.stage)}
+                      {pipelineStages.find(s => s.id === (form.stage || deal.stage))?.label || (form.stage || deal.stage)}
                     </Badge>
 
                     {!editing && (
@@ -1056,8 +1065,8 @@ export default function DealDetailPage() {
         <div className="relative overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-200">
           <div className="flex items-center justify-between mb-4 min-w-[1000px] lg:min-w-0 px-4">
             {pipelineStages.map((stage, index) => {
-              const isActive = stage.id === deal.stage;
-              const isPassed = pipelineStages.findIndex(s => s.id === deal.stage) > index;
+              const isActive = stage.id === (form.stage || deal.stage);
+              const isPassed = pipelineStages.findIndex(s => s.id === (form.stage || deal.stage)) > index;
               const isClickable = !editing;
 
               return (
