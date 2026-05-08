@@ -57,6 +57,7 @@ import { TaskCalendarView } from "@/components/tasks/TaskCalendarView";
 import { ProjectDialog } from "@/components/tasks/ProjectDialog";
 import { CommandMenu } from "@/components/tasks/CommandMenu";
 import { ProjectListView } from "@/components/tasks/ProjectListView";
+import { ProjectTasksView } from "@/components/tasks/ProjectTasksView";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRealtime } from "@/hooks/useRealtime";
 
@@ -129,6 +130,8 @@ export default function TasksPage() {
   const [newTaskStatus, setNewTaskStatus] = useState<string | null>(null);
   const [newTaskDate, setNewTaskDate] = useState<Date | null>(null);
   const [showCommandMenu, setShowCommandMenu] = useState(false);
+  const [contentTab, setContentTab] = useState<"all" | "tasks" | "projects">("all");
+  const [projectsSubView, setProjectsSubView] = useState<"cards" | "tasks">("cards");
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>({
     status: [],
     priority: [],
@@ -215,6 +218,16 @@ export default function TasksPage() {
         return false;
       }
 
+      // Content tab filter
+      // Use project_name as reliable indicator — if task has a project name it belongs to Projects tab
+      const hasProject = !!(task as any).project_name || !!task.project_id;
+      if (contentTab === "tasks" && hasProject) {
+        return false; // sirf personal tasks (no project)
+      }
+      if (contentTab === "projects" && !hasProject) {
+        return false; // sirf project-linked tasks
+      }
+
       // Advanced filters
       if (
         advancedFilters.status.length > 0 &&
@@ -253,7 +266,7 @@ export default function TasksPage() {
 
       return true;
     });
-  }, [allTasks, search, selectedProject, advancedFilters, filterView]);
+  }, [allTasks, search, selectedProject, advancedFilters, filterView, contentTab]);
 
   const stats = {
     total: allTasks.length,
@@ -494,14 +507,19 @@ export default function TasksPage() {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <div className="flex items-center gap-3">
-                  {selectedProject && (
+                  {/* Back button: projects view → tasks, selected project → projects */}
+                  {(view === "projects" || selectedProject) && (
                     <Button
                       variant="ghost"
                       size="icon"
                       className="rounded-full h-9 w-9 hover:bg-primary/10"
                       onClick={() => {
-                        setSelectedProject(null);
-                        setView("projects");
+                        if (selectedProject) {
+                          setSelectedProject(null);
+                          setView("projects");
+                        } else {
+                          setView("list");
+                        }
                       }}
                     >
                       <ChevronRight className="h-5 w-5 rotate-180" />
@@ -534,41 +552,32 @@ export default function TasksPage() {
                     )}
                   </h1>
                 </div>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm ml-12 text-muted-foreground">
                   {view === "projects" && !selectedProject
                     ? `${projects.length} ${projects.length === 1 ? "project" : "projects"}`
                     : `${filteredTasks.length} ${filteredTasks.length === 1 ? "task" : "tasks"}`}
                 </p>
               </div>
 
-              {/* Right side: Projects button (always visible) + Create Project (in projects view) */}
+              {/* Top-right: Projects button */}
               <div className="flex items-center gap-3">
-                {view === "projects" && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="gap-2 rounded-xl text-muted-foreground hover:text-foreground"
-                    onClick={() => setView("list")}
-                  >
-                    <ChevronRight className="h-4 w-4 rotate-180" />
-                    Back to Tasks
-                  </Button>
-                )}
-                {view === "projects" && (
-                  <Button
-                    onClick={() => setShowProjectDialog(true)}
-                    className="rounded-xl shadow-lg shadow-primary/20 bg-primary hover:shadow-primary/30 transition-all gap-2"
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span>Create Project</span>
-                  </Button>
-                )}
-                {view !== "projects" && (
+                {view === "projects" ? (
+                  <>
+                    <Button
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => setShowProjectDialog(true)}
+                    >
+                      <Plus className="h-4 w-4" />
+                      New Project
+                    </Button>
+                  </>
+                ) : (
                   <Button
                     variant="outline"
                     size="sm"
-                    className="rounded-xl border-border/60 px-6 text-[16px] hover:border-primary/50 hover:bg-primary/5 hover:text-primary transition-all font-medium"
-                    onClick={() => setView("projects")}
+                    className="gap-2 rounded-xl border-border/60 hover:border-primary/50 hover:bg-primary/5 hover:text-primary transition-all font-medium"
+                    onClick={() => { setView("projects"); setSelectedProject(null); }}
                   >
                     <FolderKanban className="h-4 w-4" />
                     Projects
@@ -579,220 +588,273 @@ export default function TasksPage() {
 
             {/* Search, Filters and View Controls - hidden in projects view */}
             {view !== "projects" && (
-              <div className="flex items-center gap-3">
-                <div className="relative flex-1 max-w-md">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="task-search"
-                    placeholder="Search tasks... (⌘K)"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="pl-10 bg-background"
-                  />
-                </div>
-
-                <Popover open={showFilters} onOpenChange={setShowFilters}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
+              <div className="flex flex-col gap-3">
+                {/* Tabs: All Tasks / Tasks — only when no project is selected */}
+                {!selectedProject && (
+                  <div className="flex items-center gap-1 border-b border-border">
+                    <button
+                      onClick={() => setContentTab("all")}
                       className={cn(
-                        "gap-2",
-                        hasActiveFilters && "border-primary",
+                        "px-4 py-2 text-sm font-medium transition-all border-b-2 -mb-px",
+                        contentTab === "all"
+                          ? "border-primary text-primary"
+                          : "border-transparent text-muted-foreground hover:text-foreground"
                       )}
                     >
-                      <Filter className="h-4 w-4" />
-                      Filters
-                      {hasActiveFilters && (
-                        <Badge
-                          variant="secondary"
-                          className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center"
-                        >
-                          {advancedFilters.status.length +
-                            advancedFilters.priority.length +
-                            advancedFilters.assignee.length}
-                        </Badge>
+                      All Tasks
+                      <span className="ml-2 text-xs bg-muted text-muted-foreground rounded-full px-1.5 py-0.5">
+                        {allTasks.length}
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => setContentTab("tasks")}
+                      className={cn(
+                        "px-4 py-2 text-sm font-medium transition-all border-b-2 -mb-px",
+                        contentTab === "tasks"
+                          ? "border-primary text-primary"
+                          : "border-transparent text-muted-foreground hover:text-foreground"
                       )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-80" align="end">
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-semibold text-sm">Filters</h4>
+                    >
+                      Tasks
+                      <span className="ml-2 text-xs bg-muted text-muted-foreground rounded-full px-1.5 py-0.5">
+                        {allTasks.filter(t => !t.project_name && !t.project_id).length}
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => { setContentTab("projects"); setView("list"); }}
+                      className={cn(
+                        "px-4 py-2 text-sm font-medium transition-all border-b-2 -mb-px",
+                        contentTab === "projects"
+                          ? "border-primary text-primary"
+                          : "border-transparent text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      Projects
+                      <span className="ml-2 text-xs bg-muted text-muted-foreground rounded-full px-1.5 py-0.5">
+                        {allTasks.filter(t => !!(t.project_name || t.project_id)).length}
+                      </span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Search + Filters + View Switcher */}
+                <div className="flex items-center gap-3">
+                  <div className="relative flex-1 max-w-md">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="task-search"
+                      placeholder="Search tasks... (⌘K)"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="pl-10 bg-background"
+                    />
+                  </div>
+
+                  <Popover open={showFilters} onOpenChange={setShowFilters}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className={cn(
+                          "gap-2",
+                          hasActiveFilters && "border-primary",
+                        )}
+                      >
+                        <Filter className="h-4 w-4" />
+                        Filters
                         {hasActiveFilters && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={clearFilters}
-                            className="h-auto p-1 text-xs"
+                          <Badge
+                            variant="secondary"
+                            className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center"
                           >
-                            Clear all
-                          </Button>
+                            {advancedFilters.status.length +
+                              advancedFilters.priority.length +
+                              advancedFilters.assignee.length}
+                          </Badge>
                         )}
-                      </div>
-
-                      {/* Status Filter */}
-                      <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">
-                          Status
-                        </label>
-                        <div className="flex flex-wrap gap-2">
-                          {["new", "in_progress", "completed"].map(
-                            (status) => (
-                              <Badge
-                                key={status}
-                                variant={
-                                  advancedFilters.status.includes(status)
-                                    ? "default"
-                                    : "outline"
-                                }
-                                className="cursor-pointer"
-                                onClick={() => toggleFilter("status", status)}
-                              >
-                                {status === "new"
-                                  ? "New"
-                                  : status === "in_progress"
-                                    ? "In Progress"
-                                    : "Completed"}
-                              </Badge>
-                            ),
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-80" align="end">
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-semibold text-sm">Filters</h4>
+                          {hasActiveFilters && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={clearFilters}
+                              className="h-auto p-1 text-xs"
+                            >
+                              Clear all
+                            </Button>
                           )}
                         </div>
-                      </div>
 
-                      {/* Priority Filter */}
-                      <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">
-                          Priority
-                        </label>
-                        <div className="flex flex-wrap gap-2">
-                          {["low", "normal", "high", "urgent"].map(
-                            (priority) => (
-                              <Badge
-                                key={priority}
-                                variant={
-                                  advancedFilters.priority.includes(priority)
-                                    ? "default"
-                                    : "outline"
-                                }
-                                className="cursor-pointer capitalize"
-                                onClick={() =>
-                                  toggleFilter("priority", priority)
-                                }
-                              >
-                                {priority}
-                              </Badge>
-                            ),
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Assignee Filter */}
-                      <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">
-                          Assignee
-                        </label>
-                        <Select
-                          value=""
-                          onValueChange={(value) =>
-                            toggleFilter("assignee", value)
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select assignee..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {members.map((member) => (
-                              <SelectItem key={member.id} value={member.id}>
-                                {member.full_name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {advancedFilters.assignee.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            {advancedFilters.assignee.map((assigneeId) => {
-                              const member = members.find(
-                                (m) => m.id === assigneeId,
-                              );
-                              return (
+                        {/* Status Filter */}
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-muted-foreground">
+                            Status
+                          </label>
+                          <div className="flex flex-wrap gap-2">
+                            {["new", "in_progress", "completed"].map(
+                              (status) => (
                                 <Badge
-                                  key={assigneeId}
-                                  variant="secondary"
-                                  className="gap-1"
+                                  key={status}
+                                  variant={
+                                    advancedFilters.status.includes(status)
+                                      ? "default"
+                                      : "outline"
+                                  }
+                                  className="cursor-pointer"
+                                  onClick={() => toggleFilter("status", status)}
                                 >
-                                  {member?.full_name || "Unknown"}
-                                  <X
-                                    className="h-3 w-3 cursor-pointer"
-                                    onClick={() =>
-                                      toggleFilter("assignee", assigneeId)
-                                    }
-                                  />
+                                  {status === "new"
+                                    ? "New"
+                                    : status === "in_progress"
+                                      ? "In Progress"
+                                      : "Completed"}
                                 </Badge>
-                              );
-                            })}
+                              ),
+                            )}
                           </div>
-                        )}
+                        </div>
+
+                        {/* Priority Filter */}
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-muted-foreground">
+                            Priority
+                          </label>
+                          <div className="flex flex-wrap gap-2">
+                            {["low", "normal", "high", "urgent"].map(
+                              (priority) => (
+                                <Badge
+                                  key={priority}
+                                  variant={
+                                    advancedFilters.priority.includes(priority)
+                                      ? "default"
+                                      : "outline"
+                                  }
+                                  className="cursor-pointer capitalize"
+                                  onClick={() =>
+                                    toggleFilter("priority", priority)
+                                  }
+                                >
+                                  {priority}
+                                </Badge>
+                              ),
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Assignee Filter */}
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-muted-foreground">
+                            Assignee
+                          </label>
+                          <Select
+                            value=""
+                            onValueChange={(value) =>
+                              toggleFilter("assignee", value)
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select assignee..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {members.map((member) => (
+                                <SelectItem key={member.id} value={member.id}>
+                                  {member.full_name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {advancedFilters.assignee.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {advancedFilters.assignee.map((assigneeId) => {
+                                const member = members.find(
+                                  (m) => m.id === assigneeId,
+                                );
+                                return (
+                                  <Badge
+                                    key={assigneeId}
+                                    variant="secondary"
+                                    className="gap-1"
+                                  >
+                                    {member?.full_name || "Unknown"}
+                                    <X
+                                      className="h-3 w-3 cursor-pointer"
+                                      onClick={() =>
+                                        toggleFilter("assignee", assigneeId)
+                                      }
+                                    />
+                                  </Badge>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </PopoverContent>
-                </Popover>
+                    </PopoverContent>
+                  </Popover>
 
-                {/* View Switcher */}
-                <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-1 ml-auto">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        onClick={() => setView("list")}
-                        className={cn(
-                          "px-3 py-2 rounded-lg transition-all",
-                          view === "list"
-                            ? "bg-background shadow-sm text-foreground"
-                            : "text-muted-foreground hover:text-foreground",
-                        )}
-                      >
-                        <List className="h-4 w-4" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent>List View (1)</TooltipContent>
-                  </Tooltip>
+                  {/* View Switcher */}
+                  <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-1 ml-auto">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={() => setView("list")}
+                          className={cn(
+                            "px-3 py-2 rounded-lg transition-all",
+                            view === "list"
+                              ? "bg-background shadow-sm text-foreground"
+                              : "text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          <List className="h-4 w-4" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>List View (1)</TooltipContent>
+                    </Tooltip>
 
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        onClick={() => setView("board")}
-                        className={cn(
-                          "px-3 py-2 rounded-lg transition-all",
-                          view === "board"
-                            ? "bg-background shadow-sm text-foreground"
-                            : "text-muted-foreground hover:text-foreground",
-                        )}
-                      >
-                        <LayoutGrid className="h-4 w-4" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent>Board View (2)</TooltipContent>
-                  </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={() => setView("board")}
+                          className={cn(
+                            "px-3 py-2 rounded-lg transition-all",
+                            view === "board"
+                              ? "bg-background shadow-sm text-foreground"
+                              : "text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          <LayoutGrid className="h-4 w-4" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>Board View (2)</TooltipContent>
+                    </Tooltip>
 
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        onClick={() => setView("calendar")}
-                        className={cn(
-                          "px-3 py-2 rounded-lg transition-all",
-                          view === "calendar"
-                            ? "bg-background shadow-sm text-foreground"
-                            : "text-muted-foreground hover:text-foreground",
-                        )}
-                      >
-                        <CalendarIcon className="h-4 w-4" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent>Calendar View (3)</TooltipContent>
-                  </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={() => setView("calendar")}
+                          className={cn(
+                            "px-3 py-2 rounded-lg transition-all",
+                            view === "calendar"
+                              ? "bg-background shadow-sm text-foreground"
+                              : "text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          <CalendarIcon className="h-4 w-4" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>Calendar View (3)</TooltipContent>
+                    </Tooltip>
+                  </div>
                 </div>
               </div>
             )}
+
+            {/* Tabs shown in projects view too - removed, using top-right button instead */}
           </div>
         </header>
 
@@ -819,16 +881,23 @@ export default function TasksPage() {
               onToggleStar={handleToggleStar}
             />
           ) : (
-            <ProjectListView
-              projects={projects}
-              tasks={allTasks}
-              members={members}
-              onEditProject={handleEditProject}
-              onSelectProject={(projectId) => {
-                setSelectedProject(projectId);
-                setView("list");
-              }}
-            />
+            projectsSubView === "cards" ? (
+              <ProjectListView
+                projects={projects}
+                tasks={allTasks}
+                members={members}
+                onEditProject={handleEditProject}
+                onSelectProject={(projectId) => {
+                  setSelectedProject(projectId);
+                  setView("list");
+                }}
+              />
+            ) : (
+              <ProjectTasksView
+                tasks={allTasks.filter(t => !!(t.project_name || t.project_id))}
+                onEditTask={handleEditTask}
+              />
+            )
           )}
         </div>
       </div>

@@ -99,7 +99,7 @@ export function ProjectListView({
     <>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4 md:gap-5">
         {projects.map((project) => {
-          const canEdit = isAdmin || project.created_by === profile?.id;
+          const canEdit = isAdmin || project.created_by === profile?.id || project.owner_id === profile?.id;
           const projectTasks = tasks.filter((t) => t.project_id === project.id);
           const progress = calculateProjectProgress(project.id);
 

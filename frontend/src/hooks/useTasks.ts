@@ -32,6 +32,7 @@ export interface Task {
   project_can_assign?: boolean;
   project_manager_id?: string | null;
   assigned_to_name?: string;
+  assigned_to_avatar?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -179,6 +180,20 @@ export function useDeleteTask() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       toast.success('Task deleted');
+    },
+    onError: (err: Error) => toast.error('Failed: ' + err.message),
+  });
+}
+
+export function useDeleteTasksBulk() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (ids: string[]) =>
+      Promise.all(ids.map((id) => tasksApi.delete(id))),
+    onSuccess: (_data, ids) => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      toast.success(`${ids.length} task${ids.length > 1 ? 's' : ''} deleted`);
     },
     onError: (err: Error) => toast.error('Failed: ' + err.message),
   });

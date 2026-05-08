@@ -29,6 +29,7 @@ import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import type { Project } from "@/hooks/useTasks";
+import { MemberSearchSelect } from "@/components/tasks/MemberSearchSelect";
 
 interface ProjectDialogProps {
   open: boolean;
@@ -122,7 +123,7 @@ export function ProjectDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[95vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold flex items-center gap-2">
             <FolderKanban className="h-6 w-6" />
@@ -296,34 +297,23 @@ export function ProjectDialog({
                 {!canEditCoreFields && !formData.canAssign && (
                   <span className="flex items-center gap-1 text-[10px] text-red-500 font-semibold">
                     <div className="h-2 w-2 rounded-full bg-red-500" />
-                    Delegation OFF
+                    No permission
                   </span>
                 )}
               </Label>
               {/* Show dropdown if: admin/creator OR delegation is ON */}
               {(canEditCoreFields || formData.canAssign) ? (
-                <Select
-                  value={formData.managerId || "none"}
-                  onValueChange={(value) => setFormData({ ...formData, managerId: value === "none" ? "" : value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Assign a manager..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {members.map((member) => (
-                      <SelectItem key={member.id} value={member.id}>
-                        {member.full_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MemberSearchSelect
+                  members={members}
+                  value={formData.managerId || ""}
+                  onChange={(val) => setFormData({ ...formData, managerId: val })}
+                />
               ) : (
                 <div className="flex h-10 w-full items-center justify-between rounded-md border border-red-500/40 bg-red-500/5 px-3 py-2 text-sm cursor-not-allowed opacity-60">
                   <span className="text-muted-foreground">
                     {formData.managerId
                       ? members.find((m) => m.id === formData.managerId)?.full_name || "Assigned"
-                      : "Delegation is OFF"}
+                      : "No Assign Permission"}
                   </span>
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground/50"><path d="m6 9 6 6 6-6" /></svg>
                 </div>

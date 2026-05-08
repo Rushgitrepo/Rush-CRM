@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   ChevronLeft, ChevronRight, Circle, Clock, CheckCircle2,
   Calendar as CalendarIcon, Plus, Star,
@@ -257,8 +257,9 @@ export function TaskCalendarView({ tasks, onEditTask, onCreateTask, onToggleStar
                       {task.assigned_to_name && (
                         <div className="flex items-center gap-1">
                           <Avatar className="h-4 w-4">
+                            {(task as any).assigned_to_avatar && <AvatarImage src={(task as any).assigned_to_avatar} alt={task.assigned_to_name} />}
                             <AvatarFallback className="text-[8px]">
-                              {task.assigned_to_name.slice(0, 2).toUpperCase()}
+                              {task.assigned_to_name.split(/\s+/).map((w: string) => w[0]).join("").toUpperCase().slice(0, 2)}
                             </AvatarFallback>
                           </Avatar>
                           <span className="text-xs text-muted-foreground">

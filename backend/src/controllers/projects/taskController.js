@@ -17,7 +17,8 @@ const getAll = async (req, res, next) => {
              p.manager_id  AS project_manager_id,
              p.created_by  AS project_created_by,
              p.owner_id    AS project_owner_id,
-             u.full_name   AS assigned_to_name
+             u.full_name   AS assigned_to_name,
+             u.avatar_url  AS assigned_to_avatar
       FROM public.tasks t
       LEFT JOIN public.projects p ON t.project_id = p.id
       LEFT JOIN users u ON t.assigned_to = u.id
@@ -27,7 +28,18 @@ const getAll = async (req, res, next) => {
     let paramIndex = 2;
 
     if (!isAdmin) {
-      query += ` AND (t.assigned_to = $${paramIndex} OR t.created_by = $${paramIndex})`;
+      // User can see task if:
+      // - they are assigned to it OR created it
+      // - OR they are the project manager/owner/creator (project-level access)
+      query += ` AND (
+        t.assigned_to = $${paramIndex} OR
+        t.created_by = $${paramIndex} OR
+        (t.project_id IS NOT NULL AND EXISTS (
+          SELECT 1 FROM public.projects pr
+          WHERE pr.id = t.project_id
+            AND (pr.manager_id = $${paramIndex} OR pr.owner_id = $${paramIndex} OR pr.created_by = $${paramIndex})
+        ))
+      )`;
       params.push(req.user.id);
       paramIndex++;
     }
@@ -50,7 +62,8 @@ const getAll = async (req, res, next) => {
       paramIndex++;
     }
 
-    query += ` ORDER BY t.sort_order ASC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    // Latest tasks first
+    query += ` ORDER BY t.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     params.push(limit, offset);
 
     const result = await db.query(query, params);
@@ -73,7 +86,8 @@ const getById = async (req, res, next) => {
               p.manager_id  AS project_manager_id,
               p.created_by  AS project_created_by,
               p.owner_id    AS project_owner_id,
-              u.full_name   AS assigned_to_name
+              u.full_name   AS assigned_to_name,
+              u.avatar_url  AS assigned_to_avatar
        FROM public.tasks t
        LEFT JOIN public.projects p ON t.project_id = p.id
        LEFT JOIN users u ON t.assigned_to = u.id
