@@ -1106,7 +1106,7 @@ export default function DealDetailPage() {
 
       {/* Main Content Grid */}
       <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Professional Form Sections */}
           <div className="lg:col-span-7 space-y-6">
             <FieldDragWrapper

@@ -21,6 +21,7 @@ import { useCustomDialog } from "@/contexts/DialogContext";
 import { toast } from "sonner";
 import { ClickToCall } from "@/components/telephony/ClickToCall";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
+import { cn } from "@/lib/utils";
 
 const statusTone = (status?: string) => {
   const s = (status || "").toLowerCase();
@@ -195,10 +196,10 @@ export default function LeadsPage() {
       header: "Lead",
       sortable: true,
       render: (lead) => (
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold">{lead.name}</span>
-            <Badge variant="outline" className={statusTone(lead.status)}>
+        <div className="space-y-0.5 max-w-[250px]">
+          <div className="flex items-center gap-2 overflow-hidden">
+            <span className="font-semibold truncate">{lead.name}</span>
+            <Badge variant="outline" className={cn(statusTone(lead.status), "whitespace-nowrap flex-shrink-0")}>
               {lead.status || "New"}
             </Badge>
           </div>
@@ -219,9 +220,9 @@ export default function LeadsPage() {
       key: "company",
       header: "Company",
       render: (lead) => (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Building2 className="h-4 w-4" />
-          {lead.company || "—"}
+        <div className="flex items-center gap-2 text-sm text-muted-foreground max-w-[180px]">
+          <Building2 className="h-4 w-4 shrink-0" />
+          <span className="truncate">{lead.company || "—"}</span>
         </div>
       ),
     },
