@@ -5,21 +5,18 @@ import {
   UserPlus,
   Search,
   Mail,
-  Phone,
   ShieldCheck,
-  MoreVertical,
   Edit2,
   Trash2,
   Loader2,
-  Filter,
   CheckCircle2,
   XCircle,
   Briefcase,
   ChevronRight,
   ChevronLeft,
   Save,
-  Lock,
-  Settings2,
+  Clock,
+  RefreshCw,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DASHBOARD_MODULES, MODULE_PERMISSIONS } from "@/data/permissions.js";
@@ -58,7 +55,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
-import { usersApi } from "@/lib/api";
+import { usersApi, organizationApi } from "@/lib/api";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -94,6 +91,9 @@ export default function AdminDashboardPage() {
   } = useAuth();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterRole, setFilterRole] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterDept, setFilterDept] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -113,9 +113,6 @@ export default function AdminDashboardPage() {
   const [selectedModules, setSelectedModules] = useState<
     Record<string, string[]>
   >({});
-  const [pendingInvites, setPendingInvites] = useState<
-    Array<{ email: string; fullName: string; role: string; createdAt: string }>
-  >([]);
 
   const showToast = (
     type: "success" | "error",
@@ -123,12 +120,12 @@ export default function AdminDashboardPage() {
     options?: {
       duration?: number;
       position?:
-        | "top-left"
-        | "top-center"
-        | "top-right"
-        | "bottom-left"
-        | "bottom-center"
-        | "bottom-right";
+      | "top-left"
+      | "top-center"
+      | "top-right"
+      | "bottom-left"
+      | "bottom-center"
+      | "bottom-right";
     },
   ) => {
     if (type === "success") {
@@ -139,31 +136,58 @@ export default function AdminDashboardPage() {
   };
 
   const { data: users, isLoading } = useQuery({
-    queryKey: ["admin-users"],
-    queryFn: () => usersApi.getAll(),
-    refetchInterval: 3000, // Refetch every 3 seconds to catch new users
+    queryKey: ["admin-users", searchTerm, filterRole, filterStatus, filterDept],
+    queryFn: () => usersApi.getAll({
+      search: searchTerm || undefined,
+      role: filterRole !== "all" ? filterRole : undefined,
+      status: filterStatus !== "all" ? filterStatus : undefined,
+      department: filterDept !== "all" ? filterDept : undefined,
+    }),
+    refetchInterval: 3000,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
 
+  const { data: stats } = useQuery({
+    queryKey: ["admin-users-stats"],
+    queryFn: () => usersApi.getStats(),
+    refetchInterval: 5000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+  });
+
+  // Pending invites — DB se real data
+  const { data: dbInvites = [], isLoading: invitesLoading } = useQuery({
+    queryKey: ["admin-invites"],
+    queryFn: () => organizationApi.getInvites(),
+    refetchInterval: 10000,
+    refetchOnWindowFocus: true,
+  });
+
+  const resendInviteMutation = useMutation({
+    mutationFn: (invite: any) =>
+      usersApi.create({ email: invite.email, fullName: invite.full_name || invite.email, role: invite.role }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-invites"] });
+      toast.success("Invite resent successfully");
+    },
+    onError: (err: any) => toast.error(err.message || "Failed to resend invite"),
+  });
+
+  const deleteInviteMutation = useMutation({
+    mutationFn: (id: string) => organizationApi.deleteInvite(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-invites"] });
+      toast.success("Invite deleted");
+    },
+    onError: (err: any) => toast.error(err.message || "Failed to delete invite"),
+  });
+
   const createMutation = useMutation({
     mutationFn: (data: any) => usersApi.create(data),
-    onSuccess: (_, variables: any) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
-      if (variables?.email) {
-        setPendingInvites((prev) => [
-          {
-            email: variables.email,
-            fullName: variables.fullName || "Pending User",
-            role: variables.role || "employee",
-            createdAt: new Date().toISOString(),
-          },
-          ...prev.filter(
-            (p) =>
-              p.email.toLowerCase() !== String(variables.email).toLowerCase(),
-          ),
-        ]);
-      }
+      queryClient.invalidateQueries({ queryKey: ["admin-invites"] });
       showToast("success", "Employee created successfully");
       closeDialog();
     },
@@ -342,39 +366,153 @@ export default function AdminDashboardPage() {
     return true;
   };
 
-  useEffect(() => {
-    if (!users?.length) return;
-    const activeEmails = new Set(
-      users.map((u: any) => String(u.email || "").toLowerCase()),
-    );
-    console.log("Active emails:", Array.from(activeEmails));
-    console.log("Pending invites before filter:", pendingInvites);
-    setPendingInvites((prev) => {
-      const filtered = prev.filter(
-        (p) => !activeEmails.has(p.email.toLowerCase()),
-      );
-      console.log("Pending invites after filter:", filtered);
-      return filtered;
-    });
-  }, [users]);
-
   return (
     <PermissionGuard module="admin_dashboard" action="view">
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      <div className=" space-y-6 max-w-8xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">
-              Admin Dashboard
+            <h1 className="text-4xl font-bold tracking-tight">
+              Employee Management
             </h1>
-            <p className="text-muted-foreground mt-1">
+            <p className="text-muted-foreground  mt-1">
               Manage organization employees and system access.
             </p>
           </div>
-          <Button onClick={handleCreateNew} className="gap-2 bg-primary">
-            <UserPlus className="h-4 w-4" />
-            Add New Employee
+          <Button onClick={handleCreateNew} className="gap-2 bg-primary text-[20px]">
+            <UserPlus className="h-10 w-10" />
+            New Employee
           </Button>
         </div>
+
+        {/* Stats Cards — DB se real data */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {/* Total Users */}
+          <Card className="border-none shadow-sm bg-card/50">
+            <CardContent className="p-5 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Total Users</p>
+                <p className="text-3xl font-bold mt-1">{stats ? Number(stats.total) : 0}</p>
+              </div>
+              <div className="h-11 w-11 rounded-full bg-primary/10 flex items-center justify-center">
+                <Users className="h-5 w-5 text-primary" />
+              </div>
+            </CardContent>
+          </Card>
+          {/* Active Users */}
+          <Card className="border-none shadow-sm bg-card/50">
+            <CardContent className="p-5 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Active Users</p>
+                <p className="text-3xl font-bold mt-1 text-emerald-500">{stats ? Number(stats.active) : 0}</p>
+              </div>
+              <div className="h-11 w-11 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                <UserPlus className="h-5 w-5 text-emerald-500" />
+              </div>
+            </CardContent>
+          </Card>
+          {/* Admins */}
+          <Card className="border-none shadow-sm bg-card/50">
+            <CardContent className="p-5 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Admins</p>
+                <p className="text-3xl font-bold mt-1 text-violet-500">{stats ? Number(stats.admins) : 0}</p>
+              </div>
+              <div className="h-11 w-11 rounded-full bg-violet-500/10 flex items-center justify-center">
+                <ShieldCheck className="h-5 w-5 text-violet-500" />
+              </div>
+            </CardContent>
+          </Card>
+          {/* Inactive */}
+          <Card className="border-none shadow-sm bg-card/50">
+            <CardContent className="p-5 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Inactive</p>
+                <p className="text-3xl font-bold mt-1 text-destructive">{stats ? Number(stats.inactive) : 0}</p>
+              </div>
+              <div className="h-11 w-11 rounded-full bg-destructive/10 flex items-center justify-center">
+                <XCircle className="h-5 w-5 text-destructive" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Pending Invitations — DB se real data */}
+        <Card className="border-none shadow-sm bg-card/50">
+          <CardHeader className="pb-3 border-b border-border/50">
+            <CardTitle className="text-base  text-[16px] font-semibold flex items-center gap-2">
+              <Clock className="h-4 w-4 text-amber-500 " />
+              Pending Invitations
+              {!invitesLoading && (
+                <span className="ml-1 text-xs font-bold bg-amber-500/15 text-amber-500 px-2 py-0.5 rounded-full">
+                  {dbInvites.length}
+                </span>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            {invitesLoading ? (
+              <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading invites...
+              </div>
+            ) : dbInvites.length === 0 ? (
+              <div className="px-6 py-4 text-sm text-muted-foreground">
+                No pending invitations.
+              </div>
+            ) : (
+              <div className="divide-y divide-border/50">
+                {dbInvites.map((invite: any) => {
+                  return (
+                    <div
+                      key={invite.id}
+                      className="flex items-center justify-between px-6 py-4 hover:bg-muted/20 transition-colors"
+                    >
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-medium text-sm text-foreground">
+                          {invite.email}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          Role: {invite.role?.replace("_", " ")} &middot; Sent:{" "}
+                          {new Date(invite.created_at).toLocaleDateString("en-US", {
+                            month: "short", day: "numeric", year: "numeric",
+                          })}
+                          {invite.expires_at && (
+                            <> &middot; Expires:{" "}
+                              {new Date(invite.expires_at).toLocaleDateString("en-US", {
+                                month: "short", day: "numeric", year: "numeric",
+                              })}
+                            </>
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                          title="Resend Invite"
+                          onClick={() => resendInviteMutation.mutate(invite)}
+                          disabled={resendInviteMutation.isPending}
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                          title="Delete Invite"
+                          onClick={() => deleteInviteMutation.mutate(invite.id)}
+                          disabled={deleteInviteMutation.isPending}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         <div className="grid grid-cols-1 gap-6">
           <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm">
@@ -384,23 +522,51 @@ export default function AdminDashboardPage() {
                   <Users className="h-5 w-5 text-primary" />
                   Employee Management
                 </CardTitle>
-                <div className="flex items-center gap-2">
-                  <div className="relative w-64">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="relative w-52">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="Search employees..."
+                      placeholder="Search users..."
                       className="pl-9 bg-secondary/50 border-none"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
                   </div>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="border-none bg-secondary/50"
-                  >
-                    <Filter className="h-4 w-4" />
-                  </Button>
+                  {/* Role Filter */}
+                  <Select value={filterRole} onValueChange={setFilterRole}>
+                    <SelectTrigger className="w-32 bg-secondary/50 border-none h-9 text-sm">
+                      <SelectValue placeholder="All Roles" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Roles</SelectItem>
+                      {ROLE_OPTIONS.map((r) => (
+                        <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {/* Status Filter */}
+                  <Select value={filterStatus} onValueChange={setFilterStatus}>
+                    <SelectTrigger className="w-32 bg-secondary/50 border-none h-9 text-sm">
+                      <SelectValue placeholder="All Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {/* Department Filter */}
+                  <Select value={filterDept} onValueChange={setFilterDept}>
+                    <SelectTrigger className="w-36 bg-secondary/50 border-none h-9 text-sm">
+                      <SelectValue placeholder="All Depts" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Depts</SelectItem>
+                      {DEPARTMENTS.map((d) => (
+                        <SelectItem key={d} value={d}>{d}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </CardHeader>
@@ -429,66 +595,15 @@ export default function AdminDashboardPage() {
                         <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                           Status
                         </th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Joined
+                        </th>
                         <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">
-                          Action
+                          Actions
                         </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/50">
-                      {pendingInvites.map((p) => (
-                        <tr
-                          key={`${p.email}-${p.createdAt}`}
-                          className="bg-amber-50/60 text-sm"
-                        >
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-3">
-                              <Avatar className="h-9 w-9 border border-amber-200">
-                                <AvatarFallback className="bg-amber-100 text-amber-700 font-bold">
-                                  {p.fullName
-                                    ?.split(" ")
-                                    .map((n: string) => n[0])
-                                    .join("")
-                                    .toUpperCase()
-                                    .slice(0, 2)}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div className="flex flex-col">
-                                <span className="font-semibold text-foreground/90 flex items-center gap-2">
-                                  {p.fullName}
-                                  <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-600">
-                                    Pending
-                                  </span>
-                                </span>
-                                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                  <Mail className="h-3 w-3" /> {p.email}
-                                </span>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <Badge
-                              variant="outline"
-                              className="capitalize border-none px-2 py-0.5 bg-amber-100 text-amber-700"
-                            >
-                              {p.role.replace("_", " ")}
-                            </Badge>
-                          </td>
-                          <td className="px-6 py-4 text-muted-foreground">
-                            --
-                          </td>
-                          <td className="px-6 py-4">
-                            <Badge
-                              variant="outline"
-                              className="text-[10px] border-amber-300 text-amber-700"
-                            >
-                              Invite Sent
-                            </Badge>
-                          </td>
-                          <td className="px-6 py-4 text-right text-xs text-muted-foreground">
-                            --
-                          </td>
-                        </tr>
-                      ))}
                       {filteredUsers?.map((u) => (
                         <tr
                           key={u.id}
@@ -525,13 +640,12 @@ export default function AdminDashboardPage() {
                           <td className="px-6 py-4">
                             <Badge
                               variant="outline"
-                              className={`capitalize border-none px-2 py-0.5 ${
-                                u.role === "super_admin"
-                                  ? "bg-indigo-500/10 text-indigo-500"
-                                  : u.role === "admin"
-                                    ? "bg-emerald-500/10 text-emerald-500"
-                                    : "bg-slate-500/10 text-slate-500"
-                              }`}
+                              className={`capitalize border-none px-2 py-0.5 ${u.role === "super_admin"
+                                ? "bg-indigo-500/10 text-indigo-500"
+                                : u.role === "admin"
+                                  ? "bg-emerald-500/10 text-emerald-500"
+                                  : "bg-slate-500/10 text-slate-500"
+                                }`}
                             >
                               {u.role?.replace("_", " ")}
                             </Badge>
@@ -560,6 +674,11 @@ export default function AdminDashboardPage() {
                                 </>
                               )}
                             </div>
+                          </td>
+                          <td className="px-6 py-4 text-xs text-muted-foreground">
+                            {u.created_at
+                              ? new Date(u.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                              : "—"}
                           </td>
                           <td className="px-6 py-4 text-right">
                             <div className="flex items-center justify-end gap-2">
@@ -594,22 +713,6 @@ export default function AdminDashboardPage() {
             </CardContent>
           </Card>
 
-          {/* Quick Stats Card */}
-          <Card className="border-none shadow-sm bg-primary text-primary-foreground max-w-sm">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <p className="text-xs font-medium opacity-80 uppercase tracking-wider">
-                    Total Active Employees
-                  </p>
-                  <p className="text-3xl font-bold">{users?.length || 0}</p>
-                </div>
-                <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-sm">
-                  <ShieldCheck className="h-6 w-6 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </div>
 
         {/* User Form Dialog */}
@@ -650,9 +753,8 @@ export default function AdminDashboardPage() {
                   {[1, 2].map((i) => (
                     <div
                       key={i}
-                      className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
-                        i <= addMemberStep ? "bg-primary" : "bg-primary/10"
-                      }`}
+                      className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${i <= addMemberStep ? "bg-primary" : "bg-primary/10"
+                        }`}
                     />
                   ))}
                 </div>

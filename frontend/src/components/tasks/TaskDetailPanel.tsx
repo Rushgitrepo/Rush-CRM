@@ -161,7 +161,7 @@ export function TaskDetailPanel({ task, open, onOpenChange, onEdit }: TaskDetail
                                     <div className="flex items-center gap-2">
                                         <Avatar className="h-6 w-6 ring-2 ring-background">
                                             <AvatarFallback className="text-[9px] font-bold bg-primary/10 text-primary">
-                                                {task.assigned_to_name.slice(0, 2).toUpperCase()}
+                                                {task.assigned_to_name.split(/\s+/).map((w: string) => w[0]).join("").toUpperCase().slice(0, 2)}
                                             </AvatarFallback>
                                         </Avatar>
                                         <span className="text-sm font-semibold text-foreground">

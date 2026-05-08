@@ -29,6 +29,7 @@ import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import type { Project } from "@/hooks/useTasks";
+import { MemberSearchSelect } from "@/components/tasks/MemberSearchSelect";
 
 interface ProjectDialogProps {
   open: boolean;
@@ -76,7 +77,6 @@ export function ProjectDialog({
     canAssign: false,
   });
 
-  // Update form when project changes (for editing)
   useEffect(() => {
     if (project) {
       setFormData({
@@ -84,13 +84,16 @@ export function ProjectDialog({
         description: project.description || "",
         status: project.status || "planning",
         color: project.color || "bg-blue-500",
-        start_date: (project as any).start_date || (project as any).startDate ? new Date((project as any).start_date || (project as any).startDate) : undefined,
-        end_date: (project as any).end_date || (project as any).endDate ? new Date((project as any).end_date || (project as any).endDate) : undefined,
+        start_date: (project as any).start_date || (project as any).startDate
+          ? new Date((project as any).start_date || (project as any).startDate)
+          : undefined,
+        end_date: (project as any).end_date || (project as any).endDate
+          ? new Date((project as any).end_date || (project as any).endDate)
+          : undefined,
         managerId: (project as any).manager_id || (project as any).managerId || "",
         canAssign: (project as any).can_assign ?? (project as any).canAssign ?? false,
       });
     } else {
-      // Reset form for new project
       setFormData({
         name: "",
         description: "",
@@ -105,24 +108,77 @@ export function ProjectDialog({
   }, [project, open]);
 
   const isAdmin = userRole?.role === 'admin' || userRole?.role === 'super_admin';
+  const isManager = userRole?.role === 'manager' || userRole?.role === 'hr_manager' || userRole?.role === 'inventory_manager';
   const isCreator = !project || project.created_by === profile?.id;
-  const canEditCoreFields = isAdmin || isCreator;
+  const canEditCoreFields = isAdmin || isManager || isCreator;
+
+  // Delegation check — project level
+  const delegationAllowed = Boolean(project ? (project as any).can_assign === true : false);
+
+  // Current manager (assignee) check
+  const isCurrentManager =
+    !!project &&
+    ((project as any).manager_id === profile?.id || (project as any).managerId === profile?.id);
+
+  // Delegator check — jo pehle manager tha aur usne forward kiya
+  const isDelegator =
+    !!project &&
+    (project as any).delegated_by === profile?.id &&
+    !isCreator;
+
+  // Manager assignment change kar sakta hai agar:
+  // 1. Admin/system-manager/creator
+  // 2. Current manager jise delegation ON ho
+  const canModifyAssignment =
+    isAdmin || isManager || isCreator ||
+    (isCurrentManager && delegationAllowed);
+
+  // Delegation toggle dikhao:
+  // - Admin/manager/creator — full control
+  // - Current manager jise delegation mili (wo next person ke liye set kare)
+  // - Delegator (jo pehle manager tha) — wo current manager ki permission ON/OFF kare
+  const canGrantDelegation = isAdmin || isManager || isCreator;
+  const isManagerWithDelegation = isCurrentManager && delegationAllowed && !isCreator;
+  const showDelegationToggle = canGrantDelegation || isManagerWithDelegation || isDelegator;
+
+  // Manager naam display ke liye — agar list mein nahi to inject karo
+  const managerInList = members.some((m: any) => m.id === formData.managerId);
+  const managerFromProject =
+    !managerInList && project && (project as any).manager_id
+      ? {
+        id: (project as any).manager_id,
+        full_name: (project as any).manager_name || "Assigned Manager",
+        avatar_url: (project as any).manager_avatar || null,
+      }
+      : null;
+  const displayMembers = managerFromProject ? [managerFromProject, ...members] : members;
 
   const handleSubmit = () => {
     if (!formData.name.trim()) return;
 
-    onSubmit({
+    const payload: any = {
       ...formData,
       startDate: formData.start_date ? formData.start_date.toISOString() : null,
       endDate: formData.end_date ? formData.end_date.toISOString() : null,
       managerId: formData.managerId || null,
-      canAssign: formData.canAssign,
-    });
+    };
+
+    // canAssign sirf authorized users set kar sakte hain
+    if (canGrantDelegation || isManagerWithDelegation || isDelegator) {
+      payload.canAssign = formData.canAssign;
+    }
+
+    // Jab manager delegate kare to delegated_by track karo
+    if (isCurrentManager && delegationAllowed) {
+      payload.delegatedBy = profile?.id;
+    }
+
+    onSubmit(payload);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[95vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold flex items-center gap-2">
             <FolderKanban className="h-6 w-6" />
@@ -170,6 +226,7 @@ export function ProjectDialog({
               <Select
                 value={formData.status}
                 onValueChange={(value) => setFormData({ ...formData, status: value })}
+                disabled={!canEditCoreFields}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -193,6 +250,7 @@ export function ProjectDialog({
               <Select
                 value={formData.color}
                 onValueChange={(value) => setFormData({ ...formData, color: value })}
+                disabled={!canEditCoreFields}
               >
                 <SelectTrigger>
                   <SelectValue>
@@ -231,11 +289,7 @@ export function ProjectDialog({
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {formData.start_date ? (
-                      format(formData.start_date, "PPP")
-                    ) : (
-                      <span>Pick a date</span>
-                    )}
+                    {formData.start_date ? format(formData.start_date, "PPP") : <span>Pick a date</span>}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -265,11 +319,7 @@ export function ProjectDialog({
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {formData.end_date ? (
-                      format(formData.end_date, "PPP")
-                    ) : (
-                      <span>Pick a date</span>
-                    )}
+                    {formData.end_date ? format(formData.end_date, "PPP") : <span>Pick a date</span>}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -278,9 +328,7 @@ export function ProjectDialog({
                     selected={formData.end_date}
                     onSelect={(date) => setFormData({ ...formData, end_date: date })}
                     initialFocus
-                    disabled={(date) =>
-                      formData.start_date ? date < formData.start_date : false
-                    }
+                    disabled={(date) => (formData.start_date ? date < formData.start_date : false)}
                   />
                 </PopoverContent>
               </Popover>
@@ -289,59 +337,55 @@ export function ProjectDialog({
 
           {/* Manager & Delegation */}
           <div className="grid grid-cols-2 gap-4">
+            {/* Assign To (Manager) */}
             <div className="space-y-2">
               <Label className="text-sm font-medium flex items-center gap-2">
                 <User className="h-4 w-4" />
                 Assign To
-                {!canEditCoreFields && !formData.canAssign && (
+                {!canModifyAssignment && (
                   <span className="flex items-center gap-1 text-[10px] text-red-500 font-semibold">
                     <div className="h-2 w-2 rounded-full bg-red-500" />
-                    Delegation OFF
+                    No permission
                   </span>
                 )}
               </Label>
-              {/* Show dropdown if: admin/creator OR delegation is ON */}
-              {(canEditCoreFields || formData.canAssign) ? (
-                <Select
-                  value={formData.managerId || "none"}
-                  onValueChange={(value) => setFormData({ ...formData, managerId: value === "none" ? "" : value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Assign a manager..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {members.map((member) => (
-                      <SelectItem key={member.id} value={member.id}>
-                        {member.full_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              {canModifyAssignment ? (
+                <MemberSearchSelect
+                  members={displayMembers}
+                  value={formData.managerId || ""}
+                  onChange={(val) => setFormData({ ...formData, managerId: val })}
+                />
               ) : (
                 <div className="flex h-10 w-full items-center justify-between rounded-md border border-red-500/40 bg-red-500/5 px-3 py-2 text-sm cursor-not-allowed opacity-60">
                   <span className="text-muted-foreground">
                     {formData.managerId
-                      ? members.find((m) => m.id === formData.managerId)?.full_name || "Assigned"
-                      : "Delegation is OFF"}
+                      ? displayMembers.find((m: any) => m.id === formData.managerId)?.full_name || "No Permission"
+                      : "No permission to assign"}
                   </span>
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground/50"><path d="m6 9 6 6 6-6" /></svg>
                 </div>
               )}
             </div>
 
-            <div className="p-4 rounded-xl border border-primary/10 bg-primary/5 flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="text-sm font-semibold">Allow Delegation</Label>
-                <p className="text-xs text-muted-foreground">
-                  Allow manager to assign projects and manage members.
-                </p>
+            {/* Delegation Toggle */}
+            {showDelegationToggle && (
+              <div className="p-4 rounded-xl border border-primary/10 bg-primary/5 flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-semibold">Allow Delegation</Label>
+                  <p className="text-xs text-muted-foreground">
+                    {canGrantDelegation
+                      ? "Allow the manager to re-assign this project to others."
+                      : isDelegator
+                        ? "Control whether the current manager can further delegate."
+                        : "Allow the next manager to further delegate this project."}
+                  </p>
+                </div>
+                <Switch
+                  checked={formData.canAssign}
+                  onCheckedChange={(checked) => setFormData({ ...formData, canAssign: checked })}
+                />
               </div>
-              <Switch
-                checked={formData.canAssign}
-                onCheckedChange={(checked) => setFormData({ ...formData, canAssign: checked })}
-              />
-            </div>
+            )}
           </div>
         </div>
 

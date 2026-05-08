@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { format, isToday, isTomorrow, isPast } from "date-fns";
 import { cn } from "@/lib/utils";
-import { useUpdateTask, useDeleteTask, type Task } from "@/hooks/useTasks";
+import { useUpdateTask, useDeleteTask, useDeleteTasksBulk, type Task } from "@/hooks/useTasks";
 import { TaskDetailPanel } from "@/components/tasks/TaskDetailPanel";
 
 const STATUS_CONFIG = {
@@ -55,9 +55,22 @@ export function TaskListView({ tasks, onEditTask, onToggleStar }: TaskListViewPr
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
+  const deleteTasksBulk = useDeleteTasksBulk();
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [detailTask, setDetailTask] = useState<Task | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+
+  const allSelected = tasks.length > 0 && selectedTasks.size === tasks.length;
+  const someSelected = selectedTasks.size > 0 && !allSelected;
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedTasks(new Set());
+    } else {
+      setSelectedTasks(new Set(tasks.map((t) => t.id)));
+    }
+  };
 
   const toggleTask = (taskId: string) => {
     const newSelected = new Set(selectedTasks);
@@ -67,6 +80,19 @@ export function TaskListView({ tasks, onEditTask, onToggleStar }: TaskListViewPr
       newSelected.add(taskId);
     }
     setSelectedTasks(newSelected);
+  };
+
+  const handleBulkDelete = () => {
+    setShowBulkDeleteConfirm(true);
+  };
+
+  const confirmBulkDelete = () => {
+    deleteTasksBulk.mutate(Array.from(selectedTasks), {
+      onSuccess: () => {
+        setSelectedTasks(new Set());
+        setShowBulkDeleteConfirm(false);
+      },
+    });
   };
 
   const handleToggleStar = (task: Task) => {
@@ -119,6 +145,35 @@ export function TaskListView({ tasks, onEditTask, onToggleStar }: TaskListViewPr
 
   return (
     <div className="space-y-2">
+      {/* Select All + Bulk Delete Bar */}
+      <div className="flex items-center gap-3 px-1 py-1">
+        <Checkbox
+          checked={allSelected}
+          ref={(el) => {
+            if (el) (el as any).indeterminate = someSelected;
+          }}
+          onCheckedChange={toggleSelectAll}
+          className="shrink-0 h-5 w-5 rounded-md border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+        />
+        <span className="text-sm text-muted-foreground select-none">
+          {selectedTasks.size > 0
+            ? `${selectedTasks.size} selected`
+            : "Select all"}
+        </span>
+
+        {selectedTasks.size > 0 && (
+          <Button
+            size="sm"
+            variant="destructive"
+            className="ml-auto gap-2 h-8"
+            onClick={handleBulkDelete}
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete ({selectedTasks.size})
+          </Button>
+        )}
+      </div>
+
       {tasks.map((task) => {
         const status = STATUS_CONFIG[task.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.new;
         const priority = PRIORITY_CONFIG[task.priority as keyof typeof PRIORITY_CONFIG] || PRIORITY_CONFIG.normal;
@@ -195,10 +250,10 @@ export function TaskListView({ tasks, onEditTask, onToggleStar }: TaskListViewPr
               </div>
 
               {/* Meta Info */}
-              <div className="flex items-center gap-5 text-xs text-muted-foreground">
+              <div className="flex items-center gap-5 text-[14px] text-amber-600">
                 {task.project_name && (
                   <span className="flex items-center gap-1.5 font-medium">
-                    <div className={cn("h-2 w-2 rounded-full ring-2 ring-background", task.project_color || "bg-primary")} />
+                    <div className={cn("h-2 w-2 rounded-full", task.project_color || "bg-primary")} />
                     {task.project_name}
                   </span>
                 )}
@@ -210,7 +265,7 @@ export function TaskListView({ tasks, onEditTask, onToggleStar }: TaskListViewPr
                       isOverdue ? "text-red-500 font-semibold" : "opacity-80"
                     )}
                   >
-                    <Calendar className="h-3.5 w-3.5" />
+                    <Calendar className="h-3.5 w-3.5 text-amber-600/60" />
                     {formatDueDate(task.due_date)}
                   </span>
                 )}
@@ -218,8 +273,9 @@ export function TaskListView({ tasks, onEditTask, onToggleStar }: TaskListViewPr
                 {task.assigned_to_name && (
                   <span className="flex items-center gap-2 group/avatar">
                     <Avatar className="h-5 w-5 ring-2 ring-background transition-transform group-hover/avatar:scale-110">
-                      <AvatarFallback className="text-[9px] font-bold bg-primary/5 text-primary">
-                        {task.assigned_to_name.slice(0, 2).toUpperCase()}
+                      {task.assigned_to_avatar && <AvatarImage src={task.assigned_to_avatar} alt={task.assigned_to_name} />}
+                      <AvatarFallback className="text-[9px] font-bold bg-amber-600/30 text-primary">
+                        {task.assigned_to_name.split(/\s+/).map(w => w[0]).join("").toUpperCase().slice(0, 2)}
                       </AvatarFallback>
                     </Avatar>
                     <span className="group-hover/avatar:text-foreground transition-colors">
@@ -237,65 +293,67 @@ export function TaskListView({ tasks, onEditTask, onToggleStar }: TaskListViewPr
               )}
             </div>
 
-            {/* Actions */}
-            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-              <Button
-                size="sm"
-                variant="ghost"
-                className={cn(
-                  "h-9 w-9 p-0 rounded-xl transition-all",
-                  task.is_starred ? "text-yellow-400 bg-yellow-400/5 hover:bg-yellow-400/10" : "opacity-0 group-hover:opacity-100 text-muted-foreground hover:bg-muted"
-                )}
-                onClick={() => handleToggleStar(task)}
-              >
-                <Star className={cn("h-4.5 w-4.5", task.is_starred && "fill-current")} />
-              </Button>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-8 w-8 p-0"
-                  >
-                    <MoreHorizontal className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => onEditTask?.(task)}>
-                    <Edit className="h-4 w-4 mr-2" />
-                    Edit
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => handleStatusChange(task, "new")}>
-                    <Circle className="h-4 w-4 mr-2 text-blue-500" />
-                    Mark as Inbox
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleStatusChange(task, "in_progress")}>
-                    <Clock className="h-4 w-4 mr-2 text-orange-500" />
-                    Mark as In Progress
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleStatusChange(task, "completed")}>
-                    <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" />
-                    Mark as Completed
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  {(isAdmin || task.created_by === profile?.id) && (
-                    <DropdownMenuItem
-                      className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-                      onClick={() => handleDelete(task.id)}
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete
-                    </DropdownMenuItem>
+            {/* Actions — with assignee on top */}
+            <div className="flex flex-col items-end gap-1" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className={cn(
+                    "h-9 w-9 p-0 rounded-xl transition-all",
+                    task.is_starred ? "text-yellow-400 bg-yellow-400/5 hover:bg-yellow-400/10" : "opacity-0 group-hover:opacity-100 text-muted-foreground hover:bg-muted"
                   )}
-                </DropdownMenuContent>
-              </DropdownMenu>
+                  onClick={() => handleToggleStar(task)}
+                >
+                  <Star className={cn("h-4.5 w-4.5", task.is_starred && "fill-current")} />
+                </Button>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => onEditTask?.(task)}>
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => handleStatusChange(task, "new")}>
+                      <Circle className="h-4 w-4 mr-2 text-blue-500" />
+                      Mark as Inbox
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleStatusChange(task, "in_progress")}>
+                      <Clock className="h-4 w-4 mr-2 text-orange-500" />
+                      Mark as In Progress
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleStatusChange(task, "completed")}>
+                      <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" />
+                      Mark as Completed
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {(isAdmin || task.created_by === profile?.id) && (
+                      <DropdownMenuItem
+                        className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                        onClick={() => handleDelete(task.id)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
           </div>
         );
       })}
-      {/* Delete Confirmation Dialog */}
+      {/* Single Delete Confirmation Dialog */}
       <AlertDialog open={!!taskToDelete} onOpenChange={(open) => !open && setTaskToDelete(null)}>
         <AlertDialogContent className="bg-card border-border">
           <AlertDialogHeader>
@@ -313,6 +371,31 @@ export function TaskListView({ tasks, onEditTask, onToggleStar }: TaskListViewPr
               className="bg-destructive hover:bg-destructive/90 text-destructive-foreground shadow-lg shadow-destructive/20"
             >
               {deleteTask.isPending ? "Deleting..." : "Yes, Delete Task"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <AlertDialog open={showBulkDeleteConfirm} onOpenChange={(open) => !open && setShowBulkDeleteConfirm(false)}>
+        <AlertDialogContent className="bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-foreground">
+              Delete {selectedTasks.size} Task{selectedTasks.size > 1 ? "s" : ""}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground">
+              Are you sure you want to delete {selectedTasks.size} selected task{selectedTasks.size > 1 ? "s" : ""}? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-muted hover:bg-muted/80 text-foreground border-border">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmBulkDelete}
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground shadow-lg shadow-destructive/20"
+            >
+              {deleteTasksBulk.isPending ? "Deleting..." : `Yes, Delete ${selectedTasks.size} Task${selectedTasks.size > 1 ? "s" : ""}`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

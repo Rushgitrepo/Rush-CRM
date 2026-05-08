@@ -293,6 +293,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   const [replyContent, setReplyContent] = useState("");
   const [showAddMember, setShowAddMember] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState("");
+  const [addMemberSearch, setAddMemberSearch] = useState("");
   const [showCreateWikiPage, setShowCreateWikiPage] = useState(false);
   const [newWikiPageTitle, setNewWikiPageTitle] = useState("");
   const [newWikiPageContent, setNewWikiPageContent] = useState("");
@@ -1320,6 +1321,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
         onSuccess: () => {
           setShowAddMember(false);
           setSelectedUserId("");
+          setAddMemberSearch("");
           toast.success("Team member added successfully!");
         },
         onError: (error: any) => {
@@ -2914,43 +2916,71 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                   <label className="text-sm font-medium text-white dark:text-white">
                     Select User ({availableUsers.length} available)
                   </label>
-                  <Select
-                    value={selectedUserId}
-                    onValueChange={setSelectedUserId}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Choose a team member to add..." />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-64 overflow-y-auto">
-                      {availableUsers.map((u) => (
-                        <SelectItem key={u.id} value={u.id}>
-                          <div className="flex items-center gap-3 py-1">
-                            <Avatar className="h-8 w-8">
-                              <AvatarFallback className="bg-blue-100 text-blue-700 text-xs">
-                                {(u.full_name || u.email || "?")
-                                  .slice(0, 2)
-                                  .toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-white">
-                                {u.full_name || "Unknown"}
-                              </p>
-                              <p className="text-sm dark:text-gray-400 text-gray-600">
-                                {u.email}
-                              </p>
-                            </div>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+
+                  {/* Inline search + avatar list — same style as other dropdowns */}
+                  <div className="rounded-md border border-input bg-background overflow-hidden">
+                    {/* Search input */}
+                    <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground shrink-0"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
+                      <input
+                        className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                        placeholder="Search by name or email..."
+                        value={addMemberSearch}
+                        onChange={e => setAddMemberSearch(e.target.value)}
+                      />
+                      {addMemberSearch && (
+                        <button type="button" onClick={() => setAddMemberSearch("")} className="text-muted-foreground hover:text-foreground text-xs">✕</button>
+                      )}
+                    </div>
+
+                    {/* Scrollable user list */}
+                    <div className="max-h-48 overflow-y-auto">
+                      {availableUsers
+                        .filter(u => {
+                          const q = addMemberSearch.toLowerCase();
+                          return !q || u.full_name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q);
+                        })
+                        .map((u) => {
+                          const initials = (u.full_name || u.email || "?").split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2);
+                          const isSelected = selectedUserId === u.id;
+                          return (
+                            <button
+                              key={u.id}
+                              type="button"
+                              onClick={() => setSelectedUserId(isSelected ? "" : u.id)}
+                              className={`w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-muted/50 transition-colors ${isSelected ? "bg-primary/10" : ""}`}
+                            >
+                              <Avatar className="h-8 w-8 shrink-0">
+                                <AvatarImage src={getAvatarUrl((u as any).avatar_url)} />
+                                <AvatarFallback className="bg-blue-100 text-blue-700 text-xs font-bold">
+                                  {initials}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1 min-w-0">
+                                <p className={`text-sm font-medium truncate ${isSelected ? "text-primary" : "text-foreground"}`}>
+                                  {u.full_name || "Unknown"}
+                                </p>
+                                <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                              </div>
+                              {isSelected && <span className="text-primary text-xs shrink-0">✓</span>}
+                            </button>
+                          );
+                        })}
+                      {availableUsers.filter(u => {
+                        const q = addMemberSearch.toLowerCase();
+                        return !q || u.full_name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q);
+                      }).length === 0 && (
+                          <p className="px-3 py-3 text-sm text-muted-foreground text-center">No users found.</p>
+                        )}
+                    </div>
+                  </div>
                 </div>
 
                 {selectedUserId && (
                   <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                     <div className="flex items-center gap-3">
                       <Avatar className="h-10 w-10">
+                        <AvatarImage src={getAvatarUrl((availableUsers.find((u) => u.id === selectedUserId) as any)?.avatar_url)} />
                         <AvatarFallback className="bg-blue-100 text-blue-700">
                           {(
                             availableUsers.find((u) => u.id === selectedUserId)
@@ -2966,10 +2996,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                             ?.full_name || "Unknown"}
                         </p>
                         <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {
-                            availableUsers.find((u) => u.id === selectedUserId)
-                              ?.email
-                          }
+                          {availableUsers.find((u) => u.id === selectedUserId)?.email}
                         </p>
                         <p className="text-xs text-blue-600 dark:text-blue-400">
                           Will be added as Member
