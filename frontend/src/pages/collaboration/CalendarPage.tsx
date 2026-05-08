@@ -105,8 +105,8 @@ export default function CalendarPage() {
   }, [selectedDate, activeView]);
 
   const { events: rawEvents, isLoading } = useCalendarEvents(
-    searchQuery ? undefined : dateRange.start, 
-    searchQuery ? undefined : dateRange.end, 
+    searchQuery ? undefined : dateRange.start,
+    searchQuery ? undefined : dateRange.end,
     searchQuery
   );
 
@@ -115,7 +115,7 @@ export default function CalendarPage() {
     const query = searchQuery.toLowerCase();
     return rawEvents.filter(e => {
       const dateStr = format(new Date(e.start_time), 'EEEE MMMM d yyyy').toLowerCase(); // e.g. "monday april 12 2026"
-      return e.title.toLowerCase().includes(query) || 
+      return e.title.toLowerCase().includes(query) ||
         e.description?.toLowerCase().includes(query) ||
         e.location?.toLowerCase().includes(query) ||
         dateStr.includes(query);
@@ -207,11 +207,11 @@ export default function CalendarPage() {
     // If searching, force schedule view to show results from any date
     if (searchQuery.trim()) {
       return (
-        <CalendarScheduleView 
-          onConnectClick={() => setConnectDialogOpen(true)} 
-          hasConnectedCalendar={hasConnectedCalendar} 
-          events={events} 
-          onEventClick={handleEventClick} 
+        <CalendarScheduleView
+          onConnectClick={() => setConnectDialogOpen(true)}
+          hasConnectedCalendar={hasConnectedCalendar}
+          events={events}
+          onEventClick={handleEventClick}
         />
       );
     }
@@ -249,48 +249,37 @@ export default function CalendarPage() {
             </div>
 
             <div className="flex items-center gap-3">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button className="gap-2 bg-primary text-white shadow-lg shadow-blue-500/25 rounded-lg">
-                    <Plus className="h-4 w-4" />
-                    Create Event
-                    <ChevronDown className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-48">
-                  <DropdownMenuItem onClick={() => setCreateEventOpen(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    New Event
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { setDefaultEventHour(undefined); setCreateEventOpen(true); }}>
-                    <Users className="h-4 w-4 mr-2" />
-                    New Meeting
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { setDefaultEventHour(undefined); setCreateEventOpen(true); }}>
-                    <Clock className="h-4 w-4 mr-2" />
-                    New Reminder
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+
+              <Button
+                className="gap-2 bg-primary text-white shadow-lg shadow-blue-500/25 rounded-lg mr-8"
+                onClick={() => {
+                  setDefaultEventHour(undefined);
+                  setCreateEventOpen(true);
+                }}
+              >
+                <Users className="h-4 w-4" />
+                New Meeting
+              </Button>
 
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input 
-                  placeholder="Search events..." 
-                  className="pl-9 w-64 bg-white/60 border-slate-200 focus:bg-white dark:bg-slate-800/60 dark:border-slate-700" 
+                <Input
+                  placeholder="Search events..."
+                  className="pl-9 w-64 bg-white/60 border-slate-200 focus:bg-white dark:bg-slate-800/60 dark:border-slate-700"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
 
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="rounded-lg bg-white/60 hover:bg-primary dark:bg-slate-800/60 dark:hover:bg-slate-800" 
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-lg bg-white/60 hover:bg-primary dark:bg-slate-800/60 dark:hover:bg-slate-800"
                 onClick={() => setSettingsDialogOpen(true)}
               >
                 <Settings className="h-5 w-5" />
               </Button>
+
             </div>
           </div>
         </div>
@@ -315,7 +304,7 @@ export default function CalendarPage() {
                       </p>
                     )}
                   </div>
-                  
+
                   <div className="flex items-center gap-3">
                     {/* View Selector */}
                     <DropdownMenu>
@@ -338,13 +327,13 @@ export default function CalendarPage() {
                       <Button variant="ghost" size="icon" onClick={navigatePrev} className="hover:bg-primary dark:hover:bg-slate-800">
                         <ChevronLeft className="h-4 w-4" />
                       </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => setSelectedDate(new Date())}
                         className={`px-4 rounded-lg border-primary/20 hover:bg-primary transition-all
-                          ${format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') 
-                            ? 'bg-primary/10 text-primary border-primary/40 font-semibold' 
+                          ${format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
+                            ? 'bg-primary/10 text-primary border-primary/40 font-semibold'
                             : 'bg-white dark:bg-slate-800'
                           }
                         `}
@@ -388,7 +377,7 @@ export default function CalendarPage() {
               <div className="px-6 pb-6">
                 <div className="space-y-4">
                   <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Calendar Connections</h3>
-                  
+
                   {hasConnectedCalendar ? (
                     <div className="space-y-2">
                       {connections.map((conn) => (
@@ -398,18 +387,18 @@ export default function CalendarPage() {
                             <span className="text-sm font-medium">{providerNames[conn.provider] || conn.provider}</span>
                           </div>
                           <div className="flex gap-1">
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               onClick={() => handleSync(conn.provider)}
                               className="text-xs"
                               title="Sync"
                             >
                               <RefreshCw className="w-3 h-3" />
                             </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               onClick={() => handleManageCalendar(conn.provider)}
                               className="text-xs"
                             >
@@ -418,8 +407,8 @@ export default function CalendarPage() {
                           </div>
                         </div>
                       ))}
-                      <Button 
-                        className="w-full bg-primary hover:from-green-700 hover:to-green-800 text-white shadow-lg shadow-green-500/25" 
+                      <Button
+                        className="w-full bg-primary hover:from-green-700 hover:to-green-800 text-white shadow-lg shadow-green-500/25"
                         onClick={() => setConnectDialogOpen(true)}
                       >
                         <Check className="h-4 w-4 mr-2" />
@@ -427,8 +416,8 @@ export default function CalendarPage() {
                       </Button>
                     </div>
                   ) : (
-                    <Button 
-                      className="w-full bg-primary text-white shadow-lg shadow-blue-500/25" 
+                    <Button
+                      className="w-full bg-primary text-white shadow-lg shadow-blue-500/25"
                       onClick={() => setConnectDialogOpen(true)}
                     >
                       <Plus className="h-4 w-4 mr-2" />
@@ -452,11 +441,10 @@ export default function CalendarPage() {
                 variant={activeView === tab.id ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setActiveView(tab.id)}
-                className={`px-4 text-xs transition-all ${
-                  activeView === tab.id 
-                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' 
+                className={`px-4 text-xs transition-all ${activeView === tab.id
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                } ${tab.id === "invitations" ? 'flex items-center gap-1' : ''}`}
+                  } ${tab.id === "invitations" ? 'flex items-center gap-1' : ''}`}
               >
                 {tab.id === "invitations" && <span className="text-green-600">@</span>}
                 {tab.label}
