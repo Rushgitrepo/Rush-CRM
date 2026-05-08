@@ -91,7 +91,7 @@ export function LeadsKanbanView({ leads, onCreateLead, selectedStage }: LeadsKan
     id: s.id, 
     key: s.stage_key,
     label: s.stage_label, 
-    color: s.color || "bg-gray-500", 
+    color: s.color || "bg-muted-foreground", 
     isCustom: true,
     is_active: s.is_active 
   })).filter(c => c.is_active !== false);
@@ -232,17 +232,17 @@ export function LeadsKanbanView({ leads, onCreateLead, selectedStage }: LeadsKan
           <div
             key={column.id}
             className={cn(
-              "flex-shrink-0 w-80 rounded-xl border transition-colors shadow-sm",
+              "flex-shrink-0 w-80 rounded-xl border transition-colors shadow-sm bg-muted/30",
               dragOverColumn === column.id
-                ? "border-primary bg-slate-50"
-                : ""
+                ? "border-primary bg-primary/5"
+                : "border-border"
             )}
             onDragOver={(e) => handleDragOver(e, column.id)}
             onDragLeave={handleDragLeave}
             onDrop={(e) => handleDrop(e, column.key)}
           >
             {/* Column Header */}
-            <div className="p-4 border-b">
+            <div className="p-4 border-b border-border">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className={`w-3 h-3 rounded-full ${column.color}`} />
@@ -289,7 +289,7 @@ export function LeadsKanbanView({ leads, onCreateLead, selectedStage }: LeadsKan
                   </DropdownMenu>
                 </div>
               </div>
-              <p className="text-sm text-slate-500 mt-1">
+              <p className="text-sm text-muted-foreground mt-1">
                 ${totalValue.toLocaleString()} total value
               </p>
             </div>
@@ -301,7 +301,7 @@ export function LeadsKanbanView({ leads, onCreateLead, selectedStage }: LeadsKan
                   key={lead.id}
                   draggable
                   onDragStart={(e) => handleDragStart(e, lead.id)}
-                  className="border border-slate-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing group"
+                  className="border border-border bg-card rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing group"
                 >
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-2">
@@ -313,7 +313,7 @@ export function LeadsKanbanView({ leads, onCreateLead, selectedStage }: LeadsKan
                       </Avatar>
                       <div>
                         <p
-                          className="font-medium text-sm text-slate-800 hover:text-slate-950 cursor-pointer"
+                          className="font-medium text-sm text-foreground hover:text-primary cursor-pointer transition-colors"
                           onClick={() => navigate(`/crm/leads/${lead.id}`)}
                         >
                           {lead.name}
@@ -321,7 +321,7 @@ export function LeadsKanbanView({ leads, onCreateLead, selectedStage }: LeadsKan
                         {lead.email && (
                           <a 
                             href={`mailto:${lead.email}`} 
-                            className="text-xs text-slate-500 hover:text-slate-700 hover:underline transition-colors truncate block"
+                            className="text-xs text-muted-foreground hover:text-primary hover:underline transition-colors truncate block"
                           >
                             {lead.email}
                           </a>
@@ -334,7 +334,7 @@ export function LeadsKanbanView({ leads, onCreateLead, selectedStage }: LeadsKan
                           <MoreHorizontal className="h-3 w-3" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="border-slate-200 bg-white shadow-lg">
+                      <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => navigate(`/crm/leads/${lead.id}`)}>
                           View Details
                         </DropdownMenuItem>
@@ -353,27 +353,27 @@ export function LeadsKanbanView({ leads, onCreateLead, selectedStage }: LeadsKan
 
                   <div className="space-y-2">
                     {lead.company && (
-                      <div className="flex items-center gap-1 text-xs text-slate-500">
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Building2 className="h-3 w-3" />
                         {lead.company}
                       </div>
                     )}
                     {lead.phone && (
-                      <div className="flex items-center gap-1 text-xs text-slate-500">
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Phone className="h-3 w-3" />
                         <ClickToCall 
                           phoneNumber={lead.phone} 
                           entityType="lead" 
                           entityId={lead.id} 
-                          className="text-slate-500 hover:text-slate-700 hover:underline transition-colors truncate block" 
+                          className="text-muted-foreground hover:text-primary hover:underline transition-colors truncate block" 
                         />
                       </div>
                     )}
                     <div className="flex items-center justify-between">
-                      <Badge variant="outline" className="text-xs">
+                      <Badge variant="outline" className="text-xs border-border">
                         {lead.source || "—"}
                       </Badge>
-                      <span className="text-sm font-semibold text-slate-800">
+                      <span className="text-sm font-semibold text-foreground">
                         ${lead.value.toLocaleString()}
                       </span>
                     </div>
@@ -382,7 +382,7 @@ export function LeadsKanbanView({ leads, onCreateLead, selectedStage }: LeadsKan
               ))}
 
               {stageLeads.length === 0 && (
-                <div className="text-center py-8 text-slate-500 text-sm">
+                <div className="text-center py-8 text-muted-foreground text-sm">
                   No leads in this stage
                 </div>
               )}
