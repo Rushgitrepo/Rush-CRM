@@ -200,7 +200,7 @@ export function EntityTable<T extends { id?: string | number }>({
       </div>
 
       {/* Desktop table */}
-      <div className="hidden md:block overflow-hidden rounded-xl border bg-card">
+      <div className="hidden md:block overflow-x-auto rounded-xl border bg-card">
         <Table aria-label={ariaLabel}>
           <TableHeader className="bg-muted/40">
             <TableRow>

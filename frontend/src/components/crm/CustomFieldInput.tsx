@@ -116,7 +116,7 @@ export function CustomFieldInput({
             ))}
           </div>
         ) : (
-          <span className="text-foreground font-medium break-all">{field.value || <span className="text-muted-foreground italic">Not specified</span>}</span>
+          <span className="text-foreground font-medium break-all w-full">{field.value || <span className="text-muted-foreground italic">Not specified</span>}</span>
         )}
       </div>
     );

@@ -1058,8 +1058,8 @@ export default function LeadDetailPage() {
       </div>
 
       {/* Main Content Area */}
-      <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Left Column - Lead Details */}
           <div className="lg:col-span-7 space-y-8">
 
@@ -1080,14 +1080,14 @@ export default function LeadDetailPage() {
                       </CardTitle>
                       <CardDescription>Core contact, company, and ownership details.</CardDescription>
                     </CardHeader>
-                    <div className="p-8 pb-0">
+                    <div className="p-6 pb-0">
                       {renderDroppedFields("lead-company-details-top", true)}
                     </div>
                   </DroppableSection>
-                  <CardContent className="p-8 pt-4">
+                  <CardContent className="p-6 pt-4">
 
                     <DroppableSection id="lead-company-details" editing={editing}>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-b pb-8 mb-8">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-b pb-6 mb-6">
                         <DroppableField id="fixed-lead-company-details-pipeline" editing={editing}>
                           <div className="space-y-2">
                             <Label className="text-sm font-medium text-foreground flex items-center gap-2">
@@ -1445,14 +1445,14 @@ export default function LeadDetailPage() {
                       </CardTitle>
                       <CardDescription>Track touchpoints and follow-up timing.</CardDescription>
                     </CardHeader>
-                    <div className="p-8 pb-0">
+                    <div className="p-6 pb-0">
                       {renderDroppedFields("activity-tracking-top", true)}
                     </div>
                   </DroppableSection>
-                  <CardContent className="p-8 pt-4">
+                  <CardContent className="p-6 pt-4">
 
                     <DroppableSection id="activity-tracking" editing={editing}>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <DroppableField id="fixed-activity-tracking-last_contacted_date" editing={editing}>
                           <Field
                             label="Last Contacted Date"
@@ -1512,14 +1512,14 @@ export default function LeadDetailPage() {
                       </CardTitle>
                       <CardDescription>Capture the sales potential and buying intent.</CardDescription>
                     </CardHeader>
-                    <div className="p-8 pb-0">
+                    <div className="p-6 pb-0">
                       {renderDroppedFields("qualification-opportunity-top", true)}
                     </div>
                   </DroppableSection>
-                  <CardContent className="p-8 pt-4">
+                  <CardContent className="p-6 pt-4">
 
                     <DroppableSection id="qualification-opportunity" editing={editing}>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <DroppableField id="fixed-qualification-opportunity-service_interested" editing={editing}>
                           <div className="space-y-2">
                             <Label className="text-sm font-medium text-foreground flex items-center gap-1">
@@ -1638,9 +1638,9 @@ export default function LeadDetailPage() {
                       <CardDescription>Record where the lead came from and any source context.</CardDescription>
                     </CardHeader>
                   </DroppableSection>
-                  <CardContent className="p-8">
+                  <CardContent className="p-6">
                     <DroppableSection id="source-section" editing={editing}>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="md:col-span-2 space-y-2">
                           <Label className="text-sm font-medium text-foreground">Source Information</Label>
                           {editing ? (

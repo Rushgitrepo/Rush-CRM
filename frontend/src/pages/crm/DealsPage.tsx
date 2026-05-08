@@ -196,10 +196,10 @@ export default function DealsPage() {
       header: "Deal",
       sortable: true,
       render: (deal) => (
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold">{deal.name}</span>
-            <Badge variant="outline" className="bg-muted/50">
+        <div className="space-y-1 max-w-[250px]">
+          <div className="flex items-center gap-2 overflow-hidden">
+            <span className="font-semibold truncate">{deal.name}</span>
+            <Badge variant="outline" className="bg-muted/50 whitespace-nowrap flex-shrink-0">
               {deal.stage.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
             </Badge>
           </div>
@@ -220,9 +220,9 @@ export default function DealsPage() {
       key: "company",
       header: "Company",
       render: (deal) => (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Building2 className="h-4 w-4" />
-          {deal.company || "—"}
+        <div className="flex items-center gap-2 text-sm text-muted-foreground max-w-[180px]">
+          <Building2 className="h-4 w-4 shrink-0" />
+          <span className="truncate">{deal.company || "—"}</span>
         </div>
       ),
     },
