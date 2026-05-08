@@ -279,6 +279,15 @@ const defaultPipelineStages = [
     borderColor: "border-emerald-200",
     icon: CheckCircle
   },
+  {
+    id: "converted",
+    label: "Converted",
+    color: "bg-emerald-500",
+    bgColor: "bg-emerald-50 dark:bg-emerald-900/20",
+    textColor: "text-emerald-700",
+    borderColor: "border-emerald-200",
+    icon: Award
+  },
 ];
 
 const getStatusColor = (status: string) => {

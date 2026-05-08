@@ -9,8 +9,6 @@ const mapStatusToFrontend = (status) => {
   
   const statusMap = {
     'unassigned': 'new',
-    'processed': 'qualified',
-    'converted': 'qualified',
     'in_progress': 'contacted',
     'progress': 'contacted',
   };
