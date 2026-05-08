@@ -66,7 +66,18 @@ export default function ContactsPage() {
             {c.position && <Badge variant="outline" className="bg-muted/40">{c.position}</Badge>}
           </div>
           <p className="text-xs text-muted-foreground flex items-center gap-2">
-            <Mail className="h-3 w-3" /> {c.email || "—"}
+            <Mail className="h-3 w-3" /> 
+            {c.email ? (
+              <span 
+                className="hover:text-primary hover:underline transition-colors cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate("/collaboration/mail", { state: { composeTo: c.email } });
+                }}
+              >
+                {c.email}
+              </span>
+            ) : "—"}
           </p>
         </div>
       ),

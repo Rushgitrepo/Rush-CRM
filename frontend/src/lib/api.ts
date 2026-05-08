@@ -385,7 +385,7 @@ export const tasksApi = {
 };
 
 export const usersApi = {
-  getAll: (params?: { search?: string; role?: string; status?: string; department?: string }) => api.get<any[]>('/members', params),
+  getAll: (params?: { search?: string; role?: string; status?: string; department?: string; includeSelf?: boolean | string; includeSuperAdmin?: boolean | string }) => api.get<any[]>('/members', params),
   getStats: () => api.get<{ total: string; active: string; inactive: string; admins: string }>('/members/stats'),
   getById: (id: string) => api.get<any>(`/members/${id}`),
   create: (data: any) => api.post<any>('/members', data),

@@ -320,7 +320,7 @@ export default function CreateLeadPage() {
     },
   });
 
-  const { data: members = [] } = useOrganizationProfiles();
+  const { data: members = [] } = useOrganizationProfiles({ includeSelf: true });
   const { data: dbStages = [] } = usePipelineStages();
 
   const customDbStages = dbStages

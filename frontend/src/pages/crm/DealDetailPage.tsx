@@ -48,6 +48,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { usersApi } from '@/lib/api';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { useOrganizationProfiles } from "@/hooks/useTenantQuery";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useSoftphone } from "@/contexts/SoftphoneContext";
@@ -209,6 +210,7 @@ interface FieldProps {
 }
 
 function Field({ label, value, onChange, editing, icon, multiline, type = "text", placeholder, required, entityId }: FieldProps) {
+  const navigate = useNavigate();
   if (!editing && !value) {
     return (
       <div className="space-y-2">
@@ -258,7 +260,12 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
               className="font-medium break-words w-full text-left"
             />
           ) : type === "email" ? (
-            <a href={`mailto:${value}`} className="text-primary hover:underline font-medium break-words w-full">{value}</a>
+            <span 
+              className="text-primary hover:underline font-medium break-words w-full cursor-pointer"
+              onClick={() => navigate("/collaboration/mail", { state: { composeTo: value } })}
+            >
+              {value}
+            </span>
           ) : type === "date" && value && isValid(new Date(value)) ? (
             <span className="text-foreground font-medium break-words w-full">
               {format(new Date(value), "MMM d, yyyy")}
@@ -392,13 +399,7 @@ export default function DealDetailPage() {
   });
 
   // Fetch all team members for assignment
-  const { data: members = [] } = useQuery({
-    queryKey: ['users'],
-    queryFn: async () => {
-      const response = await usersApi.list();
-      return response || [];
-    },
-  });
+  const { data: members = [] } = useOrganizationProfiles({ includeSelf: true });
 
   // Combine DB stages with visual fallback data (colors/icons)
   const pipelineStages = dbStages.map(s => {
@@ -741,12 +742,10 @@ export default function DealDetailPage() {
                             variant="default"
                             size="sm"
                             className="h-8 gap-1.5 bg-primary hover:bg-primary/90 text-white text-xs shadow-sm transition-all hover:scale-105 active:scale-95"
-                            asChild
+                            onClick={() => navigate("/collaboration/mail", { state: { composeTo: linkedContact.email } })}
                           >
-                            <a href={`mailto:${linkedContact.email}`}>
-                              <Mail className="h-3.5 w-3.5" />
-                              Email
-                            </a>
+                            <Mail className="h-3.5 w-3.5" />
+                            Email
                           </Button>
                         )}
                       </div>
@@ -1778,6 +1777,16 @@ export default function DealDetailPage() {
                       </div>
                       <div className="md:col-span-2">
                         <Field
+                          label="Project Deadline"
+                          value={form.deadline ? (editing ? form.deadline as string : format(new Date(form.deadline as string), 'MMM d, yyyy')) : ""}
+                          onChange={(val) => set("deadline", val)}
+                          editing={editing}
+                          icon={<Calendar className="h-4 w-4" />}
+                          type="date"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <Field
                           label="Project Blueprints"
                           value={displayJsonValue(form.project_blueprints)}
                           onChange={(val) => set("project_blueprints", val)}
@@ -1921,7 +1930,7 @@ export default function DealDetailPage() {
                   <Button
                     variant="outline"
                     className="w-full justify-start gap-2 h-10 border hover:bg-muted/50"
-                    onClick={() => window.open(`mailto:${deal.linkedContact.email}`, '_blank')}
+                    onClick={() => navigate("/collaboration/mail", { state: { composeTo: deal.linkedContact.email } })}
                   >
                     <Mail className="h-4 w-4 text-muted-foreground" />
                     <span className="truncate">Email</span>

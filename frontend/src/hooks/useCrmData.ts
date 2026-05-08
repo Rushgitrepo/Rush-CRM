@@ -6,7 +6,16 @@ import { toast } from 'sonner';
 const GC_TIME = 5 * 60 * 1000; // 5 minutes (garbage collection time)
 const STALE_TIME = 2 * 60 * 1000; // 2 minutes
 
-export function useLeads(params?: { stage?: string; status?: string; search?: string; type?: string; workspaceId?: string; page?: number; limit?: number }) {
+export function useLeads(params?: { 
+  search?: string; 
+  status?: string; 
+  type?: string; 
+  workspaceId?: string;
+  page?: number;
+  limit?: number;
+  startDate?: string | null;
+  endDate?: string | null;
+}) {
   return useQuery({
     queryKey: ['leads', params],
     queryFn: async () => {
@@ -115,21 +124,59 @@ export function useUpdateLeadStage() {
   return useMutation({
     mutationFn: ({ id, stage }: { id: string; stage: string }) =>
       leadsApi.updateStage(id, stage),
+    onMutate: async ({ id, stage }) => {
+      // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
+      await queryClient.cancelQueries({ queryKey: ['leads'] });
+      await queryClient.cancelQueries({ queryKey: ['leads', id] });
+
+      // Snapshot the previous value
+      const previousLeads = queryClient.getQueryData(['leads']);
+      const previousLead = queryClient.getQueryData(['leads', id]);
+
+      // Optimistically update to the new value
+      if (previousLeads) {
+        queryClient.setQueryData(['leads'], (old: any) => {
+          if (!old?.data) return old;
+          return {
+            ...old,
+            data: old.data.map((lead: any) => 
+              lead.id === id ? { ...lead, stage } : lead
+            )
+          };
+        });
+      }
+
+      if (previousLead) {
+        queryClient.setQueryData(['leads', id], (old: any) => ({ ...old, stage }));
+      }
+
+      return { previousLeads, previousLead };
+    },
     onSuccess: (updatedLead, { id }) => {
-      // Immediately update the query data to avoid flickers
+      // Update the cache with the actual data from the server
       queryClient.setQueryData(['leads', id], updatedLead);
       
       // Mark as stale to trigger background refetch
       queryClient.invalidateQueries({ queryKey: ['leads'] });
-      queryClient.invalidateQueries({ queryKey: ['leads', id] });
       queryClient.invalidateQueries({ queryKey: ['leads', 'stats'] });
-
-      // Force refetch to ensure UI is updated
-      queryClient.refetchQueries({ queryKey: ['leads'] });
 
       toast.success('Lead stage updated successfully');
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error, __, context: any) => {
+      // Rollback to the previous value if mutation fails
+      if (context?.previousLeads) {
+        queryClient.setQueryData(['leads'], context.previousLeads);
+      }
+      if (context?.previousLead) {
+        queryClient.setQueryData(['leads', context.id], context.previousLead);
+      }
+      toast.error(error.message);
+    },
+    onSettled: (data, error, { id }) => {
+      // Always refetch after error or success to ensure synchronization
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['leads', id] });
+    }
   });
 }
 
@@ -143,7 +190,15 @@ export function useLeadStats() {
   });
 }
 
-export function useDeals(params?: { page?: number; limit?: number; stage?: string; status?: string; search?: string }) {
+export function useDeals(params?: { 
+  page?: number; 
+  limit?: number; 
+  stage?: string; 
+  status?: string; 
+  search?: string;
+  startDate?: string | null;
+  endDate?: string | null;
+}) {
   return useQuery({
     queryKey: ['deals', params],
     queryFn: async () => {
@@ -270,21 +325,58 @@ export function useUpdateDealStage() {
   return useMutation({
     mutationFn: ({ id, stage }: { id: string; stage: string }) =>
       dealsApi.updateStage(id, stage),
+    onMutate: async ({ id, stage }) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['deals'] });
+      await queryClient.cancelQueries({ queryKey: ['deals', id] });
+
+      // Snapshot the previous value
+      const previousDeals = queryClient.getQueryData(['deals']);
+      const previousDeal = queryClient.getQueryData(['deals', id]);
+
+      // Optimistically update to the new value
+      if (previousDeals) {
+        queryClient.setQueryData(['deals'], (old: any) => {
+          if (!old?.data) return old;
+          return {
+            ...old,
+            data: old.data.map((deal: any) => 
+              deal.id === id ? { ...deal, stage } : deal
+            )
+          };
+        });
+      }
+
+      if (previousDeal) {
+        queryClient.setQueryData(['deals', id], (old: any) => ({ ...old, stage }));
+      }
+
+      return { previousDeals, previousDeal };
+    },
     onSuccess: (updatedDeal, { id }) => {
-      // Immediately update the query data to avoid flickers
+      // Update the cache with server data
       queryClient.setQueryData(['deals', id], updatedDeal);
 
-      // Immediately update all related queries
-      queryClient.invalidateQueries({ queryKey: ['deals'] });
-      queryClient.invalidateQueries({ queryKey: ['deals', id] });
+      // Invalidate related queries
       queryClient.invalidateQueries({ queryKey: ['deals', 'stats'] });
-
-      // Force refetch to ensure UI is updated
-      queryClient.refetchQueries({ queryKey: ['deals'] });
 
       toast.success('Deal stage updated successfully');
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error, __, context: any) => {
+      // Rollback
+      if (context?.previousDeals) {
+        queryClient.setQueryData(['deals'], context.previousDeals);
+      }
+      if (context?.previousDeal) {
+        queryClient.setQueryData(['deals', context.id], context.previousDeal);
+      }
+      toast.error(error.message);
+    },
+    onSettled: (data, error, { id }) => {
+      // Sync with server
+      queryClient.invalidateQueries({ queryKey: ['deals'] });
+      queryClient.invalidateQueries({ queryKey: ['deals', id] });
+    }
   });
 }
 

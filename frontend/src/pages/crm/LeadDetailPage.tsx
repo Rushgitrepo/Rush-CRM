@@ -140,6 +140,7 @@ interface FieldProps {
 }
 
 function Field({ label, value, onChange, editing, icon, multiline, type = "text", placeholder, required, entityId }: FieldProps) {
+  const navigate = useNavigate();
   if (!editing && !value) {
     return (
       <div className="space-y-2">
@@ -189,7 +190,12 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
               className="font-medium break-words w-full text-left"
             />
           ) : type === "email" ? (
-            <a href={`mailto:${value}`} className="text-primary hover:underline font-medium break-words w-full">{value}</a>
+            <span 
+              className="text-primary hover:underline font-medium break-words w-full cursor-pointer"
+              onClick={() => navigate("/collaboration/mail", { state: { composeTo: value } })}
+            >
+              {value}
+            </span>
           ) : type === "date" && value && isValid(new Date(value)) ? (
             <span className="text-foreground font-medium break-words w-full">
               {format(new Date(value), "MMM d, yyyy")}
@@ -312,7 +318,7 @@ export default function LeadDetailPage() {
   const createActivity = useCreateActivity();
   const { dialNumber } = useSoftphone();
   const { data: leadStats } = useLeadStats();
-  const { data: members = [] } = useOrganizationProfiles();
+  const { data: members = [] } = useOrganizationProfiles({ includeSelf: true });
 
   const [editing, setEditing] = useState(() => window.location.pathname.endsWith('/edit'));
   const [form, setForm] = useState<Record<string, unknown>>({});
@@ -700,12 +706,10 @@ export default function LeadDetailPage() {
                             variant="default"
                             size="sm"
                             className="h-8 gap-1.5 bg-primary hover:bg-primary/90 text-white text-xs shadow-sm transition-all hover:scale-105 active:scale-95"
-                            asChild
+                            onClick={() => navigate("/collaboration/mail", { state: { composeTo: lead.email } })}
                           >
-                            <a href={`mailto:${lead.email}`}>
-                              <Mail className="h-3.5 w-3.5" />
-                              Email
-                            </a>
+                            <Mail className="h-3.5 w-3.5" />
+                            Email
                           </Button>
                         )}
                       </div>
@@ -1343,7 +1347,12 @@ export default function LeadDetailPage() {
                               ) : (
                                 <div className="h-10 px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-center flex-1 overflow-hidden">
                                   {(form.email as string) ? (
-                                    <a href={`mailto:${form.email}`} className="text-primary hover:underline font-medium break-words w-full">{form.email as string}</a>
+                                    <span 
+                                      className="text-primary hover:underline font-medium break-words w-full cursor-pointer"
+                                      onClick={() => navigate("/collaboration/mail", { state: { composeTo: form.email } })}
+                                    >
+                                      {form.email as string}
+                                    </span>
                                   ) : (
                                     <span className="text-muted-foreground italic">Not specified</span>
                                   )}
@@ -1751,7 +1760,7 @@ export default function LeadDetailPage() {
                   <Button
                     variant="outline"
                     className="w-full justify-start gap-2 h-10 border hover:bg-muted/50"
-                    onClick={() => window.open(`mailto:${lead.email}`, '_blank')}
+                    onClick={() => navigate("/collaboration/mail", { state: { composeTo: lead.email } })}
                   >
                     <Mail className="h-4 w-4 text-muted-foreground" />
                     <span className="truncate">Email</span>

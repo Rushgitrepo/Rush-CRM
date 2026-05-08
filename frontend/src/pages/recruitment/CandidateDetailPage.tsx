@@ -281,9 +281,12 @@ export default function CandidateDetailPage() {
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm">
                   <Mail className="h-4 w-4 text-muted-foreground" />
-                  <a href={`mailto:${candidate.email}`} className="text-primary hover:underline">
+                  <span 
+                    className="text-primary hover:underline cursor-pointer"
+                    onClick={() => navigate("/collaboration/mail", { state: { composeTo: candidate.email } })}
+                  >
                     {candidate.email}
-                  </a>
+                  </span>
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <Phone className="h-4 w-4 text-muted-foreground" />

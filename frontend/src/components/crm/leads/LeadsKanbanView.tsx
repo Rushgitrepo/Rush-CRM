@@ -232,10 +232,11 @@ export function LeadsKanbanView({ leads, onCreateLead, selectedStage }: LeadsKan
           <div
             key={column.id}
             className={cn(
-              "flex-shrink-0 w-80 rounded-xl border transition-colors shadow-sm bg-muted/30",
+              "flex-shrink-0 w-80 rounded-xl border transition-colors shadow-sm",
+              "bg-muted/40 dark:bg-muted/20", // Improved contrast for dark mode
               dragOverColumn === column.id
-                ? "border-primary bg-primary/5"
-                : "border-border"
+                ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                : "border-border/50"
             )}
             onDragOver={(e) => handleDragOver(e, column.id)}
             onDragLeave={handleDragLeave}
@@ -301,37 +302,45 @@ export function LeadsKanbanView({ leads, onCreateLead, selectedStage }: LeadsKan
                   key={lead.id}
                   draggable
                   onDragStart={(e) => handleDragStart(e, lead.id)}
-                  className="border border-border bg-card rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing group"
+                  className={cn(
+                    "border border-border/60 bg-card rounded-lg p-3 shadow-sm",
+                    "hover:shadow-md hover:border-primary/30 transition-all duration-200",
+                    "cursor-grab active:cursor-grabbing group"
+                  )}
                 >
                   <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <GripVertical className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback className="text-xs">
-                          {getInitials(lead)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
+                    <div className="flex items-start gap-2">
+                      <GripVertical className="h-4 w-4 mt-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                      <div className="flex flex-col gap-1">
                         <p
-                          className="font-medium text-sm text-foreground hover:text-primary cursor-pointer transition-colors"
+                          className="font-semibold text-sm text-foreground hover:text-primary cursor-pointer transition-colors"
                           onClick={() => navigate(`/crm/leads/${lead.id}`)}
+                          title="Lead Name"
                         >
                           {lead.name}
                         </p>
+                        {lead.company && (
+                          <div className="text-xs font-medium text-muted-foreground" title="Customer Name">
+                            {lead.company}
+                          </div>
+                        )}
                         {lead.email && (
-                          <a 
-                            href={`mailto:${lead.email}`} 
-                            className="text-xs text-muted-foreground hover:text-primary hover:underline transition-colors truncate block"
+                          <div 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate("/collaboration/mail", { state: { composeTo: lead.email } });
+                            }}
+                            className="text-xs text-muted-foreground hover:text-primary hover:underline transition-colors truncate block cursor-pointer"
                           >
                             {lead.email}
-                          </a>
+                          </div>
                         )}
                       </div>
                     </div>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-6 w-6">
-                          <MoreHorizontal className="h-3 w-3" />
+                        <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0">
+                          <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
@@ -351,13 +360,7 @@ export function LeadsKanbanView({ leads, onCreateLead, selectedStage }: LeadsKan
                     </DropdownMenu>
                   </div>
 
-                  <div className="space-y-2">
-                    {lead.company && (
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Building2 className="h-3 w-3" />
-                        {lead.company}
-                      </div>
-                    )}
+                  <div className="space-y-2 mt-2">
                     {lead.phone && (
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Phone className="h-3 w-3" />
@@ -373,7 +376,7 @@ export function LeadsKanbanView({ leads, onCreateLead, selectedStage }: LeadsKan
                       <Badge variant="outline" className="text-xs border-border">
                         {lead.source || "—"}
                       </Badge>
-                      <span className="text-sm font-semibold text-foreground">
+                      <span className="text-sm font-semibold text-success">
                         ${lead.value.toLocaleString()}
                       </span>
                     </div>

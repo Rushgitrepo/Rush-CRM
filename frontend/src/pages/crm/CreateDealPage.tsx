@@ -11,6 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useOrganizationProfiles } from "@/hooks/useTenantQuery";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/crm/ui/PageHeader";
 import { EntitySearchSelect } from "@/components/crm/EntitySearchSelect";
@@ -65,6 +67,7 @@ const dealSchema = z.object({
   projectBlueprints: z.string().optional(),
   expectedCloseDate: z.string().optional(),
   nextFollowUpDate: z.string().optional(),
+  deadline: z.string().optional(),
   assignedTo: z.string().optional(),
   externalSourceId: z.string().optional(),
   // Fields matching edit form
@@ -161,6 +164,7 @@ export default function CreateDealPage() {
   const createDeal = useCreateDeal();
   const { data: contacts } = useContacts();
   const { data: companies } = useCompanies();
+  const { data: members = [] } = useOrganizationProfiles({ includeSelf: true });
 
   const [contactId, setContactId] = useState<string | null>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
@@ -601,10 +605,21 @@ export default function CreateDealPage() {
                         <DroppableField id="fixed-deal-info-assignedTo" editing={true}>
                           <div className="space-y-2">
                             <Label>Responsible Person</Label>
-                            <Select onValueChange={(v) => form.setValue("assignedTo", v)}>
+                            <Select value={form.watch("assignedTo") || ""} onValueChange={(v) => form.setValue("assignedTo", v)}>
                               <SelectTrigger><SelectValue placeholder="Select responsible..." /></SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="me">Me (Default)</SelectItem>
+                                {members.map((m) => (
+                                  <SelectItem key={m.id} value={m.id}>
+                                    <div className="flex items-center gap-2">
+                                      <Avatar className="h-5 w-5">
+                                        <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+                                          {m.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                                        </AvatarFallback>
+                                      </Avatar>
+                                      {m.full_name}
+                                    </div>
+                                  </SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                           </div>
@@ -952,6 +967,10 @@ export default function CreateDealPage() {
                   <CardTitle>Project Details</CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-4 p-6">
+                  <div className="space-y-2">
+                    <Label>Project Deadline</Label>
+                    <Input type="date" {...form.register("deadline")} />
+                  </div>
                   <div className="space-y-2">
                     <Label>Scope</Label>
                     <Textarea rows={3} placeholder="Project scope" {...form.register("scope")} />
