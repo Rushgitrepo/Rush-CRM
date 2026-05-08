@@ -193,6 +193,7 @@ export default function LeadImportPage() {
 
       setImportResult(data);
       queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['deals'] });
       setStep('complete');
     } catch (error: any) {
       console.error('Error importing leads:', error);
