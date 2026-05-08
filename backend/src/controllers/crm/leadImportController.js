@@ -505,11 +505,21 @@ const importLeads = async (req, res, next) => {
           }
         }
 
-        // Pre-sync: If stage is mapped but status is not, use stage for status (and vice versa)
-        if (dbFieldsData.stage && !dbFieldsData.status) {
-          dbFieldsData.status = dbFieldsData.stage;
-        } else if (!dbFieldsData.stage && dbFieldsData.status) {
-          dbFieldsData.stage = dbFieldsData.status;
+        // Pre-sync: For leads, status and stage are the same concept.
+        // For deals, status is a high-level state (open/won/lost), stage is the pipeline position.
+        if (entityType === 'deal') {
+          // For deals: if user mapped a "Stage" column, use it for stage only (not status)
+          if (!dbFieldsData.stage && dbFieldsData.status) {
+            // User mapped to 'status' but it's really a pipeline stage
+            dbFieldsData.stage = dbFieldsData.status;
+          }
+        } else {
+          // For leads: status and stage mirror each other
+          if (dbFieldsData.stage && !dbFieldsData.status) {
+            dbFieldsData.status = dbFieldsData.stage;
+          } else if (!dbFieldsData.stage && dbFieldsData.status) {
+            dbFieldsData.stage = dbFieldsData.status;
+          }
         }
 
         // 1. Title/Name fallback (required)
@@ -544,12 +554,17 @@ const importLeads = async (req, res, next) => {
         const pipelineStages = existingStages.filter(s => s.pipeline === currentPipeline);
         
         // Logical defaults based on standard keys
-        const standardDefault = entityType === 'deal' ? 'drawings_received' : 'new';
+        // User requested 'unqualified' as the global default for imports if empty or not matched
+        const standardDefault = 'unqualified';
         
-        // If we have stages in DB, use the first one as fallback, otherwise use standard
-        const fallbackStageKey = pipelineStages.length > 0 
-          ? (pipelineStages.find(s => s.stage_key === standardDefault)?.stage_key || pipelineStages[0].stage_key)
-          : standardDefault;
+        // If we have stages in DB, try to find 'unqualified', otherwise fallback to a pipeline-specific safe default
+        let fallbackStageKey = pipelineStages.find(s => s.stage_key === 'unqualified')?.stage_key;
+        
+        if (!fallbackStageKey) {
+          const pipelineSafeDefault = entityType === 'deal' ? 'drawings_received' : 'new';
+          fallbackStageKey = pipelineStages.find(s => s.stage_key === pipelineSafeDefault)?.stage_key || 
+                            (pipelineStages.length > 0 ? pipelineStages[0].stage_key : pipelineSafeDefault);
+        }
 
         if (dbFieldsData.stage) {
           const normalizedInput = normalizeString(dbFieldsData.stage);
@@ -563,15 +578,24 @@ const importLeads = async (req, res, next) => {
           if (matchedStage) {
             dbFieldsData.stage = matchedStage.stage_key;
           } else {
-            // No match found, fallback to the safest default for this pipeline
+            // No match found, fallback to 'unqualified'
             dbFieldsData.stage = fallbackStageKey;
           }
         } else {
+          // Empty stage, default to 'unqualified'
           dbFieldsData.stage = fallbackStageKey;
         }
         
-        // Ensure status is synced with stage for consistency in views
-        if (!dbFieldsData.status) {
+        // Sync status with the resolved stage
+        if (entityType === 'deal') {
+          // For deals, status is a high-level state: open, won, lost
+          // Only override if status is currently a stage key (invalid for deals)
+          const dealStatusValues = ['open', 'won', 'lost', 'unqualified'];
+          if (!dbFieldsData.status || !dealStatusValues.includes(dbFieldsData.status.toLowerCase())) {
+            dbFieldsData.status = 'open';
+          }
+        } else {
+          // For leads, status mirrors stage
           dbFieldsData.status = dbFieldsData.stage;
         }
 
