@@ -404,7 +404,7 @@ const importLeads = async (req, res, next) => {
           phone: 'phone',
           firstName: entityType === 'deal' ? 'contact_first_name' : 'first_name',
           lastName: entityType === 'deal' ? 'contact_last_name' : 'last_name',
-          name: 'name',
+          name: entityType === 'deal' ? 'title' : 'name',
           title: 'title',
           company: 'company_name',
           companyName: 'company_name',
@@ -513,24 +513,24 @@ const importLeads = async (req, res, next) => {
         }
 
         // 1. Title/Name fallback (required)
-        if (!dbFieldsData.title && !dbFieldsData.name) {
-          if (leadData.title || leadData.name) {
-             dbFieldsData.title = leadData.title || leadData.name;
-             if (entityType !== 'deal') {
-               dbFieldsData.name = leadData.name || leadData.title;
-             }
-          } else {
-            // This case is now handled by the N/A default above, 
-            // but kept as a secondary safety check
-            dbFieldsData.title = 'N/A';
-            if (entityType !== 'deal') {
-              dbFieldsData.name = 'N/A';
-            }
+        // For Deals, only 'title' exists. For Leads, both 'title' and 'name' exist.
+        if (entityType === 'deal') {
+          if (!dbFieldsData.title) {
+            dbFieldsData.title = leadData.title || leadData.name || 'N/A';
           }
-        } else if (dbFieldsData.title && !dbFieldsData.name && entityType !== 'deal') {
-           dbFieldsData.name = dbFieldsData.title;
-        } else if (!dbFieldsData.title && dbFieldsData.name) {
-           dbFieldsData.title = dbFieldsData.name;
+          // Clean up any stray 'name' field if it leaked in
+          delete dbFieldsData.name;
+        } else {
+          // Lead path
+          if (!dbFieldsData.title && !dbFieldsData.name) {
+            const fallbackValue = leadData.title || leadData.name || 'N/A';
+            dbFieldsData.title = fallbackValue;
+            dbFieldsData.name = fallbackValue;
+          } else if (dbFieldsData.title && !dbFieldsData.name) {
+            dbFieldsData.name = dbFieldsData.title;
+          } else if (!dbFieldsData.title && dbFieldsData.name) {
+            dbFieldsData.title = dbFieldsData.name;
+          }
         }
 
         // 2. Source default
