@@ -31,7 +31,7 @@ import { CustomFieldInput } from "@/components/crm/CustomFieldInput";
 import { FieldDragWrapper, DroppableField } from "@/components/crm/FieldDragWrapper";
 import { DroppableSection } from "@/components/crm/DroppableSection";
 import { GripVertical } from "lucide-react";
-
+import {useMemo} from 'react';
 import { EntitySearchSelect } from "@/components/crm/EntitySearchSelect";
 import { InlineContactDialog } from "@/components/crm/InlineContactDialog";
 import { InlineCompanyDialog } from "@/components/crm/InlineCompanyDialog";
@@ -402,25 +402,49 @@ export default function DealDetailPage() {
   const { data: members = [] } = useOrganizationProfiles({ includeSelf: true });
 
   // Combine DB stages with visual fallback data (colors/icons)
-  const pipelineStages = dbStages.map(s => {
-    const fallback = fallbackStages.find(f => f.id === s.stage_key);
-    return {
-      id: s.stage_key,
-      label: s.stage_label,
-      description: fallback?.description || "Custom stage",
-      color: s.color || fallback?.color || "bg-muted/400",
-      bgColor: fallback?.bgColor || "bg-muted/40",
-      textColor: fallback?.textColor || "text-foreground",
-      borderColor: fallback?.borderColor || "",
-      icon: fallback?.icon || Clock,
-      dbId: s.id,
-      is_active: s.is_active,
-      probability: s.probability
-    };
-  });
+  const pipelineStages = useMemo(() => {
+    const stages = dbStages.map(s => {
+      const fallback = fallbackStages.find(f => f.id === s.stage_key);
+      return {
+        id: s.stage_key,
+        label: s.stage_label,
+        description: fallback?.description || "Custom stage",
+        color: s.color || fallback?.color || "bg-muted-foreground",
+        bgColor: fallback?.bgColor || "bg-muted/40",
+        textColor: fallback?.textColor || "text-foreground",
+        borderColor: fallback?.borderColor || "",
+        icon: fallback?.icon || Clock,
+        dbId: s.id,
+        is_active: s.is_active,
+        probability: s.probability
+      };
+    });
 
-  const activePipelineStages = pipelineStages.filter(s => s.is_active);
-  const stageOptions = activePipelineStages.map(s => ({ value: s.id, label: s.label }));
+    // Ensure current deal stage is included if it's missing from the pipeline
+    const currentStageId = (form.stage || deal?.stage) as string;
+    if (currentStageId && !stages.find(s => s.id === currentStageId)) {
+      const fallback = fallbackStages.find(f => f.id === currentStageId);
+      stages.push({
+        id: currentStageId,
+        label: fallback?.label || currentStageId.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+        description: "Legacy or custom stage",
+        color: fallback?.color || "bg-orange-500",
+        bgColor: fallback?.bgColor || "bg-orange-50",
+        textColor: fallback?.textColor || "text-orange-700",
+        borderColor: fallback?.borderColor || "border-orange-200",
+        icon: fallback?.icon || AlertCircle,
+        dbId: "virtual",
+        is_active: true,
+        probability: 0
+      });
+    }
+
+    return stages;
+  }, [dbStages, deal?.stage, form.stage]);
+
+  const activePipelineStages = useMemo(() => pipelineStages.filter(s => s.is_active), [pipelineStages]);
+  const stageOptions = useMemo(() => activePipelineStages.map(s => ({ value: s.id, label: s.label })), [activePipelineStages]);
+
 
   useEffect(() => {
     if (deal && templates && !editing && !updateDeal.isPending && !updateDealStage.isPending) {
@@ -722,10 +746,15 @@ export default function DealDetailPage() {
                 <div>
                   <div className="flex flex-wrap items-center gap-3 mb-1">
                     <h1 className="text-xl md:text-2xl font-bold text-foreground break-words max-w-[200px] sm:max-w-none">{deal.title}</h1>
-                    <Badge className={cn("gap-1 px-3 py-1 font-medium whitespace-nowrap", getStatusColor(form.stage || deal.stage))}>
-                      {getStatusIcon(form.stage || deal.stage)}
+                    <Badge className={cn("gap-1 px-3 py-1 font-medium whitespace-nowrap", pipelineStages.find(s => s.id === (form.stage || deal.stage))?.bgColor || "bg-muted/40", pipelineStages.find(s => s.id === (form.stage || deal.stage))?.textColor || "text-foreground", pipelineStages.find(s => s.id === (form.stage || deal.stage))?.borderColor)}>
+                      {(() => {
+                        const stage = pipelineStages.find(s => s.id === (form.stage || deal.stage));
+                        const Icon = stage?.icon || Clock;
+                        return <Icon className="h-4 w-4" />;
+                      })()}
                       {pipelineStages.find(s => s.id === (form.stage || deal.stage))?.label || (form.stage || deal.stage)}
                     </Badge>
+
 
                     {!editing && (
                       <div className="flex items-center gap-2 ml-2">
