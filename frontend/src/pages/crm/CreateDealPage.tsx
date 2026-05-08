@@ -23,6 +23,7 @@ import { CustomFieldInput } from "@/components/crm/CustomFieldInput";
 import { GripVertical } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useCustomFieldTemplates, useSaveCustomFieldTemplates, useContacts, useCompanies, useCreateDeal } from "@/hooks/useCrmData";
+import { useDealPipelineStages } from "@/hooks/usePipelineStages";
 import { mergeFieldsWithTemplatesSync } from "@/utils/crm/customFieldsRegistry";
 import { sanitizePayload } from "@/utils/crm/sanitize";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -96,13 +97,8 @@ interface CustomField {
   afterFieldId?: string;
 }
 
-const stageOptions = [
-  { value: "qualification", label: "Qualification" },
-  { value: "discovery", label: "Discovery" },
-  { value: "proposal_sent", label: "Proposal Sent" },
-  { value: "negotiation", label: "Negotiation" },
-  { value: "close_deal", label: "Close Deal" },
-];
+// Stage options are now fetched dynamically from useDealPipelineStages hook
+
 
 const clientTypeOptions = [
   { value: "lead", label: "Lead" },
@@ -165,6 +161,14 @@ export default function CreateDealPage() {
   const { data: contacts } = useContacts();
   const { data: companies } = useCompanies();
   const { data: members = [] } = useOrganizationProfiles({ includeSelf: true });
+  const { data: dbStages = [] } = useDealPipelineStages();
+
+  const stageOptions = useMemo(() => {
+    return dbStages.map(s => ({
+      value: s.stage_key,
+      label: s.stage_label
+    }));
+  }, [dbStages]);
 
   const [contactId, setContactId] = useState<string | null>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
@@ -210,7 +214,7 @@ export default function CreateDealPage() {
     defaultValues: {
       title: "",
       value: "",
-      stage: "qualification",
+      stage: stageOptions[0]?.value || "drawings_received",
       pipeline: "default",
       status: "open",
       notes: "",
@@ -548,7 +552,7 @@ export default function CreateDealPage() {
                         <DroppableField id="fixed-deal-info-stage" editing={true}>
                           <div className="space-y-2">
                             <Label>Stage</Label>
-                            <Select defaultValue="qualification" onValueChange={(v) => { form.setValue("stage", v); form.setValue("status", v); }}>
+                            <Select value={form.watch("stage")} onValueChange={(v) => { form.setValue("stage", v); form.setValue("status", v); }}>
                               <SelectTrigger className={cn(form.formState.errors.stage && "border-destructive")}><SelectValue /></SelectTrigger>
                               <SelectContent>
                                 {stageOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
