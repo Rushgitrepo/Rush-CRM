@@ -1,4 +1,4 @@
-import { useMemo, useState, Suspense, lazy } from "react";
+import { useMemo, useState, useEffect, Suspense, lazy } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Sparkles, Phone, Mail, Building2, Layers, MoreHorizontal, Edit, Trash2, Eye, Download, Upload, XCircle } from "lucide-react";
 import { useDeals, useDeleteDeal, useBulkDeleteDeals } from "@/hooks/useCrmData";
@@ -57,6 +57,7 @@ export default function DealsPage() {
   const [selectedDeals, setSelectedDeals] = useState<string[]>([]);
   const [pageSize, setPageSize] = useState(100);
   const [currentPage, setCurrentPage] = useState(1);
+  const [isAllSelectedGlobally, setIsAllSelectedGlobally] = useState(false);
 
   const { data: dbDeals, isLoading, isError } = useDeals({
     search,
@@ -70,33 +71,31 @@ export default function DealsPage() {
   const bulkDeleteDeals = useBulkDeleteDeals();
   const updateDeal = useUpdateDeal();
 
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedDeals(filtered.map(deal => deal.id));
-    } else {
-      setSelectedDeals([]);
-    }
-  };
-
-  const handleSelectDeal = (dealId: string, checked: boolean) => {
-    if (checked) {
-      setSelectedDeals(prev => [...prev, dealId]);
-    } else {
-      setSelectedDeals(prev => prev.filter(id => id !== dealId));
-    }
-  };
 
   const handleBulkDelete = async () => {
-    if (selectedDeals.length === 0) return;
+    if (selectedDeals.length === 0 && !isAllSelectedGlobally) return;
 
-    if (await confirm(`Are you sure you want to delete ${selectedDeals.length} deals?`, { variant: 'destructive', title: 'Confirm Bulk Deletion' })) {
-      try {
-        await bulkDeleteDeals.mutateAsync(selectedDeals);
-        setSelectedDeals([]);
-      } catch (error) {
-        // Error is handled by mutation
+    const count = isAllSelectedGlobally ? (dbDeals as any)?.pagination?.total : selectedDeals.length;
+    
+    confirm(`Are you sure you want to delete ${count} deals? This action cannot be undone.`, {
+      title: "Bulk Delete Deals",
+      confirmLabel: "Delete",
+      variant: "destructive",
+    }).then(async (confirmed) => {
+      if (confirmed) {
+        try {
+          await bulkDeleteDeals.mutateAsync(
+            isAllSelectedGlobally
+              ? { all: true, filters: { search, status, stage } }
+              : selectedDeals
+          );
+          setSelectedDeals([]);
+          setIsAllSelectedGlobally(false);
+        } catch (error) {
+          // Error handled by mutation
+        }
       }
-    }
+    });
   };
 
   const handleBulkExport = () => {
@@ -125,8 +124,28 @@ export default function DealsPage() {
     toast.success('Deals exported successfully');
   };
 
+  // Reset selection when filters change
+  useEffect(() => {
+    setSelectedDeals([]);
+    setIsAllSelectedGlobally(false);
+  }, [search, status, stage]);
+
   const deals: DealRow[] = useMemo(() => {
-    return (dbDeals || []).map((d: any) => {
+    // Handle different response formats from the API
+    let dealsData: any[] = [];
+
+    if (Array.isArray(dbDeals)) {
+      dealsData = dbDeals;
+    } else if (dbDeals && typeof dbDeals === 'object') {
+      const dataObj = dbDeals as any;
+      if (Array.isArray(dataObj.data)) {
+        dealsData = dataObj.data;
+      } else if (dataObj.deals && Array.isArray(dataObj.deals)) {
+        dealsData = dataObj.deals;
+      }
+    }
+
+    return dealsData.map((d: any) => {
       const stageKey = (d.stage || "qualification").toLowerCase();
 
       const companyName = d.company || d.companyName || d.company_name || "";
@@ -172,23 +191,6 @@ export default function DealsPage() {
   }, [deals, search, stage, status, sortBy]);
 
   const columns: EntityColumn<DealRow>[] = [
-    {
-      key: "select",
-      header: (
-        <Checkbox
-          checked={selectedDeals.length === filtered.length && filtered.length > 0}
-          onCheckedChange={(checked) => handleSelectAll(checked as boolean)}
-        />
-      ),
-      render: (deal) => (
-        <div onClick={(e) => e.stopPropagation()}>
-          <Checkbox
-            checked={selectedDeals.includes(deal.id)}
-            onCheckedChange={(checked) => handleSelectDeal(deal.id, checked as boolean)}
-          />
-        </div>
-      ),
-    },
     {
       key: "name",
       header: "Deal",
@@ -324,21 +326,20 @@ export default function DealsPage() {
         title="Deals"
         description="Interactive pipeline of every deal with instant filters and automation shortcuts."
         meta={[
-          { label: "Total", value: deals.length, tone: "info" },
-          { label: "Filtered", value: filtered.length, tone: "success" },
-          { label: "Selected", value: selectedDeals.length, tone: "warning" },
+          { label: "Total", value: (dbDeals as any)?.pagination?.total || 0, tone: "info" },
+          { label: "Selected", value: isAllSelectedGlobally ? (dbDeals as any)?.pagination?.total : selectedDeals.length, tone: "warning" },
         ]}
         actions={
           <div className="flex items-center gap-2 flex-wrap">
-            {selectedDeals.length > 0 && (
+            {(selectedDeals.length > 0 || isAllSelectedGlobally) && (
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={handleBulkExport}>
                   <Download className="h-4 w-4 mr-2" />
-                  Export ({selectedDeals.length})
+                  Export ({isAllSelectedGlobally ? (dbDeals as any)?.pagination?.total : selectedDeals.length})
                 </Button>
                 <Button variant="outline" size="sm" onClick={handleBulkDelete}>
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Delete ({selectedDeals.length})
+                  Delete ({isAllSelectedGlobally ? (dbDeals as any)?.pagination?.total : selectedDeals.length})
                 </Button>
               </div>
             )}
@@ -405,23 +406,6 @@ export default function DealsPage() {
         ]}
         onViewChange={(v) => setView(v as ViewType)}
       >
-        <Button variant="outline" size="sm" onClick={() => { setStage("all"); setStatus("all"); setWorkspaceFilter("all"); }}>
-          Reset Filters
-        </Button>
-        {filtered.length > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleSelectAll(selectedDeals.length !== filtered.length)}
-          >
-            {selectedDeals.length === filtered.length ? 'Deselect All' : 'Select All'}
-          </Button>
-        )}
-        {selectedDeals.length > 0 && (
-          <Button variant="outline" size="sm" onClick={() => setSelectedDeals([])}>
-            Clear Selection
-          </Button>
-        )}
       </DataToolbar>
 
       {view === "list" && (
@@ -432,8 +416,17 @@ export default function DealsPage() {
               columns={columns}
               isLoading={isLoading}
               pageSize={pageSize}
+              totalCount={(dbDeals as any)?.pagination?.total || filtered.length}
+              currentPage={currentPage}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setCurrentPage(1);
+              }}
               selectedRows={selectedDeals}
               onSelectionChange={(ids) => setSelectedDeals(ids as string[])}
+              isAllSelectedGlobally={isAllSelectedGlobally}
+              onGlobalSelectionChange={setIsAllSelectedGlobally}
               emptyState={
                 <EmptyState
                   title="No deals yet"

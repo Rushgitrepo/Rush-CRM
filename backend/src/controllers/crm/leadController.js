@@ -313,8 +313,14 @@ const getAll = async (req, res, next) => {
       paramIndex++;
     }
 
+    if (req.query.type && req.query.type !== 'all') {
+      query += ` AND l.type = $${paramIndex}`;
+      params.push(req.query.type);
+      paramIndex++;
+    }
+
     if (search) {
-      query += ` AND (l.title ILIKE $${paramIndex} OR co.name ILIKE $${paramIndex})`;
+      query += ` AND (l.title ILIKE $${paramIndex} OR l.name ILIKE $${paramIndex} OR l.email ILIKE $${paramIndex} OR co.name ILIKE $${paramIndex})`;
       params.push(`%${search}%`);
       paramIndex++;
     }
@@ -326,32 +332,16 @@ const getAll = async (req, res, next) => {
     try {
       result = await db.query(query, params);
     } catch (err) {
+      // Fallback for legacy schema
       if (err.code === '42703') {
         const legacyParams = [req.user.orgId];
         let legacyIdx = 2;
         let legacyQuery = `SELECT l.* FROM public.leads l WHERE l.org_id = $1`;
-
-        if (stage) {
-          legacyQuery += ` AND l.stage = $${legacyIdx}`;
-          legacyParams.push(stage);
-          legacyIdx++;
-        }
-
-        if (status) {
-          legacyQuery += ` AND l.status = $${legacyIdx}`;
-          legacyParams.push(status);
-          legacyIdx++;
-        }
-
-        if (search) {
-          legacyQuery += ` AND (l.title ILIKE $${legacyIdx})`;
-          legacyParams.push(`%${search}%`);
-          legacyIdx++;
-        }
-
+        if (stage) { legacyQuery += ` AND l.stage = $${legacyIdx}`; legacyParams.push(stage); legacyIdx++; }
+        if (status) { legacyQuery += ` AND l.status = $${legacyIdx}`; legacyParams.push(status); legacyIdx++; }
+        if (search) { legacyQuery += ` AND (l.title ILIKE $${legacyIdx} OR l.name ILIKE $${legacyIdx})`; legacyParams.push(`%${search}%`); legacyIdx++; }
         legacyQuery += ` ORDER BY l.created_at DESC LIMIT $${legacyIdx} OFFSET $${legacyIdx + 1}`;
         legacyParams.push(limit, offset);
-
         result = await db.query(legacyQuery, legacyParams);
       } else {
         throw err;
@@ -359,11 +349,40 @@ const getAll = async (req, res, next) => {
     }
 
     const countParams = [req.user.orgId];
-    let countQuery = 'SELECT COUNT(*) FROM public.leads WHERE org_id = $1';
+    let countQuery = 'SELECT COUNT(DISTINCT l.id) FROM public.leads l LEFT JOIN public.companies co ON co.id = l.company_id WHERE l.org_id = $1';
+    let countIdx = 2;
+
     if (!isAdmin) {
-      countQuery += ` AND (assigned_to = $2 OR owner_id = $2 OR user_id = $2 OR created_by = $2)`;
+      countQuery += ` AND (l.assigned_to = $${countIdx} OR l.owner_id = $${countIdx} OR l.user_id = $${countIdx} OR l.created_by = $${countIdx})`;
       countParams.push(req.user.id);
+      countIdx++;
     }
+    if (workspaceId) {
+      countQuery += ` AND l.workspace_id = $${countIdx}`;
+      countParams.push(workspaceId);
+      countIdx++;
+    }
+    if (stage) {
+      countQuery += ` AND l.stage = $${countIdx}`;
+      countParams.push(stage);
+      countIdx++;
+    }
+    if (status) {
+      countQuery += ` AND l.status = $${countIdx}`;
+      countParams.push(status);
+      countIdx++;
+    }
+    if (req.query.type && req.query.type !== 'all') {
+      countQuery += ` AND l.type = $${countIdx}`;
+      countParams.push(req.query.type);
+      countIdx++;
+    }
+    if (search) {
+      countQuery += ` AND (l.title ILIKE $${countIdx} OR l.name ILIKE $${countIdx} OR l.email ILIKE $${countIdx} OR co.name ILIKE $${countIdx})`;
+      countParams.push(`%${search}%`);
+      countIdx++;
+    }
+
     const countResult = await db.query(countQuery, countParams);
 
     res.json({
@@ -811,37 +830,80 @@ const remove = async (req, res, next) => {
 const bulkRemove = async (req, res, next) => {
   const client = await db.pool.connect();
   try {
-    const { ids } = req.body;
+    const { ids, all, filters } = req.body;
     const isAdmin = req.user.role === 'super_admin' || req.user.role === 'admin';
-    console.log(`[bulkRemove] Request to delete ${ids?.length || 0} leads by user ${req.user.id} (admin: ${isAdmin})`);
+    const orgId = req.user.orgId;
+    const userId = req.user.id;
 
-    if (!Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({ error: 'No IDs provided or invalid format' });
-    }
+    let allowedIds = [];
+    let cleanIds = [];
 
-    // Clean up IDs to ensure they are valid UUIDs/strings and unique
-    const cleanIds = [...new Set(ids.filter(id => id && typeof id === 'string'))];
+    if (all) {
+      console.log(`[bulkRemove] Global delete requested by user ${userId} for org ${orgId}`);
+      
+      let filterClause = 'org_id = $1';
+      const params = [orgId];
 
-    if (cleanIds.length === 0) {
-      console.warn(`[bulkRemove] No valid IDs found in request for user ${req.user.id}`);
-      return res.status(400).json({ error: 'No valid IDs provided' });
-    }
-
-    // Ownership check: non-admins can only delete leads they own/created
-    // This prevents a user from bulk-deleting another user's leads within the same org
-    let allowedIds = cleanIds;
-    if (!isAdmin) {
-      const ownerCheck = await client.query(
-        `SELECT id FROM public.leads
-         WHERE id = ANY($1) AND org_id = $2
-         AND (user_id = $3 OR owner_id = $3 OR created_by = $3 OR assigned_to = $3)`,
-        [cleanIds, req.user.orgId, req.user.id]
-      );
-      allowedIds = ownerCheck.rows.map(r => r.id);
-      if (allowedIds.length === 0) {
-        return res.status(403).json({ error: 'You do not have permission to delete any of the selected leads' });
+      if (filters) {
+        if (filters.search) {
+          params.push(`%${filters.search}%`);
+          filterClause += ` AND (title ILIKE $${params.length} OR name ILIKE $${params.length} OR email ILIKE $${params.length} OR company_name ILIKE $${params.length})`;
+        }
+        if (filters.status && filters.status !== 'all') {
+          params.push(filters.status);
+          filterClause += ` AND (status = $${params.length} OR stage = $${params.length})`;
+        }
+        if (filters.type && filters.type !== 'all') {
+          params.push(filters.type);
+          filterClause += ` AND type = $${params.length}`;
+        }
+        if (filters.workspaceId && filters.workspaceId !== 'all') {
+          params.push(filters.workspaceId);
+          filterClause += ` AND workspace_id = $${params.length}`;
+        }
       }
-      console.log(`[bulkRemove] Non-admin: ${cleanIds.length} requested, ${allowedIds.length} owned by user`);
+
+      if (!isAdmin) {
+        params.push(userId);
+        filterClause += ` AND (user_id = $${params.length} OR owner_id = $${params.length} OR created_by = $${params.length} OR assigned_to = $${params.length})`;
+      }
+
+      const idQuery = await client.query(`SELECT id FROM public.leads WHERE ${filterClause}`, params);
+      allowedIds = idQuery.rows.map(r => r.id);
+      
+      if (allowedIds.length === 0) {
+        return res.status(200).json({ message: 'No leads found matching filters', deletedCount: 0 });
+      }
+      console.log(`[bulkRemove] Global delete: ${allowedIds.length} leads found for deletion`);
+    } else {
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ error: 'No IDs provided or invalid format' });
+      }
+
+      cleanIds = [...new Set(ids.filter(id => id && typeof id === 'string'))];
+      if (cleanIds.length === 0) {
+        return res.status(400).json({ error: 'No valid IDs provided' });
+      }
+
+      if (!isAdmin) {
+        const ownerCheck = await client.query(
+          `SELECT id FROM public.leads
+           WHERE id = ANY($1) AND org_id = $2
+           AND (user_id = $3 OR owner_id = $3 OR created_by = $3 OR assigned_to = $3)`,
+          [cleanIds, orgId, userId]
+        );
+        allowedIds = ownerCheck.rows.map(r => r.id);
+        if (allowedIds.length === 0) {
+          return res.status(403).json({ error: 'You do not have permission to delete any of the selected leads' });
+        }
+      } else {
+        // Admins can delete any IDs in their org
+        const orgCheck = await client.query(
+          `SELECT id FROM public.leads WHERE id = ANY($1) AND org_id = $2`,
+          [cleanIds, orgId]
+        );
+        allowedIds = orgCheck.rows.map(r => r.id);
+      }
     }
 
     await client.query('BEGIN');
@@ -880,11 +942,12 @@ const bulkRemove = async (req, res, next) => {
 
     await client.query('COMMIT');
 
+    const totalRequested = all ? allowedIds.length : cleanIds.length;
     res.json({
       message: `${result.rows.length} leads deleted successfully`,
       deletedCount: result.rows.length,
-      requestedCount: cleanIds.length,
-      skippedCount: cleanIds.length - result.rows.length,
+      requestedCount: totalRequested,
+      skippedCount: totalRequested - result.rows.length,
     });
   } catch (err) {
     await client.query('ROLLBACK');
