@@ -26,7 +26,7 @@ import { CustomFieldInput } from "@/components/crm/CustomFieldInput";
 import { GripVertical } from "lucide-react";
 import { FieldDragWrapper, DroppableField } from "@/components/crm/FieldDragWrapper";
 import { DroppableSection } from "@/components/crm/DroppableSection";
-import { useCustomFieldTemplates, useSaveCustomFieldTemplates, useLead, useUpdateLead, useDeleteLead, useLeadStats } from "@/hooks/useCrmData";
+import { useCustomFieldTemplates, useSaveCustomFieldTemplates, useLead, useUpdateLead, useUpdateLeadStage, useDeleteLead, useLeadStats } from "@/hooks/useCrmData";
 import { useConvertLeadToDeal } from "@/hooks/useCrmMutations";
 import { mergeFieldsWithTemplatesSync } from "@/utils/crm/customFieldsRegistry";
 import { sanitizePayload } from "@/utils/crm/sanitize";
@@ -297,6 +297,7 @@ export default function LeadDetailPage() {
   const { profile } = useAuth();
   const { data: lead, isLoading, error } = useLead(id!);
   const updateLead = useUpdateLead();
+  const updateLeadStage = useUpdateLeadStage();
   const deleteLead = useDeleteLead();
   const convertLeadToDeal = useConvertLeadToDeal();
   const createActivity = useCreateActivity();
@@ -493,10 +494,17 @@ export default function LeadDetailPage() {
   };
 
   const handleStageChange = (newStage: string) => {
+    // Optimistic update
     setForm(prev => ({ ...prev, stage: newStage }));
+    
     if (!editing) {
-      updateLead.mutate({ id: lead.id, stage: newStage }, {
-        onSuccess: () => {
+      updateLeadStage.mutate({ id: lead.id, stage: newStage }, {
+        onSuccess: (updatedLead) => {
+          // Sync form with actual server state
+          if (updatedLead) {
+            setForm(prev => ({ ...prev, stage: updatedLead.stage, status: updatedLead.status }));
+          }
+          
           const stageName = pipelineStages.find(s => s.id === newStage)?.label || newStage;
           createActivity.mutate({
             entityType: 'lead',
@@ -505,6 +513,10 @@ export default function LeadDetailPage() {
             title: `Stage changed to ${stageName}`,
             description: `Lead pipeline stage updated to ${stageName}`,
           });
+        },
+        onError: () => {
+          // Revert on error
+          setForm(prev => ({ ...prev, stage: lead.stage }));
         }
       });
     }
@@ -658,9 +670,9 @@ export default function LeadDetailPage() {
                 <div>
                   <div className="flex flex-wrap items-center gap-3 mb-1">
                     <h1 className="text-xl md:text-2xl font-bold text-foreground break-words max-w-[200px] sm:max-w-none">{lead.title}</h1>
-                    <Badge className={cn("gap-1 px-3 py-1 font-medium whitespace-nowrap", getStatusColor(lead.status))}>
-                      {getStatusIcon(lead.status)}
-                      {lead.status || 'New Lead'}
+                    <Badge className={cn("gap-1 px-3 py-1 font-medium whitespace-nowrap", getStatusColor(form.status || lead.status))}>
+                      {getStatusIcon(form.status || lead.status)}
+                      {pipelineStages.find(s => s.id === (form.status || lead.status))?.label || (form.status || lead.status) || 'New Lead'}
                     </Badge>
 
                     {!editing && (
