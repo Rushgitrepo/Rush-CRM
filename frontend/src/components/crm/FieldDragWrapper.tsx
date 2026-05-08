@@ -131,11 +131,14 @@ export function FieldDragWrapper({
     const newCustomFields = [...customFields];
     const currentSectionId = field.sectionId || "custom-fields";
     
+    // Normalize targetSectionId (strip -top)
+    const normalizedSectionId = targetSectionId.replace(/-top$/, '');
+
     // Update the field with new section and placement info
     const updatedField = { 
       ...field, 
-      sectionId: targetSectionId,
-      afterFieldId: isFixedField ? targetId : (targetField ? targetField.id : undefined)
+      sectionId: normalizedSectionId,
+      afterFieldId: isFixedField ? targetId : (targetField ? targetField.id : (targetSectionId.endsWith('-top') ? targetSectionId : undefined))
     };
     
     newCustomFields[fieldIndex] = updatedField;
@@ -147,16 +150,12 @@ export function FieldDragWrapper({
       finalFields = arrayMove(newCustomFields, oldIndex, newIndex);
     } else if (targetSectionId.endsWith('-top')) {
       const oldIndex = fieldIndex;
+      // When moving to top, we can reorder in array too, but afterFieldId is the source of truth for anchored rendering
       finalFields = arrayMove(newCustomFields, oldIndex, 0);
-      // Remove afterFieldId if moving to top
-      finalFields[0] = { ...finalFields[0], afterFieldId: undefined };
-    } else if (isFixedField) {
-      // When dropping on a fixed field, we keep it in the array but it will be rendered 
-      // specially by the parent component using afterFieldId
     }
     
     onCustomFieldsChange(finalFields);
-    onFieldDropToSection(field.key, field.value, targetSectionId, finalFields);
+    onFieldDropToSection(field.key, field.value, normalizedSectionId, finalFields);
     
     const displayTarget = isFixedField 
       ? targetId.split('-').pop()?.replace(/_/g, ' ') 

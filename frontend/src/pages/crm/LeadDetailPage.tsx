@@ -522,10 +522,21 @@ export default function LeadDetailPage() {
   };
 
   const renderDroppedFields = (sectionId: string, isTop = false, afterFieldId?: string) => {
-    const sectionFields = customFields.filter(f => 
-      f.sectionId === sectionId && 
-      (afterFieldId ? f.afterFieldId === afterFieldId : (!f.afterFieldId || f.afterFieldId.startsWith(sectionId + '-top')))
-    );
+    const sectionFields = customFields.filter(f => {
+      if (f.sectionId !== sectionId) return false;
+      
+      if (afterFieldId) {
+        return f.afterFieldId === afterFieldId;
+      }
+      
+      if (isTop) {
+        // Match fields explicitly anchored to top OR legacy fields with no anchor if they are at the start of the section
+        return f.afterFieldId === `${sectionId}-top`;
+      }
+      
+      // Bottom catch-all: fields with no anchor
+      return !f.afterFieldId;
+    });
     if (sectionFields.length === 0) return null;
 
     return (
