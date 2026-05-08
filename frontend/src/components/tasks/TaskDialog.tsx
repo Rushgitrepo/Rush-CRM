@@ -119,13 +119,21 @@ export function TaskDialog({
   const handleSubmit = () => {
     if (!formData.title.trim()) return;
 
-    onSubmit({
+    const payload: any = {
       ...formData,
       projectId: formData.project_id || null,
       assignedTo: formData.assigned_to === "none" ? null : (formData.assigned_to || null),
       dueDate: formData.due_date ? formData.due_date.toISOString() : null,
-      canAssign: formData.can_assign,
-    });
+    };
+
+    // canAssign sirf wo log set kar sakte hain jo delegation grant kar sakte hain
+    // YA assignee jise delegation mili hai (wo next person ke liye toggle control kare)
+    // YA delegator (User 2) jo User 3 ki permission ON/OFF karna chahta hai
+    if (canGrantDelegation || isAssigneeWithDelegation || isDelegator) {
+      payload.canAssign = formData.can_assign;
+    }
+
+    onSubmit(payload);
   };
 
   const isAdmin = userRole?.role === 'admin' || userRole?.role === 'super_admin';
@@ -156,26 +164,62 @@ export function TaskDialog({
       : false  // new task pe delegation default OFF
   );
 
-  // ─── UNIFORM ASSIGNMENT RULE (project task + personal task dono same) ───
+  // Delegator check — User 2 jisne task User 3 ko assign kiya (delegated_by field)
+  // Wo task apni list mein dekh sakta hai aur can_assign toggle kar sakta hai
+  const isDelegator =
+    !!task &&
+    (task as any).delegated_by === profile?.id &&
+    !isTaskCreator;
+
+  // ─── UNIFORM ASSIGNMENT RULE ───
   // Assign kar sakta hai agar:
   // 1. Admin / super_admin
   // 2. System manager role
-  // 3. Task creator (jo task banaya)
-  // 4. Assignee — sirf tab jab delegation ON ho (can_assign = true)
+  // 3. Task creator
+  // 4. Current assignee jise delegation ON ho
   const canModifyAssignment =
     isAdmin ||
     isManager ||
     isTaskCreator ||
     (!!task && task.assigned_to === profile?.id && delegationAllowed);
 
-  // Delegation toggle dikhao sirf admin/manager/task-creator ko
+  // Admin/manager/creator — full delegation control
   const canGrantDelegation =
     isAdmin ||
     isManager ||
     isTaskCreator;
 
+  // Assignee jise delegation mili — wo next person ke liye toggle set kare
+  const isAssigneeWithDelegation =
+    !!task &&
+    task.assigned_to === profile?.id &&
+    delegationAllowed &&
+    !isTaskCreator;
+
+  // Toggle dikhana chahiye agar koi bhi delegation control kar sakta hai
+  const showDelegationToggle = canGrantDelegation || isAssigneeWithDelegation || isDelegator;
+
   const { data: projectMembers = [] } = useProjectMembers(formData.project_id || null);
-  const displayMembers = projectMembers.length > 0 ? projectMembers : members;
+  // Project members use karo agar available hain, warna org-level members fallback
+  const baseMembers = projectMembers.length > 0 ? projectMembers : members;
+
+  // Fix 1: Agar current assignee baseMembers mein nahi (e.g. project member nahi),
+  // to usse inject karo taake "None" ki jagah naam dikhe — lekin sirf display ke liye
+  const assignedUserInList = baseMembers.some((m: any) => m.id === formData.assigned_to);
+  const assignedUserFromTask =
+    !assignedUserInList && task && (task as any).assigned_to
+      ? {
+        id: (task as any).assigned_to,
+        full_name: (task as any).assigned_to_name || (task as any).assignedToName || "Assigned User",
+        avatar_url: (task as any).assigned_to_avatar || (task as any).assignedToAvatar || null,
+      }
+      : null;
+
+  // displayMembers = full org members + injected assignee (agar list mein nahi)
+  // Delegation wala user (User 2) dropdown mein SARE org members dekhe taake kisi aur ko assign kare
+  const displayMembers = assignedUserFromTask
+    ? [assignedUserFromTask, ...baseMembers]
+    : baseMembers;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -390,13 +434,18 @@ export function TaskDialog({
               </div>
             )}
 
-            {/* Delegation Permission (Only for Admins/Managers) */}
-            {canGrantDelegation && (
+            {/* Delegation Permission */}
+            {/* Dikhao agar: admin/manager/creator, assignee with delegation, ya delegator */}
+            {showDelegationToggle && (
               <div className="col-span-2 p-4 rounded-xl border border-primary/10 bg-primary/5 flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label className="text-sm font-semibold">Allow Delegation</Label>
                   <p className="text-xs text-muted-foreground">
-                    Allow the assignee to assign this task to others or create sub-tasks.
+                    {canGrantDelegation
+                      ? "Allow the assignee to assign this task to others or create sub-tasks."
+                      : isDelegator
+                        ? "Control whether the current assignee can further delegate this task."
+                        : "Allow the next assignee to further delegate this task."}
                   </p>
                 </div>
                 <Switch

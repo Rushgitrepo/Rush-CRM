@@ -14,24 +14,32 @@ const getAll = async (req, res, next) => {
 
     if (!isAdmin) {
       // User sees project if:
-      // - explicitly assigned as manager, creator, owner, or team member
-      // - OR has a task assigned to them in this project (delegation scenario)
-      query += ' AND (manager_id = $' + paramIndex +
-               ' OR created_by = $' + paramIndex +
-               ' OR owner_id = $' + paramIndex +
-               ' OR $' + paramIndex + ' = ANY(team_members)' +
-               ' OR EXISTS (SELECT 1 FROM public.tasks t WHERE t.project_id = public.projects.id AND t.assigned_to = $' + paramIndex + ' AND t.org_id = $1))';
+      // - explicitly assigned as manager, creator, or owner
+      // - OR they delegated it (delegated_by = current user) — so delegator keeps visibility
+      // - OR has a task assigned to them in this project
+      query += ` AND (
+        manager_id = $${paramIndex} OR
+        created_by = $${paramIndex} OR
+        owner_id = $${paramIndex} OR
+        delegated_by = $${paramIndex} OR
+        EXISTS (
+          SELECT 1 FROM public.tasks t
+          WHERE t.project_id = public.projects.id
+            AND t.assigned_to = $${paramIndex}
+            AND t.org_id = $1
+        )
+      )`;
       params.push(req.user.id);
       paramIndex++;
     }
 
     if (status) {
-      query += ' AND status = $' + paramIndex;
+      query += ` AND status = $${paramIndex}`;
       params.push(status);
       paramIndex++;
     }
 
-    query += ' ORDER BY created_at DESC LIMIT $' + paramIndex + ' OFFSET $' + (paramIndex + 1);
+    query += ` ORDER BY created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     params.push(limit, offset);
 
     const result = await db.query(query, params);
@@ -101,28 +109,92 @@ const create = async (req, res, next) => {
 const update = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, description, startDate, endDate, color, status, managerId, canAssign } = req.body;
+    const { name, description, startDate, endDate, color, status, managerId, canAssign, delegatedBy } = req.body;
+
+    // Pehle project fetch karo permission check ke liye
+    const projectCheck = await db.query(
+      'SELECT created_by, owner_id, manager_id, can_assign, delegated_by FROM public.projects WHERE id = $1 AND org_id = $2',
+      [id, req.user.orgId]
+    );
+    if (projectCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    const existing = projectCheck.rows[0];
+
+    const isAdmin = req.user.role === 'super_admin' || req.user.role === 'admin';
+    const isSystemManager = ['manager', 'hr_manager', 'inventory_manager'].includes(req.user.role);
+    const isCreator = existing.created_by === req.user.id || existing.owner_id === req.user.id;
+    const isCurrentManager = existing.manager_id === req.user.id;
+    const isDelegator = existing.delegated_by === req.user.id;
+    const delegationAllowed = existing.can_assign === true;
+
+    // Koi update kar sakta hai agar:
+    // 1. Admin/system-manager/creator/owner
+    // 2. Current manager jise delegation ON ho
+    // 3. Delegator — sirf can_assign toggle ke liye
+    const canModifyProject =
+      isAdmin || isSystemManager || isCreator ||
+      (isCurrentManager && delegationAllowed) ||
+      isDelegator;
+
+    if (!canModifyProject) {
+      return res.status(403).json({ error: 'You do not have permission to update this project' });
+    }
+
+    const canChangeAssignment = isAdmin || isSystemManager || isCreator || (isCurrentManager && delegationAllowed);
+    const canChangeCanAssign = isAdmin || isSystemManager || isCreator || (isCurrentManager && delegationAllowed) || isDelegator;
+
     const fields = [];
     const values = [];
     let p = 1;
-    if (name !== undefined)        { fields.push('name = $' + p++);        values.push(name); }
-    if (description !== undefined) { fields.push('description = $' + p++); values.push(description); }
-    if (startDate !== undefined)   { fields.push('start_date = $' + p++);  values.push(startDate); }
-    if (endDate !== undefined)     { fields.push('end_date = $' + p++);    values.push(endDate); }
-    if (color !== undefined)       { fields.push('color = $' + p++);       values.push(color); }
-    if (status !== undefined)      { fields.push('status = $' + p++);      values.push(status); }
-    if (managerId !== undefined)   { fields.push('manager_id = $' + p++);  values.push(managerId || null); }
-    if (canAssign !== undefined)   {
-      fields.push('can_assign = $' + p++);
+
+    if (name !== undefined && (isAdmin || isSystemManager || isCreator)) {
+      fields.push(`name = $${p++}`);
+      values.push(name);
+    }
+    if (description !== undefined && (isAdmin || isSystemManager || isCreator)) {
+      fields.push(`description = $${p++}`);
+      values.push(description);
+    }
+    if (startDate !== undefined && (isAdmin || isSystemManager || isCreator)) {
+      fields.push(`start_date = $${p++}`);
+      values.push(startDate);
+    }
+    if (endDate !== undefined && (isAdmin || isSystemManager || isCreator)) {
+      fields.push(`end_date = $${p++}`);
+      values.push(endDate);
+    }
+    if (color !== undefined && (isAdmin || isSystemManager || isCreator)) {
+      fields.push(`color = $${p++}`);
+      values.push(color);
+    }
+    if (status !== undefined && (isAdmin || isSystemManager || isCreator)) {
+      fields.push(`status = $${p++}`);
+      values.push(status);
+    }
+    if (managerId !== undefined && canChangeAssignment) {
+      fields.push(`manager_id = $${p++}`);
+      values.push(managerId || null);
+      // Jab current manager delegate kare, delegated_by set karo
+      if (isCurrentManager && delegationAllowed) {
+        fields.push(`delegated_by = $${p++}`);
+        values.push(req.user.id);
+      }
+    }
+    if (canAssign !== undefined && canChangeCanAssign) {
+      fields.push(`can_assign = $${p++}`);
       values.push(canAssign === true || canAssign === 'true' ? true : false);
     }
+
     if (fields.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }
-    fields.push('updated_at = now()');
+
+    fields.push(`updated_at = now()`);
     values.push(id, req.user.orgId);
+
     const result = await db.query(
-      'UPDATE public.projects SET ' + fields.join(', ') + ' WHERE id = $' + p + ' AND org_id = $' + (p + 1) + ' RETURNING *',
+      `UPDATE public.projects SET ${fields.join(', ')} WHERE id = $${p} AND org_id = $${p + 1} RETURNING *`,
       values
     );
     if (result.rows.length === 0) {
