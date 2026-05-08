@@ -21,7 +21,7 @@ const companySchema = z.object({
   industry: z.string().optional(),
   phone: z.string().optional(),
   email: z.string().email("Invalid email").optional().or(z.literal("")),
-  website: z.string().url("Invalid URL").optional().or(z.literal("")),
+  website: z.string().optional().or(z.literal("")),
   address: z.string().optional(),
   annual_revenue: z.string().optional(),
   revenue_currency: z.string().min(1),

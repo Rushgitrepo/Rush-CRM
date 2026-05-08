@@ -340,7 +340,7 @@ export default function DealDetailPage() {
 
   const [editing, setEditing] = useState(() => window.location.pathname.endsWith('/edit'));
   const [form, setForm] = useState<Record<string, unknown>>({});
-  const [customFields, setCustomFields] = useState<{ id: string; key: string; value: string; type?: string; sectionId?: string }[]>([]);
+  const [customFields, setCustomFields] = useState<{ id: string; key: string; value: string; type?: string; sectionId?: string; afterFieldId?: string }[]>([]);
 
   const [contactDialogOpen, setContactDialogOpen] = useState(false);
   const [companyDialogOpen, setCompanyDialogOpen] = useState(false);
@@ -438,7 +438,8 @@ export default function DealDetailPage() {
             key: k, 
             value: String((v as any).value), 
             type: (v as any).type || 'string',
-            sectionId: sectionId || 'custom-fields'
+            sectionId: sectionId || 'custom-fields',
+            afterFieldId: (v as any).afterFieldId || undefined
           };
         }
         return { id: `field-${k.replace(/\s+/g, '-').toLowerCase()}`, key: k, value: String(v), type: 'string', sectionId: 'custom-fields' };
@@ -494,7 +495,8 @@ export default function DealDetailPage() {
       if (field.key.trim()) acc[field.key.trim()] = { 
         value: field.value, 
         type: field.type || 'string',
-        sectionId: field.sectionId 
+        sectionId: field.sectionId,
+        afterFieldId: field.afterFieldId
       };
       return acc;
     }, {} as Record<string, { value: string; type: string; sectionId?: string }>);
@@ -594,19 +596,10 @@ export default function DealDetailPage() {
   };
 
   const renderDroppedFields = (sectionId: string, isTop = false, afterFieldId?: string) => {
-    let sectionFields = customFields.filter(f => f.sectionId === sectionId);
-    
-    if (afterFieldId) {
-      // Return fields specifically anchored AFTER this field
-      sectionFields = sectionFields.filter(f => f.afterFieldId === afterFieldId);
-    } else if (isTop) {
-      // Return fields that have NO anchor (start of section)
-      sectionFields = sectionFields.filter(f => !f.afterFieldId);
-    } else {
-      // Legacy behavior or catch-all if no anchor specified
-      // For now, if we're not asking for top or specific anchor, return nothing to avoid duplicates
-      return null;
-    }
+    const sectionFields = customFields.filter(f => 
+      f.sectionId === sectionId && 
+      (afterFieldId ? f.afterFieldId === afterFieldId : (!f.afterFieldId || f.afterFieldId.startsWith(sectionId + '-top')))
+    );
 
     if (sectionFields.length === 0) return null;
 
