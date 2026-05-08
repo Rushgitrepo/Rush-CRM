@@ -655,6 +655,20 @@ const remove = async (req, res, next) => {
   const client = await db.pool.connect();
   try {
     const { id } = req.params;
+    const isAdmin = req.user.role === 'super_admin' || req.user.role === 'admin';
+
+    // Ownership check: non-admins can only delete deals they own/created
+    if (!isAdmin) {
+      const ownerCheck = await client.query(
+        `SELECT id FROM public.deals WHERE id = $1 AND org_id = $2
+         AND (user_id = $3 OR owner_id = $3 OR created_by = $3)`,
+        [id, req.user.orgId, req.user.id]
+      );
+      if (ownerCheck.rows.length === 0) {
+        return res.status(403).json({ error: 'You do not have permission to delete this deal' });
+      }
+    }
+
     await client.query('BEGIN');
 
     // 1. Delete associated tasks/activities (hard foreign key constraint)
@@ -679,7 +693,7 @@ const remove = async (req, res, next) => {
       [id, req.user.orgId]
     );
 
-    // 3. Delete from deal_contacts and deal_signing_parties (already has CASCADE in schema, but being explicit is fine)
+    // 3. Delete from deal_contacts and deal_signing_parties
     await client.query(
       `DELETE FROM public.deal_contacts WHERE deal_id = $1 AND org_id = $2`,
       [id, req.user.orgId]
@@ -690,7 +704,7 @@ const remove = async (req, res, next) => {
       [id, req.user.orgId]
     );
 
-    // 4. Finally delete the deal
+    // 4. Finally delete the deal (scoped to org for safety)
     const result = await client.query(
       `DELETE FROM public.deals WHERE id = $1 AND org_id = $2 RETURNING id`,
       [id, req.user.orgId]
@@ -715,7 +729,8 @@ const bulkRemove = async (req, res, next) => {
   const client = await db.pool.connect();
   try {
     const { ids } = req.body;
-    console.log(`[bulkRemove] Request to delete ${ids?.length || 0} deals by user ${req.user.id}`);
+    const isAdmin = req.user.role === 'super_admin' || req.user.role === 'admin';
+    console.log(`[bulkRemove] Request to delete ${ids?.length || 0} deals by user ${req.user.id} (admin: ${isAdmin})`);
 
     if (!Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ error: 'No IDs provided or invalid format' });
@@ -723,57 +738,75 @@ const bulkRemove = async (req, res, next) => {
 
     // Clean up IDs to ensure they are valid UUIDs/strings and unique
     const cleanIds = [...new Set(ids.filter(id => id && typeof id === 'string'))];
-    
+
     if (cleanIds.length === 0) {
       console.warn(`[bulkRemove] No valid IDs found in request for user ${req.user.id}`);
       return res.status(400).json({ error: 'No valid IDs provided' });
     }
 
+    // Ownership check: non-admins can only delete deals they own/created
+    // This prevents a user from bulk-deleting another user's deals within the same org
+    let allowedIds = cleanIds;
+    if (!isAdmin) {
+      const ownerCheck = await client.query(
+        `SELECT id FROM public.deals
+         WHERE id = ANY($1) AND org_id = $2
+         AND (user_id = $3 OR owner_id = $3 OR created_by = $3)`,
+        [cleanIds, req.user.orgId, req.user.id]
+      );
+      allowedIds = ownerCheck.rows.map(r => r.id);
+      if (allowedIds.length === 0) {
+        return res.status(403).json({ error: 'You do not have permission to delete any of the selected deals' });
+      }
+      console.log(`[bulkRemove] Non-admin: ${cleanIds.length} requested, ${allowedIds.length} owned by user`);
+    }
+
     await client.query('BEGIN');
 
-    // 1. Delete associated data for all IDs
+    // 1. Delete associated data for all allowed IDs
     await client.query(
       `DELETE FROM public.activities WHERE deal_id = ANY($1) AND org_id = $2`,
-      [cleanIds, req.user.orgId]
+      [allowedIds, req.user.orgId]
     );
 
     await client.query(
       `DELETE FROM public.crm_activities WHERE entity_type = 'deal' AND entity_id = ANY($1) AND org_id = $2`,
-      [cleanIds, req.user.orgId]
+      [allowedIds, req.user.orgId]
     );
 
     await client.query(
       `DELETE FROM public.crm_comments WHERE entity_type = 'deal' AND entity_id = ANY($1) AND org_id = $2`,
-      [cleanIds, req.user.orgId]
+      [allowedIds, req.user.orgId]
     );
 
     await client.query(
       `DELETE FROM public.crm_documents WHERE entity_type = 'deal' AND entity_id = ANY($1) AND org_id = $2`,
-      [cleanIds, req.user.orgId]
+      [allowedIds, req.user.orgId]
     );
 
     await client.query(
       `DELETE FROM public.deal_contacts WHERE deal_id = ANY($1) AND org_id = $2`,
-      [cleanIds, req.user.orgId]
+      [allowedIds, req.user.orgId]
     );
 
     await client.query(
       `DELETE FROM public.deal_signing_parties WHERE deal_id = ANY($1) AND org_id = $2`,
-      [cleanIds, req.user.orgId]
+      [allowedIds, req.user.orgId]
     );
 
-    // 2. Finally delete the deals
+    // 2. Finally delete the deals (scoped to org + allowed IDs)
     const result = await client.query(
       `DELETE FROM public.deals WHERE id = ANY($1) AND org_id = $2 RETURNING id`,
-      [cleanIds, req.user.orgId]
+      [allowedIds, req.user.orgId]
     );
 
     await client.query('COMMIT');
-    
-    res.json({ 
+
+    res.json({
       message: `${result.rows.length} deals deleted successfully`,
       deletedCount: result.rows.length,
-      requestedCount: cleanIds.length
+      requestedCount: cleanIds.length,
+      skippedCount: cleanIds.length - result.rows.length,
     });
   } catch (err) {
     await client.query('ROLLBACK');

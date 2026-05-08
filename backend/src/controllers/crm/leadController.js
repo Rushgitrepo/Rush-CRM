@@ -742,6 +742,21 @@ const remove = async (req, res, next) => {
   const client = await db.pool.connect();
   try {
     const { id } = req.params;
+    const isAdmin = req.user.role === 'super_admin' || req.user.role === 'admin';
+
+    // Ownership check: non-admins can only delete leads they own/created
+    if (!isAdmin) {
+      const ownerCheck = await client.query(
+        `SELECT id FROM public.leads WHERE id = $1 AND org_id = $2
+         AND (user_id = $3 OR owner_id = $3 OR created_by = $3)`,
+        [id, req.user.orgId, req.user.id]
+      );
+      if (ownerCheck.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ error: 'You do not have permission to delete this lead' });
+      }
+    }
+
     await client.query('BEGIN');
 
     // 1. Delete associated tasks/activities (hard foreign key constraint)
@@ -766,13 +781,13 @@ const remove = async (req, res, next) => {
       [id, req.user.orgId]
     );
 
-    // 3. Delete from lead_workspace_access (already has CASCADE in schema, but being explicit is fine)
+    // 3. Delete from lead_workspace_access
     await client.query(
       `DELETE FROM public.lead_workspace_access WHERE lead_id = $1`,
       [id]
     );
 
-    // 4. Finally delete the lead
+    // 4. Finally delete the lead (scoped to org for safety)
     const result = await client.query(
       `DELETE FROM public.leads WHERE id = $1 AND org_id = $2 RETURNING id`,
       [id, req.user.orgId]
@@ -797,7 +812,8 @@ const bulkRemove = async (req, res, next) => {
   const client = await db.pool.connect();
   try {
     const { ids } = req.body;
-    console.log(`[bulkRemove] Request to delete ${ids?.length || 0} leads by user ${req.user.id}`);
+    const isAdmin = req.user.role === 'super_admin' || req.user.role === 'admin';
+    console.log(`[bulkRemove] Request to delete ${ids?.length || 0} leads by user ${req.user.id} (admin: ${isAdmin})`);
 
     if (!Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ error: 'No IDs provided or invalid format' });
@@ -805,53 +821,70 @@ const bulkRemove = async (req, res, next) => {
 
     // Clean up IDs to ensure they are valid UUIDs/strings and unique
     const cleanIds = [...new Set(ids.filter(id => id && typeof id === 'string'))];
-    
+
     if (cleanIds.length === 0) {
       console.warn(`[bulkRemove] No valid IDs found in request for user ${req.user.id}`);
       return res.status(400).json({ error: 'No valid IDs provided' });
     }
 
+    // Ownership check: non-admins can only delete leads they own/created
+    // This prevents a user from bulk-deleting another user's leads within the same org
+    let allowedIds = cleanIds;
+    if (!isAdmin) {
+      const ownerCheck = await client.query(
+        `SELECT id FROM public.leads
+         WHERE id = ANY($1) AND org_id = $2
+         AND (user_id = $3 OR owner_id = $3 OR created_by = $3)`,
+        [cleanIds, req.user.orgId, req.user.id]
+      );
+      allowedIds = ownerCheck.rows.map(r => r.id);
+      if (allowedIds.length === 0) {
+        return res.status(403).json({ error: 'You do not have permission to delete any of the selected leads' });
+      }
+      console.log(`[bulkRemove] Non-admin: ${cleanIds.length} requested, ${allowedIds.length} owned by user`);
+    }
+
     await client.query('BEGIN');
 
-    // 1. Delete associated data for all IDs
-    // Using a single transaction to ensure data integrity
+    // 1. Delete associated data for all allowed IDs
     await client.query(
       `DELETE FROM public.activities WHERE lead_id = ANY($1) AND org_id = $2`,
-      [cleanIds, req.user.orgId]
+      [allowedIds, req.user.orgId]
     );
 
     await client.query(
       `DELETE FROM public.crm_activities WHERE entity_type = 'lead' AND entity_id = ANY($1) AND org_id = $2`,
-      [cleanIds, req.user.orgId]
+      [allowedIds, req.user.orgId]
     );
 
     await client.query(
       `DELETE FROM public.crm_comments WHERE entity_type = 'lead' AND entity_id = ANY($1) AND org_id = $2`,
-      [cleanIds, req.user.orgId]
+      [allowedIds, req.user.orgId]
     );
 
     await client.query(
       `DELETE FROM public.crm_documents WHERE entity_type = 'lead' AND entity_id = ANY($1) AND org_id = $2`,
-      [cleanIds, req.user.orgId]
+      [allowedIds, req.user.orgId]
     );
 
     await client.query(
       `DELETE FROM public.lead_workspace_access WHERE lead_id = ANY($1)`,
-      [cleanIds]
+      [allowedIds]
     );
 
-    // 2. Finally delete the leads
+    // 2. Finally delete the leads (scoped to org + allowed IDs)
     const result = await client.query(
       `DELETE FROM public.leads WHERE id = ANY($1) AND org_id = $2 RETURNING id`,
-      [cleanIds, req.user.orgId]
+      [allowedIds, req.user.orgId]
     );
 
     await client.query('COMMIT');
-    
-    res.json({ 
+
+    res.json({
       message: `${result.rows.length} leads deleted successfully`,
       deletedCount: result.rows.length,
-      requestedCount: cleanIds.length
+      requestedCount: cleanIds.length,
+      skippedCount: cleanIds.length - result.rows.length,
     });
   } catch (err) {
     await client.query('ROLLBACK');
