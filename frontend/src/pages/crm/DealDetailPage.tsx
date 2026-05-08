@@ -42,7 +42,7 @@ import { DeleteConfirmationDialog } from "@/components/crm/DeleteConfirmationDia
 import { useDeal } from "@/hooks/useCrmInteractions";
 import { useUpdateDeal, useDeleteDeal, useLinkDealContact, useUnlinkDealContact, useLinkSigningParty, useUnlinkSigningParty, useConvertDealToCustomer } from "@/hooks/useCrmMutations";
 import { useCreateActivity } from "@/hooks/useCrmInteractions";
-import { useContacts, useCompanies, useSigningParties, useDealStats } from "@/hooks/useCrmData";
+import { useContacts, useCompanies, useSigningParties, useDealStats, useUpdateDealStage } from "@/hooks/useCrmData";
 import { usePipelineStages, useCreatePipelineStage, useDealPipelineStages, useCreateDealPipelineStage, useDeleteDealPipelineStage, useUpdateDealPipelineStage } from "@/hooks/usePipelineStages";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
@@ -309,6 +309,7 @@ export default function DealDetailPage() {
   const { user, userRole, profile } = useAuth();
   const { data: deal, isLoading } = useDeal(id!);
   const updateDeal = useUpdateDeal();
+  const updateDealStage = useUpdateDealStage();
   const deleteDeal = useDeleteDeal();
   const { dialNumber } = useSoftphone();
   const linkContact = useLinkDealContact();
@@ -421,7 +422,7 @@ export default function DealDetailPage() {
   const stageOptions = activePipelineStages.map(s => ({ value: s.id, label: s.label }));
 
   useEffect(() => {
-    if (deal && templates) {
+    if (deal && templates && !editing && !updateDeal.isPending && !updateDealStage.isPending) {
       const dbCustomFields = (deal.custom_fields as any) || {};
       const fields = Object.entries(dbCustomFields).map(([k, v]: [string, any]) => {
         if (v && typeof v === 'object' && 'value' in v) {
@@ -454,7 +455,7 @@ export default function DealDetailPage() {
         createdAt: deal.created_at && isValid(new Date(deal.created_at)) ? format(new Date(deal.created_at), "yyyy-MM-dd'T'HH:mm") : "",
       });
     }
-  }, [deal, templates]);
+  }, [deal, templates, editing, updateDeal.isPending, updateDealStage.isPending]);
 
   if (isLoading) {
     return (
@@ -551,9 +552,10 @@ export default function DealDetailPage() {
   };
 
   const handleStageChange = (newStage: string) => {
+    if (newStage === (form.stage || deal?.stage)) return;
     setForm(prev => ({ ...prev, stage: newStage }));
     if (!editing) {
-      updateDeal.mutate({ id: deal.id, stage: newStage }, {
+      updateDealStage.mutate({ id: deal.id, stage: newStage }, {
         onSuccess: (updatedDeal) => {
           // Sync form with actual server state
           if (updatedDeal) {

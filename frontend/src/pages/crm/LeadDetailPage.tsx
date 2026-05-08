@@ -372,8 +372,9 @@ export default function LeadDetailPage() {
     toast.success("Lead data exported successfully");
   };
 
+  // Sync form state when lead data is loaded
   useEffect(() => {
-    if (lead) {
+    if (lead && !editing && !updateLeadStage.isPending && !updateLead.isPending) {
       setForm({
         title: lead.title,
         stage: lead.stage,
@@ -415,7 +416,7 @@ export default function LeadDetailPage() {
         createdAt: lead.created_at && isValid(new Date(lead.created_at)) ? format(new Date(lead.created_at), "yyyy-MM-dd'T'HH:mm") : "",
       });
 
-      if (lead && templates) {
+      if (templates) {
         const dbCustomFields = lead.custom_fields || {};
         const fields = Object.entries(dbCustomFields).map(([k, v]: [string, any]) => ({
           id: `field-${k.replace(/\s+/g, '-').toLowerCase()}`,
@@ -430,7 +431,7 @@ export default function LeadDetailPage() {
         setCustomFields(mergedFields);
       }
     }
-  }, [lead, templates]);
+  }, [lead, templates, editing, updateLeadStage.isPending, updateLead.isPending]);
 
   const handleSave = () => {
     const changes: Record<string, unknown> = {};

@@ -116,7 +116,10 @@ export function useUpdateLeadStage() {
     mutationFn: ({ id, stage }: { id: string; stage: string }) =>
       leadsApi.updateStage(id, stage),
     onSuccess: (updatedLead, { id }) => {
-      // Immediately update all related queries
+      // Immediately update the query data to avoid flickers
+      queryClient.setQueryData(['leads', id], updatedLead);
+      
+      // Mark as stale to trigger background refetch
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['leads', id] });
       queryClient.invalidateQueries({ queryKey: ['leads', 'stats'] });
@@ -268,6 +271,9 @@ export function useUpdateDealStage() {
     mutationFn: ({ id, stage }: { id: string; stage: string }) =>
       dealsApi.updateStage(id, stage),
     onSuccess: (updatedDeal, { id }) => {
+      // Immediately update the query data to avoid flickers
+      queryClient.setQueryData(['deals', id], updatedDeal);
+
       // Immediately update all related queries
       queryClient.invalidateQueries({ queryKey: ['deals'] });
       queryClient.invalidateQueries({ queryKey: ['deals', id] });
