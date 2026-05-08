@@ -309,7 +309,7 @@ export default function LeadDetailPage() {
   const [showConvertDialog, setShowConvertDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showWorkspaceModal, setShowWorkspaceModal] = useState(false);
-  const [customFields, setCustomFields] = useState<{ id: string; key: string; value: string; type?: string; sectionId?: string }[]>([]);
+  const [customFields, setCustomFields] = useState<{ id: string; key: string; value: string; type?: string; sectionId?: string; afterFieldId?: string }[]>([]);
 
   const [showStageManager, setShowStageManager] = useState(false);
   const [newStageName, setNewStageName] = useState("");
@@ -421,7 +421,8 @@ export default function LeadDetailPage() {
           key: k,
           value: typeof v === 'object' ? v.value : String(v),
           type: typeof v === 'object' ? v.type : 'string',
-          sectionId: typeof v === 'object' ? v.sectionId : 'custom-fields'
+          sectionId: typeof v === 'object' ? v.sectionId : 'custom-fields',
+          afterFieldId: typeof v === 'object' ? v.afterFieldId : undefined
         }));
         // Merge with templates to show empty "standard" custom fields
         const mergedFields = mergeFieldsWithTemplatesSync(fields, templates);
@@ -440,7 +441,8 @@ export default function LeadDetailPage() {
       if (field.key.trim()) acc[field.key.trim()] = { 
         value: field.value, 
         type: field.type || 'string',
-        sectionId: field.sectionId 
+        sectionId: field.sectionId,
+        afterFieldId: field.afterFieldId
       };
       return acc;
     }, {} as Record<string, { value: string; type: string; sectionId?: string }>);
@@ -529,8 +531,7 @@ export default function LeadDetailPage() {
     return (
       <div className={cn(
         "space-y-4",
-        afterFieldId ? "mt-4 ml-4 pl-4 border-l-2 border-primary/20" : 
-        (isTop ? "mb-6 pb-6 border-b border-dashed" : "mt-6 pt-6 border-t border-dashed"),
+        !afterFieldId && (isTop ? "mb-6 pb-6 border-b border-dashed" : "mt-6 pt-6 border-t border-dashed"),
         "border-border"
       )}>
         {!afterFieldId && (

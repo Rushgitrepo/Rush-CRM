@@ -2,10 +2,13 @@ const db = require('../../config/database');
 const Joi = require('joi');
 
 const templateSchema = Joi.object({
+  id: Joi.any().optional(),
   key: Joi.string().required(),
+  value: Joi.any().optional(),
   type: Joi.string().optional().default('string'),
-  sectionId: Joi.string().optional().allow(null, '')
-});
+  sectionId: Joi.string().optional().allow(null, ''),
+  afterFieldId: Joi.string().optional().allow(null, '')
+}).unknown(true);
 
 const bulkSaveSchema = Joi.array().items(templateSchema);
 
@@ -15,7 +18,7 @@ const getTemplates = async (req, res, next) => {
     const orgId = req.user.orgId;
 
     const result = await db.query(
-      'SELECT key, type, section_id as "sectionId" FROM crm_custom_field_templates WHERE org_id = $1 AND entity_type = $2 ORDER BY created_at ASC',
+      'SELECT key, type, section_id as "sectionId", after_field_id as "afterFieldId" FROM crm_custom_field_templates WHERE org_id = $1 AND entity_type = $2 ORDER BY created_at ASC',
       [orgId, entityType]
     );
 
@@ -50,8 +53,8 @@ const saveTemplates = async (req, res, next) => {
       if (templates.length > 0) {
         for (const template of templates) {
           await client.query(
-            'INSERT INTO crm_custom_field_templates (org_id, entity_type, key, type, section_id) VALUES ($1, $2, $3, $4, $5)',
-            [orgId, entityType, template.key, template.type, template.sectionId]
+            'INSERT INTO crm_custom_field_templates (org_id, entity_type, key, type, section_id, after_field_id) VALUES ($1, $2, $3, $4, $5, $6)',
+            [orgId, entityType, template.key, template.type, template.sectionId, template.afterFieldId]
           );
         }
       }

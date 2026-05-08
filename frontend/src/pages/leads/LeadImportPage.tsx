@@ -35,6 +35,7 @@ export default function LeadImportPage() {
   const [skipDuplicates, setSkipDuplicates] = useState(true);
   const [importResult, setImportResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [availableCustomFieldOptions, setAvailableCustomFieldOptions] = useState<{ value: string; label: string }[]>([]);
 
   const commonFields = [
     { value: 'title', label: entityType === 'deal' ? 'Deal Title' : 'Lead name' },
@@ -110,11 +111,43 @@ export default function LeadImportPage() {
     ...(entityType === 'lead' ? leadOnlyFields : dealOnlyFields),
   ];
 
-  const customFields = getCustomFieldTemplates(entityType);
-  const availableCustomFields = customFields.map(cf => ({
-    value: `custom_${cf.key}`,
-    label: cf.key
-  }));
+  React.useEffect(() => {
+    const loadCustomFields = async () => {
+      // Get from server
+      try {
+        const templates = await api.get<any[]>(`/crm-custom-fields/templates/${entityType}`);
+        const serverFields = templates.map(cf => ({
+          value: `custom_${cf.key}`,
+          label: cf.key
+        }));
+
+        // Get from local storage
+        const localTemplates = getCustomFieldTemplates(entityType);
+        const localFields = localTemplates.map(cf => ({
+          value: `custom_${cf.key}`,
+          label: cf.key
+        }));
+
+        // Merge and deduplicate by label
+        const allFields = [...serverFields, ...localFields];
+        const uniqueFields = Array.from(
+          new Map(allFields.map(item => [item.label, item])).values()
+        );
+
+        setAvailableCustomFieldOptions(uniqueFields);
+      } catch (error) {
+        console.error('Failed to load custom fields for import mapping', error);
+        // Fallback to local only
+        const localTemplates = getCustomFieldTemplates(entityType);
+        setAvailableCustomFieldOptions(localTemplates.map(cf => ({
+          value: `custom_${cf.key}`,
+          label: cf.key
+        })));
+      }
+    };
+
+    loadCustomFields();
+  }, [entityType]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -388,9 +421,9 @@ export default function LeadImportPage() {
                         </option>
                       ))}
                     </optgroup>
-                    {availableCustomFields.length > 0 && (
+                    {availableCustomFieldOptions.length > 0 && (
                       <optgroup label="Custom Fields">
-                        {availableCustomFields.map((field) => (
+                        {availableCustomFieldOptions.map((field) => (
                           <option key={field.value} value={field.value}>
                             {field.label}
                           </option>

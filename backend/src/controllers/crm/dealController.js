@@ -661,7 +661,7 @@ const remove = async (req, res, next) => {
     if (!isAdmin) {
       const ownerCheck = await client.query(
         `SELECT id FROM public.deals WHERE id = $1 AND org_id = $2
-         AND (user_id = $3 OR owner_id = $3 OR created_by = $3)`,
+         AND (user_id = $3 OR owner_id = $3 OR created_by = $3 OR assigned_to = $3)`,
         [id, req.user.orgId, req.user.id]
       );
       if (ownerCheck.rows.length === 0) {
@@ -751,7 +751,7 @@ const bulkRemove = async (req, res, next) => {
       const ownerCheck = await client.query(
         `SELECT id FROM public.deals
          WHERE id = ANY($1) AND org_id = $2
-         AND (user_id = $3 OR owner_id = $3 OR created_by = $3)`,
+         AND (user_id = $3 OR owner_id = $3 OR created_by = $3 OR assigned_to = $3)`,
         [cleanIds, req.user.orgId, req.user.id]
       );
       allowedIds = ownerCheck.rows.map(r => r.id);

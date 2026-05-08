@@ -90,6 +90,7 @@ interface CustomField {
   value: string;
   type?: string;
   sectionId?: string;
+  afterFieldId?: string;
 }
 
 const stageOptions = [
@@ -176,7 +177,8 @@ export default function CreateDealPage() {
         key: t.key,
         value: "",
         type: t.type,
-        sectionId: t.sectionId || "custom-fields"
+        sectionId: t.sectionId || "custom-fields",
+        afterFieldId: t.afterFieldId
       })));
     }
   }, [templates]);
@@ -264,27 +266,26 @@ export default function CreateDealPage() {
     });
   };
 
-  const renderDroppedFields = (sectionId: string, isTop = false) => {
-    const sectionFields = customFields.filter(f => f.sectionId === sectionId);
+  const renderDroppedFields = (sectionId: string, isTop = false, afterFieldId?: string) => {
+    let sectionFields = customFields.filter(f => f.sectionId === sectionId);
+    
+    if (afterFieldId) {
+      sectionFields = sectionFields.filter(f => f.afterFieldId === afterFieldId);
+    } else if (isTop) {
+      sectionFields = sectionFields.filter(f => !f.afterFieldId || f.afterFieldId.startsWith(sectionId + '-top'));
+    } else {
+      return null;
+    }
+
     if (sectionFields.length === 0) return null;
 
     return (
-      <div className={cn(
-        "space-y-4",
-        isTop ? "mb-6 pb-6 border-b border-dashed" : "mt-6 pt-6 border-t border-dashed",
-        "border-border"
-      )}>
-        <div className="flex items-center gap-2 mb-2">
-          <Badge variant="outline" className="text-[10px] uppercase tracking-wider bg-primary/5 text-primary border-primary/20">
-            {isTop ? 'Top Custom Fields' : 'Custom Fields'}
-          </Badge>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <SortableContext items={sectionFields.map(f => f.id)} strategy={verticalListSortingStrategy}>
-            {sectionFields.map((field) => (
-              <DraggableFieldItem key={field.id} fieldKey={field.id}>
-                <div className="group relative">
-                  <div className="flex items-center justify-between mb-1.5">
+      <>
+        <SortableContext items={sectionFields.map(f => f.id)} strategy={verticalListSortingStrategy}>
+          {sectionFields.map((field) => (
+            <DraggableFieldItem key={field.id} fieldKey={field.id}>
+              <div className="group relative">
+                <div className="flex items-center justify-between mb-1.5">
                     <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{field.key}</Label>
                     <DraggableFieldItem fieldKey={field.id} isHandle>
                       <div className="p-1 cursor-grab active:cursor-grabbing text-primary hover:text-primary-foreground hover:bg-primary rounded transition-all opacity-0 group-hover:opacity-100">
@@ -306,9 +307,8 @@ export default function CreateDealPage() {
                 </div>
               </DraggableFieldItem>
             ))}
-          </SortableContext>
-        </div>
-      </div>
+        </SortableContext>
+      </>
     );
   };
 
@@ -369,7 +369,8 @@ export default function CreateDealPage() {
           acc[field.key.trim()] = { 
             value: field.value, 
             type: field.type || 'string',
-            sectionId: field.sectionId || 'custom-fields'
+            sectionId: field.sectionId || 'custom-fields',
+            afterFieldId: field.afterFieldId
           };
         }
         return acc;
@@ -436,169 +437,233 @@ export default function CreateDealPage() {
 
                     <DroppableSection id="deal-info" editing={true}>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                          <Label>Deal title *</Label>
-                          <Input
-                            placeholder="New build proposal"
-                            {...form.register("title")}
-                            className={cn(form.formState.errors.title && "border-destructive")}
-                          />
-                          {form.formState.errors.title && <p className="text-xs text-destructive">{form.formState.errors.title.message}</p>}
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Contact Name</Label>
-                          <Input
-                            placeholder="John Smith"
-                            {...form.register("contactName")}
-                            className={cn(form.formState.errors.contactName && "border-destructive")}
-                          />
-                          {form.formState.errors.contactName && <p className="text-xs text-destructive">{form.formState.errors.contactName.message}</p>}
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Company Name</Label>
-                          <Input
-                            placeholder="Acme Inc"
-                            {...form.register("companyName")}
-                            className={cn(form.formState.errors.companyName && "border-destructive")}
-                          />
-                          {form.formState.errors.companyName && <p className="text-xs text-destructive">{form.formState.errors.companyName.message}</p>}
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Email</Label>
-                          <Input
-                            type="email"
-                            placeholder="john@example.com"
-                            {...form.register("email")}
-                            className={cn(form.formState.errors.email && "border-destructive")}
-                          />
-                          {form.formState.errors.email && <p className="text-xs text-destructive">{form.formState.errors.email.message}</p>}
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Phone</Label>
-                          <Input
-                            placeholder="+1 555-0123"
-                            {...form.register("phone")}
-                            className={cn(form.formState.errors.phone && "border-destructive")}
-                          />
-                          {form.formState.errors.phone && <p className="text-xs text-destructive">{form.formState.errors.phone.message}</p>}
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Deal Value</Label>
-                          <div className="flex items-center gap-2">
+                        <DroppableField id="fixed-deal-info-title" editing={true}>
+                          <div className="space-y-2">
+                            <Label>Deal title *</Label>
                             <Input
-                              type="number"
-                              placeholder="25000"
-                              {...form.register("value")}
-                              className={cn(form.formState.errors.value && "border-destructive")}
+                              placeholder="New build proposal"
+                              {...form.register("title")}
+                              className={cn(form.formState.errors.title && "border-destructive")}
                             />
-                            <Select value={form.watch("currency") || "USD"} onValueChange={(v) => form.setValue("currency", v)}>
-                              <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
-                              <SelectContent>{currencyOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent>
+                            {form.formState.errors.title && <p className="text-xs text-destructive">{form.formState.errors.title.message}</p>}
+                          </div>
+                        </DroppableField>
+                        {renderDroppedFields("deal-info", false, "fixed-deal-info-title")}
+
+                        <DroppableField id="fixed-deal-info-contactName" editing={true}>
+                          <div className="space-y-2">
+                            <Label>Contact Name</Label>
+                            <Input
+                              placeholder="John Smith"
+                              {...form.register("contactName")}
+                              className={cn(form.formState.errors.contactName && "border-destructive")}
+                            />
+                            {form.formState.errors.contactName && <p className="text-xs text-destructive">{form.formState.errors.contactName.message}</p>}
+                          </div>
+                        </DroppableField>
+                        {renderDroppedFields("deal-info", false, "fixed-deal-info-contactName")}
+
+                        <DroppableField id="fixed-deal-info-companyName" editing={true}>
+                          <div className="space-y-2">
+                            <Label>Company Name</Label>
+                            <Input
+                              placeholder="Acme Inc"
+                              {...form.register("companyName")}
+                              className={cn(form.formState.errors.companyName && "border-destructive")}
+                            />
+                            {form.formState.errors.companyName && <p className="text-xs text-destructive">{form.formState.errors.companyName.message}</p>}
+                          </div>
+                        </DroppableField>
+                        {renderDroppedFields("deal-info", false, "fixed-deal-info-companyName")}
+
+                        <DroppableField id="fixed-deal-info-email" editing={true}>
+                          <div className="space-y-2">
+                            <Label>Email</Label>
+                            <Input
+                              type="email"
+                              placeholder="john@example.com"
+                              {...form.register("email")}
+                              className={cn(form.formState.errors.email && "border-destructive")}
+                            />
+                            {form.formState.errors.email && <p className="text-xs text-destructive">{form.formState.errors.email.message}</p>}
+                          </div>
+                        </DroppableField>
+                        {renderDroppedFields("deal-info", false, "fixed-deal-info-email")}
+
+                        <DroppableField id="fixed-deal-info-phone" editing={true}>
+                          <div className="space-y-2">
+                            <Label>Phone</Label>
+                            <Input
+                              placeholder="+1 555-0123"
+                              {...form.register("phone")}
+                              className={cn(form.formState.errors.phone && "border-destructive")}
+                            />
+                            {form.formState.errors.phone && <p className="text-xs text-destructive">{form.formState.errors.phone.message}</p>}
+                          </div>
+                        </DroppableField>
+                        {renderDroppedFields("deal-info", false, "fixed-deal-info-phone")}
+
+                        <DroppableField id="fixed-deal-info-value" editing={true}>
+                          <div className="space-y-2">
+                            <Label>Deal Value</Label>
+                            <div className="flex items-center gap-2">
+                              <Input
+                                type="number"
+                                placeholder="25000"
+                                {...form.register("value")}
+                                className={cn(form.formState.errors.value && "border-destructive")}
+                              />
+                              <Select value={form.watch("currency") || "USD"} onValueChange={(v) => form.setValue("currency", v)}>
+                                <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
+                                <SelectContent>{currencyOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent>
+                              </Select>
+                            </div>
+                            {form.formState.errors.value && <p className="text-xs text-destructive">{form.formState.errors.value.message}</p>}
+                          </div>
+                        </DroppableField>
+                        {renderDroppedFields("deal-info", false, "fixed-deal-info-value")}
+                        <DroppableField id="fixed-deal-info-pipeline" editing={true}>
+                          <div className="space-y-2">
+                            <Label>Pipeline</Label>
+                            <Select defaultValue="default" onValueChange={(v) => form.setValue("pipeline", v)}>
+                              <SelectTrigger><SelectValue placeholder="Select pipeline" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="default">Standard Pipeline</SelectItem>
+                                <SelectItem value="marketing">Marketing Pipeline</SelectItem>
+                                <SelectItem value="sales">Sales Pipeline</SelectItem>
+                              </SelectContent>
                             </Select>
                           </div>
-                          {form.formState.errors.value && <p className="text-xs text-destructive">{form.formState.errors.value.message}</p>}
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Pipeline</Label>
-                          <Select defaultValue="default" onValueChange={(v) => form.setValue("pipeline", v)}>
-                            <SelectTrigger><SelectValue placeholder="Select pipeline" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="default">Standard Pipeline</SelectItem>
-                              <SelectItem value="marketing">Marketing Pipeline</SelectItem>
-                              <SelectItem value="sales">Sales Pipeline</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Stage</Label>
-                          <Select defaultValue="qualification" onValueChange={(v) => { form.setValue("stage", v); form.setValue("status", v); }}>
-                            <SelectTrigger className={cn(form.formState.errors.stage && "border-destructive")}><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              {stageOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                          {form.formState.errors.stage && <p className="text-xs text-destructive">{form.formState.errors.stage.message}</p>}
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Priority</Label>
-                          <Select defaultValue="medium" onValueChange={(v) => form.setValue("priority", v)}>
-                            <SelectTrigger className={cn(form.formState.errors.priority && "border-destructive")}><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="low">Low</SelectItem>
-                              <SelectItem value="medium">Medium</SelectItem>
-                              <SelectItem value="high">High</SelectItem>
-                              <SelectItem value="urgent">Urgent</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          {form.formState.errors.priority && <p className="text-xs text-destructive">{form.formState.errors.priority.message}</p>}
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Expected Close Date</Label>
-                          <Input
-                            type="date"
-                            {...form.register("expectedCloseDate")}
-                            className={cn(form.formState.errors.expectedCloseDate && "border-destructive")}
-                          />
-                          {form.formState.errors.expectedCloseDate && <p className="text-xs text-destructive">{form.formState.errors.expectedCloseDate.message}</p>}
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Next Follow-up Date</Label>
-                          <Input
-                            type="date"
-                            {...form.register("nextFollowUpDate")}
-                            className={cn(form.formState.errors.nextFollowUpDate && "border-destructive")}
-                          />
-                          {form.formState.errors.nextFollowUpDate && <p className="text-xs text-destructive">{form.formState.errors.nextFollowUpDate.message}</p>}
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Responsible Person</Label>
-                          <Select onValueChange={(v) => form.setValue("assignedTo", v)}>
-                            <SelectTrigger><SelectValue placeholder="Select responsible..." /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="me">Me (Default)</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>External Source ID</Label>
-                          <Input
-                            placeholder="e.g., EXT-12345"
-                            {...form.register("externalSourceId")}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Probability (%)</Label>
-                          <Input
-                            type="number"
-                            placeholder="0-100"
-                            {...form.register("probability")}
-                            className={cn(form.formState.errors.probability && "border-destructive")}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Created Date</Label>
-                          <Input type="date" {...form.register("createdAt")} className="h-10" />
-                        </div>
+                        </DroppableField>
+                        {renderDroppedFields("deal-info", false, "fixed-deal-info-pipeline")}
+
+                        <DroppableField id="fixed-deal-info-stage" editing={true}>
+                          <div className="space-y-2">
+                            <Label>Stage</Label>
+                            <Select defaultValue="qualification" onValueChange={(v) => { form.setValue("stage", v); form.setValue("status", v); }}>
+                              <SelectTrigger className={cn(form.formState.errors.stage && "border-destructive")}><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {stageOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            {form.formState.errors.stage && <p className="text-xs text-destructive">{form.formState.errors.stage.message}</p>}
+                          </div>
+                        </DroppableField>
+                        {renderDroppedFields("deal-info", false, "fixed-deal-info-stage")}
+
+                        <DroppableField id="fixed-deal-info-priority" editing={true}>
+                          <div className="space-y-2">
+                            <Label>Priority</Label>
+                            <Select defaultValue="medium" onValueChange={(v) => form.setValue("priority", v)}>
+                              <SelectTrigger className={cn(form.formState.errors.priority && "border-destructive")}><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="low">Low</SelectItem>
+                                <SelectItem value="medium">Medium</SelectItem>
+                                <SelectItem value="high">High</SelectItem>
+                                <SelectItem value="urgent">Urgent</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            {form.formState.errors.priority && <p className="text-xs text-destructive">{form.formState.errors.priority.message}</p>}
+                          </div>
+                        </DroppableField>
+                        {renderDroppedFields("deal-info", false, "fixed-deal-info-priority")}
+
+                        <DroppableField id="fixed-deal-info-expectedCloseDate" editing={true}>
+                          <div className="space-y-2">
+                            <Label>Expected Close Date</Label>
+                            <Input
+                              type="date"
+                              {...form.register("expectedCloseDate")}
+                              className={cn(form.formState.errors.expectedCloseDate && "border-destructive")}
+                            />
+                            {form.formState.errors.expectedCloseDate && <p className="text-xs text-destructive">{form.formState.errors.expectedCloseDate.message}</p>}
+                          </div>
+                        </DroppableField>
+                        {renderDroppedFields("deal-info", false, "fixed-deal-info-expectedCloseDate")}
+
+                        <DroppableField id="fixed-deal-info-nextFollowUpDate" editing={true}>
+                          <div className="space-y-2">
+                            <Label>Next Follow-up Date</Label>
+                            <Input
+                              type="date"
+                              {...form.register("nextFollowUpDate")}
+                              className={cn(form.formState.errors.nextFollowUpDate && "border-destructive")}
+                            />
+                            {form.formState.errors.nextFollowUpDate && <p className="text-xs text-destructive">{form.formState.errors.nextFollowUpDate.message}</p>}
+                          </div>
+                        </DroppableField>
+                        {renderDroppedFields("deal-info", false, "fixed-deal-info-nextFollowUpDate")}
+
+                        <DroppableField id="fixed-deal-info-assignedTo" editing={true}>
+                          <div className="space-y-2">
+                            <Label>Responsible Person</Label>
+                            <Select onValueChange={(v) => form.setValue("assignedTo", v)}>
+                              <SelectTrigger><SelectValue placeholder="Select responsible..." /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="me">Me (Default)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </DroppableField>
+                        {renderDroppedFields("deal-info", false, "fixed-deal-info-assignedTo")}
+
+                        <DroppableField id="fixed-deal-info-externalSourceId" editing={true}>
+                          <div className="space-y-2">
+                            <Label>External Source ID</Label>
+                            <Input
+                              placeholder="e.g., EXT-12345"
+                              {...form.register("externalSourceId")}
+                            />
+                          </div>
+                        </DroppableField>
+                        {renderDroppedFields("deal-info", false, "fixed-deal-info-externalSourceId")}
+
+                        <DroppableField id="fixed-deal-info-probability" editing={true}>
+                          <div className="space-y-2">
+                            <Label>Probability (%)</Label>
+                            <Input
+                              type="number"
+                              placeholder="0-100"
+                              {...form.register("probability")}
+                              className={cn(form.formState.errors.probability && "border-destructive")}
+                            />
+                          </div>
+                        </DroppableField>
+                        {renderDroppedFields("deal-info", false, "fixed-deal-info-probability")}
+
+                        <DroppableField id="fixed-deal-info-createdAt" editing={true}>
+                          <div className="space-y-2">
+                            <Label>Created Date</Label>
+                            <Input type="date" {...form.register("createdAt")} className="h-10" />
+                          </div>
+                        </DroppableField>
+                        {renderDroppedFields("deal-info", false, "fixed-deal-info-createdAt")}
                       </div>
 
                       <div className="space-y-2 mt-4">
-                        <Label>Description</Label>
-                        <Textarea
-                          rows={3}
-                          placeholder="Deal description"
-                          {...form.register("description")}
-                        />
+                        <DroppableField id="fixed-deal-info-description" editing={true}>
+                          <Label>Description</Label>
+                          <Textarea
+                            rows={3}
+                            placeholder="Deal description"
+                            {...form.register("description")}
+                          />
+                        </DroppableField>
+                        {renderDroppedFields("deal-info", false, "fixed-deal-info-description")}
                       </div>
 
                       <div className="space-y-2 mt-4">
-                        <Label>Notes</Label>
-                        <Textarea
-                          rows={4}
-                          placeholder="Scope, risks, deliverables"
-                          {...form.register("notes")}
-                          className={cn(form.formState.errors.notes && "border-destructive")}
-                        />
+                        <DroppableField id="fixed-deal-info-notes" editing={true}>
+                          <Label>Notes</Label>
+                          <Textarea
+                            rows={4}
+                            placeholder="Scope, risks, deliverables"
+                            {...form.register("notes")}
+                            className={cn(form.formState.errors.notes && "border-destructive")}
+                          />
+                        </DroppableField>
                         {form.formState.errors.notes && <p className="text-xs text-destructive">{form.formState.errors.notes.message}</p>}
+                        {renderDroppedFields("deal-info", false, "fixed-deal-info-notes")}
                       </div>
                       {renderDroppedFields("deal-info")}
                     </DroppableSection>
@@ -610,34 +675,59 @@ export default function CreateDealPage() {
                 <CardHeader className="border-b">
                   <CardTitle>Contact & Company Details</CardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 md:grid-cols-2 p-6">
-                  <div className="space-y-2">
-                    <Label>Designation</Label>
-                    <Input placeholder="Job title / designation" {...form.register("designation")} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Website</Label>
-                    <Input placeholder="https://example.com" {...form.register("website")} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Company Phone</Label>
-                    <Input placeholder="+1 555-0123" {...form.register("companyPhone")} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Company Email</Label>
-                    <Input type="email" placeholder="info@company.com" {...form.register("companyEmail")} className={cn(form.formState.errors.companyEmail && "border-destructive")} />
-                    {form.formState.errors.companyEmail && <p className="text-xs text-destructive">{form.formState.errors.companyEmail.message}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Company Size</Label>
-                    <Select value={form.watch("companySize") || ""} onValueChange={(v) => form.setValue("companySize", v)}>
-                      <SelectTrigger><SelectValue placeholder="Select size" /></SelectTrigger>
-                      <SelectContent>{companySizeOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
-                  <div className="md:col-span-2 space-y-2">
-                    <Label>Address</Label>
-                    <Textarea rows={2} placeholder="Full address" {...form.register("address")} />
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-2 p-6">
+                    <DroppableField id="fixed-contact-company-info-designation" editing={true}>
+                      <div className="space-y-2">
+                        <Label>Designation</Label>
+                        <Input placeholder="Job title / designation" {...form.register("designation")} />
+                      </div>
+                    </DroppableField>
+                    {renderDroppedFields("contact-company-info", false, "fixed-contact-company-info-designation")}
+
+                    <DroppableField id="fixed-contact-company-info-website" editing={true}>
+                      <div className="space-y-2">
+                        <Label>Website</Label>
+                        <Input placeholder="https://example.com" {...form.register("website")} />
+                      </div>
+                    </DroppableField>
+                    {renderDroppedFields("contact-company-info", false, "fixed-contact-company-info-website")}
+
+                    <DroppableField id="fixed-contact-company-info-companyPhone" editing={true}>
+                      <div className="space-y-2">
+                        <Label>Company Phone</Label>
+                        <Input placeholder="+1 555-0123" {...form.register("companyPhone")} />
+                      </div>
+                    </DroppableField>
+                    {renderDroppedFields("contact-company-info", false, "fixed-contact-company-info-companyPhone")}
+
+                    <DroppableField id="fixed-contact-company-info-companyEmail" editing={true}>
+                      <div className="space-y-2">
+                        <Label>Company Email</Label>
+                        <Input type="email" placeholder="info@company.com" {...form.register("companyEmail")} className={cn(form.formState.errors.companyEmail && "border-destructive")} />
+                        {form.formState.errors.companyEmail && <p className="text-xs text-destructive">{form.formState.errors.companyEmail.message}</p>}
+                      </div>
+                    </DroppableField>
+                    {renderDroppedFields("contact-company-info", false, "fixed-contact-company-info-companyEmail")}
+
+                    <DroppableField id="fixed-contact-company-info-companySize" editing={true}>
+                      <div className="space-y-2">
+                        <Label>Company Size</Label>
+                        <Select value={form.watch("companySize") || ""} onValueChange={(v) => form.setValue("companySize", v)}>
+                          <SelectTrigger><SelectValue placeholder="Select size" /></SelectTrigger>
+                          <SelectContent>{companySizeOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                    </DroppableField>
+                    {renderDroppedFields("contact-company-info", false, "fixed-contact-company-info-companySize")}
+
+                    <div className="md:col-span-2 space-y-2">
+                      <DroppableField id="fixed-contact-company-info-address" editing={true}>
+                        <Label>Address</Label>
+                        <Textarea rows={2} placeholder="Full address" {...form.register("address")} />
+                      </DroppableField>
+                      {renderDroppedFields("contact-company-info", false, "fixed-contact-company-info-address")}
+                    </div>
                   </div>
                   {renderDroppedFields("contact-company-info")}
                 </CardContent>
@@ -649,34 +739,47 @@ export default function CreateDealPage() {
                 <CardHeader className="border-b">
                   <CardTitle>About Deal</CardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 md:grid-cols-2 p-6">
-                  <div className="space-y-2">
-                    <Label>Client Type</Label>
-                    <Select value={form.watch("clientType") || ""} onValueChange={(v) => form.setValue("clientType", v)}>
-                      <SelectTrigger className={cn(form.formState.errors.clientType && "border-destructive")}>
-                        <SelectValue placeholder="not selected" />
-                      </SelectTrigger>
-                      <SelectContent>{clientTypeOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent>
-                    </Select>
-                    {form.formState.errors.clientType && <p className="text-xs text-destructive">{form.formState.errors.clientType.message}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Project Type</Label>
-                    <Select value={form.watch("projectType") || ""} onValueChange={(v) => form.setValue("projectType", v)}>
-                      <SelectTrigger className={cn(form.formState.errors.projectType && "border-destructive")}>
-                        <SelectValue placeholder="not selected" />
-                      </SelectTrigger>
-                      <SelectContent>{projectTypeOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent>
-                    </Select>
-                    {form.formState.errors.projectType && <p className="text-xs text-destructive">{form.formState.errors.projectType.message}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Available to everyone</Label>
-                    <Select value={form.watch("availableToEveryone") ? "yes" : "no"} onValueChange={(v) => form.setValue("availableToEveryone", v === "yes")}>
-                      <SelectTrigger className={cn(form.formState.errors.availableToEveryone && "border-destructive")}><SelectValue /></SelectTrigger>
-                      <SelectContent>{yesNoOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent>
-                    </Select>
-                    {form.formState.errors.availableToEveryone && <p className="text-xs text-destructive">{form.formState.errors.availableToEveryone.message}</p>}
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-2 p-6">
+                    <DroppableField id="fixed-about-deal-clientType" editing={true}>
+                      <div className="space-y-2">
+                        <Label>Client Type</Label>
+                        <Select value={form.watch("clientType") || ""} onValueChange={(v) => form.setValue("clientType", v)}>
+                          <SelectTrigger className={cn(form.formState.errors.clientType && "border-destructive")}>
+                            <SelectValue placeholder="not selected" />
+                          </SelectTrigger>
+                          <SelectContent>{clientTypeOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent>
+                        </Select>
+                        {form.formState.errors.clientType && <p className="text-xs text-destructive">{form.formState.errors.clientType.message}</p>}
+                      </div>
+                    </DroppableField>
+                    {renderDroppedFields("about-deal", false, "fixed-about-deal-clientType")}
+
+                    <DroppableField id="fixed-about-deal-projectType" editing={true}>
+                      <div className="space-y-2">
+                        <Label>Project Type</Label>
+                        <Select value={form.watch("projectType") || ""} onValueChange={(v) => form.setValue("projectType", v)}>
+                          <SelectTrigger className={cn(form.formState.errors.projectType && "border-destructive")}>
+                            <SelectValue placeholder="not selected" />
+                          </SelectTrigger>
+                          <SelectContent>{projectTypeOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent>
+                        </Select>
+                        {form.formState.errors.projectType && <p className="text-xs text-destructive">{form.formState.errors.projectType.message}</p>}
+                      </div>
+                    </DroppableField>
+                    {renderDroppedFields("about-deal", false, "fixed-about-deal-projectType")}
+
+                    <DroppableField id="fixed-about-deal-availableToEveryone" editing={true}>
+                      <div className="space-y-2">
+                        <Label>Available to everyone</Label>
+                        <Select value={form.watch("availableToEveryone") ? "yes" : "no"} onValueChange={(v) => form.setValue("availableToEveryone", v === "yes")}>
+                          <SelectTrigger className={cn(form.formState.errors.availableToEveryone && "border-destructive")}><SelectValue /></SelectTrigger>
+                          <SelectContent>{yesNoOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent>
+                        </Select>
+                        {form.formState.errors.availableToEveryone && <p className="text-xs text-destructive">{form.formState.errors.availableToEveryone.message}</p>}
+                      </div>
+                    </DroppableField>
+                    {renderDroppedFields("about-deal", false, "fixed-about-deal-availableToEveryone")}
                   </div>
                 </CardContent>
                 {renderDroppedFields("about-deal")}
