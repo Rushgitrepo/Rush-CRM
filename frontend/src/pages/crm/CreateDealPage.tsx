@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/crm/ui/PageHeader";
 import { EntitySearchSelect } from "@/components/crm/EntitySearchSelect";
 import { CustomFieldsSection, DraggableFieldItem } from "@/components/crm/CustomFieldsSection";
-import { FieldDragWrapper } from "@/components/crm/FieldDragWrapper";
+import { FieldDragWrapper, DroppableField } from "@/components/crm/FieldDragWrapper";
 import { DroppableSection } from "@/components/crm/DroppableSection";
 import { CustomFieldInput } from "@/components/crm/CustomFieldInput";
 import { GripVertical } from "lucide-react";
