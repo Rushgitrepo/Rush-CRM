@@ -42,6 +42,16 @@ interface Reaction {
   userName: string;
 }
 
+export interface CallMessage {
+  id: string;
+  userId: string;
+  userName: string;
+  userAvatar: string | null;
+  text: string;
+  timestamp: string;
+  targetUserId?: string; // If present, it's a private message
+}
+
 interface VideoCallState {
   callState: CallState;
   callType: CallType;
@@ -59,6 +69,7 @@ interface VideoCallState {
   isOutgoing: boolean;
   groupName: string | null;
   groupAvatar: string | null;
+  callMessages: CallMessage[];
 }
 
 interface VideoCallContextType extends VideoCallState {
@@ -81,7 +92,12 @@ interface VideoCallContextType extends VideoCallState {
   toggleVideo: () => void;
   toggleScreenShare: () => void;
   sendReaction: (emoji: string) => void;
-  inviteToCall: (targetUserId: string) => void;
+  inviteToCall: (
+    targetUserId: string,
+    targetName?: string,
+    targetAvatar?: string | null,
+  ) => void;
+  sendCallMessage: (text: string, targetUserId?: string) => void;
 }
 
 const VideoCallContext = createContext<VideoCallContextType | undefined>(
@@ -122,6 +138,7 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
     isOutgoing: false,
     groupName: null,
     groupAvatar: null,
+    callMessages: [],
   });
 
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -232,6 +249,7 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
       isOutgoing: false,
       groupName: null,
       groupAvatar: null,
+      callMessages: [],
     });
   }, [stopRingtone, stopCallTimer, cleanupMedia]);
 
@@ -284,6 +302,9 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
           remoteMs.addTrack(event.track);
         }
 
+        // Use the live MediaStream reference directly so new tracks are picked up automatically
+        const liveStream = remoteMs;
+
         setState((prev) => {
           const newState = {
             ...prev,
@@ -291,7 +312,12 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
               ...prev.peers,
               [targetUserId]: {
                 ...prev.peers[targetUserId],
-                stream: new MediaStream(remoteMs!.getTracks()),
+                stream: new MediaStream(remoteMs.getTracks()),
+                // When we receive a video track, mark video as on
+                isVideoOff:
+                  event.track.kind === "video"
+                    ? false
+                    : (prev.peers[targetUserId]?.isVideoOff ?? true),
               },
             },
           };
@@ -372,14 +398,27 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
         enabled: false,
       });
 
-      if (localStreamRef.current) {
-        const videoTrack = localStreamRef.current.getVideoTracks()[0];
-        peerConnectionsRef.current.forEach((pc) => {
-          const sender = pc.getSenders().find((s) => s.track?.kind === "video");
-          if (sender && videoTrack)
-            sender.replaceTrack(videoTrack).catch((e) => console.error(e));
-        });
-      }
+      const videoTrack = localStreamRef.current?.getVideoTracks()[0];
+      peerConnectionsRef.current.forEach(async (pc, peerId) => {
+        const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+        try {
+          if (sender && videoTrack) {
+            await sender.replaceTrack(videoTrack);
+          } else if (sender && !videoTrack) {
+            // No camera to fall back to, remove the screen track sender
+            pc.removeTrack(sender);
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            socket?.emit("call:offer", {
+              callId: stateRef.current.callId,
+              targetUserId: peerId,
+              sdp: offer,
+            });
+          }
+        } catch (e) {
+          console.error("[WebRTC] Error stopping screen share:", e);
+        }
+      });
     } else {
       try {
         const stream = await navigator.mediaDevices.getDisplayMedia({
@@ -396,10 +435,26 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
         });
 
         const videoTrack = stream.getVideoTracks()[0];
-        peerConnectionsRef.current.forEach((pc) => {
+        if (!videoTrack) return;
+
+        peerConnectionsRef.current.forEach(async (pc, peerId) => {
           const sender = pc.getSenders().find((s) => s.track?.kind === "video");
-          if (sender && videoTrack)
-            sender.replaceTrack(videoTrack).catch((e) => console.error(e));
+          try {
+            if (sender) {
+              await sender.replaceTrack(videoTrack);
+            } else {
+              pc.addTrack(videoTrack, stream);
+              const offer = await pc.createOffer();
+              await pc.setLocalDescription(offer);
+              socket?.emit("call:offer", {
+                callId: stateRef.current.callId,
+                targetUserId: peerId,
+                sdp: offer,
+              });
+            }
+          } catch (e) {
+            console.error("[WebRTC] Error starting screen share:", e);
+          }
         });
 
         videoTrack.onended = () => {
@@ -688,21 +743,89 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
     });
   }, [state.isMuted, state.callId]);
 
-  const toggleVideo = useCallback(() => {
+  const toggleVideo = useCallback(async () => {
+    const socket = getSocket();
+
+    // Audio call upgrading to video — need to acquire video track first
+    if (state.callType === "audio" && state.isVideoOff) {
+      try {
+        const videoStream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+        });
+        const videoTrack = videoStream.getVideoTracks()[0];
+        if (!videoTrack) return;
+
+        // Add video track to existing local stream
+        if (localStreamRef.current) {
+          localStreamRef.current.addTrack(videoTrack);
+        } else {
+          localStreamRef.current = new MediaStream([videoTrack]);
+        }
+
+        // Update React state with new stream reference so video elements re-render
+        setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
+
+        // Add/replace video track in all peer connections + renegotiate
+        const renegotiations: Promise<void>[] = [];
+        peerConnectionsRef.current.forEach((pc, peerId) => {
+          const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+          const renegotiate = async () => {
+            try {
+              if (sender) {
+                await sender.replaceTrack(videoTrack);
+              } else {
+                pc.addTrack(videoTrack, localStreamRef.current!);
+              }
+              // Renegotiate so remote peer receives the new video track
+              if (pc.signalingState === "stable") {
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                socket?.emit("call:offer", {
+                  callId: stateRef.current.callId,
+                  targetUserId: peerId,
+                  sdp: offer,
+                });
+              }
+            } catch (e) {
+              console.error("[WebRTC] renegotiate error:", e);
+            }
+          };
+          renegotiations.push(renegotiate());
+        });
+        await Promise.all(renegotiations);
+
+        setState((prev) => ({ ...prev, isVideoOff: false, callType: "video" }));
+        socket?.emit("call:toggle-media", {
+          callId: state.callId,
+          mediaType: "video",
+          enabled: true,
+        });
+        socket?.emit("call:upgrade-to-video", { callId: state.callId });
+      } catch (err) {
+        console.error("[WebRTC] Failed to get video track:", err);
+        toast.error("Could not access camera.");
+      }
+      return;
+    }
+
     const newState = !state.isVideoOff;
     setState((prev) => ({ ...prev, isVideoOff: newState }));
     localStreamRef.current
       ?.getVideoTracks()
       .forEach((t) => (t.enabled = !newState));
-    getSocket()?.emit("call:toggle-media", {
+    socket?.emit("call:toggle-media", {
       callId: state.callId,
       mediaType: "video",
       enabled: !newState,
     });
-  }, [state.isVideoOff, state.callId]);
+  }, [state.isVideoOff, state.callType, state.callId]);
 
   const inviteToCall = useCallback(
-    (targetUserId: string) => {
+    (
+      targetUserId: string,
+      targetName?: string,
+      targetAvatar?: string | null,
+    ) => {
       if (!state.callId) return;
       getSocket()?.emit("call:initiate", {
         callId: state.callId,
@@ -710,10 +833,56 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
         callerName: profile?.full_name || "User",
         callerAvatar: profile?.avatar_url || null,
         callType: state.callType,
+        workgroupId: state.workgroupId,
+        isGroupCall: true,
       });
+      // Add peer to state immediately so their tile shows name/avatar while ringing
+      if (targetName) {
+        setState((prev) => ({
+          ...prev,
+          peers: {
+            ...prev.peers,
+            [targetUserId]: {
+              userId: targetUserId,
+              name: targetName,
+              avatar: targetAvatar ?? null,
+              isMuted: false,
+              isVideoOff: true,
+              isScreenSharing: false,
+              stream: null,
+            },
+          },
+        }));
+      }
       toast.success("Invitation sent");
     },
-    [state.callId, state.callType, profile],
+    [state.callId, state.callType, state.workgroupId, profile],
+  );
+
+  const sendCallMessage = useCallback(
+    (text: string, targetUserId?: string) => {
+      if (!state.callId || !profile || !text.trim()) return;
+      const socket = getSocket();
+      const message: CallMessage = {
+        id: Math.random().toString(36).slice(2, 9),
+        userId: user?.id || "",
+        userName: profile.full_name || "User",
+        userAvatar: profile.avatar_url,
+        text: text.trim(),
+        timestamp: new Date().toISOString(),
+        targetUserId,
+      };
+      socket?.emit("call:message", {
+        callId: state.callId,
+        message,
+        targetUserId,
+      });
+      setState((prev) => ({
+        ...prev,
+        callMessages: [...prev.callMessages, message],
+      }));
+    },
+    [state.callId, profile, user?.id],
   );
 
   // ─── Stable incoming call listener ──────────────────────────────
@@ -723,16 +892,30 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
   const playRingtoneRef = useRef(playRingtone);
   const stopRingtoneRef = useRef(stopRingtone);
   const resetCallStateRef = useRef(resetCallState);
-  useEffect(() => { playRingtoneRef.current = playRingtone; }, [playRingtone]);
-  useEffect(() => { stopRingtoneRef.current = stopRingtone; }, [stopRingtone]);
-  useEffect(() => { resetCallStateRef.current = resetCallState; }, [resetCallState]);
+  useEffect(() => {
+    playRingtoneRef.current = playRingtone;
+  }, [playRingtone]);
+  useEffect(() => {
+    stopRingtoneRef.current = stopRingtone;
+  }, [stopRingtone]);
+  useEffect(() => {
+    resetCallStateRef.current = resetCallState;
+  }, [resetCallState]);
 
   useEffect(() => {
     // Use a stable handler reference so socket.off works correctly
     const handleIncoming = (p: any) => {
-      console.log('[VideoCall] call:incoming received', p, 'callState:', callStateRef.current);
+      console.log(
+        "[VideoCall] call:incoming received",
+        p,
+        "callState:",
+        callStateRef.current,
+      );
       if (callStateRef.current !== "idle") {
-        console.log('[VideoCall] Rejecting - not idle, state:', callStateRef.current);
+        console.log(
+          "[VideoCall] Rejecting - not idle, state:",
+          callStateRef.current,
+        );
         getSocket()?.emit("call:reject", {
           callId: p.callId,
           callerId: p.callerId,
@@ -740,7 +923,7 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
         });
         return;
       }
-      console.log('[VideoCall] Setting state to incoming');
+      console.log("[VideoCall] Setting state to incoming");
       setState((prev) => ({
         ...prev,
         callState: "incoming",
@@ -775,14 +958,21 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
 
       // If the original caller drops → end for everyone
       // If a non-caller member leaves in a group call → just remove them
-      const shouldEndForAll = !s.isGroupCall || p.isOriginalCaller || s.callState === "incoming";
+      const shouldEndForAll =
+        !s.isGroupCall || p.isOriginalCaller || s.callState === "incoming";
 
       if (shouldEndForAll) {
         // Show missed call toast if we were ringing and never answered
         if (s.callState === "incoming") {
           const caller = Object.values(s.peers)[0];
-          const displayName = s.isGroupCall && s.groupName ? s.groupName : (caller?.name || "Someone");
-          const rawAvatar = s.isGroupCall && s.groupAvatar ? s.groupAvatar : (caller?.avatar || null);
+          const displayName =
+            s.isGroupCall && s.groupName
+              ? s.groupName
+              : caller?.name || "Someone";
+          const rawAvatar =
+            s.isGroupCall && s.groupAvatar
+              ? s.groupAvatar
+              : caller?.avatar || null;
           const isVideo = s.callType === "video";
           const label = isVideo ? "Missed video call" : "Missed voice call";
 
@@ -807,8 +997,10 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
             const newPeers = { ...prev.peers };
             delete newPeers[targetId];
             // If no peers left and we are connected, end the call
-            if (Object.keys(newPeers).length === 0 &&
-              (prev.callState === "connected" || prev.callState === "outgoing")) {
+            if (
+              Object.keys(newPeers).length === 0 &&
+              (prev.callState === "connected" || prev.callState === "outgoing")
+            ) {
               setTimeout(() => resetCallStateRef.current(), 500);
             }
             return { ...prev, peers: newPeers };
@@ -828,15 +1020,33 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
         toast.error(`Call ${reason.toLowerCase()}`);
         setTimeout(() => resetCallStateRef.current(), 3000);
       } else {
-        toast.info(`${p.accepterName || "A member"} declined the call`);
+        // Group call: remove the peer who declined and show a toast
+        const rejectorId = p.rejectedBy || p.callerId || p.fromUserId;
+        if (rejectorId) {
+          setState((prev) => {
+            const newPeers = { ...prev.peers };
+            const rejectorName =
+              newPeers[rejectorId]?.name || p.accepterName || "A member";
+            delete newPeers[rejectorId];
+            toast.info(`${rejectorName} declined the call`);
+            return { ...prev, peers: newPeers };
+          });
+        } else {
+          toast.info(`${p.accepterName || "A member"} declined the call`);
+        }
       }
     };
 
     const attach = () => {
       const socket = getSocket();
-      console.log('[VideoCall] attach() called, socket:', socket?.id, 'connected:', socket?.connected);
+      console.log(
+        "[VideoCall] attach() called, socket:",
+        socket?.id,
+        "connected:",
+        socket?.connected,
+      );
       if (!socket) {
-        console.log('[VideoCall] attach() - no socket yet, skipping');
+        console.log("[VideoCall] attach() - no socket yet, skipping");
         return;
       }
       socket.off("call:incoming", handleIncoming);
@@ -845,7 +1055,10 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
       socket.on("call:end", handleEnd);
       socket.off("call:rejected", handleRejected);
       socket.on("call:rejected", handleRejected);
-      console.log('[VideoCall] stable listeners attached on socket:', socket.id);
+      console.log(
+        "[VideoCall] stable listeners attached on socket:",
+        socket.id,
+      );
     };
 
     attach();
@@ -857,7 +1070,10 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
         socket.off("connect", attach);
         socket.on("connect", attach);
         if (socket.connected) attach();
-        if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+        if (pollInterval) {
+          clearInterval(pollInterval);
+          pollInterval = null;
+        }
       }
     };
 
@@ -882,7 +1098,9 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
     if (!socket) return;
 
     // handleIncoming is now handled by the stable effect above
-    const handleIncoming = (_p: any) => { /* handled above */ };
+    const handleIncoming = (_p: any) => {
+      /* handled above */
+    };
 
     const handleUserJoined = async (p: any) => {
       if (
@@ -890,27 +1108,56 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
         callStateRef.current !== "connecting"
       )
         return;
+
+      // Skip only if already fully connected to this peer
+      const existingPc = peerConnectionsRef.current.get(p.userId);
+      if (
+        existingPc &&
+        (existingPc.iceConnectionState === "connected" ||
+          existingPc.iceConnectionState === "completed")
+      ) {
+        // Already connected — just update name/avatar if missing
+        setState((prev) => {
+          const existing = prev.peers[p.userId];
+          if (existing?.name) return prev;
+          return {
+            ...prev,
+            peers: {
+              ...prev.peers,
+              [p.userId]: {
+                ...existing,
+                name: p.name || existing?.name || "",
+                avatar: p.avatar ?? existing?.avatar ?? null,
+              },
+            },
+          };
+        });
+        return;
+      }
+
       const pc = createPeerConnection(p.userId);
       if (!pc) return;
+
+      // Merge with existing peer data — preserve name/avatar if already set
       setState((prev) => ({
         ...prev,
         peers: {
           ...prev.peers,
           [p.userId]: {
             userId: p.userId,
-            name: p.name,
-            avatar: p.avatar,
+            name: p.name || prev.peers[p.userId]?.name || "",
+            avatar: p.avatar ?? prev.peers[p.userId]?.avatar ?? null,
             isMuted: false,
             isVideoOff: false,
             isScreenSharing: false,
-            stream: null,
+            stream: prev.peers[p.userId]?.stream || null,
           },
         },
       }));
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       socket.emit("call:offer", {
-        callId: state.callId,
+        callId: stateRef.current.callId,
         targetUserId: p.userId,
         sdp: offer,
       });
@@ -937,7 +1184,7 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
     };
 
     const handleAccepted = async (p: any) => {
-      if (p.callId !== state.callId) return;
+      if (p.callId !== stateRef.current.callId) return;
       stopRingtone();
       setState((prev) => ({
         ...prev,
@@ -949,7 +1196,8 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
             ...(prev.peers[p.accepterId] || {}),
             userId: p.accepterId,
             name: p.accepterName || prev.peers[p.accepterId]?.name || "",
-            avatar: p.accepterAvatar ?? prev.peers[p.accepterId]?.avatar ?? null,
+            avatar:
+              p.accepterAvatar ?? prev.peers[p.accepterId]?.avatar ?? null,
             isMuted: false,
             isVideoOff: false,
             isScreenSharing: false,
@@ -973,50 +1221,82 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
       if (!pc) pc = createPeerConnection(p.fromUserId)!;
       if (!pc) return;
 
-      // Ensure peer entry has name/avatar (may already be set from incoming event)
+      // Ensure peer entry has name/avatar; on renegotiation mark video as on
       setState((prev) => {
-        if (prev.peers[p.fromUserId]?.name) return prev; // already populated
+        const existing = prev.peers[p.fromUserId];
         return {
           ...prev,
           peers: {
             ...prev.peers,
             [p.fromUserId]: {
               userId: p.fromUserId,
-              name: p.callerName || p.name || "",
-              avatar: p.callerAvatar ?? p.avatar ?? null,
-              isMuted: false,
-              isVideoOff: false,
-              isScreenSharing: false,
-              stream: null,
-              ...(prev.peers[p.fromUserId] || {}),
+              name: p.callerName || p.name || existing?.name || "",
+              avatar: p.callerAvatar ?? p.avatar ?? existing?.avatar ?? null,
+              isMuted: existing?.isMuted ?? false,
+              isVideoOff: existing?.isVideoOff ?? false,
+              isScreenSharing: existing?.isScreenSharing ?? false,
+              stream: existing?.stream ?? null,
             },
           },
         };
       });
       try {
-        if (pc.signalingState === "stable") {
-          await pc.setRemoteDescription(new RTCSessionDescription(p.sdp));
-          await flushIceCandidates(p.fromUserId, pc);
-          const answer = await pc.createAnswer();
-          await pc.setLocalDescription(answer);
-          socket.emit("call:answer", {
-            callId: p.callId,
-            targetUserId: p.fromUserId,
-            sdp: answer,
-          });
+        const offerCollision =
+          p.sdp.type === "offer" &&
+          (pc.signalingState !== "stable" || pc.remoteDescription !== null);
+
+        // Simple polite peer logic: peer with "smaller" userId is polite
+        const isPolite =
+          user?.id && p.fromUserId ? user.id < p.fromUserId : false;
+
+        if (offerCollision && !isPolite) {
+          console.warn(
+            "[WebRTC] Offer collision detected (impolite), ignoring offer from:",
+            p.fromUserId,
+          );
+          return;
         }
+
+        if (offerCollision && isPolite) {
+          console.log(
+            "[WebRTC] Offer collision detected (polite), rolling back and accepting offer from:",
+            p.fromUserId,
+          );
+          await Promise.all([
+            pc.setLocalDescription({ type: "rollback" } as any),
+            pc.setRemoteDescription(new RTCSessionDescription(p.sdp)),
+          ]);
+        } else {
+          await pc.setRemoteDescription(new RTCSessionDescription(p.sdp));
+        }
+
+        await flushIceCandidates(p.fromUserId, pc);
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        socket.emit("call:answer", {
+          callId: p.callId,
+          targetUserId: p.fromUserId,
+          sdp: answer,
+        });
       } catch (err) {
         console.error("[WebRTC] handleOffer error:", err);
       }
     };
 
     const handleAnswer = async (p: any) => {
-      if (p.callId !== state.callId) return;
+      if (p.callId !== stateRef.current.callId) return;
       const pc = peerConnectionsRef.current.get(p.fromUserId);
-      if (pc && pc.signalingState === "have-local-offer") {
+      if (pc) {
         try {
-          await pc.setRemoteDescription(new RTCSessionDescription(p.sdp));
-          await flushIceCandidates(p.fromUserId, pc);
+          if (pc.signalingState === "have-local-offer") {
+            await pc.setRemoteDescription(new RTCSessionDescription(p.sdp));
+            await flushIceCandidates(p.fromUserId, pc);
+          } else {
+            console.warn(
+              "[WebRTC] Received answer but signaling state is:",
+              pc.signalingState,
+            );
+          }
         } catch (err) {
           console.error("[WebRTC] handleAnswer error:", err);
         }
@@ -1024,18 +1304,19 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
     };
 
     const handleIce = async (p: any) => {
-      if (p.callId !== state.callId) return;
+      if (p.callId !== stateRef.current.callId) return;
       const pc = peerConnectionsRef.current.get(p.fromUserId);
-      if (pc && pc.remoteDescription && pc.signalingState !== "closed") {
-        try {
+      try {
+        if (pc && pc.remoteDescription && pc.signalingState !== "closed") {
           await pc.addIceCandidate(new RTCIceCandidate(p.candidate));
-        } catch (e) {
-          console.error("[WebRTC] Error adding ICE candidate:", e);
+        } else {
+          // Queue candidates if remote description is not yet set
+          const pending = pendingCandidatesRef.current.get(p.fromUserId) || [];
+          pending.push(p.candidate);
+          pendingCandidatesRef.current.set(p.fromUserId, pending);
         }
-      } else {
-        const pending = pendingCandidatesRef.current.get(p.fromUserId) || [];
-        pending.push(p.candidate);
-        pendingCandidatesRef.current.set(p.fromUserId, pending);
+      } catch (e) {
+        console.error("[WebRTC] Error adding ICE candidate:", e);
       }
     };
 
@@ -1092,36 +1373,90 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
       peerConnectionsRef.current.delete(targetId);
     };
 
-    const handleEnd = (_p: any) => { /* handled by stable effect above */ };
-    const handleRejected = (_p: any) => { /* handled by stable effect above */ };
+    const handleEnd = (_p: any) => {
+      /* handled by stable effect above */
+    };
+    const handleRejected = (_p: any) => {
+      /* handled by stable effect above */
+    };
+
+    const handleUpgradeToVideo = (p: any) => {
+      // A peer upgraded to video — switch our call type to video and mark their camera as on
+      setState((prev) => ({
+        ...prev,
+        callType: "video",
+        peers: {
+          ...prev.peers,
+          ...(prev.peers[p.fromUserId]
+            ? {
+                [p.fromUserId]: {
+                  ...prev.peers[p.fromUserId],
+                  isVideoOff: false,
+                },
+              }
+            : {}),
+        },
+      }));
+    };
+
+    // Populate existing room members for late joiners
+    const handleRoomMembers = (p: any) => {
+      if (!p.members || !Array.isArray(p.members)) return;
+      setState((prev) => {
+        const updatedPeers = { ...prev.peers };
+        for (const member of p.members) {
+          if (!member.userId) continue;
+          updatedPeers[member.userId] = {
+            userId: member.userId,
+            name: member.name || updatedPeers[member.userId]?.name || "",
+            avatar:
+              member.avatar ?? updatedPeers[member.userId]?.avatar ?? null,
+            isMuted: updatedPeers[member.userId]?.isMuted ?? false,
+            isVideoOff: updatedPeers[member.userId]?.isVideoOff ?? true,
+            isScreenSharing:
+              updatedPeers[member.userId]?.isScreenSharing ?? false,
+            stream: updatedPeers[member.userId]?.stream ?? null,
+          };
+        }
+        return { ...prev, peers: updatedPeers };
+      });
+    };
 
     socket.on("call:user-joined", handleUserJoined);
+    socket.on("call:room-members", handleRoomMembers);
+    socket.on("call:upgrade-to-video", handleUpgradeToVideo);
     socket.on("call:accepted", handleAccepted);
     socket.on("call:offer", handleOffer);
     socket.on("call:answer", handleAnswer);
     socket.on("call:ice-candidate", handleIce);
     socket.on("call:toggle-media", handleToggleMedia);
     socket.on("call:reaction", handleReaction);
+
+    const handleMessage = (p: any) => {
+      setState((prev) => ({
+        ...prev,
+        callMessages: [...prev.callMessages, p.message],
+      }));
+    };
+    socket.on("call:message", handleMessage);
+
     socket.on("call:user-left", handleUserLeft);
 
     return () => {
       socket.off("call:incoming", handleIncoming);
       socket.off("call:user-joined", handleUserJoined);
+      socket.off("call:room-members", handleRoomMembers);
+      socket.off("call:upgrade-to-video", handleUpgradeToVideo);
       socket.off("call:accepted", handleAccepted);
       socket.off("call:offer", handleOffer);
       socket.off("call:answer", handleAnswer);
       socket.off("call:ice-candidate", handleIce);
       socket.off("call:toggle-media", handleToggleMedia);
       socket.off("call:reaction", handleReaction);
+      socket.off("call:message", handleMessage);
       socket.off("call:user-left", handleUserLeft);
     };
-  }, [
-    state.callId,
-    playRingtone,
-    createPeerConnection,
-    resetCallState,
-    stopRingtone,
-  ]);
+  }, [playRingtone, createPeerConnection, resetCallState, stopRingtone]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -1146,6 +1481,7 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
         toggleScreenShare,
         sendReaction,
         inviteToCall,
+        sendCallMessage,
       }}
     >
       {children}
