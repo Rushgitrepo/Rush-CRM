@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Plus, Search, Settings, ChevronLeft, ChevronRight, ChevronDown, Check, Users, Clock, RefreshCw } from "lucide-react";
+import { Plus, Search, Settings, ChevronLeft, ChevronRight, ChevronDown, Check, Users, User, Clock, RefreshCw } from "lucide-react";
 import { CalendarMiniWidget } from "@/components/calendar/CalendarMiniWidget";
 import { CalendarDayView } from "@/components/calendar/CalendarDayView";
 import { CalendarWeekView } from "@/components/calendar/CalendarWeekView";
@@ -22,6 +22,9 @@ import { EventDetailDialog } from "@/components/calendar/EventDetailDialog";
 import { useCalendarEvents, type CalendarEvent } from "@/hooks/useCalendarEvents";
 import { useCalendarConnections } from "@/hooks/useCalendarConnections";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { useRealtime } from "@/hooks/useRealtime";
+import { cn } from "@/lib/utils";
 
 type ViewType = "day" | "week" | "month" | "schedule" | "invitations";
 
@@ -54,11 +57,17 @@ export default function CalendarPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [connectSuccessOpen, setConnectSuccessOpen] = useState(false);
   const [connectedProvider, setConnectedProvider] = useState("");
+  const [calendarMode, setCalendarMode] = useState<"team" | "personal">("team");
+  const [showWorkEvents, setShowWorkEvents] = useState(true);
+  const [showHolidays, setShowHolidays] = useState(true);
+  const [showBirthdays, setShowBirthdays] = useState(true);
+  const { profile } = useAuth();
 
   const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { connections, connect, sync, disconnect, connectICloud, syncICloudEvents, syncMicrosoftEvents, disconnectByProvider } = useCalendarConnections();
+  const { on, off } = useRealtime();
 
   useEffect(() => {
     const connected = searchParams.get('connected');
@@ -82,6 +91,21 @@ export default function CalendarPage() {
       setSearchParams({}, { replace: true });
     }
   }, [searchParams, setSearchParams, queryClient, toast, sync]);
+
+  // Real-time sync for calendar events
+  useEffect(() => {
+    const invalidateEvents = () => queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+
+    on("calendar:event-created", invalidateEvents);
+    on("calendar:event-updated", invalidateEvents);
+    on("calendar:event-deleted", invalidateEvents);
+
+    return () => {
+      off("calendar:event-created", invalidateEvents);
+      off("calendar:event-updated", invalidateEvents);
+      off("calendar:event-deleted", invalidateEvents);
+    };
+  }, [on, off, queryClient]);
 
   // Compute date range for the current view
   const dateRange = useMemo(() => {
@@ -111,16 +135,40 @@ export default function CalendarPage() {
   );
 
   const events = useMemo(() => {
-    if (!searchQuery.trim()) return rawEvents;
+    let filtered = rawEvents;
+
+    if (calendarMode === "team") {
+      // Team view: only CRM events (shared)
+      filtered = filtered.filter(e => !e.external_provider);
+    } else {
+      // Personal view: User's own CRM events + User's external events
+      filtered = filtered.filter(e => !!e.external_provider || e.created_by === profile?.id);
+      
+      // Apply type filters based on colors assigned during sync
+      filtered = filtered.filter(e => {
+        const color = (e.color || '').toLowerCase();
+        
+        // Green is usually Holidays
+        if (color === '#10b981') return showHolidays;
+        
+        // Red is usually Birthdays
+        if (color === '#f43f5e') return showBirthdays;
+        
+        // Everything else is treated as a "Work Event" or general event
+        return showWorkEvents;
+      });
+    }
+
+    if (!searchQuery.trim()) return filtered;
     const query = searchQuery.toLowerCase();
-    return rawEvents.filter(e => {
-      const dateStr = format(new Date(e.start_time), 'EEEE MMMM d yyyy').toLowerCase(); // e.g. "monday april 12 2026"
+    return filtered.filter(e => {
+      const dateStr = format(new Date(e.start_time), 'EEEE MMMM d yyyy').toLowerCase();
       return e.title.toLowerCase().includes(query) ||
         e.description?.toLowerCase().includes(query) ||
         e.location?.toLowerCase().includes(query) ||
         dateStr.includes(query);
     });
-  }, [rawEvents, searchQuery]);
+  }, [rawEvents, searchQuery, calendarMode, profile?.id, showHolidays, showBirthdays, showWorkEvents]);
 
   const connectedProviders = connections.map(c => c.provider);
   const hasConnectedCalendar = connectedProviders.length > 0;
@@ -248,6 +296,34 @@ export default function CalendarPage() {
               </p>
             </div>
 
+            {/* Calendar Mode Toggle */}
+            <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+              <button
+                onClick={() => setCalendarMode("team")}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all",
+                  calendarMode === "team"
+                    ? "bg-white dark:bg-slate-700 text-primary shadow-sm"
+                    : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                )}
+              >
+                <Users className="h-4 w-4" />
+                Team
+              </button>
+              <button
+                onClick={() => setCalendarMode("personal")}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all",
+                  calendarMode === "personal"
+                    ? "bg-white dark:bg-slate-700 text-primary shadow-sm"
+                    : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                )}
+              >
+                <User className="h-4 w-4" />
+                Personal
+              </button>
+            </div>
+
             <div className="flex items-center gap-3">
 
               <Button
@@ -368,64 +444,114 @@ export default function CalendarPage() {
           {/* Right Sidebar */}
           <div className="w-80 flex-shrink-0">
             <div className="bg-white/90 backdrop-blur-sm rounded-xl border border-slate-200/60 shadow-xl shadow-slate-900/5 dark:bg-slate-900/90 dark:border-slate-700/60 overflow-hidden">
-              {/* Mini Calendar */}
+              {/* Mini Calendar - Always visible */}
               <div className="p-6">
                 <CalendarMiniWidget selectedDate={selectedDate} onDateSelect={setSelectedDate} />
               </div>
 
-              {/* Calendar Connections */}
-              <div className="px-6 pb-6">
-                <div className="space-y-4">
-                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Calendar Connections</h3>
-
-                  {hasConnectedCalendar ? (
+              {/* Calendar Connections - Only in Personal View */}
+              {calendarMode === "personal" && (
+                <div className="px-6 pb-6 space-y-6">
+                  {/* Event Filters */}
+                  <div className="space-y-3">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Event Filters</h3>
                     <div className="space-y-2">
-                      {connections.map((conn) => (
-                        <div key={conn.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                            <span className="text-sm font-medium">{providerNames[conn.provider] || conn.provider}</span>
-                          </div>
-                          <div className="flex gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleSync(conn.provider)}
-                              className="text-xs"
-                              title="Sync"
-                            >
-                              <RefreshCw className="w-3 h-3" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleManageCalendar(conn.provider)}
-                              className="text-xs"
-                            >
-                              Manage
-                            </Button>
-                          </div>
+                      <button 
+                        onClick={() => setShowWorkEvents(!showWorkEvents)}
+                        className={cn(
+                          "w-full flex items-center justify-between p-2 rounded-lg transition-all",
+                          showWorkEvents ? "bg-blue-50 text-blue-700 dark:bg-blue-900/20" : "opacity-50 grayscale"
+                        )}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full bg-[#4285F4]" />
+                          <span className="text-xs font-medium">Work Events</span>
                         </div>
-                      ))}
+                        {showWorkEvents && <Check className="w-3 h-3" />}
+                      </button>
+
+                      <button 
+                        onClick={() => setShowHolidays(!showHolidays)}
+                        className={cn(
+                          "w-full flex items-center justify-between p-2 rounded-lg transition-all",
+                          showHolidays ? "bg-green-50 text-green-700 dark:bg-green-900/20" : "opacity-50 grayscale"
+                        )}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full bg-[#10b981]" />
+                          <span className="text-xs font-medium">Holidays</span>
+                        </div>
+                        {showHolidays && <Check className="w-3 h-3" />}
+                      </button>
+
+                      <button 
+                        onClick={() => setShowBirthdays(!showBirthdays)}
+                        className={cn(
+                          "w-full flex items-center justify-between p-2 rounded-lg transition-all",
+                          showBirthdays ? "bg-rose-50 text-rose-700 dark:bg-rose-900/20" : "opacity-50 grayscale"
+                        )}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full bg-[#f43f5e]" />
+                          <span className="text-xs font-medium">Birthdays</span>
+                        </div>
+                        {showBirthdays && <Check className="w-3 h-3" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Calendar Connections</h3>
+
+                    {hasConnectedCalendar ? (
+                      <div className="space-y-2">
+                        {connections.map((conn) => (
+                          <div key={conn.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                              <span className="text-sm font-medium">{providerNames[conn.provider] || conn.provider}</span>
+                            </div>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleSync(conn.provider)}
+                                className="text-xs"
+                                title="Sync"
+                              >
+                                <RefreshCw className="w-3 h-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleManageCalendar(conn.provider)}
+                                className="text-xs"
+                              >
+                                Manage
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                        <Button
+                          className="w-full bg-primary hover:from-green-700 hover:to-green-800 text-white shadow-lg shadow-green-500/25"
+                          onClick={() => setConnectDialogOpen(true)}
+                        >
+                          <Check className="h-4 w-4 mr-2" />
+                          Sync Calendars
+                        </Button>
+                      </div>
+                    ) : (
                       <Button
-                        className="w-full bg-primary hover:from-green-700 hover:to-green-800 text-white shadow-lg shadow-green-500/25"
+                        className="w-full bg-primary text-white shadow-lg shadow-blue-500/25"
                         onClick={() => setConnectDialogOpen(true)}
                       >
-                        <Check className="h-4 w-4 mr-2" />
-                        Sync Calendars
+                        <Plus className="h-4 w-4 mr-2" />
+                        Connect Calendar
                       </Button>
-                    </div>
-                  ) : (
-                    <Button
-                      className="w-full bg-primary text-white shadow-lg shadow-blue-500/25"
-                      onClick={() => setConnectDialogOpen(true)}
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Connect Calendar
-                    </Button>
-                  )}
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>

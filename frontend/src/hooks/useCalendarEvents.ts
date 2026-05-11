@@ -16,8 +16,10 @@ export interface CalendarEvent {
   color: string | null;
   external_calendar_id: string | null;
   external_provider: string | null;
+  creator_name?: string;
   created_at: string;
   updated_at: string;
+  category?: string;
   attachments?: any[];
 }
 

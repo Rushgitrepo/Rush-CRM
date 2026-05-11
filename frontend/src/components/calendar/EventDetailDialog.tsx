@@ -4,6 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { MapPin, Clock, Users, Trash2, Pencil, Check, X } from "lucide-react";
 import { type CalendarEvent, useCalendarEvents, useEventAttendees, type EventAttendee } from "@/hooks/useCalendarEvents";
 import { useAuth } from "@/contexts/AuthContext";
@@ -27,6 +34,7 @@ export function EventDetailDialog({ open, onOpenChange, event }: EventDetailDial
   const [endTime, setEndTime] = useState("");
   const [isAllDay, setIsAllDay] = useState(false);
   const [color, setColor] = useState("");
+  const [category, setCategory] = useState("meeting");
 
   if (!event) return null;
 
@@ -50,6 +58,7 @@ export function EventDetailDialog({ open, onOpenChange, event }: EventDetailDial
     setEndTime(formatDT(event.end_time));
     setIsAllDay(event.is_all_day);
     setColor(event.color || "bg-sky-500");
+    setCategory(event.category || "meeting");
     setEditing(true);
   };
 
@@ -63,6 +72,7 @@ export function EventDetailDialog({ open, onOpenChange, event }: EventDetailDial
       endTime,
       allDay: isAllDay,
       color,
+      category,
     }, {
       onSuccess: () => setEditing(false),
     });
@@ -98,8 +108,30 @@ export function EventDetailDialog({ open, onOpenChange, event }: EventDetailDial
 
             <DialogTitle className="text-xl">
               {editing ? (
-                <Input value={title} onChange={e => setTitle(e.target.value)} className="text-lg font-semibold" />
-              ) : event.title}
+                <div className="space-y-3">
+                  <Input value={title} onChange={e => setTitle(e.target.value)} className="text-lg font-semibold" />
+                  <Select value={category} onValueChange={setCategory}>
+                    <SelectTrigger className="h-8 w-32 text-xs">
+                      <SelectValue placeholder="Category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="meeting">Meeting</SelectItem>
+                      <SelectItem value="call">Call</SelectItem>
+                      <SelectItem value="task">Task</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div className="flex flex-col">
+                  <span>{event.title}</span>
+                  {event.category && (
+                    <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mt-1">
+                      {event.category}
+                    </span>
+                  )}
+                </div>
+              )}
             </DialogTitle>
           </div>
         </DialogHeader>
@@ -141,9 +173,16 @@ export function EventDetailDialog({ open, onOpenChange, event }: EventDetailDial
                       <Clock className="h-3.5 w-3.5 text-primary" />
                       {event.is_all_day ? 'All Day Event' : `${format(startDate, 'h:mm a')} – ${format(endDate, 'h:mm a')}`}
                     </h3>
-                    <p className="text-sm text-muted-foreground">
-                      {format(startDate, 'EEEE, d MMMM yyyy')}
-                    </p>
+                    <div className="flex flex-col gap-0.5 mt-1">
+                      <p className="text-sm text-muted-foreground">
+                        {format(startDate, 'EEEE, d MMMM yyyy')}
+                      </p>
+                      {event.creator_name && (
+                        <p className="text-[11px] font-medium text-primary/80">
+                          Created by: {event.creator_name}
+                        </p>
+                      )}
+                    </div>
                   </>
                 )}
               </div>
@@ -151,29 +190,33 @@ export function EventDetailDialog({ open, onOpenChange, event }: EventDetailDial
           </div>
 
           {/* Location & Details Group */}
-          <div className="space-y-3 px-1">
-            {(editing || event.location) && (
-              <div className="flex items-center gap-3 text-sm group">
-                <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
-                  <MapPin className="h-4 w-4 text-muted-foreground" />
+          <div className="space-y-6 px-1 mt-4">
+            {(editing || event.location || !event.description) && (
+              <div className="flex items-center gap-4 group">
+                <div className="h-10 w-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 shadow-sm border border-slate-200/50 dark:border-slate-700/50">
+                  <MapPin className="h-5 w-5 text-slate-500" />
                 </div>
                 {editing ? (
                   <Input 
                     value={location} 
                     onChange={e => setLocation(e.target.value)} 
                     placeholder="Add location" 
-                    className="flex-1 h-9"
+                    className="flex-1 h-10"
                   />
                 ) : (
-                  <p className="text-foreground">{event.location}</p>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                      {event.location || "No location provided"}
+                    </p>
+                  </div>
                 )}
               </div>
             )}
 
             {(editing || event.description) && (
-              <div className="flex items-start gap-3 text-sm pt-2">
-                <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0 mt-0.5">
-                  <Users className="h-4 w-4 text-muted-foreground" />
+              <div className="flex items-start gap-4">
+                <div className="h-10 w-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 shadow-sm border border-slate-200/50 dark:border-slate-700/50 mt-0.5">
+                  <Users className="h-5 w-5 text-slate-500" />
                 </div>
                 <div className="flex-1">
                   {editing ? (
@@ -185,8 +228,8 @@ export function EventDetailDialog({ open, onOpenChange, event }: EventDetailDial
                       className="resize-none"
                     />
                   ) : (
-                    <p className="text-muted-foreground leading-relaxed italic">
-                      "{event.description}"
+                    <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed italic">
+                      "{event.description || "No description provided."}"
                     </p>
                   )}
                 </div>

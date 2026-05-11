@@ -186,8 +186,8 @@ const update = async (req, res, next) => {
   try {
     const { id } = req.params;
     const {
-      title, description, assignedTo, dueDate, priority, status,
-      recurrence_rule, is_starred, progress, can_assign
+      title, description, priority, status, assignedTo, dueDate,
+      recurrence_rule, is_starred, progress, can_assign, delay_reason
     } = req.body;
 
     const taskCheck = await db.query(
@@ -208,25 +208,25 @@ const update = async (req, res, next) => {
 
     const canModifyTask =
       isAdmin || isManager || isTaskCreator ||
-      (isAssignee && delegationAllowed) ||
+      isAssignee ||
       isDelegator;
 
     if (!canModifyTask) {
       return res.status(403).json({ error: 'You do not have permission to update this task' });
     }
 
-    const canChangeAssignment = isAdmin || isManager || isTaskCreator || (isAssignee && delegationAllowed);
-    const canChangeCanAssign = isAdmin || isManager || isTaskCreator || (isAssignee && delegationAllowed) || isDelegator;
+    const canChangeAssignment = isTaskCreator || isDelegator || (isAssignee && delegationAllowed);
+    const canChangeCanAssign = isTaskCreator || isDelegator || (isAssignee && delegationAllowed);
 
     const fields = [];
     const values = [];
     let p = 1;
 
-    if (title !== undefined && (isAdmin || isManager || isTaskCreator)) {
+    if (title !== undefined && isTaskCreator) {
       fields.push(`title = $${p++}`);
       values.push(title);
     }
-    if (description !== undefined && (isAdmin || isManager || isTaskCreator)) {
+    if (description !== undefined && isTaskCreator) {
       fields.push(`description = $${p++}`);
       values.push(description);
     }
@@ -238,11 +238,11 @@ const update = async (req, res, next) => {
         values.push(req.user.id);
       }
     }
-    if (dueDate !== undefined) {
+    if (dueDate !== undefined && isTaskCreator) {
       fields.push(`due_date = $${p++}`);
       values.push(dueDate === '' ? null : dueDate);
     }
-    if (priority !== undefined) {
+    if (priority !== undefined && isTaskCreator) {
       fields.push(`priority = $${p++}`);
       values.push(priority);
     }
@@ -271,6 +271,10 @@ const update = async (req, res, next) => {
     if (is_starred !== undefined) {
       fields.push(`is_starred = $${p++}`);
       values.push(is_starred);
+    }
+    if (delay_reason !== undefined) {
+      fields.push(`delay_reason = $${p++}`);
+      values.push(delay_reason);
     }
 
     if (fields.length === 0) {
@@ -366,8 +370,8 @@ const remove = async (req, res, next) => {
     const { id } = req.params;
 
     const result = await db.query(
-      'DELETE FROM public.tasks WHERE id = $1 AND org_id = $2 RETURNING id',
-      [id, req.user.orgId]
+      'DELETE FROM public.tasks WHERE id = $1 AND org_id = $2 AND created_by = $3 RETURNING id',
+      [id, req.user.orgId, req.user.id]
     );
 
     if (result.rows.length === 0) {

@@ -349,6 +349,7 @@ CREATE TABLE IF NOT EXISTS calendar_events (
     is_recurring boolean DEFAULT false,
     attendees jsonb DEFAULT '[]'::jsonb,
     attachments jsonb DEFAULT '[]'::jsonb,
+    category character varying(50) DEFAULT 'event'::character varying,
     external_calendar_id character varying(255),
     external_provider character varying(50),
     CONSTRAINT calendar_events_external_id_unique UNIQUE(external_calendar_id)
@@ -2672,6 +2673,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     is_recurring boolean DEFAULT false,
     recurrence_pattern character varying(100),
     labels text[],
+    delay_reason text,
     updated_by uuid
 );
 

@@ -31,6 +31,7 @@ import {
   Flag,
   FolderKanban,
   User,
+  MessageSquare,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -77,7 +78,9 @@ export function TaskDialog({
     due_date: undefined as Date | undefined,
     progress: 0,
     can_assign: false,
+    delay_reason: "",
   });
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   // Update form when task changes (for editing) or initial values change
   useEffect(() => {
@@ -92,6 +95,7 @@ export function TaskDialog({
         due_date: (task as any).due_date || (task as any).dueDate ? new Date((task as any).due_date || (task as any).dueDate) : undefined,
         progress: (task as any).progress || 0,
         can_assign: (task as any).can_assign ?? (task as any).canAssign ?? false,
+        delay_reason: (task as any).delay_reason || "",
       });
     } else {
       // Reset form for new task — default assignee = None
@@ -110,6 +114,7 @@ export function TaskDialog({
               ? 20
               : 0,
         can_assign: false,
+        delay_reason: "",
       });
     }
   }, [task, initialStatus, initialDate, open]);
@@ -155,14 +160,9 @@ export function TaskDialog({
 
   // Task creator check (for editing core fields)
   const isTaskCreator = !task || task.created_by === profile?.id;
-  const canEditCoreFields = isAdmin || isTaskCreator;
+  const canEditCoreFields = isTaskCreator;
+  
 
-  // Delegation check — task level (existing task) ya project level (new task)
-  const delegationAllowed = Boolean(
-    task
-      ? task.can_assign === true
-      : false  // new task pe delegation default OFF
-  );
 
   // Delegator check — User 2 jisne task User 3 ko assign kiya (delegated_by field)
   // Wo task apni list mein dekh sakta hai aur can_assign toggle kar sakta hai
@@ -170,6 +170,15 @@ export function TaskDialog({
     !!task &&
     (task as any).delegated_by === profile?.id &&
     !isTaskCreator;
+
+  const canEditDates = isTaskCreator;
+
+  // Delegation check — task level (existing task) ya project level (new task)
+  const delegationAllowed = Boolean(
+    task
+      ? task.can_assign === true
+      : false  // new task pe delegation default OFF
+  );
 
   // ─── UNIFORM ASSIGNMENT RULE ───
   // Assign kar sakta hai agar:
@@ -293,6 +302,7 @@ export function TaskDialog({
                 onValueChange={(value) =>
                   setFormData({ ...formData, priority: value })
                 }
+                disabled={!canEditDates}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -342,7 +352,7 @@ export function TaskDialog({
                 <CalendarIcon className="h-4 w-4" />
                 Due Date
               </Label>
-              <Popover>
+              <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
@@ -350,6 +360,7 @@ export function TaskDialog({
                       "w-full justify-start text-left font-normal",
                       !formData.due_date && "text-muted-foreground",
                     )}
+                    disabled={!canEditDates}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {formData.due_date ? (
@@ -363,9 +374,10 @@ export function TaskDialog({
                   <Calendar
                     mode="single"
                     selected={formData.due_date}
-                    onSelect={(date) =>
-                      setFormData({ ...formData, due_date: date })
-                    }
+                    onSelect={(date) => {
+                      setFormData({ ...formData, due_date: date });
+                      setIsCalendarOpen(false);
+                    }}
                     initialFocus
                   />
                 </PopoverContent>
@@ -455,9 +467,25 @@ export function TaskDialog({
               </div>
             )}
           </div>
+          {/* Reason for Delay / Remark */}
+          <div className="space-y-2 mt-4 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5">
+            <Label className="text-sm font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-2">
+              <MessageSquare className="h-4 w-4" />
+              Reason for Delay / Status Remark
+            </Label>
+            <Textarea
+              placeholder="Explain why the task is delayed or provide a status update..."
+              value={formData.delay_reason}
+              onChange={(e) => setFormData({ ...formData, delay_reason: e.target.value })}
+              className="resize-none min-h-[80px] bg-background/50 border-amber-500/20 focus:border-amber-500/50"
+            />
+            <p className="text-[10px] text-muted-foreground italic">
+              * This note is visible to the owner and helps in tracking progress hurdles.
+            </p>
+          </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="p-6 pt-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
