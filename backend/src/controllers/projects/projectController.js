@@ -133,7 +133,7 @@ const update = async (req, res, next) => {
     // 2. Current manager jise delegation ON ho
     // 3. Delegator — sirf can_assign toggle ke liye
     const canModifyProject =
-      isAdmin || isSystemManager || isCreator ||
+      isCreator ||
       (isCurrentManager && delegationAllowed) ||
       isDelegator;
 
@@ -141,34 +141,34 @@ const update = async (req, res, next) => {
       return res.status(403).json({ error: 'You do not have permission to update this project' });
     }
 
-    const canChangeAssignment = isAdmin || isSystemManager || isCreator || (isCurrentManager && delegationAllowed);
-    const canChangeCanAssign = isAdmin || isSystemManager || isCreator || (isCurrentManager && delegationAllowed) || isDelegator;
+    const canChangeAssignment = isCreator || (isCurrentManager && delegationAllowed) || isDelegator;
+    const canChangeCanAssign = isCreator || (isCurrentManager && delegationAllowed) || isDelegator;
 
     const fields = [];
     const values = [];
     let p = 1;
 
-    if (name !== undefined && (isAdmin || isSystemManager || isCreator)) {
+    if (name !== undefined && isCreator) {
       fields.push(`name = $${p++}`);
       values.push(name);
     }
-    if (description !== undefined && (isAdmin || isSystemManager || isCreator)) {
+    if (description !== undefined && isCreator) {
       fields.push(`description = $${p++}`);
       values.push(description);
     }
-    if (startDate !== undefined && (isAdmin || isSystemManager || isCreator)) {
+    if (startDate !== undefined && isCreator) {
       fields.push(`start_date = $${p++}`);
       values.push(startDate);
     }
-    if (endDate !== undefined && (isAdmin || isSystemManager || isCreator)) {
+    if (endDate !== undefined && isCreator) {
       fields.push(`end_date = $${p++}`);
       values.push(endDate);
     }
-    if (color !== undefined && (isAdmin || isSystemManager || isCreator)) {
+    if (color !== undefined && isCreator) {
       fields.push(`color = $${p++}`);
       values.push(color);
     }
-    if (status !== undefined && (isAdmin || isSystemManager || isCreator)) {
+    if (status !== undefined && isCreator) {
       fields.push(`status = $${p++}`);
       values.push(status);
     }
@@ -211,8 +211,8 @@ const remove = async (req, res, next) => {
   try {
     const { id } = req.params;
     const result = await db.query(
-      'DELETE FROM public.projects WHERE id = $1 AND org_id = $2 RETURNING id',
-      [id, req.user.orgId]
+      'DELETE FROM public.projects WHERE id = $1 AND org_id = $2 AND created_by = $3 RETURNING id',
+      [id, req.user.orgId, req.user.id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Project not found' });
