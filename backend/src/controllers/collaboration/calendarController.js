@@ -2,14 +2,26 @@ const db = require('../../config/database');
 const googleCalendarOAuth = require('../../services/googleCalendarOAuth');
 const icloudCalendarService = require('../../services/icloudCalendarService');
 const microsoftCalendarOAuth = require('../../services/microsoftCalendarOAuth');
+const realtimeService = require('../../services/realtimeService');
 
 const getEvents = async (req, res, next) => {
   try {
     const { startDate, endDate, search } = req.query;
 
-    let query = 'SELECT * FROM public.calendar_events WHERE org_id = $1 AND deleted_at IS NULL';
+    let query = `
+      SELECT e.*, u.full_name as creator_name 
+      FROM public.calendar_events e
+      LEFT JOIN public.users u ON e.created_by = u.id
+      WHERE e.org_id = $1 AND e.deleted_at IS NULL
+    `;
     const params = [req.user.orgId];
-    let paramIndex = 2;
+    
+    // Privacy: Only show external events to the person who synced them
+    // Regular CRM events (external_provider IS NULL) are shared with the org
+    query += ' AND (external_provider IS NULL OR created_by = $2)';
+    params.push(req.user.id);
+    
+    let paramIndex = 3;
 
     if (search) {
       query += ` AND (
@@ -172,35 +184,46 @@ const create = async (req, res, next) => {
         const finalAttachments = [...otherAttachments, icsAttachment];
 
 
-        // Combine creator and invitees, removing duplicates
+        // Only send to invitees. If no invitees, no emails will be sent.
         const allRecipients = [
-          userData.email,
           ...(invitees.map(i => typeof i === 'string' ? i : i.email).filter(Boolean))
-        ].map(email => email.toLowerCase().trim());
+        ].map(email => email?.toLowerCase().trim());
 
-        const uniqueRecipients = [...new Set(allRecipients)];
+        const uniqueRecipients = [...new Set(allRecipients.filter(Boolean))];
 
-        // Send to each recipient separately
-        for (const recipient of uniqueRecipients) {
-          await emailService.sendEmail(req.user.id, {
-            to: recipient,
-            subject: `📅 Event Created: ${title}`,
-            html_body: htmlBody,
-            body: `New Event: ${title}\n\nTime: ${new Date(startTime).toLocaleString()}\nLocation: ${location || 'N/A'}\nDescription: ${description || 'N/A'}`,
-            attachments: finalAttachments
-          });
-
+        if (uniqueRecipients.length > 0) {
+          // Send emails in background to avoid blocking the response
+          (async () => {
+            try {
+              for (const recipient of uniqueRecipients) {
+                await emailService.sendEmail({
+                  from: `"${userData.org_name || 'Rush CRM'}" <${process.env.SMTP_USER}>`,
+                  to: recipient,
+                  subject: `📅 Event Created: ${title}`,
+                  html: htmlBody,
+                  text: `New Event: ${title}\n\nTime: ${new Date(startTime).toLocaleString()}\nLocation: ${location || 'N/A'}\nDescription: ${description || 'N/A'}`,
+                  attachments: finalAttachments
+                });
+              }
+            } catch (backgroundEmailErr) {
+              console.error('Background email notification failed:', backgroundEmailErr);
+            }
+          })();
         }
-
-
-
-
-
       }
-    } catch (emailErr) {
-      console.error('Failed to send calendar event notification:', emailErr);
+    } catch (err) {
+      console.error('Failed to prepare calendar event notification:', err);
     }
 
+
+    // Fetch creator name for real-time broadcast
+    const creatorResult = await db.query(
+      "SELECT full_name as name FROM users WHERE id = $1",
+      [req.user.id]
+    );
+    event.creator_name = creatorResult.rows[0]?.name;
+
+    realtimeService.broadcastToOrg(req.user.orgId, 'calendar:event-created', event);
 
     res.status(201).json(event);
   } catch (err) {
@@ -247,7 +270,9 @@ const update = async (req, res, next) => {
       return res.status(404).json({ error: 'Event not found' });
     }
 
-    res.json(result.rows[0]);
+    const updatedEvent = result.rows[0];
+    realtimeService.broadcastToOrg(req.user.orgId, 'calendar:event-updated', updatedEvent);
+    res.json(updatedEvent);
   } catch (err) {
     next(err);
   }
@@ -266,6 +291,7 @@ const remove = async (req, res, next) => {
       return res.status(404).json({ error: 'Event not found' });
     }
 
+    realtimeService.broadcastToOrg(req.user.orgId, 'calendar:event-deleted', { id });
     res.json({ message: 'Event deleted' });
   } catch (err) {
     next(err);
@@ -541,6 +567,11 @@ const syncEvents = async (req, res, next) => {
       if (!endTime) endTime = startTime;
 
       const externalId = event.id || String(event.uid);
+      
+      // Assign special colors for holidays and birthdays
+      let eventColor = color;
+      if (event.isHoliday) eventColor = '#10b981'; // Emerald/Green for holidays
+      else if (event.isBirthday) eventColor = '#f43f5e'; // Rose/Pink for birthdays
 
       await db.query(
         `INSERT INTO public.calendar_events (
@@ -554,6 +585,7 @@ const syncEvents = async (req, res, next) => {
           start_time = EXCLUDED.start_time,
           end_time = EXCLUDED.end_time,
           is_all_day = EXCLUDED.is_all_day,
+          color = EXCLUDED.color,
           updated_at = now()
         WHERE calendar_events.deleted_at IS NULL`,
         [
@@ -567,7 +599,7 @@ const syncEvents = async (req, res, next) => {
           !!event.start.date, // If only 'date' is present, it's all day
           externalId,
           provider,
-          color
+          eventColor
         ]
       );
     }

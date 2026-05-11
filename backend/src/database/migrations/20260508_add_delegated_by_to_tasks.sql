@@ -7,3 +7,5 @@ ALTER TABLE public.tasks
 
 COMMENT ON COLUMN public.tasks.delegated_by IS
   'The user who last delegated/re-assigned this task via delegation permission. Allows delegator to track and manage tasks they forwarded.';
+
+ALTER TABLE public.calendar_events ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT 'event';

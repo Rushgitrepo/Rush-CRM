@@ -9,6 +9,8 @@ class RealtimeService {
     this.userSockets = new Map();
     this.userActiveSockets = new Map();
     this.lastSeenAt = new Map();
+    // roomId → Map<userId, { userId, name, avatar }>
+    this.callRoomMembers = new Map();
   }
 
   initialize(server) {
@@ -141,9 +143,9 @@ class RealtimeService {
           groupAvatar,
         };
 
-        if (payload.isGroupCall && payload.workgroupId) {
-          socket.to(`workgroup:${payload.workgroupId}`).emit('call:incoming', incomingPayload);
-          
+        if (payload.isGroupCall && payload.workgroupId && !payload.targetUserId) {
+          // Only emit directly to each member's user room — avoid double-emit
+          // (workgroup room broadcast + user room = duplicate call:incoming → auto-reject)
           try {
             const membersResult = await db.query(
               `SELECT user_id FROM workgroup_members WHERE workgroup_id = $1 AND user_id != $2`,
@@ -193,7 +195,28 @@ class RealtimeService {
         socket.join(roomName);
         console.log(`[WebRTC] User ${payload.userId} joined room ${payload.roomId}`);
 
-        // Notify others in the room
+        // Store member info for late joiners
+        if (!this.callRoomMembers.has(payload.roomId)) {
+          this.callRoomMembers.set(payload.roomId, new Map());
+        }
+        const members = this.callRoomMembers.get(payload.roomId);
+
+        // Send existing members to the new joiner BEFORE adding self
+        const existingMembers = Array.from(members.values()).filter(
+          (m) => m.userId !== payload.userId
+        );
+        if (existingMembers.length > 0) {
+          socket.emit('call:room-members', { members: existingMembers });
+        }
+
+        // Now add self to the registry
+        members.set(payload.userId, {
+          userId: payload.userId,
+          name: payload.name,
+          avatar: payload.avatar,
+        });
+
+        // Notify others in the room about the new joiner
         socket.to(roomName).emit('call:user-joined', {
           userId: payload.userId,
           name: payload.name,
@@ -236,6 +259,29 @@ class RealtimeService {
         }
       });
 
+      socket.on('call:message', (payload) => {
+        // payload: { callId, message: { id, userId, userName, userAvatar, text, timestamp, targetUserId }, targetUserId }
+        if (payload.callId) {
+          if (payload.targetUserId) {
+            // Private message: only emit to the target user
+            this.io.to(`user:${payload.targetUserId}`).emit('call:message', payload);
+          } else {
+            // Group message: emit to everyone in the room except sender
+            const roomName = `call_room:${payload.callId}`;
+            socket.to(roomName).emit('call:message', payload);
+          }
+        }
+      });
+
+      socket.on('call:upgrade-to-video', (payload) => {
+        // Notify all peers in the room that this call is upgrading to video
+        const roomName = `call_room:${payload.callId}`;
+        socket.to(roomName).emit('call:upgrade-to-video', {
+          callId: payload.callId,
+          fromUserId: socket.userId,
+        });
+      });
+
       socket.on('call:end', async (payload) => {
         // payload: { callId, targetUserId, workgroupId, isGroupCall, reason }
         console.log(`[WebRTC] Call ended: ${socket.userId} in ${payload.isGroupCall ? 'Group ' + payload.workgroupId : '1-on-1'}`);
@@ -274,6 +320,12 @@ class RealtimeService {
             userId: socket.userId,
             callId: payload.callId,
           });
+          // Clean up room members registry when call ends
+          if (payload.isOriginalCaller) {
+            this.callRoomMembers.delete(payload.callId);
+          } else {
+            this.callRoomMembers.get(payload.callId)?.delete(socket.userId);
+          }
         }
       });
 

@@ -108,6 +108,11 @@ export function CalendarMonthView({ selectedDate, onDateSelect, events, onEventC
                     title={ev.title}
                   >
                     <div className="truncate font-medium">{ev.title}</div>
+                    {ev.creator_name && (
+                      <div className="truncate opacity-80 text-[9px] font-normal italic">
+                        By: {ev.creator_name.split(' ')[0]}
+                      </div>
+                    )}
                     {ev.location && (
                       <div className="truncate opacity-90 text-[10px]">{ev.location}</div>
                     )}
