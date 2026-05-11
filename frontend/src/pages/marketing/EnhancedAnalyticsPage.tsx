@@ -31,7 +31,15 @@ export default function EnhancedAnalyticsPage() {
   const { data: lists = [] } = useMarketingLists();
   const { data: forms = [] } = useMarketingForms();
   const { data: sequences = [] } = useMarketingSequences();
-  const { data: leads = [] } = useLeads();
+  const { data: leadsData } = useLeads();
+  
+  const leads = useMemo(() => {
+    if (Array.isArray(leadsData)) return leadsData;
+    if (leadsData && typeof leadsData === "object") {
+      return (leadsData as any).data || (leadsData as any).leads || [];
+    }
+    return [];
+  }, [leadsData]);
 
   const [dateRange, setDateRange] = useState("30");
 
