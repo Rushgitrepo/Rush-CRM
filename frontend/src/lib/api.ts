@@ -362,6 +362,7 @@ const serializeTaskPayload = (data: any) => ({
   is_starred: data.is_starred ?? data.isStarred,
   progress: data.progress,
   can_assign: data.can_assign ?? data.canAssign,
+  delay_reason: data.delay_reason,
 });
 
 export const tasksApi = {

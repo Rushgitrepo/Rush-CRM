@@ -138,39 +138,41 @@ function TaskCard({ task, onEdit, onToggleStar }: { task: Task; onEdit?: (task: 
                   <Star className={cn("h-3.5 w-3.5", task.is_starred ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground")} />
                 </button>
                 {/* Dots menu */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button size="sm" variant="ghost" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <MoreHorizontal className="h-3.5 w-3.5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" sideOffset={4} className="w-44">
-                    <DropdownMenuItem onClick={() => onEdit?.(task)}>
-                      <Edit className="h-4 w-4 mr-2" /> Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => handleStatusChange("new")}>
-                      <Circle className="h-4 w-4 mr-2 text-blue-500" /> Mark as Inbox
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleStatusChange("in_progress")}>
-                      <Clock className="h-4 w-4 mr-2 text-orange-500" /> In Progress
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleStatusChange("completed")}>
-                      <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" /> Completed
-                    </DropdownMenuItem>
-                    {(isAdmin || task.created_by === profile?.id) && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-                          onClick={() => setTaskToDelete(true)}
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" /> Delete
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                {(task.created_by === profile?.id || task.assigned_to === profile?.id || (task as any).delegated_by === profile?.id) && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="sm" variant="ghost" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <MoreHorizontal className="h-3.5 w-3.5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" sideOffset={4} className="w-44">
+                      <DropdownMenuItem onClick={() => onEdit?.(task)}>
+                        <Edit className="h-4 w-4 mr-2" /> Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => handleStatusChange("new")}>
+                        <Circle className="h-4 w-4 mr-2 text-blue-500" /> Mark as Inbox
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleStatusChange("in_progress")}>
+                        <Clock className="h-4 w-4 mr-2 text-orange-500" /> In Progress
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleStatusChange("completed")}>
+                        <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" /> Completed
+                      </DropdownMenuItem>
+                      {task.created_by === profile?.id && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                            onClick={() => setTaskToDelete(true)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" /> Delete
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </div>
             </div>
           </div>

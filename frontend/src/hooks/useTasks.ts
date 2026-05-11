@@ -27,6 +27,7 @@ export interface Task {
   is_starred?: boolean;
   progress?: number;
   can_assign?: boolean;
+  delay_reason?: string;
   project_name?: string;
   project_color?: string;
   project_can_assign?: boolean;

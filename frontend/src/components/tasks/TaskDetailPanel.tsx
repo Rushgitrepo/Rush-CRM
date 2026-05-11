@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
 import {
     Circle,
     Clock,
@@ -14,6 +15,7 @@ import {
     Edit,
     AlignLeft,
     TrendingUp,
+    MessageSquare,
 } from "lucide-react";
 import { format, isPast, isToday, isTomorrow } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -40,6 +42,7 @@ const PRIORITY_CONFIG = {
 };
 
 export function TaskDetailPanel({ task, open, onOpenChange, onEdit }: TaskDetailPanelProps) {
+    const { profile } = useAuth();
     if (!task) return null;
 
     const status = STATUS_CONFIG[task.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.new;
@@ -116,7 +119,7 @@ export function TaskDetailPanel({ task, open, onOpenChange, onEdit }: TaskDetail
                                 </h2>
                             </div>
 
-                            {onEdit && (
+                            {onEdit && (task.created_by === profile?.id || task.assigned_to === profile?.id || (task as any).delegated_by === profile?.id) && (
                                 <Button
                                     variant="ghost"
                                     size="icon"
@@ -255,6 +258,24 @@ export function TaskDetailPanel({ task, open, onOpenChange, onEdit }: TaskDetail
                             </p>
                         )}
                     </div>
+
+                    {/* Reason for Delay / Remark */}
+                    {task.delay_reason && (
+                        <>
+                            <Separator className="opacity-50" />
+                            <div className="px-6 py-5">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <MessageSquare className="h-4 w-4 text-amber-500" />
+                                    <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                                        Reason for Delay / Status Remark
+                                    </p>
+                                </div>
+                                <div className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap bg-amber-500/5 rounded-xl p-4 border border-amber-500/20">
+                                    {task.delay_reason}
+                                </div>
+                            </div>
+                        </>
+                    )}
 
                     {/* Tags */}
                     {task.tags && task.tags.length > 0 && (

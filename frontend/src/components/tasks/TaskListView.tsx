@@ -308,46 +308,48 @@ export function TaskListView({ tasks, onEditTask, onToggleStar }: TaskListViewPr
                   <Star className={cn("h-4.5 w-4.5", task.is_starred && "fill-current")} />
                 </Button>
 
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-8 w-8 p-0"
-                    >
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => onEditTask?.(task)}>
-                      <Edit className="h-4 w-4 mr-2" />
-                      Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => handleStatusChange(task, "new")}>
-                      <Circle className="h-4 w-4 mr-2 text-blue-500" />
-                      Mark as Inbox
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleStatusChange(task, "in_progress")}>
-                      <Clock className="h-4 w-4 mr-2 text-orange-500" />
-                      Mark as In Progress
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleStatusChange(task, "completed")}>
-                      <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" />
-                      Mark as Completed
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    {(isAdmin || task.created_by === profile?.id) && (
-                      <DropdownMenuItem
-                        className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-                        onClick={() => handleDelete(task.id)}
+                {(task.created_by === profile?.id || task.assigned_to === profile?.id || (task as any).delegated_by === profile?.id) && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 w-8 p-0"
                       >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => onEditTask?.(task)}>
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit
                       </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => handleStatusChange(task, "new")}>
+                        <Circle className="h-4 w-4 mr-2 text-blue-500" />
+                        Mark as Inbox
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleStatusChange(task, "in_progress")}>
+                        <Clock className="h-4 w-4 mr-2 text-orange-500" />
+                        Mark as In Progress
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleStatusChange(task, "completed")}>
+                        <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" />
+                        Mark as Completed
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      {task.created_by === profile?.id && (
+                        <DropdownMenuItem
+                          className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                          onClick={() => handleDelete(task.id)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </div>
             </div>
           </div>

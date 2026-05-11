@@ -76,6 +76,8 @@ export function ProjectDialog({
     managerId: "",
     canAssign: false,
   });
+  const [isStartCalendarOpen, setIsStartCalendarOpen] = useState(false);
+  const [isEndCalendarOpen, setIsEndCalendarOpen] = useState(false);
 
   useEffect(() => {
     if (project) {
@@ -110,21 +112,20 @@ export function ProjectDialog({
   const isAdmin = userRole?.role === 'admin' || userRole?.role === 'super_admin';
   const isManager = userRole?.role === 'manager' || userRole?.role === 'hr_manager' || userRole?.role === 'inventory_manager';
   const isCreator = !project || project.created_by === profile?.id;
-  const canEditCoreFields = isAdmin || isManager || isCreator;
-
-  // Delegation check — project level
-  const delegationAllowed = Boolean(project ? (project as any).can_assign === true : false);
-
-  // Current manager (assignee) check
+  const canEditCoreFields = isCreator;
   const isCurrentManager =
     !!project &&
     ((project as any).manager_id === profile?.id || (project as any).managerId === profile?.id);
-
   // Delegator check — jo pehle manager tha aur usne forward kiya
   const isDelegator =
     !!project &&
     (project as any).delegated_by === profile?.id &&
     !isCreator;
+
+  const canEditDates = isCreator;
+
+  // Delegation check — project level
+  const delegationAllowed = Boolean(project ? (project as any).can_assign === true : false);
 
   // Manager assignment change kar sakta hai agar:
   // 1. Admin/system-manager/creator
@@ -279,7 +280,7 @@ export function ProjectDialog({
                 <CalendarIcon className="h-4 w-4" />
                 Start Date
               </Label>
-              <Popover>
+              <Popover open={isStartCalendarOpen} onOpenChange={setIsStartCalendarOpen}>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
@@ -287,6 +288,7 @@ export function ProjectDialog({
                       "w-full justify-start text-left font-normal",
                       !formData.start_date && "text-muted-foreground"
                     )}
+                    disabled={!canEditDates}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {formData.start_date ? format(formData.start_date, "PPP") : <span>Pick a date</span>}
@@ -296,7 +298,10 @@ export function ProjectDialog({
                   <Calendar
                     mode="single"
                     selected={formData.start_date}
-                    onSelect={(date) => setFormData({ ...formData, start_date: date })}
+                    onSelect={(date) => {
+                      setFormData({ ...formData, start_date: date });
+                      setIsStartCalendarOpen(false);
+                    }}
                     initialFocus
                   />
                 </PopoverContent>
@@ -309,7 +314,7 @@ export function ProjectDialog({
                 <CalendarIcon className="h-4 w-4" />
                 End Date
               </Label>
-              <Popover>
+              <Popover open={isEndCalendarOpen} onOpenChange={setIsEndCalendarOpen}>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
@@ -317,6 +322,7 @@ export function ProjectDialog({
                       "w-full justify-start text-left font-normal",
                       !formData.end_date && "text-muted-foreground"
                     )}
+                    disabled={!canEditDates}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {formData.end_date ? format(formData.end_date, "PPP") : <span>Pick a date</span>}
@@ -326,7 +332,10 @@ export function ProjectDialog({
                   <Calendar
                     mode="single"
                     selected={formData.end_date}
-                    onSelect={(date) => setFormData({ ...formData, end_date: date })}
+                    onSelect={(date) => {
+                      setFormData({ ...formData, end_date: date });
+                      setIsEndCalendarOpen(false);
+                    }}
                     initialFocus
                     disabled={(date) => (formData.start_date ? date < formData.start_date : false)}
                   />

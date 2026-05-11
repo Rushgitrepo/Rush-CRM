@@ -150,42 +150,42 @@ export function ProjectListView({
                   </div>
                 </div>
 
-                <div onClick={(e) => e.stopPropagation()}>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="rounded-full hover:bg-muted/60 h-8 w-8 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      align="end"
-                      className="w-48 p-1.5 rounded-xl border-border/50 backdrop-blur-2xl bg-background/95"
-                    >
-                      <DropdownMenuItem
-                        onClick={() => onEditProject(project)}
-                        className="rounded-lg gap-2 p-2 cursor-pointer focus:bg-primary/10"
-                      >
-                        <Edit className="h-4 w-4 text-primary" />
-                        <span className="font-medium text-sm">
-                          {canEdit ? "Edit Project" : "View Details"}
-                        </span>
-                      </DropdownMenuItem>
-                      {canEdit && (
-                        <DropdownMenuItem
-                          onClick={(e) => openDeleteDialog(e, project)}
-                          className="rounded-lg gap-2 p-2 text-red-500 cursor-pointer focus:bg-red-500/10 mt-0.5"
+                {(project.created_by === profile?.id || project.owner_id === profile?.id || project.manager_id === profile?.id || (project as any).managerId === profile?.id || (project as any).delegated_by === profile?.id) && (
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="rounded-full hover:bg-muted/60 h-8 w-8 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
                         >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="font-medium text-sm">Delete</span>
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align="end"
+                        className="w-48 p-1.5 rounded-xl border-border/50 backdrop-blur-2xl bg-background/95"
+                      >
+                        <DropdownMenuItem
+                          onClick={() => onEditProject(project)}
+                          className="rounded-lg gap-2 p-2 cursor-pointer focus:bg-primary/10"
+                        >
+                          <Edit className="h-4 w-4 text-primary" />
+                          <span className="font-medium text-sm">Edit Project</span>
                         </DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
+                        {project.created_by === profile?.id && (
+                          <DropdownMenuItem
+                            onClick={(e) => openDeleteDialog(e, project)}
+                            className="rounded-lg gap-2 p-2 text-red-500 cursor-pointer focus:bg-red-500/10 mt-0.5"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            <span className="font-medium text-sm">Delete</span>
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                )}
               </div>
 
               {/* Description */}

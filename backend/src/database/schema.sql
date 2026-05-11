@@ -2668,6 +2668,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     is_recurring boolean DEFAULT false,
     recurrence_pattern character varying(100),
     labels text[],
+    delay_reason text,
     updated_by uuid
 );
 
