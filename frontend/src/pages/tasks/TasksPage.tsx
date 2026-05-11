@@ -71,56 +71,75 @@ interface AdvancedFilters {
 }
 
 export default function TasksPage() {
-  const { } = useAuth();
+  const { profile, userRole } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { on, off } = useRealtime();
 
-  // URL se initial state read karo
+  // Helper to get initial state from LocalStorage or URL or Default
+  const getInitial = (key: string, defaultValue: string | null) => {
+    return localStorage.getItem(`tasks_${key}`) || searchParams.get(key) || defaultValue;
+  };
+
+  // Primary State
   const [view, setViewState] = useState<ViewMode>(
-    (searchParams.get("view") as ViewMode) || "list"
+    (getInitial("view", "list") as ViewMode)
   );
   const [filterView, setFilterViewState] = useState<FilterView>(
-    (searchParams.get("filter") as FilterView) || "all"
+    (getInitial("filter", "all") as FilterView)
   );
   const [selectedProject, setSelectedProjectState] = useState<string | null>(
-    searchParams.get("project") || null
+    getInitial("project", null)
+  );
+  const [contentTab, setContentTabState] = useState<"all" | "tasks" | "projects">(
+    (getInitial("tab", "all") as any)
+  );
+  const [projectsSubView, setProjectsSubViewState] = useState<"cards" | "tasks">(
+    (getInitial("subview", "cards") as any)
   );
 
-  // URL sync helpers
+  // Sync state to LocalStorage and URL
+  useEffect(() => {
+    const sync = () => {
+      localStorage.setItem("tasks_view", view);
+      localStorage.setItem("tasks_filter", filterView);
+      localStorage.setItem("tasks_tab", contentTab);
+      localStorage.setItem("tasks_subview", projectsSubView);
+      if (selectedProject) localStorage.setItem("tasks_project", selectedProject);
+      else localStorage.removeItem("tasks_project");
+
+      const p = new URLSearchParams(window.location.search);
+      p.set("view", view);
+      p.set("filter", filterView);
+      p.set("tab", contentTab);
+      p.set("subview", projectsSubView);
+      if (selectedProject) p.set("project", selectedProject);
+      else p.delete("project");
+
+      setSearchParams(p, { replace: true });
+    };
+
+    const timeout = setTimeout(sync, 100);
+    return () => clearTimeout(timeout);
+  }, [view, filterView, selectedProject, contentTab, projectsSubView]);
+
+  // UI helpers
   const setView = (v: ViewMode) => {
     setViewState(v);
-    setSearchParams(prev => {
-      const p = new URLSearchParams(prev);
-      p.set("view", v);
-      if (v !== "list" || !p.get("project")) p.delete("project");
-      return p;
-    }, { replace: true });
+    if (v !== "list") setSelectedProjectState(null);
   };
 
-  const setFilterView = (f: FilterView) => {
-    setFilterViewState(f);
-    setSearchParams(prev => {
-      const p = new URLSearchParams(prev);
-      p.set("filter", f);
-      return p;
-    }, { replace: true });
-  };
+  const setFilterView = (f: FilterView) => setFilterViewState(f);
 
   const setSelectedProject = (id: string | null) => {
     setSelectedProjectState(id);
-    setSearchParams(prev => {
-      const p = new URLSearchParams(prev);
-      if (id) {
-        p.set("project", id);
-        p.set("view", "list");
-        setViewState("list");
-      } else {
-        p.delete("project");
-      }
-      return p;
-    }, { replace: true });
+    if (id) setViewState("list");
   };
+
+  const setContentTab = (tab: "all" | "tasks" | "projects") => setContentTabState(tab);
+
+  const setProjectsSubView = (sub: "cards" | "tasks") => setProjectsSubViewState(sub);
+
   const [search, setSearch] = useState("");
   const [showTaskDialog, setShowTaskDialog] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -130,8 +149,7 @@ export default function TasksPage() {
   const [newTaskStatus, setNewTaskStatus] = useState<string | null>(null);
   const [newTaskDate, setNewTaskDate] = useState<Date | null>(null);
   const [showCommandMenu, setShowCommandMenu] = useState(false);
-  const [contentTab, setContentTab] = useState<"all" | "tasks" | "projects">("all");
-  const [projectsSubView, setProjectsSubView] = useState<"cards" | "tasks">("cards");
+
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>({
     status: [],
     priority: [],
@@ -148,8 +166,10 @@ export default function TasksPage() {
 
   // Real-time sync — tasks aur projects bina refresh ke update hon
   useEffect(() => {
-    const invalidateTasks = () => queryClient.invalidateQueries({ queryKey: ["tasks"] });
-    const invalidateProjects = () => queryClient.invalidateQueries({ queryKey: ["projects"] });
+    const invalidateTasks = () =>
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    const invalidateProjects = () =>
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
 
     on("task:created", invalidateTasks);
     on("task:updated", invalidateTasks);
@@ -266,7 +286,14 @@ export default function TasksPage() {
 
       return true;
     });
-  }, [allTasks, search, selectedProject, advancedFilters, filterView, contentTab]);
+  }, [
+    allTasks,
+    search,
+    selectedProject,
+    advancedFilters,
+    filterView,
+    contentTab,
+  ]);
 
   const stats = {
     total: allTasks.length,
@@ -577,7 +604,10 @@ export default function TasksPage() {
                     variant="outline"
                     size="sm"
                     className="gap-2 rounded-xl border-border/60 hover:border-primary/50 hover:bg-primary/5 hover:text-primary transition-all font-medium"
-                    onClick={() => { setView("projects"); setSelectedProject(null); }}
+                    onClick={() => {
+                      setView("projects");
+                      setSelectedProject(null);
+                    }}
                   >
                     <FolderKanban className="h-4 w-4" />
                     Projects
@@ -598,7 +628,7 @@ export default function TasksPage() {
                         "px-4 py-2 text-sm font-medium transition-all border-b-2 -mb-px",
                         contentTab === "all"
                           ? "border-primary text-primary"
-                          : "border-transparent text-muted-foreground hover:text-foreground"
+                          : "border-transparent text-muted-foreground hover:text-foreground",
                       )}
                     >
                       All Tasks
@@ -612,26 +642,37 @@ export default function TasksPage() {
                         "px-4 py-2 text-sm font-medium transition-all border-b-2 -mb-px",
                         contentTab === "tasks"
                           ? "border-primary text-primary"
-                          : "border-transparent text-muted-foreground hover:text-foreground"
+                          : "border-transparent text-muted-foreground hover:text-foreground",
                       )}
                     >
                       Tasks
                       <span className="ml-2 text-xs bg-muted text-muted-foreground rounded-full px-1.5 py-0.5">
-                        {allTasks.filter(t => !t.project_name && !t.project_id).length}
+                        {
+                          allTasks.filter(
+                            (t) => !t.project_name && !t.project_id,
+                          ).length
+                        }
                       </span>
                     </button>
                     <button
-                      onClick={() => { setContentTab("projects"); setView("list"); }}
+                      onClick={() => {
+                        setContentTab("projects");
+                        setView("list");
+                      }}
                       className={cn(
                         "px-4 py-2 text-sm font-medium transition-all border-b-2 -mb-px",
                         contentTab === "projects"
                           ? "border-primary text-primary"
-                          : "border-transparent text-muted-foreground hover:text-foreground"
+                          : "border-transparent text-muted-foreground hover:text-foreground",
                       )}
                     >
                       Projects
                       <span className="ml-2 text-xs bg-muted text-muted-foreground rounded-full px-1.5 py-0.5">
-                        {allTasks.filter(t => !!(t.project_name || t.project_id)).length}
+                        {
+                          allTasks.filter(
+                            (t) => !!(t.project_name || t.project_id),
+                          ).length
+                        }
                       </span>
                     </button>
                   </div>
@@ -880,24 +921,22 @@ export default function TasksPage() {
               onCreateTask={handleCreateTaskWithDate}
               onToggleStar={handleToggleStar}
             />
+          ) : projectsSubView === "cards" ? (
+            <ProjectListView
+              projects={projects}
+              tasks={allTasks}
+              members={members}
+              onEditProject={handleEditProject}
+              onSelectProject={(projectId) => {
+                setSelectedProject(projectId);
+                setView("list");
+              }}
+            />
           ) : (
-            projectsSubView === "cards" ? (
-              <ProjectListView
-                projects={projects}
-                tasks={allTasks}
-                members={members}
-                onEditProject={handleEditProject}
-                onSelectProject={(projectId) => {
-                  setSelectedProject(projectId);
-                  setView("list");
-                }}
-              />
-            ) : (
-              <ProjectTasksView
-                tasks={allTasks.filter(t => !!(t.project_name || t.project_id))}
-                onEditTask={handleEditTask}
-              />
-            )
+            <ProjectTasksView
+              tasks={allTasks.filter((t) => !!(t.project_name || t.project_id))}
+              onEditTask={handleEditTask}
+            />
           )}
         </div>
       </div>

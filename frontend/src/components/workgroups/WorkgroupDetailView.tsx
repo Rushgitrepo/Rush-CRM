@@ -70,6 +70,8 @@ import {
   PhoneMissed,
   ArrowUpRight,
   ArrowDownLeft,
+  MapPin,
+  Clock,
 } from "lucide-react";
 import {
   useWorkgroup,
@@ -94,6 +96,7 @@ import { useCustomDialog } from "@/contexts/DialogContext";
 import { useRealtime, useWorkgroupRealtime } from "@/hooks/useRealtime";
 import { useQueryClient } from "@tanstack/react-query";
 import { useVideoCall } from "@/contexts/VideoCallContext";
+import { CreateEventDialog } from "@/components/calendar/CreateEventDialog";
 
 interface Props {
   workgroupId: string;
@@ -297,6 +300,23 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   const [showCreateWikiPage, setShowCreateWikiPage] = useState(false);
   const [newWikiPageTitle, setNewWikiPageTitle] = useState("");
   const [newWikiPageContent, setNewWikiPageContent] = useState("");
+  const [showEventDialog, setShowEventDialog] = useState(false);
+
+  const onEventCreated = async (event: any) => {
+    // Send a special message to the chat with event details
+    try {
+      const eventStartTime = event.start_time || event.startTime;
+      await createPost.mutateAsync({
+        workgroupId,
+        content: `📅 **Meeting Scheduled**\n\n**Title:** ${event.title}\n**Time:** ${new Date(eventStartTime).toLocaleString()}\n**Location:** ${event.location || "Online"}\n\n[Click to View in Calendar](/collaboration/calendar)`,
+        // We could also add a content_type: "event" if the backend supports it
+        // and metadata: { event_id: event.id }
+      });
+      toast.success("Meeting scheduled and shared in chat!");
+    } catch (err) {
+      console.error("Failed to share event in chat:", err);
+    }
+  };
   const [showMembersList, setShowMembersList] = useState(false);
   const [showStarredMessages, setShowStarredMessages] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -2300,6 +2320,16 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                                       <Paperclip className="h-5 w-5" />
                                     )}
                                   </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-gray-400 hover:text-blue-500 hover:bg-transparent"
+                                    disabled={!canSendMessages}
+                                    onClick={() => setShowEventDialog(true)}
+                                    title="Schedule Meeting"
+                                  >
+                                    <Calendar className="h-5 w-5" />
+                                  </Button>
                                   <button
                                     onClick={handlePost}
                                     disabled={
@@ -3480,6 +3510,11 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <CreateEventDialog 
+        open={showEventDialog} 
+        onOpenChange={setShowEventDialog} 
+        onSuccess={onEventCreated}
+      />
     </div >
   );
 }
@@ -3625,6 +3660,25 @@ function PostCard({
         duration: 0,
         callerId: post.user_id,
       };
+    }
+  }
+
+  const isEventMessage = (post.content || "").startsWith("📅 **Meeting Scheduled**");
+  let eventData: any = null;
+  if (isEventMessage) {
+    try {
+      const content = post.content || "";
+      const titleMatch = content.match(/\*\*Title:\*\* (.*)/);
+      const timeMatch = content.match(/\*\*Time:\*\* (.*)/);
+      const locationMatch = content.match(/\*\*Location:\*\* (.*)/);
+      
+      eventData = {
+        title: titleMatch ? titleMatch[1] : "Meeting",
+        time: timeMatch ? timeMatch[1] : "",
+        location: locationMatch ? locationMatch[1] : "Online",
+      };
+    } catch (e) {
+      console.error("Failed to parse event message:", e);
     }
   }
 
@@ -4166,6 +4220,43 @@ function PostCard({
                     </p>
                   </div>
                 </div>
+              </div>
+            ) : isEventMessage && !isDeletedMessage ? (
+              <div className="py-1 pr-8 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center h-10 w-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 shrink-0">
+                    <Calendar className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-foreground truncate">
+                      {eventData?.title}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground font-medium">
+                      Meeting Invitation
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2 text-[11px] text-gray-600 dark:text-gray-300">
+                    <Clock className="h-3.5 w-3.5 text-blue-500" />
+                    <span>{eventData?.time}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[11px] text-gray-600 dark:text-gray-300">
+                    <MapPin className="h-3.5 w-3.5 text-blue-500" />
+                    <span>{eventData?.location}</span>
+                  </div>
+                </div>
+
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full h-8 text-[11px] font-bold border-blue-200 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 gap-2"
+                  onClick={() => navigate('/collaboration/calendar')}
+                >
+                  View in Calendar
+                  <ArrowUpRight className="h-3 w-3" />
+                </Button>
               </div>
             ) : (
               <p

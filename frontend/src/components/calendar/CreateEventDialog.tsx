@@ -6,6 +6,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { X, Plus, MapPin, Clock, Users, Search } from "lucide-react";
 import { useCalendarEvents, type CreateEventInput } from "@/hooks/useCalendarEvents";
 import { useQuery } from "@tanstack/react-query";
@@ -17,6 +24,7 @@ interface CreateEventDialogProps {
   onOpenChange: (open: boolean) => void;
   defaultDate?: Date;
   defaultHour?: number;
+  onSuccess?: (event: any) => void;
 }
 
 const eventColors = [
@@ -29,7 +37,7 @@ const eventColors = [
 ];
 
 
-export function CreateEventDialog({ open, onOpenChange, defaultDate, defaultHour }: CreateEventDialogProps) {
+export function CreateEventDialog({ open, onOpenChange, defaultDate, defaultHour, onSuccess }: CreateEventDialogProps) {
   const { createEvent } = useCalendarEvents();
 
   const getDefaultStart = () => {
@@ -53,6 +61,7 @@ export function CreateEventDialog({ open, onOpenChange, defaultDate, defaultHour
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
+  const [category, setCategory] = useState("meeting");
   const [startTime, setStartTime] = useState(formatDateTimeLocal(getDefaultStart()));
   const [endTime, setEndTime] = useState(formatDateTimeLocal(getDefaultEnd()));
   const [isAllDay, setIsAllDay] = useState(false);
@@ -94,6 +103,7 @@ export function CreateEventDialog({ open, onOpenChange, defaultDate, defaultHour
       title: title.trim(),
       description: description || undefined,
       location: location || undefined,
+      category,
       startTime: startTime,
       endTime: endTime,
       allDay: isAllDay,
@@ -102,9 +112,10 @@ export function CreateEventDialog({ open, onOpenChange, defaultDate, defaultHour
     };
 
     createEvent.mutate(input, {
-      onSuccess: () => {
+      onSuccess: (data) => {
         resetForm();
         onOpenChange(false);
+        if (onSuccess) onSuccess(data);
       },
     });
   };
@@ -134,6 +145,22 @@ export function CreateEventDialog({ open, onOpenChange, defaultDate, defaultHour
           <div className="space-y-2">
             <Label>Title *</Label>
             <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Event title" />
+          </div>
+
+          {/* Category */}
+          <div className="space-y-2">
+            <Label>Category</Label>
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="meeting">Meeting</SelectItem>
+                <SelectItem value="call">Call</SelectItem>
+                <SelectItem value="task">Task</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* All Day */}
@@ -193,7 +220,10 @@ export function CreateEventDialog({ open, onOpenChange, defaultDate, defaultHour
 
           {/* Attendees */}
           <div className="space-y-2">
-            <Label className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> Invite People</Label>
+            <div className="flex items-center justify-between">
+              <Label className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> Invite People</Label>
+              <span className="text-[10px] text-muted-foreground italic">* Email will be sent only to invited people</span>
+            </div>
 
             {/* Combined search + inline dropdown list */}
             <div className="rounded-md border border-input bg-background overflow-hidden">
