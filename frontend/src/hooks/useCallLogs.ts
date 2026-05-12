@@ -1,9 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import Cookies from 'js-cookie';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
 function getAuthHeaders() {
-  const token = localStorage.getItem('token');
+  const token = Cookies.get('token');
   return {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${token}`,

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
+import Cookies from 'js-cookie';
 import { fireRushNotification } from '@/components/ui/RushNotification';
 
 const SOCKET_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || "http://localhost:4000";
@@ -65,7 +66,7 @@ const handleBeforeUnload = () => {
 export const getSocket = (): Socket | null => {
   if (socketInstance) return socketInstance;
 
-  const token = localStorage.getItem('token');
+  const token = Cookies.get('token');
   if (!token) return null;
 
   socketInstance = io(SOCKET_URL, {

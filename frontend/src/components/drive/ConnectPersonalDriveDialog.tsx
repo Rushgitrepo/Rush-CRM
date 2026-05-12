@@ -158,59 +158,62 @@ export function ConnectPersonalDriveDialog({
                       <Icon className={`h-5 w-5 ${drive.color}`} />
                     )}
                   </div>
-                  <div>
-                    <p className="font-medium text-sm">
-                      {connected && currentDrive?.display_name
-                        ? currentDrive.display_name
-                        : drive.name}
-                    </p>
-                    {connected && currentDrive && (
-                      <div className="flex flex-col gap-0.5">
-                        <p className="text-[10px] text-muted-foreground truncate max-w-[150px]">
-                          {drive.name}
+                    <div className="flex flex-col min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-sm truncate">
+                          {connected && currentDrive?.display_name
+                            ? currentDrive.display_name
+                            : drive.name}
                         </p>
-                        <div className="flex items-center gap-1.5">
-                          <CheckCircle2 className="h-3 w-3 text-emerald-500" />
-                          <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
-                            Connected
-                          </span>
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-primary/10 text-primary">
-                            OAuth
-                          </span>
-                        </div>
+                        {connected && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-5 px-1.5 text-[10px] border-primary/50 text-primary hover:bg-primary hover:text-white rounded-md"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (currentDrive && currentDrive.is_active && onBrowse) {
+                                onBrowse(currentDrive);
+                                onOpenChange(false);
+                              } else {
+                                toast.error("This drive is not yet connected. Please authenticate first.");
+                              }
+                            }}
+                          >
+                            Open
+                          </Button>
+                        )}
                       </div>
-                    )}
+                      {connected && currentDrive && (
+                        <div className="flex flex-col gap-0.5">
+                          <p className="text-[10px] text-muted-foreground truncate max-w-[150px]">
+                            {drive.name}
+                          </p>
+                          <div className="flex items-center gap-1.5">
+                            <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                            <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+                              Connected
+                            </span>
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-primary/10 text-primary">
+                              OAuth
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                 {connected ? (
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="border-primary text-primary hover:bg-primary"
-                      onClick={() => {
-                        if (currentDrive && currentDrive.is_active && onBrowse) {
-                          onBrowse(currentDrive);
-                          onOpenChange(false);
-                        } else {
-                          toast.error("This drive is not yet connected. Please authenticate first.");
-                        }
-                      }}
-                    >
-                      Open
-                    </Button>
+                  {connected ? (
                     <Button
                       variant="destructive"
                       size="sm"
-                      className="bg-red-500 hover:bg-red-600 text-white"
+                      className="bg-red-500/20 text-red-600 hover:bg-red-600 hover:text-white border-none h-7 px-2 text-xs"
                       onClick={() => handleDisconnect(drive.id)}
                       disabled={deleteDrive.isPending}
                     >
                       {deleteDrive.isPending ? "Logging Out..." : "Log Out"}
                     </Button>
-                  </div>
-                ) : (
+                  ) : (
                   <Button
                     size="sm"
                     onClick={() => handleConnect(drive.id)}

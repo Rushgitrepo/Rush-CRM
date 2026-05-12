@@ -11,7 +11,8 @@ const auth = async (req, res, next) => {
       authHeader && authHeader.startsWith('Bearer ')
         ? authHeader.split(' ')[1]
         : null;
-    const token = bearerToken || queryToken;
+    const cookieToken = req.cookies?.token;
+    const token = bearerToken || queryToken || cookieToken;
 
     if (!token) {
       return res.status(401).json({ error: 'No token provided' });

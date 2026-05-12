@@ -22,7 +22,7 @@ async function ensureDefaultStages(orgId, pipeline = 'deals') {
   );
 
   if (parseInt(rows[0].count) === 0) {
-    const defaults = pipeline === 'deals' ? DEFAULT_DEAL_STAGES : []; 
+    const defaults = pipeline === 'deals' ? DEFAULT_DEAL_STAGES : [];
     if (defaults.length > 0) {
       for (const s of defaults) {
         await db.query(
@@ -282,11 +282,11 @@ const updateDealSchema = Joi.object({
 
 const getAll = async (req, res, next) => {
   try {
-    const { 
-      page = 1, 
-      limit = 50, 
-      stage, 
-      status, 
+    const {
+      page = 1,
+      limit = 50,
+      stage,
+      status,
       search,
       startDate,
       endDate
@@ -648,7 +648,7 @@ const update = async (req, res, next) => {
         fields.push(`${dbField} = $${paramIndex}`);
         const isDate = ['expectedCloseDate', 'lastTouch', 'lastContactedDate', 'nextFollowUpDate', 'deadline', 'createdAt'].includes(key);
         const isJson = ['project_blueprints', 'custom_fields'].includes(dbField);
-        
+
         let dbValue = val;
         if (isDate && val === '') {
           dbValue = null;
@@ -657,7 +657,7 @@ const update = async (req, res, next) => {
         } else if (isJson) {
           dbValue = val ? JSON.stringify(val) : '{}';
         }
-        
+
         values.push(dbValue);
         paramIndex++;
       }
@@ -804,7 +804,7 @@ const bulkRemove = async (req, res, next) => {
 
     if (all) {
       console.log(`[bulkRemove] Global delete requested by user ${userId} for org ${orgId} (Deals)`);
-      
+
       let filterClause = 'd.org_id = $1';
       const params = [orgId];
 
@@ -830,7 +830,7 @@ const bulkRemove = async (req, res, next) => {
 
       const idQuery = await client.query(`SELECT d.id FROM public.deals d WHERE ${filterClause}`, params);
       allowedIds = idQuery.rows.map(r => r.id);
-      
+
       if (allowedIds.length === 0) {
         return res.status(200).json({ message: 'No deals found matching filters', deletedCount: 0 });
       }
@@ -1212,7 +1212,7 @@ const convertToCustomer = async (req, res, next) => {
 const getStages = async (req, res, next) => {
   try {
     const { all } = req.query; // 'all' to include inactive stages
-    
+
     await ensureDefaultStages(req.user.orgId, 'deals');
 
     let query = 'SELECT id, stage_key, stage_label, sort_order, color, probability, is_active FROM pipeline_stages WHERE org_id = $1 AND pipeline = $2';
@@ -1270,13 +1270,13 @@ const updateStage_custom = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { stageName, color, probability, is_active, sortOrder } = req.body;
-    
+
     const fields = [];
     const values = [];
     let idx = 1;
 
     if (stageName !== undefined) {
-      fields.push(`stage_label = $${idx}`, `stage_key = $${idx+1}`);
+      fields.push(`stage_label = $${idx}`, `stage_key = $${idx + 1}`);
       values.push(stageName, stageName.toLowerCase().replace(/\s+/g, '_'));
       idx += 2;
     }
@@ -1305,7 +1305,7 @@ const updateStage_custom = async (req, res, next) => {
 
     values.push(id, req.user.orgId);
     const { rows } = await db.query(
-      `UPDATE pipeline_stages SET ${fields.join(', ')} WHERE id = $${idx} AND org_id = $${idx+1} AND pipeline = 'deals' RETURNING *`,
+      `UPDATE pipeline_stages SET ${fields.join(', ')} WHERE id = $${idx} AND org_id = $${idx + 1} AND pipeline = 'deals' RETURNING *`,
       values
     );
 

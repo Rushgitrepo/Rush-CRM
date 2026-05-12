@@ -774,6 +774,14 @@ export default function DrivePage() {
         </Button>
       </div>
 
+      {/* Connected Drives Section */}
+      {!selectedFolder && !isRecycleBin && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 mb-8">
+          <CompanyDrivesList onBrowse={handleBrowseDrive} />
+          <PersonalDrivesList onBrowse={handleBrowseDrive} />
+        </div>
+      )}
+
       {/* Secondary Header - Breadcrumb, Info, Sort, View Toggle */}
       <div className="flex items-center justify-between text-sm">
         <div className="flex items-center gap-2 text-muted-foreground">

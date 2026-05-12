@@ -1,3 +1,5 @@
+import Cookies from 'js-cookie';
+
 export const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
 export const FILE_BASE_URL = API_BASE_URL.replace('/api', '');
 
@@ -7,15 +9,15 @@ class ApiClient {
   setToken(token: string | null) {
     this.token = token;
     if (token) {
-      localStorage.setItem('token', token);
+      Cookies.set('token', token, { expires: 1, path: '/' }); // 1 day
     } else {
-      localStorage.removeItem('token');
+      Cookies.remove('token', { path: '/' });
     }
   }
 
   getToken(): string | null {
     if (!this.token) {
-      this.token = localStorage.getItem('token');
+      this.token = Cookies.get('token') || null;
     }
     return this.token;
   }
@@ -39,6 +41,7 @@ class ApiClient {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
       headers,
+      credentials: 'include',
     });
 
     if (response.status === 401) {
