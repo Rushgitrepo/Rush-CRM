@@ -3782,6 +3782,7 @@ function PostCard({
     isAuthor
       ? "You deleted this message"
       : "This message was deleted";
+  const [visibleLinesCount, setVisibleLinesCount] = useState(10);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showReactionsDialog, setShowReactionsDialog] = useState(false);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
@@ -4017,7 +4018,7 @@ function PostCard({
 
       {/* Bubble row */}
       <div
-        className={`flex ${isAuthor ? "justify-end" : "justify-start"} items-center gap-2 mb-0.5`}
+        className={`flex ${isAuthor ? "justify-end" : "justify-start"} items-end gap-2 mb-0.5`}
       >
         {/* Checkbox — always on left side for both sender and receiver */}
         {(isForwardSelectMode || isDeleteSelectMode) && (
@@ -4329,7 +4330,37 @@ function PostCard({
                     🚫 {deletedPlaceholder}
                   </span>
                 ) : (
-                  renderMessageWithMentions(post.content)
+                  <>
+                    {(() => {
+                      const content = post.content || "";
+                      const lines = content.split("\n");
+                      const isLong = lines.length > 10;
+                      const hasMore = visibleLinesCount < lines.length;
+                      const displayedContent = !isLong ? content : lines.slice(0, visibleLinesCount).join("\n");
+                      
+                      return (
+                        <>
+                          {renderMessageWithMentions(displayedContent)}
+                          {isLong && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (hasMore) {
+                                  setVisibleLinesCount(prev => prev + 10);
+                                } else {
+                                  setVisibleLinesCount(10);
+                                }
+                              }}
+                              className="text-[11px] font-bold text-primary hover:underline mt-1 block w-fit"
+                            >
+                              {hasMore ? "Read More" : "Show Less"}
+                            </button>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </>
                 )}
               </p>
             )}
