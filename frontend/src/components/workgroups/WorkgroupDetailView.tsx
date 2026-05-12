@@ -278,9 +278,41 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
     };
     onRealtime("workgroup:member_added", handleMemberAdded);
     onRealtime("workgroup:member_removed", handleMemberRemoved);
+
+    const handlePostSeen = (payload: {
+      postIds: string[];
+      user: { user_id: string; full_name: string; avatar_url?: string };
+    }) => {
+      if (!payload?.postIds || !payload?.user) return;
+
+      queryClient.setQueriesData(
+        { queryKey: ["workgroup-posts", workgroupId] },
+        (prev: WorkgroupPost[] | undefined) => {
+          if (!Array.isArray(prev)) return prev;
+          return prev.map((post) => {
+            if (payload.postIds.includes(post.id)) {
+              const currentSeenBy = post.seen_by || [];
+              if (
+                !currentSeenBy.some((u) => u.user_id === payload.user.user_id)
+              ) {
+                return {
+                  ...post,
+                  seen_count: (post.seen_count || 0) + 1,
+                  seen_by: [...currentSeenBy, payload.user],
+                };
+              }
+            }
+            return post;
+          });
+        },
+      );
+    };
+    onRealtime("workgroup_post:seen", handlePostSeen);
+
     return () => {
       offRealtime("workgroup:member_added", handleMemberAdded);
       offRealtime("workgroup:member_removed", handleMemberRemoved);
+      offRealtime("workgroup_post:seen", handlePostSeen);
     };
   }, [onRealtime, offRealtime, queryClient, workgroupId]);
 
@@ -2086,13 +2118,14 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                                     </span>
                                   </div>
                                 )}
-                                <PostCard
+                <PostCard
                                   post={post}
                                   allPosts={flatPosts}
                                   workgroupId={workgroupId}
                                   isGroupAdmin={canRemoveMembers}
                                   isMember={isMember}
                                   canSendMessages={canSendMessages}
+                                  isBroadcast={workgroup?.type === "private" && Boolean(workgroup?.settings?.is_broadcast)}
                                   currentUserId={user?.id}
                                   memberDirectory={members}
                                   postAuthorRole={
@@ -3666,6 +3699,7 @@ interface PostCardProps {
   onToggleStar?: (postId: string) => void;
   searchQuery?: string;
   canSendMessages?: boolean;
+  isBroadcast?: boolean;
 }
 
 function PostCard({
@@ -3696,6 +3730,7 @@ function PostCard({
   onToggleStar,
   searchQuery = "",
   canSendMessages = true,
+  isBroadcast = false,
 }: PostCardProps) {
   const navigate = useNavigate();
   if ((post.content || "").startsWith("[SYSTEM] ")) {
@@ -3783,8 +3818,10 @@ function PostCard({
     isAuthor
       ? "You deleted this message"
       : "This message was deleted";
+  const [visibleLinesCount, setVisibleLinesCount] = useState(10);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showReactionsDialog, setShowReactionsDialog] = useState(false);
+  const [showSeenByDialog, setShowSeenByDialog] = useState(false);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const reactions: Record<string, string[]> = post.reactions || {};
   const reactionEntries = Object.entries(reactions);
@@ -4018,7 +4055,7 @@ function PostCard({
 
       {/* Bubble row */}
       <div
-        className={`flex ${isAuthor ? "justify-end" : "justify-start"} items-center gap-2 mb-0.5`}
+        className={`flex ${isAuthor ? "justify-end" : "justify-start"} items-end gap-2 mb-0.5`}
       >
         {/* Checkbox — always on left side for both sender and receiver */}
         {(isForwardSelectMode || isDeleteSelectMode) && (
@@ -4330,7 +4367,37 @@ function PostCard({
                     🚫 {deletedPlaceholder}
                   </span>
                 ) : (
-                  renderMessageWithMentions(post.content)
+                  <>
+                    {(() => {
+                      const content = post.content || "";
+                      const lines = content.split("\n");
+                      const isLong = lines.length > 10;
+                      const hasMore = visibleLinesCount < lines.length;
+                      const displayedContent = !isLong ? content : lines.slice(0, visibleLinesCount).join("\n");
+                      
+                      return (
+                        <>
+                          {renderMessageWithMentions(displayedContent)}
+                          {isLong && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (hasMore) {
+                                  setVisibleLinesCount(prev => prev + 10);
+                                } else {
+                                  setVisibleLinesCount(10);
+                                }
+                              }}
+                              className="text-[11px] font-bold text-primary hover:underline mt-1 block w-fit"
+                            >
+                              {hasMore ? "Read More" : "Show Less"}
+                            </button>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </>
                 )}
               </p>
             )}
@@ -4568,6 +4635,58 @@ function PostCard({
           </div>
         </div>
       )}
+
+      {/* Seen By tracking - Restricted to Author within Broadcasts only */}
+      {isAuthor && isBroadcast && post.seen_by && post.seen_by.length > 0 && (
+        <div 
+          className={`flex items-center gap-1.5 mt-1 px-1 mb-2 cursor-pointer hover:opacity-80 transition-opacity ${isAuthor ? "justify-end mr-9" : "justify-start ml-9"}`}
+          onClick={() => setShowSeenByDialog(true)}
+        >
+          <div className="flex -space-x-1 overflow-hidden">
+            {post.seen_by.slice(0, 6).map((u: any) => (
+              <Avatar key={u.user_id} className="h-4 w-4 border border-background ring-0">
+                <AvatarImage src={getAvatarUrl(u.avatar_url)} />
+                <AvatarFallback className="text-[6px] bg-muted">
+                  {u.full_name.slice(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+            ))}
+          </div>
+          {post.seen_by.length > 6 && (
+            <button
+              onClick={() => setShowSeenByDialog(true)}
+              className="text-[10px] font-bold text-muted-foreground hover:text-primary transition-colors flex items-center gap-0.5"
+            >
+              +{post.seen_by.length - 6}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Seen By Full List Dialog */}
+      <Dialog open={showSeenByDialog} onOpenChange={setShowSeenByDialog}>
+        <DialogContent className="max-w-[320px] p-0 overflow-hidden border-none shadow-2xl">
+          <DialogHeader className="p-4 border-b bg-muted/30">
+            <DialogTitle className="text-sm font-bold flex items-center gap-2">
+              <Users className="h-4 w-4 text-primary" />
+              Message Seen By
+            </DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[350px] overflow-y-auto py-2">
+            {post.seen_by?.map((u: any) => (
+              <div key={u.user_id} className="flex items-center gap-3 px-4 py-2 hover:bg-muted/50 transition-colors">
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={getAvatarUrl(u.avatar_url)} />
+                  <AvatarFallback className="text-xs">{u.full_name.slice(0, 2).toUpperCase()}</AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold truncate text-foreground">{u.full_name}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

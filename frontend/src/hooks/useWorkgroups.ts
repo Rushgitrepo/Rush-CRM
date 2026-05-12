@@ -68,6 +68,11 @@ export interface WorkgroupPost {
   created_at: string;
   updated_at: string;
   seen_count?: number;
+  seen_by?: Array<{
+    user_id: string;
+    full_name: string;
+    avatar_url?: string;
+  }>;
   author_name: string;
   author_avatar?: string;
   attachments?: Array<Record<string, any>>;
