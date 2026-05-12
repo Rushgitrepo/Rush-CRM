@@ -1,6 +1,7 @@
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
+const fcmService = require('./fcmService');
 
 class RealtimeService {
   constructor() {
@@ -112,7 +113,7 @@ class RealtimeService {
       socket.on('call:initiate', async (payload) => {
         // payload: { callId, targetUserId, callerName, callerAvatar, callType, workgroupId, isGroupCall }
         console.log(`[WebRTC] Call initiated: ${socket.userId} -> ${payload.isGroupCall ? 'Group ' + payload.workgroupId : payload.targetUserId} (${payload.callType})`);
-        
+
         // For group calls, fetch group name and avatar from DB
         let groupName = null;
         let groupAvatar = null;
@@ -143,9 +144,20 @@ class RealtimeService {
           groupAvatar,
         };
 
+        // Send Push Notification for Android/Web Background
+        const pushTitle = payload.isGroupCall ? `Group Call: ${groupName || 'Meeting'}` : `Incoming ${payload.callType} Call`;
+        const pushBody = `${payload.callerName} is calling you`;
+        const pushData = {
+          type: 'incoming_call',
+          callId: payload.callId,
+          callerId: socket.userId,
+          callType: payload.callType,
+          isGroupCall: String(payload.isGroupCall),
+          workgroupId: payload.workgroupId || '',
+          action_url: `/collaboration/workgroups?team=${payload.workgroupId || ''}`,
+        };
+
         if (payload.isGroupCall && payload.workgroupId && !payload.targetUserId) {
-          // Only emit directly to each member's user room — avoid double-emit
-          // (workgroup room broadcast + user room = duplicate call:incoming → auto-reject)
           try {
             const membersResult = await db.query(
               `SELECT user_id FROM workgroup_members WHERE workgroup_id = $1 AND user_id != $2`,
@@ -153,19 +165,46 @@ class RealtimeService {
             );
             for (const member of membersResult.rows) {
               const targetRoom = `user:${member.user_id}`;
-              const socketsInRoom = this.io.sockets.adapter.rooms.get(targetRoom);
-              console.log(`[WebRTC] Group call - emitting to ${targetRoom}, sockets:`, socketsInRoom ? [...socketsInRoom] : 'EMPTY');
               this.io.to(targetRoom).emit('call:incoming', incomingPayload);
+              // SEND PUSH TO GROUP MEMBERS
+              fcmService.sendPushNotification(member.user_id, pushTitle, pushBody, pushData);
             }
           } catch (err) {
-            console.error('[WebRTC] Failed to fetch workgroup members for direct emit:', err);
+            console.error('[WebRTC] Group invite error:', err);
           }
         } else if (payload.targetUserId) {
-          const targetRoom = `user:${payload.targetUserId}`;
-          const socketsInRoom = this.io.sockets.adapter.rooms.get(targetRoom);
-          console.log(`[WebRTC] Emitting call:incoming to room ${targetRoom}, sockets in room:`, socketsInRoom ? [...socketsInRoom] : 'EMPTY/NOT FOUND');
-          this.io.to(targetRoom).emit('call:incoming', incomingPayload);
+          this.io.to(`user:${payload.targetUserId}`).emit('call:incoming', incomingPayload);
+          // SEND PUSH TO DIRECT TARGET
+          fcmService.sendPushNotification(payload.targetUserId, pushTitle, pushBody, pushData);
         }
+      });
+
+      socket.on('call:invite', async (payload) => {
+        // Similar to initiate but specifically for adding a peer to an existing session
+        const pushTitle = `Incoming ${payload.callType} Invite`;
+        const pushBody = `${payload.callerName} is inviting you to a call`;
+        const pushData = {
+          type: 'incoming_call',
+          callId: payload.callId,
+          callerId: socket.userId,
+          callType: payload.callType,
+          isGroupCall: String(payload.isGroupCall || false),
+          workgroupId: payload.workgroupId || '',
+          action_url: `/collaboration/workgroups?team=${payload.workgroupId || ''}`,
+        };
+
+        const invitePayload = {
+          callId: payload.callId,
+          callerId: socket.userId,
+          callerName: payload.callerName,
+          callerAvatar: payload.callerAvatar,
+          callType: payload.callType,
+          isGroupCall: payload.isGroupCall,
+          workgroupId: payload.workgroupId,
+        };
+
+        this.io.to(`user:${payload.targetUserId}`).emit('call:incoming', invitePayload);
+        fcmService.sendPushNotification(payload.targetUserId, pushTitle, pushBody, pushData);
       });
 
       socket.on('call:accept', (payload) => {
@@ -285,7 +324,7 @@ class RealtimeService {
       socket.on('call:end', async (payload) => {
         // payload: { callId, targetUserId, workgroupId, isGroupCall, reason }
         console.log(`[WebRTC] Call ended: ${socket.userId} in ${payload.isGroupCall ? 'Group ' + payload.workgroupId : '1-on-1'}`);
-        
+
         const endPayload = {
           callId: payload.callId,
           fromUserId: socket.userId,
@@ -296,7 +335,7 @@ class RealtimeService {
         if (payload.isGroupCall && payload.workgroupId) {
           // Broadcast to workgroup room (for subscribed members)
           socket.to(`workgroup:${payload.workgroupId}`).emit('call:end', endPayload);
-          
+
           // Also emit directly to each member's user room (for members on other pages)
           try {
             const membersResult = await db.query(
@@ -315,6 +354,10 @@ class RealtimeService {
 
         if (payload.callId) {
           const roomName = `call_room:${payload.callId}`;
+          
+          // Notify everyone in the actual call room that the call is ending
+          socket.to(roomName).emit('call:end', endPayload);
+
           socket.leave(roomName);
           this.io.to(roomName).emit('call:user-left', {
             userId: socket.userId,
@@ -326,6 +369,23 @@ class RealtimeService {
           } else {
             this.callRoomMembers.get(payload.callId)?.delete(socket.userId);
           }
+        }
+      });
+
+      socket.on('call:user-left', (payload) => {
+        // payload: { callId, userId, workgroupId }
+        console.log(`[WebRTC] User ${socket.userId} left call ${payload.callId}`);
+        if (payload.callId) {
+          const roomName = `call_room:${payload.callId}`;
+          // Notify remaining participants
+          socket.to(roomName).emit('call:user-left', {
+            userId: socket.userId,
+            callId: payload.callId,
+          });
+          // Leave the socket room
+          socket.leave(roomName);
+          // Clean up room members registry
+          this.callRoomMembers.get(payload.callId)?.delete(socket.userId);
         }
       });
 

@@ -1,4 +1,5 @@
 const pushService = require('../services/pushService');
+const fcmService = require('../services/fcmService');
 
 const getVapidKey = (req, res) => {
   const keys = pushService.getVapidKeys();
@@ -29,4 +30,34 @@ const unsubscribe = async (req, res, next) => {
   }
 };
 
-module.exports = { getVapidKey, subscribe, unsubscribe };
+const registerFcmToken = async (req, res, next) => {
+  try {
+    const { token, deviceType } = req.body;
+    if (!token) return res.status(400).json({ error: 'Token is required' });
+    
+    await fcmService.registerToken(req.user.id, token, deviceType || 'web');
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const unregisterFcmToken = async (req, res, next) => {
+  try {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: 'Token is required' });
+
+    await fcmService.unregisterToken(req.user.id, token);
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { 
+  getVapidKey, 
+  subscribe, 
+  unsubscribe,
+  registerFcmToken,
+  unregisterFcmToken
+};
