@@ -87,7 +87,7 @@ interface VideoCallContextType extends VideoCallState {
   joinRoom: (roomId: string, callType: CallType) => void;
   acceptCall: () => void;
   rejectCall: () => void;
-  endCall: () => void;
+  endCall: (endForAll?: boolean) => void;
   toggleMute: () => void;
   toggleVideo: () => void;
   toggleScreenShare: () => void;
@@ -228,6 +228,7 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const resetCallState = useCallback(() => {
+    console.log("[WebRTC] Resetting call state...");
     stopRingtone();
     stopCallTimer();
     cleanupMedia();
@@ -680,55 +681,63 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
     resetCallState();
   }, [state.callId, state.callState, state.peers, resetCallState]);
 
-  const endCall = useCallback(() => {
-    const socket = getSocket();
-    if (state.callId) {
-      const peerIds = Object.keys(state.peers);
-      socket?.emit("call:end", {
-        callId: state.callId,
-        targetUserId: peerIds.length === 1 ? peerIds[0] : undefined,
-        workgroupId: state.workgroupId,
-        isGroupCall: state.isGroupCall,
-        isOriginalCaller: state.isOutgoing,
-        reason: "hangup",
-      });
+  const endCall = useCallback(
+    (endForAll: boolean = false) => {
+      const socket = getSocket();
+      const currentState = stateRef.current;
 
-      // Log call if it was connected - Only caller logs to avoid duplicates
-      if (state.isOutgoing && state.workgroupId) {
-        const peerIds = Object.keys(state.peers);
-        if (state.callState === "connected") {
-          logCall(
-            state.workgroupId,
-            state.callType,
-            "completed",
-            state.callDuration,
-            user?.id || "",
-          );
-        } else if (state.callState === "outgoing") {
-          // Cancelled before answer
-          logCall(
-            state.workgroupId,
-            state.callType,
-            "missed",
-            0,
-            user?.id || "",
-          );
+      if (currentState.callId) {
+        const peerIds = Object.keys(currentState.peers);
+        // It's a group call if it was marked as one OR if there are currently more than 1 peers
+        const isActuallyMultiParty =
+          currentState.isGroupCall || peerIds.length > 1;
+
+        // In a 1-on-1, always end for all. In a group, follow the endForAll flag.
+        const effectiveEndForAll = !isActuallyMultiParty ? true : endForAll;
+
+        if (effectiveEndForAll) {
+          socket?.emit("call:end", {
+            callId: currentState.callId,
+            targetUserId: !isActuallyMultiParty ? peerIds[0] : undefined,
+            workgroupId: currentState.workgroupId,
+            isGroupCall: currentState.isGroupCall,
+            isOriginalCaller: currentState.isOutgoing,
+            reason: "hangup",
+          });
+        } else {
+          // Just leaving the group call
+          socket?.emit("call:user-left", {
+            callId: currentState.callId,
+            userId: user?.id,
+            workgroupId: currentState.workgroupId,
+          });
+        }
+
+        // Log call if it was connected - Only caller logs to avoid duplicates
+        if (currentState.isOutgoing && currentState.workgroupId) {
+          if (currentState.callState === "connected") {
+            logCall(
+              currentState.workgroupId,
+              currentState.callType,
+              "completed",
+              currentState.callDuration,
+              user?.id || "",
+            );
+          } else if (currentState.callState === "outgoing") {
+            logCall(
+              currentState.workgroupId,
+              currentState.callType,
+              "missed",
+              0,
+              user?.id || "",
+            );
+          }
         }
       }
-    }
-    resetCallState();
-  }, [
-    state.callId,
-    state.peers,
-    state.callState,
-    state.workgroupId,
-    state.callType,
-    state.callDuration,
-    state.isOutgoing,
-    user?.id,
-    logCall,
-    resetCallState,
-  ]);
+      resetCallState();
+    },
+    [user?.id, logCall, resetCallState],
+  );
 
   const toggleMute = useCallback(() => {
     const newState = !state.isMuted;
@@ -840,6 +849,7 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
       if (targetName) {
         setState((prev) => ({
           ...prev,
+          isGroupCall: true, // Mark as group call now that we are adding a 3rd person
           peers: {
             ...prev.peers,
             [targetUserId]: {
@@ -956,10 +966,19 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
       const s = stateRef.current;
       if (p.callId !== s.callId) return;
 
-      // If the original caller drops → end for everyone
-      // If a non-caller member leaves in a group call → just remove them
+      const peerCount = Object.keys(s.peers).length;
+
+      // End for all if:
+      // 1. It's explicitly not a group call
+      // 2. OR only 2 people were in the call (1 peer in state)
+      // 3. OR the original caller ended it
+      // 4. OR it was an incoming call that never connected
       const shouldEndForAll =
-        !s.isGroupCall || p.isOriginalCaller || s.callState === "incoming";
+        !s.isGroupCall ||
+        peerCount <= 1 ||
+        p.isOriginalCaller ||
+        s.callState === "incoming" ||
+        s.callState === "outgoing";
 
       if (shouldEndForAll) {
         // Show missed call toast if we were ringing and never answered
@@ -990,15 +1009,16 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
         }
         resetCallStateRef.current();
       } else {
-        // Group call: a non-initiating member left — just remove them
+        // Group call: a member left — remove them
         const targetId = p.userId || p.fromUserId;
         if (targetId) {
           setState((prev) => {
             const newPeers = { ...prev.peers };
             delete newPeers[targetId];
-            // If no peers left and we are connected, end the call
+            // If only we are left in a call that was a conversation (at least 2 people before), end it
+            const remainingCount = Object.keys(newPeers).length;
             if (
-              Object.keys(newPeers).length === 0 &&
+              remainingCount === 0 &&
               (prev.callState === "connected" || prev.callState === "outgoing")
             ) {
               setTimeout(() => resetCallStateRef.current(), 500);
@@ -1014,26 +1034,34 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
       const s = stateRef.current;
       if (p.callId !== s.callId) return;
       stopRingtoneRef.current();
+
+      const peerCount = Object.keys(s.peers).length;
       const reason = p.reason === "busy" ? "Busy" : "Declined";
-      if (!s.isGroupCall) {
-        setState((prev) => ({ ...prev, callStatus: reason }));
+
+      // If it's a 1-on-1 scenario (only 1 peer), reset INSTANTLY
+      if (!s.isGroupCall || peerCount <= 1) {
         toast.error(`Call ${reason.toLowerCase()}`);
-        setTimeout(() => resetCallStateRef.current(), 3000);
-      } else {
-        // Group call: remove the peer who declined and show a toast
-        const rejectorId = p.rejectedBy || p.callerId || p.fromUserId;
-        if (rejectorId) {
-          setState((prev) => {
-            const newPeers = { ...prev.peers };
-            const rejectorName =
-              newPeers[rejectorId]?.name || p.accepterName || "A member";
-            delete newPeers[rejectorId];
-            toast.info(`${rejectorName} declined the call`);
-            return { ...prev, peers: newPeers };
-          });
-        } else {
-          toast.info(`${p.accepterName || "A member"} declined the call`);
-        }
+        resetCallStateRef.current();
+        return;
+      }
+
+      // Group call with multiple members: remove the one who declined
+      const rejectorId = p.rejectedBy || p.callerId || p.fromUserId;
+      if (rejectorId) {
+        setState((prev) => {
+          const newPeers = { ...prev.peers };
+          const rejectorName =
+            newPeers[rejectorId]?.name || p.accepterName || "A member";
+          delete newPeers[rejectorId];
+          toast.info(`${rejectorName} declined the call`);
+
+          // If no one else is left, reset instantly
+          if (Object.keys(newPeers).length === 0) {
+            setTimeout(() => resetCallStateRef.current(), 100);
+          }
+
+          return { ...prev, peers: newPeers };
+        });
       }
     };
 
@@ -1109,38 +1137,46 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
       )
         return;
 
-      // Skip only if already fully connected to this peer
+      // Skip only if already fully connected to this peer OR currently connecting
       const existingPc = peerConnectionsRef.current.get(p.userId);
-      if (
-        existingPc &&
-        (existingPc.iceConnectionState === "connected" ||
-          existingPc.iceConnectionState === "completed")
-      ) {
-        // Already connected — just update name/avatar if missing
-        setState((prev) => {
-          const existing = prev.peers[p.userId];
-          if (existing?.name) return prev;
-          return {
-            ...prev,
-            peers: {
-              ...prev.peers,
-              [p.userId]: {
-                ...existing,
-                name: p.name || existing?.name || "",
-                avatar: p.avatar ?? existing?.avatar ?? null,
+      if (existingPc) {
+        const isConnected =
+          existingPc.iceConnectionState === "connected" ||
+          existingPc.iceConnectionState === "completed";
+        const isSignaling = existingPc.signalingState !== "stable";
+
+        if (isConnected || isSignaling) {
+          console.log(
+            `[WebRTC] handleUserJoined: Skipping PC creation for ${p.userId} (connected: ${isConnected}, signaling: ${existingPc.signalingState})`,
+          );
+          // Just update name/avatar if missing
+          setState((prev) => {
+            const existing = prev.peers[p.userId];
+            if (existing?.name) return prev;
+            return {
+              ...prev,
+              peers: {
+                ...prev.peers,
+                [p.userId]: {
+                  ...existing,
+                  name: p.name || existing?.name || "",
+                  avatar: p.avatar ?? existing?.avatar ?? null,
+                },
               },
-            },
-          };
-        });
-        return;
+            };
+          });
+          return;
+        }
       }
 
+      console.log(`[WebRTC] handleUserJoined: Creating PC for ${p.userId}`);
       const pc = createPeerConnection(p.userId);
       if (!pc) return;
 
       // Merge with existing peer data — preserve name/avatar if already set
       setState((prev) => ({
         ...prev,
+        isGroupCall: true, // Any multi-party action makes it a group call
         peers: {
           ...prev.peers,
           [p.userId]: {
@@ -1205,6 +1241,15 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
           },
         },
       }));
+      // Avoid race conditions if we already started connecting via handleUserJoined
+      const existingPc = peerConnectionsRef.current.get(p.accepterId);
+      if (existingPc && existingPc.signalingState !== "stable") {
+        console.log(
+          `[WebRTC] handleAccepted: PC already exists and is signaling for ${p.accepterId}, skipping duplicate offer`,
+        );
+        return;
+      }
+
       const pc = createPeerConnection(p.accepterId);
       if (!pc) return;
       const offer = await pc.createOffer();
@@ -1418,7 +1463,11 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
             stream: updatedPeers[member.userId]?.stream ?? null,
           };
         }
-        return { ...prev, peers: updatedPeers };
+        return {
+          ...prev,
+          isGroupCall: p.members.length > 0 ? true : prev.isGroupCall,
+          peers: updatedPeers,
+        };
       });
     };
 

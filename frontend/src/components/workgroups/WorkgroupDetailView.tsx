@@ -302,6 +302,8 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   const [newWikiPageTitle, setNewWikiPageTitle] = useState("");
   const [newWikiPageContent, setNewWikiPageContent] = useState("");
   const [showEventDialog, setShowEventDialog] = useState(false);
+  const [showAboutModal, setShowAboutModal] = useState(false);
+  const [showChannels, setShowChannels] = useState(false);
 
   const onEventCreated = async (event: any) => {
     // Send a special message to the chat with event details
@@ -1557,11 +1559,11 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                     </Badge>
                   )}
                 </DropdownMenuItem>
-                {!isDirectChat && canEditTeam && (
+                {/* {!isDirectChat && canEditTeam && (
                   <DropdownMenuItem>
                     <Settings className="h-4 w-4 mr-2" /> Team Settings
                   </DropdownMenuItem>
-                )}
+                )} */}
                 {!isDirectChat && canDeleteTeam && (
                   <DropdownMenuItem
                     onClick={handleRemoveTeam}
@@ -1575,9 +1577,19 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
           </div>
 
           {workgroup.description && (
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              {workgroup.description}
-            </p>
+            <div className="mb-4">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm text-gray-600 dark:text-gray-400 truncate flex-1">
+                  {workgroup.description}
+                </p>
+                <button
+                  onClick={() => setShowAboutModal(true)}
+                  className="text-xs text-blue-600 hover:text-blue-700 font-medium whitespace-nowrap"
+                >
+                  Read more
+                </button>
+              </div>
+            </div>
           )}
 
           {/* Quick Actions */}
@@ -1604,55 +1616,75 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
 
         {/* Channels */}
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
-            Channels
-          </h3>
-          <div className="space-y-1">
-            <div
-              className={`flex items-center gap-2 px-3  py-2 rounded-lg cursor-pointer transition-colors ${activeTab === "posts"
-                ? "bg-blue-50 dark:bg-blue-900/20 text-primary dark:text-blue-300"
-                : "hover:bg-primary hover:text-white"
+          <button
+            onClick={() => {
+              const newState = !showChannels;
+              setShowChannels(newState);
+              if (newState) {
+                setActiveTab("posts");
+              }
+            }}
+            className="flex items-center justify-between w-full text-sm font-semibold text-gray-900 dark:text-white mb-1 group"
+          >
+            <span className="flex items-center gap-2">
+              <Hash className="h-4 w-4 text-gray-500" />
+              Channels
+            </span>
+            <ChevronDown
+              className={`h-4 w-4 text-gray-500 transition-transform duration-200 ${showChannels ? "" : "-rotate-90"
                 }`}
-              onClick={() => setActiveTab("posts")}
-            >
-              <Hash className="h-4 w-4" />
-              <span className="text-sm font-medium">General</span>
-              <Badge variant="secondary" className="ml-auto text-xs">
-                {posts.length}
-              </Badge>
+            />
+          </button>
+
+          {showChannels && (
+            <div className="space-y-1 mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div
+                className={`flex items-center gap-2 px-3  py-2 rounded-lg cursor-pointer transition-colors ${activeTab === "posts"
+                  ? "bg-blue-50 dark:bg-blue-900/20 text-primary dark:text-blue-300"
+                  : "hover:bg-primary hover:text-white"
+                  }`}
+                onClick={() => setActiveTab("posts")}
+              >
+                <Hash className="h-4 w-4" />
+                <span className="text-sm font-medium">General</span>
+                <Badge variant="secondary" className="ml-auto text-xs">
+                  {posts.length}
+                </Badge>
+              </div>
+              <div
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${activeTab === "files"
+                  ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+                  : "hover:bg-primary hover:text-white dark:hover:bg-primary"
+                  }`}
+                onClick={() => setActiveTab("files")}
+              >
+                <Files className="h-4 w-4" />
+                <span className="text-sm font-medium">Files</span>
+                <Badge variant="secondary" className="ml-auto text-xs">
+                  {files.length}
+                </Badge>
+              </div>
+              <div
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${activeTab === "wiki"
+                  ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+                  : "hover:bg-primary hover:text-white dark:hover:bg-primary"
+                  }`}
+                onClick={() => setActiveTab("wiki")}
+              >
+                <MessageSquare className="h-4 w-4" />
+                <span className="text-sm font-medium">Wiki</span>
+                <Badge variant="secondary" className="ml-auto text-xs">
+                  {wikiPages.length}
+                </Badge>
+              </div>
             </div>
-            <div
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${activeTab === "files"
-                ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                : "hover:bg-primary hover:text-white dark:hover:bg-primary"
-                }`}
-              onClick={() => setActiveTab("files")}
-            >
-              <Files className="h-4 w-4" />
-              <span className="text-sm font-medium">Files</span>
-              <Badge variant="secondary" className="ml-auto text-xs">
-                {files.length}
-              </Badge>
-            </div>
-            <div
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${activeTab === "wiki"
-                ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                : "hover:bg-primary hover:text-white dark:hover:bg-primary"
-                }`}
-              onClick={() => setActiveTab("wiki")}
-            >
-              <MessageSquare className="h-4 w-4" />
-              <span className="text-sm font-medium">Wiki</span>
-              <Badge variant="secondary" className="ml-auto text-xs">
-                {wikiPages.length}
-              </Badge>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Members Preview */}
         <div className="p-4 flex-1 min-h-0 flex flex-col">
-          <div className="flex items-center justify-between mb-3">
+          <div className="sticky top-0 z-10 bg-card pb-2">
+            <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
               {isDirectChat
                 ? "Chat participants"
@@ -1685,10 +1717,11 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
               </Button>
             </div>
           )}
+          </div>
 
           <div
             ref={membersScrollRef}
-            className="space-y-2 flex-1 overflow-y-auto pr-1"
+            className="space-y-2 flex-1 overflow-y-auto pr-1 custom-scrollbar"
           >
             {sortedMembers.map((member) => (
               <div
@@ -2911,6 +2944,34 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
         </DialogContent>
       </Dialog>
       {/* Add Member Dialog */}
+      {/* About Workgroup Dialog */}
+      <Dialog open={showAboutModal} onOpenChange={setShowAboutModal}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-blue-600" />
+              About {workgroupDisplayName}
+            </DialogTitle>
+            <DialogDescription>
+              Group information and description
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-6">
+            <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Description</h4>
+            <div className="p-4 bg-muted/30 rounded-lg border border-border">
+              <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap leading-relaxed">
+                {workgroup.description || "No description available for this group."}
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setShowAboutModal(false)} className="bg-blue-600 hover:bg-blue-700 text-white">
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={showAddMember} onOpenChange={setShowAddMember}>
         <DialogContent className="sm:max-w-[450px]">
           <DialogHeader>
