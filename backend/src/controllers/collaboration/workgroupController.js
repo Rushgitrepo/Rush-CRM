@@ -2,6 +2,7 @@ const db = require('../../config/database');
 const { v4: uuidv4 } = require('uuid');
 const realtimeService = require('../../services/realtimeService');
 const pushService = require('../../services/pushService');
+const fcmService = require('../../services/fcmService');
 const { createNotification } = require('./workgroupNotificationsController');
 
 const createSystemPost = async (workgroupId, actorUserId, content) => {
@@ -1221,11 +1222,27 @@ const createWorkgroupPost = async (req, res, next) => {
     for (const { user_id } of membersResult.rows) {
       // Per-user socket notification (reaches connected clients on any page)
       realtimeService.emitWorkgroupNotification(user_id, notifPayload);
-      // Web push for closed/background tabs
+      
+      // Web push for standard browsers (VAPID)
       pushService.sendPushToUser(user_id, {
         type: 'workgroup_message',
         ...notifPayload,
       });
+
+      // FCM for Mobile (Android/iOS) and FCM-enabled Web clients
+      fcmService.sendPushNotification(
+        user_id,
+        notifTitle,
+        notifBody,
+        {
+          type: 'workgroup_message',
+          ...notifPayload,
+          // Ensure all values are strings for FCM data payload
+          post_id: String(notifPayload.post_id),
+          workgroup_id: String(notifPayload.workgroup_id),
+          is_direct_chat: String(notifPayload.is_direct_chat)
+        }
+      ).catch(err => console.error(`FCM error for user ${user_id}:`, err.message));
     }
 
     // Send Mention Events
