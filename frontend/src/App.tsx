@@ -39,6 +39,7 @@ import BroadcastPage from "./pages/collaboration/BroadcastPage";
 import DirectChatPage from "./pages/collaboration/DirectChatPage";
 import { NotificationsProvider } from "./contexts/NotificationsContext";
 import { usePushNotifications } from "./hooks/usePushNotifications";
+import { useFcm } from "./hooks/useFcm";
 // CRM
 import LeadsPage from "./pages/crm/LeadsPage";
 import CreateLeadPage from "./pages/crm/CreateLeadPage";
@@ -140,6 +141,7 @@ const queryClient = new QueryClient();
 // Mounts inside AuthProvider so useAuth() is available
 const PushNotificationsSetup = () => {
   usePushNotifications();
+  useFcm();
   return null;
 };
 
