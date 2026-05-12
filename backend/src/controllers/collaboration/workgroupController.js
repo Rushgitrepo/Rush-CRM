@@ -26,6 +26,41 @@ const createSystemPost = async (workgroupId, actorUserId, content) => {
   }
 };
 
+const markWorkgroupPostsAsRead = async (workgroupId, userId) => {
+  try {
+    const readResult = await db.query(
+      `
+        INSERT INTO workgroup_post_reads (post_id, user_id, read_at)
+        SELECT p.id, $2::uuid, CURRENT_TIMESTAMP
+        FROM workgroup_posts p
+        WHERE p.workgroup_id = $1
+          AND p.user_id <> $2
+          AND p.is_deleted = false
+          AND NOT ($2::uuid = ANY(COALESCE(p.deleted_for_users, '{}'::uuid[])))
+        ON CONFLICT (post_id, user_id) DO NOTHING
+        RETURNING post_id
+      `,
+      [workgroupId, userId],
+    );
+
+    if (readResult.rows.length > 0) {
+      const userResult = await db.query(
+        "SELECT id as user_id, full_name, avatar_url FROM users WHERE id = $1",
+        [userId],
+      );
+      const userInfo = userResult.rows[0];
+      if (userInfo) {
+        realtimeService.emitWorkgroupPostSeen(workgroupId, {
+          postIds: readResult.rows.map((r) => r.post_id),
+          user: userInfo,
+        });
+      }
+    }
+  } catch (err) {
+    console.error("Failed to mark posts as read real-time:", err.message);
+  }
+};
+
 // Get all workgroups for organization
 const getWorkgroups = async (req, res, next) => {
   try {
@@ -596,20 +631,7 @@ const getWorkgroupMembers = async (req, res, next) => {
     }
 
     // When user opens the workgroup, mark all messages from others as read.
-    await db.query(
-      `
-        INSERT INTO workgroup_post_reads (post_id, user_id, read_at)
-        SELECT p.id, $2::uuid, CURRENT_TIMESTAMP
-        FROM workgroup_posts p
-        WHERE p.workgroup_id = $1
-          AND p.user_id <> $2
-          AND p.is_deleted = false
-          AND NOT ($2::uuid = ANY(COALESCE(p.deleted_for_users, '{}'::uuid[])))
-        ON CONFLICT (post_id, user_id) DO UPDATE
-        SET read_at = EXCLUDED.read_at
-      `,
-      [id, req.user.id],
-    );
+    await markWorkgroupPostsAsRead(id, req.user.id);
 
     const query = `
       SELECT 
@@ -917,17 +939,7 @@ const getWorkgroupPosts = async (req, res, next) => {
     }
 
     // Mark all messages from others as read whenever posts are fetched (workgroup is open)
-    await db.query(
-      `INSERT INTO workgroup_post_reads (post_id, user_id, read_at)
-       SELECT p.id, $2::uuid, CURRENT_TIMESTAMP
-       FROM workgroup_posts p
-       WHERE p.workgroup_id = $1
-         AND p.user_id <> $2
-         AND p.is_deleted = false
-         AND NOT ($2::uuid = ANY(COALESCE(p.deleted_for_users, '{}'::uuid[])))
-       ON CONFLICT (post_id, user_id) DO NOTHING`,
-      [id, req.user.id]
-    );
+    await markWorkgroupPostsAsRead(id, req.user.id);
 
     let query = `
       WITH RECURSIVE post_tree AS (
@@ -993,15 +1005,26 @@ const getWorkgroupPosts = async (req, res, next) => {
     if (allPostIds.length > 0) {
       const seenResult = await db.query(
         `
-          SELECT post_id, COUNT(*)::int AS seen_count
-          FROM workgroup_post_reads
+          SELECT 
+            post_id, 
+            COUNT(*)::int AS seen_count,
+            json_agg(json_build_object(
+              'user_id', u.id,
+              'full_name', u.full_name,
+              'avatar_url', u.avatar_url
+            )) as seen_by
+          FROM workgroup_post_reads r
+          JOIN users u ON r.user_id = u.id
           WHERE post_id = ANY($1::uuid[])
           GROUP BY post_id
         `,
         [allPostIds],
       );
       seenResult.rows.forEach((row) => {
-        seenCountMap.set(row.post_id, row.seen_count);
+        seenCountMap.set(row.post_id, {
+          count: row.seen_count,
+          users: row.seen_by
+        });
       });
     }
 
@@ -1010,7 +1033,9 @@ const getWorkgroupPosts = async (req, res, next) => {
     const rootPosts = [];
 
     result.rows.forEach(post => {
-      post.seen_count = seenCountMap.get(post.id) || 0;
+      const seenInfo = seenCountMap.get(post.id) || { count: 0, users: [] };
+      post.seen_count = seenInfo.count;
+      post.seen_by = seenInfo.users;
       if (post.depth === 0) {
         post.replies = [];
         postsMap.set(post.id, post);
