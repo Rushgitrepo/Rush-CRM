@@ -114,39 +114,46 @@ export function CompanyDrivesList({ onBrowse }: CompanyDrivesListProps) {
                     <div className="p-2 rounded-lg bg-muted">
                       <Icon className={`h-5 w-5 ${typeInfo.color}`} />
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium">{drive.display_name}</p>
-                        <Badge variant="secondary" className="text-xs">
-                          {driveTypeLabels[drive.drive_type] || drive.drive_type}
-                        </Badge>
-                        {!isConnected(drive) && (
-                          <Badge variant="outline" className="text-xs text-warning">
-                            Not Connected
+                      <div className="flex flex-col min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium truncate">{drive.display_name}</p>
+                          <Badge variant="secondary" className="text-[10px] h-4 px-1">
+                            {driveTypeLabels[drive.drive_type] || drive.drive_type}
                           </Badge>
+                          {isConnected(drive) && onBrowse && (
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="h-5 px-1.5 text-[10px] border-primary/50 text-primary hover:bg-primary hover:text-white rounded-md"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onBrowse(drive);
+                              }}
+                            >
+                              Open
+                            </Button>
+                          )}
+                          {!isConnected(drive) && (
+                            <Badge variant="outline" className="text-[10px] h-4 px-1 text-warning">
+                              Not Connected
+                            </Badge>
+                          )}
+                        </div>
+                        {drive.network_path && (
+                          <p className="text-xs text-muted-foreground truncate max-w-xs">
+                            {drive.network_path}
+                          </p>
                         )}
                       </div>
-                      {drive.network_path && (
-                        <p className="text-sm text-muted-foreground truncate max-w-xs">
-                          {drive.network_path}
-                        </p>
-                      )}
                     </div>
-                  </div>
 
-                  <div className="flex items-center gap-2">
-                    {isConnected(drive) && onBrowse && (
-                      <Button variant="outline" size="sm" onClick={() => onBrowse(drive)}>
-                        <FolderOpen className="h-4 w-4 mr-1" />
-                        Browse
-                      </Button>
-                    )}
-                    {!isConnected(drive) && (
-                      <Button variant="outline" size="sm" onClick={() => handleConnect(drive)}>
-                        <Link className="h-4 w-4 mr-1" />
-                        Connect
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {!isConnected(drive) && (
+                        <Button variant="outline" size="sm" onClick={() => handleConnect(drive)}>
+                          <Link className="h-4 w-4 mr-1" />
+                          Connect
+                        </Button>
+                      )}
                     {isAdmin && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

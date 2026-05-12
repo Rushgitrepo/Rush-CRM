@@ -12,6 +12,7 @@ import { ArrowLeft, FileText, Calendar, CheckCircle, XCircle, Download, Mail, Ph
 import { toast } from 'sonner';
 import { recruitmentApi } from '@/lib/api';
 import { ClickToCall } from '@/components/telephony/ClickToCall';
+import Cookies from 'js-cookie';
 
 export default function CandidateDetailPage() {
   const { id } = useParams();
@@ -225,7 +226,7 @@ export default function CandidateDetailPage() {
 
   const handleDownloadCV = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = Cookies.get('token');
       const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
       const response = await fetch(`${API_BASE_URL}/recruitment/candidates/${candidate.id}/cv`, {
         headers: {

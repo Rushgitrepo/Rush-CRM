@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { API_BASE_URL } from '@/lib/api';
+import Cookies from 'js-cookie';
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -10,7 +11,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 }
 
 async function fetchVapidKey(): Promise<string> {
-  const token = localStorage.getItem('token');
+  const token = Cookies.get('token');
   const res = await fetch(`${API_BASE_URL}/push/vapid-key`, {
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -19,7 +20,7 @@ async function fetchVapidKey(): Promise<string> {
 }
 
 async function sendSubscriptionToServer(subscription: PushSubscription) {
-  const token = localStorage.getItem('token');
+  const token = Cookies.get('token');
   await fetch(`${API_BASE_URL}/push/subscribe`, {
     method: 'POST',
     headers: {

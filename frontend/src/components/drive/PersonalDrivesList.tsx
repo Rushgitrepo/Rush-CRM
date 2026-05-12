@@ -169,10 +169,25 @@ export function PersonalDrivesList({ onBrowse }: PersonalDrivesListProps) {
                         </div>
                       )}
                     </div>
-                    <div className="min-w-0">
-                        <p className="font-semibold text-base text-foreground truncate">
-                          {drive ? drive.display_name : (type === "google_drive" ? "Google Drive" : "OneDrive")}
-                        </p>
+                    <div className="min-w-0 flex flex-col">
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-base text-foreground truncate">
+                            {drive ? drive.display_name : (type === "google_drive" ? "Google Drive" : "OneDrive")}
+                          </p>
+                          {isConnected(drive!) && onBrowse && (
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="h-5 px-1.5 text-[10px] border-primary/50 text-primary hover:bg-primary hover:text-white rounded-md"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onBrowse(drive!);
+                              }}
+                            >
+                              Open
+                            </Button>
+                          )}
+                        </div>
                         {connected && drive && (
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className="text-xs text-muted-foreground">

@@ -6,13 +6,13 @@ const notificationService = require('../../services/notificationService');
 // Map database status/stage values to frontend expected values
 const mapStatusToFrontend = (status) => {
   if (!status) return 'new';
-  
+
   const statusMap = {
     'unassigned': 'new',
     'in_progress': 'contacted',
     'progress': 'contacted',
   };
-  
+
   return statusMap[status] || status;
 };
 
@@ -242,13 +242,13 @@ const updateLeadSchema = Joi.object({
 
 const getAll = async (req, res, next) => {
   try {
-    const { 
-      page = 1, 
-      limit = 50, 
-      stage, 
-      status, 
-      search, 
-      workspaceId, 
+    const {
+      page = 1,
+      limit = 50,
+      stage,
+      status,
+      search,
+      workspaceId,
       external_source_id,
       startDate,
       endDate
@@ -870,7 +870,7 @@ const bulkRemove = async (req, res, next) => {
 
     if (all) {
       console.log(`[bulkRemove] Global delete requested by user ${userId} for org ${orgId}`);
-      
+
       let filterClause = 'org_id = $1';
       const params = [orgId];
 
@@ -900,7 +900,7 @@ const bulkRemove = async (req, res, next) => {
 
       const idQuery = await client.query(`SELECT id FROM public.leads WHERE ${filterClause}`, params);
       allowedIds = idQuery.rows.map(r => r.id);
-      
+
       if (allowedIds.length === 0) {
         return res.status(200).json({ message: 'No leads found matching filters', deletedCount: 0 });
       }
@@ -1213,7 +1213,7 @@ const updateStage = async (req, res, next) => {
 const getStages = async (req, res, next) => {
   try {
     const { all } = req.query; // 'all' to include inactive stages
-    
+
     await ensureDefaultStages(req.user.orgId, 'leads');
 
     let query = 'SELECT id, stage_key, stage_label, sort_order, color, is_active FROM pipeline_stages WHERE org_id = $1 AND pipeline = $2';
@@ -1299,13 +1299,13 @@ const updateStage_custom = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { stageName, color, is_active, sortOrder } = req.body;
-    
+
     const fields = [];
     const values = [];
     let idx = 1;
 
     if (stageName !== undefined) {
-      fields.push(`stage_label = $${idx}`, `stage_key = $${idx+1}`);
+      fields.push(`stage_label = $${idx}`, `stage_key = $${idx + 1}`);
       values.push(stageName, stageName.toLowerCase().replace(/\s+/g, '_'));
       idx += 2;
     }
@@ -1329,7 +1329,7 @@ const updateStage_custom = async (req, res, next) => {
 
     values.push(id, req.user.orgId);
     const { rows } = await db.query(
-      `UPDATE pipeline_stages SET ${fields.join(', ')} WHERE id = $${idx} AND org_id = $${idx+1} RETURNING *`,
+      `UPDATE pipeline_stages SET ${fields.join(', ')} WHERE id = $${idx} AND org_id = $${idx + 1} RETURNING *`,
       values
     );
 

@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
+import Cookies from 'js-cookie';
 import type { TelephonyProviderName } from '@/services/telephonyService';
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -40,7 +41,7 @@ interface SoftphoneContextType extends SoftphoneState {
 const SoftphoneContext = createContext<SoftphoneContextType | undefined>(undefined);
 
 function getAuthHeaders() {
-  const token = localStorage.getItem('token');
+  const token = Cookies.get('token');
   return {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${token}`,

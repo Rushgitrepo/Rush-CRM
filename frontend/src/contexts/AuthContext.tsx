@@ -81,7 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           await fetchUserData();
         } catch (error) {
-          api.setToken(null);
+          console.error('Initial auth check failed:', error);
         }
       }
       setLoading(false);

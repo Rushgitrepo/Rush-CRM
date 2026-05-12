@@ -64,6 +64,14 @@ const register = async (req, res, next) => {
 
     const token = generateToken(user);
 
+    res.cookie('token', token, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    });
+
     res.status(201).json({
       user: { id: user.id, email: user.email, fullName: user.full_name, orgId: user.organization_id },
       token,
@@ -102,6 +110,14 @@ const login = async (req, res, next) => {
     }
 
     const token = generateToken(user);
+
+    res.cookie('token', token, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    });
 
     res.json({
       user: {
@@ -397,6 +413,7 @@ const acceptInvite = async (req, res, next) => {
 };
 
 const logout = async (req, res, next) => {
+  res.clearCookie('token', { path: '/' });
   res.json({ message: 'Logged out successfully' });
 };
 

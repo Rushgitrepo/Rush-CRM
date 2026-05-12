@@ -92,6 +92,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useAdminUsers } from "@/hooks/useAdminUsers";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
+import Cookies from "js-cookie";
 import { useCustomDialog } from "@/contexts/DialogContext";
 import { useRealtime, useWorkgroupRealtime } from "@/hooks/useRealtime";
 import { useQueryClient } from "@tanstack/react-query";
@@ -2123,7 +2124,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                                           method: "POST",
                                           headers: {
                                             "Content-Type": "application/json",
-                                            Authorization: `Bearer ${localStorage.getItem("token")}`,
+                                            Authorization: `Bearer ${Cookies.get("token")}`,
                                           },
                                           body: JSON.stringify({
                                             reaction: emoji,

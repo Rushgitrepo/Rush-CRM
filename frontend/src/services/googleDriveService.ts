@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import Cookies from "js-cookie";
 
 const API_URL = import.meta.env.VITE_API_URL || "/api";
 
@@ -7,7 +8,7 @@ async function callDriveFunction(
   action: string,
   body: Record<string, unknown>
 ): Promise<Response> {
-  const token = localStorage.getItem("token");
+  const token = Cookies.get("token");
   if (!token) throw new Error("Not authenticated");
 
   const response = await fetch(`${API_URL}/drives/integrations/google-drive/${action}`, {
