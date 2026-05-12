@@ -1462,9 +1462,9 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
       // Helper function to get priority
       // 100: Owner, 90: Moderator, 80: Current User (Me), 70: Admin, 0: Others
       const getPriority = (m: any, isMe: boolean, isMod: boolean) => {
+        if (isMe) return 1000; // Always top priority
         if (m.role === "owner") return 100;
         if (isMod) return 90;
-        if (isMe) return 80;
         if (m.role === "admin") return 70;
         return 0;
       };
@@ -1523,7 +1523,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                 {workgroupDisplayName}
               </h2>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                {isDirectChat ? "Direct chat" : `${members.length} members`}
+                {!isDirectChat && `${members.length} members`}
               </p>
             </div>
             <DropdownMenu>
@@ -1759,12 +1759,15 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                 key={member.id}
                 className="group flex items-start gap-2 p-2.5 rounded-xl border border-border bg-background/60 hover:border-primary/30 hover:bg-primary/5 transition-colors"
               >
-                <Avatar className="h-8 w-8 shrink-0">
-                  <AvatarImage src={getAvatarUrl(member.avatar_url)} />
-                  <AvatarFallback className="bg-muted text-muted-foreground text-xs">
-                    {(member.full_name || "?").slice(0, 2).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
+                <div className="relative">
+                  <Avatar className="h-8 w-8 shrink-0">
+                    <AvatarImage src={getAvatarUrl(member.avatar_url)} />
+                    <AvatarFallback className="bg-muted text-muted-foreground text-xs">
+                      {(member.full_name || "?").slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-background ${member.is_online ? "bg-emerald-500" : "bg-gray-400"}`} />
+                </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
@@ -1779,12 +1782,14 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                       )}
                   </div>
                   <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                    {member.role === "owner" && (
+                    {!isDirectChat && member.role === "owner" && (
                       <Crown className="h-3 w-3 text-yellow-500" />
                     )}
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      {member.role}
-                    </span>
+                    {!isDirectChat && (
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        {member.role}
+                      </span>
+                    )}
                     <span
                       className={`text-xs font-medium ml-1 ${member.is_online
                         ? "text-primary"
@@ -1794,7 +1799,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                       {member.is_online ? "Online" : "Offline"}
                     </span>
                   </div>
-                  {!member.is_online && (
+                  {!isDirectChat && !member.is_online && (
                     <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">
                       {member.last_seen_at ? (
                         <>
@@ -1809,8 +1814,9 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                     </p>
                   )}
                 </div>
-                {((member.user_id === user?.id && member.role !== "owner") ||
-                  member.user_id !== user?.id) && (
+                {!isDirectChat &&
+                  ((member.user_id === user?.id && member.role !== "owner") ||
+                    member.user_id !== user?.id) && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button

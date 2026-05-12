@@ -1,6 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, MessageCircle, Phone, Search, Trash2, UserRound, Users, Video } from "lucide-react";
+import {
+  ArrowLeft,
+  MessageCircle,
+  Phone,
+  Search,
+  Trash2,
+  UserRound,
+  Users,
+  Video,
+} from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
@@ -69,30 +78,23 @@ export default function DirectChatPage() {
     [workgroups],
   );
 
-  const filteredFriends = useMemo(
-    () => {
-      const normalize = (value: string) =>
-        value
-          .toLowerCase()
-          .replace(/[_-]+/g, " ")
-          .replace(/\s+/g, " ")
-          .trim();
-      const q = normalize(friendSearch);
-      const qParts = q ? q.split(" ") : [];
+  const filteredFriends = useMemo(() => {
+    const normalize = (value: string) =>
+      value.toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+    const q = normalize(friendSearch);
+    const qParts = q ? q.split(" ") : [];
 
-      return orgUsers
-        .filter((u) => u.id !== user?.id)
-        .filter((u) => {
-          if (!q) return true;
-          const fullName = normalize(u.full_name || "");
-          const email = normalize(u.email || "");
-          const searchable = `${fullName} ${email}`.trim();
-          return qParts.every((part) => searchable.includes(part));
-        })
-        .slice(0, 30);
-    },
-    [orgUsers, user?.id, friendSearch],
-  );
+    return orgUsers
+      .filter((u) => u.id !== user?.id)
+      .filter((u) => {
+        if (!q) return true;
+        const fullName = normalize(u.full_name || "");
+        const email = normalize(u.email || "");
+        const searchable = `${fullName} ${email}`.trim();
+        return qParts.every((part) => searchable.includes(part));
+      })
+      .slice(0, 30);
+  }, [orgUsers, user?.id, friendSearch]);
   const dropdownUsers = useMemo(() => {
     return filteredFriends.slice(0, 50);
   }, [filteredFriends]);
@@ -104,9 +106,9 @@ export default function DirectChatPage() {
         return prev.map((wg) =>
           wg?.id === id
             ? {
-              ...wg,
-              unread_count: 0,
-            }
+                ...wg,
+                unread_count: 0,
+              }
             : wg,
         );
       },
@@ -130,7 +132,7 @@ export default function DirectChatPage() {
         if (selectedId === deleteChatId) {
           closeChat();
         }
-      }
+      },
     });
   };
 
@@ -178,13 +180,13 @@ export default function DirectChatPage() {
           return prev.map((wg) =>
             wg?.direct_peer_user_id === payload.userId
               ? {
-                ...wg,
-                is_online: payload.is_online ?? wg.is_online,
-                last_seen_at:
-                  payload.last_seen_at !== undefined
-                    ? payload.last_seen_at
-                    : wg.last_seen_at,
-              }
+                  ...wg,
+                  is_online: payload.is_online ?? wg.is_online,
+                  last_seen_at:
+                    payload.last_seen_at !== undefined
+                      ? payload.last_seen_at
+                      : wg.last_seen_at,
+                }
               : wg,
           );
         },
@@ -206,9 +208,9 @@ export default function DirectChatPage() {
         return prev.map((wg) =>
           wg?.id === selectedId
             ? {
-              ...wg,
-              unread_count: 0,
-            }
+                ...wg,
+                unread_count: 0,
+              }
             : wg,
         );
       },
@@ -216,7 +218,12 @@ export default function DirectChatPage() {
   }, [selectedId, queryClient]);
 
   useEffect(() => {
-    const handleWorkgroupPost = (payload: { workgroup_id?: string; user_id?: string; author_name?: string; created_at?: string }) => {
+    const handleWorkgroupPost = (payload: {
+      workgroup_id?: string;
+      user_id?: string;
+      author_name?: string;
+      created_at?: string;
+    }) => {
       if (!payload?.workgroup_id) return;
       let found = false;
       queryClient.setQueriesData(
@@ -230,9 +237,13 @@ export default function DirectChatPage() {
             const isActiveChat = selectedId === payload.workgroup_id;
             return {
               ...wg,
-              unread_count: isOwnMessage || isActiveChat ? 0 : Number(wg.unread_count || 0) + 1,
+              unread_count:
+                isOwnMessage || isActiveChat
+                  ? 0
+                  : Number(wg.unread_count || 0) + 1,
               last_message_at: payload.created_at || new Date().toISOString(),
-              last_message_sender_name: payload.author_name || wg.last_message_sender_name,
+              last_message_sender_name:
+                payload.author_name || wg.last_message_sender_name,
             };
           });
         },
@@ -246,7 +257,7 @@ export default function DirectChatPage() {
       const targetId = payload?.workgroup?.id || payload?.workgroup_id;
       if (!targetId) return;
 
-      if (payload.action === 'deleted') {
+      if (payload.action === "deleted") {
         if (selectedId === targetId) {
           closeChat();
           toast.info("This conversation has been deleted.");
@@ -291,39 +302,52 @@ export default function DirectChatPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="bg-card rounded-lg shadow-sm border border-border p-5">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-              <MessageCircle className="h-5 w-5 text-white" />
+    <div className="space-y-6 animate-in fade-in duration-500">
+      {/* Premium Header */}
+      <div className="bg-card/50 backdrop-blur-xl rounded-2xl shadow-sm border border-border/50 p-6 relative overflow-hidden group">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -mr-32 -mt-32 blur-3xl transition-colors group-hover:bg-primary/10" />
+        <div className="flex items-center justify-between gap-3 relative z-10">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-gradient-to-br from-primary to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
+              <MessageCircle className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-semibold text-foreground">
+              <h1 className="text-2xl font-bold tracking-tight text-foreground bg-clip-text">
                 Direct Chats
               </h1>
-              <p className="text-sm text-muted-foreground">
-                Select a person and start one-to-one conversation
+              <p className="text-sm text-muted-foreground font-medium">
+                Seamless one-to-one communication with your team
               </p>
             </div>
           </div>
           <Button
             variant="outline"
             onClick={() => navigate("/collaboration/workgroups")}
+            className="rounded-xl border-border/60 hover:bg-muted transition-all hover:scale-105 active:scale-95"
           >
-            <ArrowLeft className="h-4 w-4" /> Back to Workgroups
+            <ArrowLeft className="h-4 w-4 mr-2" /> Back to Workgroups
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-5">
-        <aside className="rounded-lg bg-card border border-border p-3">
-          <p className="text-sm font-semibold mb-2 text-foreground">
-            Friends
-          </p>
-          <div className="mb-4" ref={searchBoxRef}>
-            <div className="relative">
-              <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+      <div className="grid grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)] gap-6 h-[calc(100vh-14rem)]">
+        {/* Sidebar */}
+        <aside className="rounded-2xl bg-card/50 backdrop-blur-md border border-border/50 flex flex-col overflow-hidden shadow-sm">
+          <div className="p-4 border-b border-border/50">
+            <div className="flex items-center justify-between mb-4 px-1">
+              <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground/70">
+                Inbox
+              </h2>
+              <div className="flex items-center gap-1.5 px-2 py-0.5 bg-primary/10 rounded-full">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                <span className="text-[10px] font-bold text-primary">
+                  {directChats.length} active
+                </span>
+              </div>
+            </div>
+
+            <div className="relative mb-2" ref={searchBoxRef}>
+              <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/60 transition-colors group-focus-within:text-primary" />
               <Input
                 value={friendSearch}
                 onChange={(e) => {
@@ -331,18 +355,25 @@ export default function DirectChatPage() {
                   setShowSearchDropdown(true);
                 }}
                 onFocus={() => setShowSearchDropdown(true)}
-                placeholder="Search chats or users..."
-                className="pl-9"
+                placeholder="Search teammates..."
+                className="pl-9 bg-muted/30 border-transparent focus-visible:bg-background focus-visible:ring-1 focus-visible:ring-primary/20 rounded-xl transition-all"
               />
+
               {showSearchDropdown && (
-                <div className="absolute top-full left-0 z-50 w-full mt-1 rounded-md border border-border bg-card shadow-lg max-h-52 overflow-y-auto">
+                <div className="absolute top-full left-0 z-50 w-full mt-2 rounded-xl border border-border/60 bg-card/95 backdrop-blur-lg shadow-2xl max-h-64 overflow-y-auto animate-in slide-in-from-top-2 duration-200 custom-scrollbar">
+                  <div className="p-2 border-b border-border/40">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 px-2 py-1">
+                      Search results
+                    </p>
+                  </div>
                   {dropdownUsers.map((friend) => {
-                    const initials = friend.full_name
-                      ?.split(" ")
-                      .map((w: string) => w[0])
-                      .join("")
-                      .toUpperCase()
-                      .slice(0, 2) || "?";
+                    const initials =
+                      friend.full_name
+                        ?.split(" ")
+                        .map((w: string) => w[0])
+                        .join("")
+                        .toUpperCase()
+                        .slice(0, 2) || "?";
                     return (
                       <button
                         key={`dropdown-user-${friend.id}`}
@@ -351,211 +382,264 @@ export default function DirectChatPage() {
                           setShowSearchDropdown(false);
                           setFriendSearch("");
                         }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-muted/50 transition-colors"
+                        className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-primary/5 transition-all group"
                       >
-                        <Avatar className="h-7 w-7 shrink-0">
+                        <Avatar className="h-8 w-8 shrink-0 ring-2 ring-transparent group-hover:ring-primary/20 transition-all">
                           <AvatarImage src={getAvatarUrl(friend.avatar_url)} />
-                          <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-bold">
+                          <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
                             {initials}
                           </AvatarFallback>
                         </Avatar>
-                        <p className="text-sm font-medium text-foreground truncate">
-                          {friend.full_name || "Unknown"}
-                        </p>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors truncate">
+                            {friend.full_name || "Unknown"}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground truncate">
+                            {friend.email}
+                          </p>
+                        </div>
                       </button>
                     );
                   })}
                   {dropdownUsers.length === 0 && (
-                    <p className="px-3 py-2 text-xs text-muted-foreground">
-                      No users found.
-                    </p>
+                    <div className="p-8 text-center">
+                      <UserRound className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
+                      <p className="text-xs text-muted-foreground">
+                        No users found.
+                      </p>
+                    </div>
                   )}
                 </div>
               )}
             </div>
           </div>
 
-          <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">
-            Recent chats
-          </p>
-          <div className="space-y-1 max-h-[320px] overflow-y-auto">
+          <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
             {directChats.map((chat) => {
               const isActive = selectedId === chat.id;
               const isOnline = Boolean(chat.is_online);
               const unreadCount = isActive ? 0 : Number(chat.unread_count || 0);
               const chatDisplayName = chat.display_name || chat.name;
-              const lastSeenLabel =
-                !isOnline && chat.last_seen_at
-                  ? formatDistanceToNow(new Date(chat.last_seen_at), {
-                    addSuffix: true,
-                  })
-                  : null;
+
               return (
-                <button
-                  key={`chat-${chat.id}`}
-                  onClick={() => openChat(chat.id)}
-                  className={`w-full rounded-md px-2 py-2 text-left transition-colors ${isActive
-                    ? "bg-primary text-white"
-                    : "hover:bg-muted/50"
-                    }`}
+                <div
+                  key={`chat-wrapper-${chat.id}`}
+                  className="group relative pb-2"
                 >
-                  <div className="flex items-center gap-2">
-                    <div className="relative">
-                      <Avatar className="h-7 w-7">
-                        <AvatarImage src={getAvatarUrl(chat.avatar_url || chat.direct_peer_avatar_url || chat.avatar) || undefined} />
+                  <button
+                    onClick={() => openChat(chat.id)}
+                    className={`w-full flex items-center gap-3 shadow-sm shadow-primary/20 rounded-xl px-3 py-3 text-left transition-all duration-200 ${
+                      isActive
+                        ? "bg-primary shadow-lg shadow-primary/20 text-white"
+                        : "dark:bg-muted/30 bg-muted/80"
+                    }`}
+                  >
+                    <div className="relative shrink-0">
+                      <Avatar
+                        className={`h-10 w-10 border-2 ${isActive ? "border-white/20" : "border-transparent"}`}
+                      >
+                        <AvatarImage
+                          src={
+                            getAvatarUrl(
+                              chat.avatar_url ||
+                                chat.direct_peer_avatar_url ||
+                                chat.avatar,
+                            ) || undefined
+                          }
+                        />
                         <AvatarFallback
-                          className={`${chat.avatar_color} text-white text-xs`}
+                          className={`${chat.avatar_color} text-white font-bold text-sm`}
                         >
                           {chatDisplayName.slice(0, 2).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                       <span
-                        className={`absolute -right-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full border-2 border-card ${isOnline ? "bg-green-500" : "bg-muted-foreground/40"
-                          }`}
-                        title={isOnline ? "Online" : "Offline"}
+                        className={`absolute -right-0.5 -bottom-0.5 h-3.5 w-3.5 rounded-full border-2 ${
+                          isActive ? "border-primary" : "border-card"
+                        } ${isOnline ? "bg-primary" : "bg-gray-400"}`}
                       />
                     </div>
-                    <div className="min-w-0">
-                      <p
-                        className={`text-sm font-medium truncate ${isActive ? "text-white" : "text-foreground"
-                          }`}
-                      >
-                        {chatDisplayName}
-                      </p>
-                      <p
-                        className={`text-[11px] ${isActive ? "text-white/90" : "text-muted-foreground"
-                          }`}
-                      >
-                        <span
-                          className={
-                            isOnline
-                              ? isActive ? "text-white" : "text-primary"
-                              : isActive ? "text-white/70" : "text-red-500"
-                          }
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <p
+                          className={`text-sm font-bold truncate ${isActive ? "text-white" : "text-foreground"}`}
                         >
-                          {isOnline ? "● Online" : " Offline"}
-                        </span>
-                      </p>
-                      {lastSeenLabel && (
-                        <p className={`text-[11px] ${isActive ? "text-white/70" : "text-muted-foreground"}`}>
-                          Last seen {lastSeenLabel}
+                          {chatDisplayName}
                         </p>
-                      )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <p
+                          className={`text-[11px] font-medium ${isActive ? "text-white/80" : isOnline ? "text-primary" : "text-red-500"} flex items-center gap-1`}
+                        >
+                          {isOnline ? "Online" : "Offline"}
+                        </p>
+                      </div>
                     </div>
-                    <div className="ml-auto flex items-center gap-1 shrink-0">
+
+                    <div className="flex items-center gap-1.5 shrink-0">
                       {isOnline && (
                         <>
-                          <span
-                            role="button"
-                            title="Voice call"
-                            className={`inline-flex h-6 w-6 items-center justify-center rounded-full transition-colors ${isActive ? 'hover:bg-white/20' : 'hover:bg-muted'
-                              }`}
+                          <Button
+                            variant="secondary"
+                            size="icon"
+                            className={`h-8 w-8 rounded-full shadow-sm transition-all ${
+                              isActive ? "bg-white/20 text-white hover:bg-white/30" : "bg-card hover:text-primary hover:bg-primary/10"
+                            }`}
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (callState !== 'idle') { toast.error('Already in a call'); return; }
+                              if (callState !== "idle") {
+                                toast.error("Already in a call");
+                                return;
+                              }
                               startVideoCall(
                                 chat.direct_peer_user_id,
                                 chatDisplayName,
                                 null,
-                                'audio',
-                                chat.id
+                                "audio",
+                                chat.id,
                               );
                             }}
                           >
-                            <Phone className={`h-3 w-3 ${isActive ? 'text-white/80' : 'text-muted-foreground'}`} />
-                          </span>
-                          <span
-                            role="button"
-                            title="Video call"
-                            className={`inline-flex h-6 w-6 items-center justify-center rounded-full transition-colors ${isActive ? 'hover:bg-white/20' : 'hover:bg-muted'
-                              }`}
+                            <Phone className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="icon"
+                            className={`h-8 w-8 rounded-full shadow-sm transition-all ${
+                              isActive ? "bg-white/20 text-white hover:bg-white/30" : "bg-card hover:text-primary hover:bg-primary/10"
+                            }`}
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (callState !== 'idle') { toast.error('Already in a call'); return; }
+                              if (callState !== "idle") {
+                                toast.error("Already in a call");
+                                return;
+                              }
                               startVideoCall(
                                 chat.direct_peer_user_id,
                                 chatDisplayName,
                                 null,
-                                'video',
-                                chat.id
+                                "video",
+                                chat.id,
                               );
                             }}
                           >
-                            <Video className={`h-3 w-3 ${isActive ? 'text-white/80' : 'text-muted-foreground'}`} />
-                          </span>
+                            <Video className="h-3.5 w-3.5" />
+                          </Button>
                         </>
                       )}
-                      {unreadCount > 0 && (
-                        <span
-                          className={`inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[11px] font-semibold ${isActive ? "bg-white/20 text-white" : "bg-primary text-white"
-                            }`}
-                        >
-                          {unreadCount}
-                        </span>
-                      )}
-                      <button
-                        title="Delete chat"
-                        className={`inline-flex h-6 w-6 items-center justify-center rounded-full transition-colors ${isActive ? 'hover:bg-white/20' : 'hover:bg-red-100 group-hover:text-red-600'
-                          }`}
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        className={`h-8 w-8 rounded-full shadow-sm transition-all ${
+                          isActive ? "bg-white/20 text-white hover:bg-white/30" : "bg-card hover:text-red-500 hover:bg-red-500/10"
+                        }`}
                         onClick={(e) => {
                           e.stopPropagation();
                           setDeleteChatId(chat.id);
                         }}
                       >
-                        <Trash2 className={`h-3 w-3 ${isActive ? 'text-white/80' : 'text-destructive'}`} />
-                      </button>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                      
+                      {unreadCount > 0 && (
+                        <span
+                          className={`h-5 min-w-[20px] flex items-center justify-center rounded-full px-1.5 text-[10px] font-black ${
+                            isActive
+                              ? "bg-white text-primary shadow-sm"
+                              : "bg-primary text-white shadow-md shadow-primary/20"
+                          }`}
+                        >
+                          {unreadCount}
+                        </span>
+                      )}
                     </div>
-                  </div>
-                </button>
+                  </button>
+                </div>
               );
             })}
             {directChats.length === 0 && (
-              <p className="text-xs text-muted-foreground px-2 py-2">
-                No chats yet. Search a user and send first message.
-              </p>
+              <div className="p-8 text-center">
+                <div className="w-12 h-12 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <MessageCircle className="h-6 w-6 text-muted-foreground/40" />
+                </div>
+                <p className="text-xs text-muted-foreground font-medium">
+                  No conversations yet.
+                </p>
+              </div>
             )}
           </div>
         </aside>
 
-        <section className="rounded-lg bg-card border border-border min-h-[520px] flex items-center justify-center">
+        {/* Main View Area */}
+        <section className="rounded-2xl bg-card/40 backdrop-blur-sm border border-border/50 shadow-sm relative overflow-hidden flex flex-col items-center justify-center">
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-primary/5 pointer-events-none" />
+
           {isLoading ? (
-            <div className="text-center text-muted-foreground">
-              <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-              <p>Loading direct chats...</p>
+            <div className="relative z-10 text-center space-y-4">
+              <div className="w-12 h-12 border-3 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+              <p className="text-sm font-semibold text-muted-foreground animate-pulse">
+                Establishing secure connection...
+              </p>
             </div>
           ) : (
-            <div className="text-center px-6">
-              <UserRound className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
-              <h3 className="text-lg font-semibold text-foreground mb-2">
-                Choose a chat
+            <div className="relative z-10 text-center max-w-sm px-6">
+              <div className="w-24 h-24 bg-gradient-to-br from-primary/10 to-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-primary/20 shadow-inner">
+                <UserRound className="h-10 w-10 text-primary" />
+              </div>
+              <h3 className="text-2xl font-bold text-foreground mb-3">
+                Your Conversations
               </h3>
-              <p className="text-sm text-muted-foreground">
-                Select a friend or recent chat from the sidebar.
+              <p className="text-sm text-muted-foreground leading-relaxed mb-8">
+                Select a teammate from the sidebar to view your message history
+                or start a new encrypted conversation.
               </p>
-              <div className="mt-4 text-xs text-muted-foreground inline-flex items-center gap-2">
-                <Users className="h-3.5 w-3.5" />
-                {directChats.length} active direct chats
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 bg-card/80 border border-border/50 rounded-xl text-left">
+                  <p className="text-[10px] font-black uppercase text-primary mb-1">
+                    Recent Activity
+                  </p>
+                  <p className="text-xs font-bold">
+                    {directChats.length} Conversations
+                  </p>
+                </div>
+                <div className="p-3 bg-card/80 border border-border/50 rounded-xl text-left">
+                  <p className="text-[10px] font-black uppercase text-emerald-500 mb-1">
+                    Global Status
+                  </p>
+                  <p className="text-xs font-bold">Secure & Active</p>
+                </div>
               </div>
             </div>
           )}
         </section>
       </div>
 
-      <AlertDialog open={!!deleteChatId} onOpenChange={(open) => !open && setDeleteChatId(null)}>
-        <AlertDialogContent>
+      {/* Modern Alert Dialog */}
+      <AlertDialog
+        open={!!deleteChatId}
+        onOpenChange={(open) => !open && setDeleteChatId(null)}
+      >
+        <AlertDialogContent className="rounded-2xl border-border/60 bg-card/95 backdrop-blur-xl">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Conversation?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete this conversation and all its messages. This action cannot be undone.
+            <AlertDialogTitle className="text-xl font-bold">
+              Delete Conversation?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground">
+              This will permanently purge this conversation from your history.
+              This action is irreversible and will delete all shared media.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="rounded-xl border-border/60">
+              Keep Chat
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteChat}
-              className="bg-red-600 hover:bg-red-700 text-white"
+              className="bg-red-500 hover:bg-red-600 text-white rounded-xl shadow-lg shadow-red-500/20"
             >
-              {deleteWg.isPending ? "Deleting..." : "Delete Permanently"}
+              {deleteWg.isPending ? "Purging..." : "Confirm Purge"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -157,10 +157,10 @@ export function useDeleteWorkgroup() {
     mutationFn: (id: string) => workgroupsApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['workgroups'] });
-      toast.success('Workgroup deleted successfully!');
+      toast.success('Conversation deleted successfully!');
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Failed to delete workgroup');
+      toast.error(error.response?.data?.error || 'Failed to delete conversation');
     },
   });
 }
