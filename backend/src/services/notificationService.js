@@ -1,5 +1,6 @@
 const db = require('../config/database');
 const realtimeService = require('./realtimeService');
+const fcmService = require('./fcmService');
 
 /**
  * Notification categories mapped from event types
@@ -95,6 +96,18 @@ const notify = async (orgId, targetUserId, type, title, message, actionUrl = nul
         metadata: notification.metadata,
         is_read: false,
         created_at: notification.created_at,
+      });
+
+      // Send Push Notification via FCM
+      fcmService.sendToUser(userId, {
+        title: notification.title,
+        body: notification.message,
+        data: {
+          id: String(notification.id),
+          type: String(notification.type),
+          category: String(notification.category),
+          action_url: notification.action_url || '/',
+        }
       });
     }
   } catch (err) {

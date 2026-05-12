@@ -213,91 +213,88 @@ function RemotePeerVideo({
 }
 
 // ─── Smartphone-style Audio Call View ────────────────────────────
-function OutgoingCallView({ peer, callType, status, endCall }: any) {
+function OutgoingCallView({
+  peer,
+  callType,
+  status,
+  endCall,
+  localStream,
+  isMuted,
+  isVideoOff,
+  toggleMute,
+  toggleVideo,
+  toggleScreenShare,
+  toggleChat,
+}: any) {
   const avatarUrl = getAvatarUrl(peer?.avatar);
   const isRoomJoin = !peer;
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    if (videoRef.current && localStream && callType === "video") {
+      videoRef.current.srcObject = localStream;
+    }
+  }, [localStream, callType]);
 
   return (
-    <div className="w-full h-full bg-zinc-950 flex flex-col items-center justify-center gap-12 py-24 px-8 animate-in fade-in duration-700 relative overflow-hidden">
-      {/* Immersive Background */}
+    <div className="w-full h-full bg-zinc-950 flex flex-col items-center justify-center animate-in fade-in duration-700 relative overflow-hidden">
+      {/* Background Layer */}
       <div className="absolute inset-0 z-0 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-zinc-950/50 via-zinc-950 to-zinc-950 z-10" />
-        {avatarUrl ? (
-          <img
-            src={avatarUrl}
-            className="w-full h-full object-cover blur-[120px] scale-150 opacity-40"
-            alt=""
+        <div className="absolute inset-0 bg-zinc-950/80 z-10" />
+        
+        {callType === "video" && localStream ? (
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="w-full h-full object-cover scale-105 opacity-50 blur-sm transition-all duration-1000"
           />
         ) : (
-          <div className="w-full h-full bg-indigo-500/5 blur-[120px] scale-150 opacity-20" />
+          <div className="w-full h-full bg-zinc-950" />
         )}
       </div>
 
-      <div className="relative z-10 text-center flex flex-col items-center">
-        <div className="flex items-center gap-3 mb-6 bg-white/5 px-4 py-2 rounded-full border border-white/5 backdrop-blur-md">
-          <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse" />
-          <p
-            className={cn(
-              "font-bold tracking-[0.2em] uppercase text-[12px] text-white",
-              status && "text-red-500",
-            )}
-          >
-            {status ||
-              (isRoomJoin
-                ? "Connecting to meeting..."
-                : callType === "video"
-                  ? "Video Calling..."
-                  : "Calling...")}
+      <div className="relative z-20 flex flex-col items-center gap-10">
+        {/* Connection Pill */}
+        <div className="flex items-center gap-2.5 bg-white/5 px-6 py-2.5 rounded-full border border-white/10 backdrop-blur-md shadow-2xl">
+          <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse shadow-[0_0_12px_rgba(99,102,241,0.8)]" />
+          <p className="font-black tracking-[0.25em] uppercase text-[11px] text-white/90">
+            {status || (isRoomJoin ? "Connecting to meeting..." : "Calling...")}
           </p>
         </div>
 
-        <h2 className="text-3xl font-bold text-white tracking-tight leading-tight flex items-center gap-3">
+        {/* Meeting Room Text */}
+        <h1 className="text-5xl font-bold text-white tracking-tight drop-shadow-2xl">
           {isRoomJoin ? "Meeting Room" : peer?.name}
-          {peer?.isModerator && (
-            <Badge className="bg-indigo-600 text-white text-sm px-2 py-0.5 font-bold">
-              Moderator
-            </Badge>
-          )}
-        </h2>
-      </div>
+        </h1>
 
-      <div className="relative z-10">
-        <div className="relative group">
-          <div
-            className={cn(
-              "absolute inset-0 rounded-full scale-150 blur-2xl animate-pulse duration-[3000ms]",
-              status ? "bg-red-500/20" : "bg-indigo-500/20",
-            )}
-          />
-          <div
-            className={cn(
-              "absolute inset-0 rounded-full scale-125 animate-ping duration-[2000ms]",
-              status ? "bg-red-500/10" : "bg-indigo-500/10",
-            )}
-          />
-          <Avatar className="h-32 w-32 border-8 border-white/10 shadow-[0_0_100px_rgba(0,0,0,0.5)] relative z-10 transition-transform duration-700 group-hover:scale-105">
-            {avatarUrl ? <AvatarImage src={avatarUrl} /> : null}
-            <AvatarFallback className="bg-zinc-800 text-7xl font-bold text-zinc-500">
-              {isRoomJoin ? (
-                <Monitor className="w-24 h-24" />
-              ) : (
-                peer?.name?.charAt(0)
-              )}
-            </AvatarFallback>
-          </Avatar>
+        {/* Monitor Icon Section */}
+        <div className="relative mt-4">
+          {/* Outer Glows */}
+          <div className="absolute inset-0 rounded-full bg-indigo-500/10 scale-150 blur-3xl animate-pulse" />
+          <div className="absolute inset-0 rounded-full bg-indigo-500/5 scale-[2] blur-[80px]" />
+          
+          {/* Icon Container */}
+          <div className="w-48 h-48 rounded-full bg-white/[0.03] border border-white/10 flex items-center justify-center shadow-2xl relative z-10 backdrop-blur-xl">
+             <div className="w-36 h-36 rounded-full bg-white/[0.02] border border-white/5 flex items-center justify-center">
+                <Monitor className="w-20 h-20 text-white/20" />
+             </div>
+          </div>
         </div>
-      </div>
 
-      <div className="relative z-10 pt-8">
-        <button
-          onClick={endCall}
-          className="h-20 w-20 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center shadow-[0_0_40px_rgba(239,68,68,0.4)] transition-all hover:scale-105 active:scale-95 border-b-4 border-red-700"
-        >
-          <PhoneOff className="w-10 h-10 text-white" />
-        </button>
-        <p className="text-red-500/60 uppercase font-black tracking-widest text-[9px] text-center mt-4">
-          End Call
-        </p>
+        {/* End Call Button Section */}
+        <div className="flex flex-col items-center gap-4 mt-8">
+           <button
+            onClick={endCall}
+            className="h-24 w-24 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center shadow-[0_0_60px_rgba(239,68,68,0.3)] transition-all hover:scale-105 active:scale-95 border-b-4 border-red-700 group"
+          >
+            <PhoneOff className="w-10 h-10 text-white" />
+          </button>
+          <span className="text-red-500/60 uppercase font-black tracking-[0.4em] text-[10px] text-center">
+            End Call
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -507,18 +504,19 @@ export default function VideoCallOverlay() {
     isGroupCall,
     callStatus,
     workgroupId,
+    isOutgoing,
     callMessages,
     sendCallMessage,
   } = useVideoCall();
+  
+  const effectiveIsGroupCall = isGroupCall || Object.keys(peers).length > 1;
 
   const { users: allUsers = [] } = useAdminUsers();
   const { user, profile: currentUser } = useAuth();
   const [showInvitePopover, setShowInvitePopover] = useState(false);
 
-  // Filter to workgroup members only (excluding self and already-in-call peers)
   const inviteableUsers = useMemo(() => {
     const peerIds = new Set(Object.keys(peers));
-    // User requested ALL company users
     const sourceList = allUsers;
     return sourceList.filter(
       (u: any) => u.id !== user?.id && !peerIds.has(u.id),
@@ -561,15 +559,15 @@ export default function VideoCallOverlay() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const controlsTimerRef = useRef<number | null>(null);
 
-  // Dragging & Minimize State
   const [isMinimized, setIsMinimized] = useState(false);
   const [mobilePosition, setMobilePosition] = useState({ x: 0, y: 0 });
   const [minimizedPosition, setMinimizedPosition] = useState({ x: 0, y: 0 });
   const [pipPosition, setPipPosition] = useState({ x: 0, y: 0 });
   const [pipMode, setPipMode] = useState<"local" | "remote">("local");
-  const [pipSwapped, setPipSwapped] = useState(false); // true = PiP is main, main is PiP
-  const [gridPage, setGridPage] = useState(0); // pagination for group call grid
+  const [pipSwapped, setPipSwapped] = useState(false); 
+  const [gridPage, setGridPage] = useState(0); 
 
+  const [showEndConfirm, setShowEndConfirm] = useState(false);
   const dragRef = useRef({
     startX: 0,
     startY: 0,
@@ -637,7 +635,21 @@ export default function VideoCallOverlay() {
     }
   };
 
-  // Auto-hide controls
+  const handleEndCallClick = () => {
+    const peerCount = Object.keys(peers).length;
+
+    if (peerCount <= 1) {
+      // 1-on-1 call: end for both sides immediately, no dialog
+      endCall(true);
+    } else if (isOutgoing) {
+      // Group call + original caller: show "End for Everyone" / "Leave" dialog
+      setShowEndConfirm(true);
+    } else {
+      // Group call + non-caller: just leave silently
+      endCall(false);
+    }
+  };
+
   useEffect(() => {
     if (callState !== "connected") {
       setShowControls(true);
@@ -661,7 +673,6 @@ export default function VideoCallOverlay() {
     };
   }, [callState]);
 
-  // Scroll chat to bottom
   useEffect(() => {
     if (showChat) {
       chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -670,14 +681,12 @@ export default function VideoCallOverlay() {
 
   if (callState === "idle") return null;
 
-  console.log("[VideoCallOverlay] rendering, callState:", callState);
-
   const peerList = Object.values(peers);
   const firstPeer = peerList[0];
 
   const renderInMobileFrame = (content: React.ReactNode) => (
     <div
-      className="fixed top-20 bottom-10 right-12 z-[9999] animate-in slide-in-from-right-20 fade-in duration-700 hidden lg:block touch-none"
+      className="fixed top-20 bottom-10 right-12 z-[9999] animate-in slide-in-from-right-20 fade-in duration-700 block"
       style={{
         transform: `translate3d(${mobilePosition.x}px, ${mobilePosition.y}px, 0)`,
       }}
@@ -955,14 +964,25 @@ export default function VideoCallOverlay() {
   }
 
   const renderCallContent = () => {
-    // Status (Busy/Declined) or Outgoing
-    if (callStatus || callState === "outgoing" || callState === "connecting") {
+    // Status (Busy/Declined) or Outgoing/Connecting
+    // For group calls or calls with existing peers, show the grid/controls immediately.
+    const isActuallyConnecting = callState === "outgoing" || callState === "connecting";
+    const showOutgoingView = callStatus || (isActuallyConnecting && !isGroupCall && peerList.length === 0);
+
+    if (showOutgoingView) {
       return (
         <OutgoingCallView
           peer={firstPeer}
           callType={callType}
           status={callStatus}
-          endCall={endCall}
+          endCall={handleEndCallClick}
+          localStream={localStream}
+          isMuted={isMuted}
+          isVideoOff={isVideoOff}
+          toggleMute={toggleMute}
+          toggleVideo={toggleVideo}
+          toggleScreenShare={toggleScreenShare}
+          toggleChat={toggleChat}
         />
       );
     }
@@ -976,7 +996,7 @@ export default function VideoCallOverlay() {
       <div
         className={cn(
           "w-full h-full relative bg-zinc-950 flex transition-all duration-500",
-          isGroupCall || anyScreenSharing || isAudioCallView
+          effectiveIsGroupCall || anyScreenSharing || isAudioCallView
             ? "p-0"
             : "pt-5 pb-5",
         )}
@@ -989,15 +1009,15 @@ export default function VideoCallOverlay() {
               isMuted={isMuted}
               isVideoOff={isVideoOff}
               toggleMute={toggleMute}
-              endCall={endCall}
+              endCall={handleEndCallClick}
               renderInvitePopover={renderInvitePopover}
               toggleVideo={toggleVideo}
-              toggleChat={() => setShowChat(!showChat)}
+                toggleChat={() => setShowChat(!showChat)}
               showChat={showChat}
             />
           ) : (
             <>
-              <div className="flex-1 relative overflow-hidden flex flex-col">
+              <div className="flex-1 relative overflow-visible flex flex-col">
                 {/* Main Viewing Area */}
                 {/* Active Screen Share View (Local or Remote) */}
                 {anyScreenSharing ? (
@@ -1327,18 +1347,18 @@ export default function VideoCallOverlay() {
 
               <div
                 className={cn(
-                  "relative z-[70] transition-all duration-500",
-                  isGroupCall
+                  "relative z-[150] transition-all duration-500",
+                  effectiveIsGroupCall
                     ? "bg-zinc-900/50 backdrop-blur-3xl border-t border-white/5 px-6 py-4"
-                    : "h-0",
+                    : "h-24",
                 )}
               >
                 <div
                   className={cn(
                     "flex items-center justify-between max-w-5xl mx-auto",
-                    !isGroupCall &&
-                      "absolute bottom-12 left-1/2 -translate-x-1/2 flex items-center gap-3 px-4 py-3 bg-white/5 backdrop-blur-3xl rounded-[32px] border border-white/10 z-30 transition-all",
-                    !isGroupCall &&
+                    !effectiveIsGroupCall &&
+                      "absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 px-6 py-4 bg-zinc-900/95 backdrop-blur-3xl rounded-[32px] border border-white/10 z-[160] transition-all shadow-2xl min-w-[300px]",
+                    !effectiveIsGroupCall &&
                       !showControls &&
                       "opacity-0 translate-y-10 scale-90 pointer-events-none",
                   )}
@@ -1446,7 +1466,7 @@ export default function VideoCallOverlay() {
 
                     {/* End Call */}
                     <button
-                      onClick={endCall}
+                      onClick={handleEndCallClick}
                       className="px-6 h-12 rounded-2xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-widest shadow-xl transition-all active:scale-95 hover:scale-105"
                     >
                       Leave Call
@@ -1464,13 +1484,13 @@ export default function VideoCallOverlay() {
 
   const content = (
     <div
-      className={cn("w-full h-full relative", isGroupCall ? "bg-zinc-950" : "")}
+      className={cn("w-full h-full relative", effectiveIsGroupCall ? "bg-zinc-950" : "")}
     >
       {/* Dynamic Header */}
       <div
         className={cn(
           "absolute left-8 right-8 flex justify-between items-center z-[80] transition-all",
-          isGroupCall ? "top-8" : "top-10",
+          effectiveIsGroupCall ? "top-8" : "top-10",
         )}
       >
         <div className="flex items-center gap-3">
@@ -1507,7 +1527,7 @@ export default function VideoCallOverlay() {
           )}
         </div>
 
-        {!isGroupCall && peerList.length > 1 && (
+        {!effectiveIsGroupCall && peerList.length > 1 && (
           <div className="text-[10px] text-white font-bold bg-white/5 px-2 py-1 rounded mt-1">
             {peerList.length + 1} ON CALL
           </div>
@@ -1599,7 +1619,7 @@ export default function VideoCallOverlay() {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                endCall();
+                handleEndCallClick();
               }}
               className="w-8 h-8 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center transition-all"
             >
@@ -1622,38 +1642,81 @@ export default function VideoCallOverlay() {
   }
 
   return createPortal(
-    shouldShowFullScreen ? (
-      <div className="fixed inset-0 z-[9999] bg-zinc-950 animate-in fade-in duration-500">
-        {content}
-      </div>
-    ) : (
-      // Audio call - mobile frame with minimize button
-      <div
-        className="fixed top-20 bottom-10 right-12 z-[9999] animate-in slide-in-from-right-20 fade-in duration-700 hidden lg:block touch-none"
-        style={{
-          transform: `translate3d(${mobilePosition.x}px, ${mobilePosition.y}px, 0)`,
-        }}
-        onMouseDown={(e) => handleMouseDown(e, "mobile")}
-      >
-        {/* Minimize button */}
-        <button
-          onClick={() => setIsMinimized(true)}
-          className="absolute top-3 right-3 z-50 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all border border-white/10"
-          title="Minimize call"
-        >
-          <Minimize2 className="w-4 h-4 text-white" />
-        </button>
-        <div className="relative w-[310px] h-[560px] bg-zinc-950 rounded-[48px] border-[10px] border-zinc-900 shadow-[0_80px_160px_rgba(0,0,0,1)] overflow-hidden ring-1 ring-white/10 ring-inset">
-          {/* Dynamic Island style Notch */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-7 bg-zinc-900 rounded-b-[20px] z-50 flex items-center justify-center cursor-move">
-            <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse mr-2" />
-            <div className="w-10 h-1.5 bg-white/10 rounded-full" />
-          </div>
-          <div className="absolute inset-0 pointer-events-none z-40 bg-gradient-to-tr from-transparent via-white/[0.02] to-white/[0.04]" />
+    <>
+      {shouldShowFullScreen ? (
+        <div className="fixed inset-0 z-[9999] bg-zinc-950 animate-in fade-in duration-500">
           {content}
         </div>
-      </div>
-    ),
+      ) : (
+        // Audio call - mobile frame with minimize button
+        <div
+          className="fixed top-20 bottom-10 right-12 z-[9999] animate-in slide-in-from-right-20 fade-in duration-700 block"
+          style={{
+            transform: `translate3d(${mobilePosition.x}px, ${mobilePosition.y}px, 0)`,
+          }}
+          onMouseDown={(e) => handleMouseDown(e, "mobile")}
+        >
+          {/* Minimize button */}
+          <button
+            onClick={() => setIsMinimized(true)}
+            className="absolute top-3 right-3 z-50 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all border border-white/10"
+            title="Minimize call"
+          >
+            <Minimize2 className="w-4 h-4 text-white" />
+          </button>
+          <div className="relative w-[310px] h-[560px] bg-zinc-950 rounded-[48px] border-[10px] border-zinc-900 shadow-[0_80px_160px_rgba(0,0,0,1)] overflow-hidden ring-1 ring-white/10 ring-inset">
+            {/* Dynamic Island style Notch */}
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-7 bg-zinc-900 rounded-b-[20px] z-50 flex items-center justify-center cursor-move">
+              <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse mr-2" />
+              <div className="w-10 h-1.5 bg-white/10 rounded-full" />
+            </div>
+            <div className="absolute inset-0 pointer-events-none z-40 bg-gradient-to-tr from-transparent via-white/[0.02] to-white/[0.04]" />
+            {content}
+          </div>
+        </div>
+      )}
+
+      {/* End Call Confirmation Dialog */}
+      {showEndConfirm && (
+        <div className="fixed inset-0 z-[10002] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="w-[320px] bg-zinc-900 rounded-3xl border border-white/10 p-6 shadow-2xl animate-in zoom-in-95 duration-300 no-drag">
+            <h3 className="text-xl font-bold text-white mb-2 text-center">End Meeting?</h3>
+            <p className="text-zinc-400 text-sm mb-6 text-center">
+              Do you want to end the meeting for everyone or just leave?
+            </p>
+            <div className="flex flex-col gap-3">
+              <Button 
+                variant="destructive" 
+                className="w-full h-12 rounded-2xl font-bold text-sm"
+                onClick={() => {
+                  endCall(true);
+                  setShowEndConfirm(false);
+                }}
+              >
+                End for Everyone
+              </Button>
+              <Button 
+                variant="outline" 
+                className="w-full h-12 rounded-2xl font-bold text-sm bg-white/5 border-white/10 hover:bg-white/10 text-white"
+                onClick={() => {
+                  endCall(false);
+                  setShowEndConfirm(false);
+                }}
+              >
+                Leave Meeting
+              </Button>
+              <Button 
+                variant="ghost" 
+                className="w-full h-12 rounded-2xl font-bold text-xs text-zinc-500 hover:text-white"
+                onClick={() => setShowEndConfirm(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>,
     document.body,
   );
 }
