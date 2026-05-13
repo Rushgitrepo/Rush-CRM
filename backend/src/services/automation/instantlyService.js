@@ -333,6 +333,25 @@ class InstantlyService {
 
         // Auto-add to leads table if enabled
         if (autoAddLeads) {
+          // If we use the emails API, the item often lacks lead name/company. Fetch it!
+          if (useEmailsApi && !firstName && !companyName && item.campaign_id) {
+            try {
+              const leadRes = await axios.get(`https://api.instantly.ai/api/v1/lead/get`, {
+                params: { campaign_id: item.campaign_id, email: leadEmail },
+                headers: { Authorization: `Bearer ${decryptedKey}` }
+              });
+              if (leadRes.data && leadRes.data.length > 0) {
+                const leadDetails = leadRes.data[0];
+                firstName = leadDetails.first_name || firstName;
+                lastName = leadDetails.last_name || lastName;
+                companyName = leadDetails.company_name || companyName;
+                phoneNumber = leadDetails.phone || phoneNumber;
+              }
+            } catch (err) {
+              console.log(`[Instantly Service] Could not fetch extra lead info for ${leadEmail}`);
+            }
+          }
+
           await this._ensureLeadExists(orgId, {
             email: leadEmail,
             first_name: firstName,
