@@ -281,6 +281,15 @@ const getAll = async (req, res, next) => {
 
     const isAdmin = req.user.role === 'super_admin' || req.user.role === 'admin';
 
+    let hasUniboxAccess = false;
+    if (!isAdmin) {
+      const userCheck = await db.query(
+        `SELECT has_unibox_access FROM users WHERE id = $1`,
+        [req.user.id]
+      );
+      hasUniboxAccess = userCheck.rows[0]?.has_unibox_access || false;
+    }
+
     // Workspace filtering
     if (workspaceId) {
       query += ` AND l.workspace_id = $${paramIndex}`;
@@ -300,6 +309,7 @@ const getAll = async (req, res, next) => {
           WHERE lwa.lead_id = l.id AND wm.user_id = $${paramIndex}
           AND (lwa.expires_at IS NULL OR lwa.expires_at > CURRENT_TIMESTAMP)
         )
+        ${hasUniboxAccess ? " OR l.source = 'Instantly'" : ""}
       )`;
       params.push(req.user.id);
       paramIndex++;
@@ -380,7 +390,9 @@ const getAll = async (req, res, next) => {
     let countIdx = 2;
 
     if (!isAdmin) {
-      countQuery += ` AND (l.assigned_to = $${countIdx} OR l.owner_id = $${countIdx} OR l.user_id = $${countIdx} OR l.created_by = $${countIdx})`;
+      countQuery += ` AND (l.assigned_to = $${countIdx} OR l.owner_id = $${countIdx} OR l.user_id = $${countIdx} OR l.created_by = $${countIdx}
+        ${hasUniboxAccess ? " OR l.source = 'Instantly'" : ""}
+      )`;
       countParams.push(req.user.id);
       countIdx++;
     }

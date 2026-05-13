@@ -29,6 +29,7 @@ interface Integration {
   id: string;
   org_id: string;
   is_enabled: boolean;
+  auto_add_leads: boolean;
   status: string;
   webhook_url: string | null;
   webhook_secret: string | null;
@@ -124,6 +125,16 @@ export default function InstantlyIntegrationPanel() {
       await fetchHealth();
     } catch (err: any) {
       toast.error("Failed to toggle integration");
+    }
+  };
+
+  const handleAutoAddToggle = async (enabled: boolean) => {
+    try {
+      await api.post('/integrations/instantly', { action: 'toggle', auto_add_leads: enabled });
+      toast.success(`Auto-add leads ${enabled ? "enabled" : "disabled"}`);
+      await fetchHealth();
+    } catch (err: any) {
+      toast.error("Failed to toggle auto-add leads");
     }
   };
 
@@ -236,6 +247,22 @@ export default function InstantlyIntegrationPanel() {
               <Switch
                 checked={integration?.is_enabled ?? false}
                 onCheckedChange={handleToggle}
+              />
+            </div>
+          )}
+
+          {/* Auto-add Leads Toggle */}
+          {isConnected && (
+            <div className="flex items-center justify-between rounded-lg border border-border p-4">
+              <div>
+                <span className="font-medium text-foreground">Auto-add Leads</span>
+                <p className="text-sm text-muted-foreground">
+                  Automatically add interested leads from Instantly to your CRM leads
+                </p>
+              </div>
+              <Switch
+                checked={integration?.auto_add_leads ?? false}
+                onCheckedChange={handleAutoAddToggle}
               />
             </div>
           )}

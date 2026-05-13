@@ -88,11 +88,13 @@ const instantly = async (req, res, next) => {
     }
 
     if (action === 'toggle') {
+      const current = await instantlyService.getSettings(orgId);
       const settings = await instantlyService.saveSettings(orgId, { 
-        api_key: (await instantlyService.getSettings(orgId))?.api_key_encrypted, 
-        is_enabled 
+        api_key: current?.api_key_encrypted, 
+        is_enabled: is_enabled !== undefined ? is_enabled : current?.is_enabled,
+        auto_add_leads: req.body.auto_add_leads !== undefined ? req.body.auto_add_leads : current?.auto_add_leads
       });
-      return res.json({ message: `Instantly ${is_enabled ? 'enabled' : 'disabled'}`, settings });
+      return res.json({ message: 'Settings updated', settings });
     }
 
     if (action === 'sync') {

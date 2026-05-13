@@ -318,31 +318,31 @@ const convertToLead = async (req, res, next) => {
 const checkPermission = async (req, res, next) => {
   try {
     console.log('Unibox permission check for user:', req.user.id, req.user.email, req.user.role);
-    
+
     // Check if user is super admin
     const userResult = await db.query(
       'SELECT role, has_unibox_access FROM users WHERE id = $1 AND org_id = $2',
       [req.user.id, req.user.orgId]
     );
-    
+
     console.log('Database result:', userResult.rows);
-    
+
     if (userResult.rows.length === 0) {
       console.log('No user found in database');
       return res.json({ hasPermission: false, isOwner: false });
     }
-    
+
     const user = userResult.rows[0];
     const isSuperAdmin = user.role === 'super_admin';
     const hasAccess = isSuperAdmin || user.has_unibox_access || false;
-    
+
     console.log('Permission check result:', { isSuperAdmin, hasAccess, role: user.role, has_unibox_access: user.has_unibox_access });
-    
-    const result = { 
-      hasPermission: hasAccess, 
-      isOwner: isSuperAdmin 
+
+    const result = {
+      hasPermission: hasAccess,
+      isOwner: isSuperAdmin
     };
-    
+
     console.log('Sending response:', result);
     res.json(result);
   } catch (err) {
@@ -359,11 +359,11 @@ const getPermissions = async (req, res, next) => {
       'SELECT role FROM users WHERE id = $1 AND org_id = $2',
       [req.user.id, req.user.orgId]
     );
-    
+
     if (adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'super_admin') {
       return res.status(403).json({ error: 'Only super admins can view permissions' });
     }
-    
+
     const result = await db.query(
       `SELECT 
         id,
@@ -377,7 +377,7 @@ const getPermissions = async (req, res, next) => {
       ORDER BY full_name ASC`,
       [req.user.orgId]
     );
-    
+
     res.json(result.rows);
   } catch (err) {
     next(err);
@@ -388,38 +388,38 @@ const getPermissions = async (req, res, next) => {
 const grantPermission = async (req, res, next) => {
   try {
     const { user_id } = req.body;
-    
+
     // Check if user is super admin
     const adminCheck = await db.query(
       'SELECT role FROM users WHERE id = $1 AND org_id = $2',
       [req.user.id, req.user.orgId]
     );
-    
+
     if (adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'super_admin') {
       return res.status(403).json({ error: 'Only super admins can grant permissions' });
     }
-    
+
     if (!user_id) {
       return res.status(400).json({ error: 'user_id is required' });
     }
-    
+
     // Check if user exists in the same org
     const userCheck = await db.query(
       'SELECT id, full_name FROM users WHERE id = $1 AND org_id = $2',
       [user_id, req.user.orgId]
     );
-    
+
     if (userCheck.rows.length === 0) {
       return res.status(404).json({ error: 'User not found in your organization' });
     }
-    
+
     // Grant permission
     await db.query(
       'UPDATE users SET has_unibox_access = TRUE WHERE id = $1 AND org_id = $2',
       [user_id, req.user.orgId]
     );
-    
-    res.json({ 
+
+    res.json({
       message: `Unibox access granted to ${userCheck.rows[0].full_name}`
     });
   } catch (err) {
@@ -431,26 +431,26 @@ const grantPermission = async (req, res, next) => {
 const revokePermission = async (req, res, next) => {
   try {
     const { user_id } = req.params;
-    
+
     // Check if user is super admin
     const adminCheck = await db.query(
       'SELECT role FROM users WHERE id = $1 AND org_id = $2',
       [req.user.id, req.user.orgId]
     );
-    
+
     if (adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'super_admin') {
       return res.status(403).json({ error: 'Only super admins can revoke permissions' });
     }
-    
+
     const result = await db.query(
       'UPDATE users SET has_unibox_access = FALSE WHERE id = $1 AND org_id = $2 RETURNING full_name',
       [user_id, req.user.orgId]
     );
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     res.json({ message: 'Unibox access revoked successfully' });
   } catch (err) {
     next(err);

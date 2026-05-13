@@ -80,21 +80,66 @@ class InstantlyService {
   /**
    * Save integration settings
    */
-  async saveSettings(orgId, { api_key, is_enabled }) {
+  async saveSettings(orgId, { api_key, is_enabled, auto_add_leads = false }) {
     // In a real app, we'd encrypt the API key
     // For now, satisfy the requirement by storing it
     const query = `
-      INSERT INTO instantly_integrations (org_id, api_key_encrypted, is_enabled, status, updated_at)
-      VALUES ($1, $2, $3, 'connected', now())
+      INSERT INTO instantly_integrations (org_id, api_key_encrypted, is_enabled, auto_add_leads, status, updated_at)
+      VALUES ($1, $2, $3, $4, 'connected', now())
       ON CONFLICT (org_id) DO UPDATE SET
         api_key_encrypted = EXCLUDED.api_key_encrypted,
         is_enabled = EXCLUDED.is_enabled,
+        auto_add_leads = EXCLUDED.auto_add_leads,
         status = 'connected',
         updated_at = now()
       RETURNING *
     `;
-    const result = await db.query(query, [orgId, api_key, is_enabled]);
+    const result = await db.query(query, [orgId, api_key, is_enabled, auto_add_leads]);
     return result.rows[0];
+  }
+
+  /**
+   * Helper to ensure a lead exists in the leads table
+   */
+  async _ensureLeadExists(orgId, leadData) {
+    try {
+      const { email, first_name, last_name, company, phone, source = 'Instantly' } = leadData;
+      
+      if (!email) return;
+
+      // Ensure "First Engagement" stage exists
+      const stageKey = 'first_engagement';
+      const stageCheck = await db.query(
+        "SELECT id FROM pipeline_stages WHERE org_id = $1 AND pipeline = 'leads' AND stage_key = $2",
+        [orgId, stageKey]
+      );
+      if (stageCheck.rows.length === 0) {
+        await db.query(
+          `INSERT INTO pipeline_stages (org_id, pipeline, stage_key, stage_label, sort_order, color, is_active)
+           VALUES ($1, 'leads', $2, 'First Engagement', 1, '#10b981', true)`,
+          [orgId, stageKey]
+        );
+      }
+
+      // Check if lead exists
+      const existing = await db.query(
+        'SELECT id FROM leads WHERE email = $1 AND (org_id = $2 OR organization_id = $2)',
+        [email, orgId]
+      );
+
+      if (existing.rows.length === 0) {
+        console.log(`[Instantly Service] Auto-adding new lead: ${email}`);
+        const fullName = [first_name, last_name].filter(Boolean).join(' ') || email.split('@')[0];
+        await db.query(
+          `INSERT INTO leads (
+            org_id, organization_id, title, name, first_name, last_name, email, phone, company, company_name, source, status, stage, created_at, updated_at
+          ) VALUES ($1, $1, $2, $2, $3, $4, $5, $6, $7, $7, $8, $9, $9, now(), now())`,
+          [orgId, fullName, first_name || null, last_name || null, email, phone || null, company || null, source, stageKey]
+        );
+      }
+    } catch (err) {
+      console.error('[Instantly Service] Failed to auto-add lead:', err.message);
+    }
   }
 
   /**
@@ -117,167 +162,251 @@ class InstantlyService {
       throw new Error('Instantly integration not configured or enabled');
     }
 
-    const apiKey = settings.api_key_encrypted; // Should decrypt here
+    const apiKey = settings.api_key_encrypted;
+    const MAX_ITEMS = 500;
+    const autoAddLeads = settings.auto_add_leads === true;
 
     try {
-      // Call Instantly API - try different endpoints based on Instantly.ai API documentation
-      let response;
-      let endpoint;
-      
-      // Try common Instantly.ai endpoints in order of likelihood
-      const endpoints = [
-        '/unibox',           // Most likely for inbox emails
-        '/campaigns',        // Get campaigns first, then leads
-        '/accounts',         // Account-based approach
-        '/lead-lists'        // Lead lists approach
-      ];
-      
-      let lastError;
-      for (const testEndpoint of endpoints) {
-        try {
-          console.log(`[Instantly Service] Trying endpoint: ${testEndpoint}`);
-          response = await fetch(`${this.baseUrl}${testEndpoint}?limit=50`, {
-            headers: {
-              'Authorization': `Bearer ${apiKey}`,
-              'Accept': 'application/json'
-            }
+      // ── Try /emails API first (returns actual subject + body content) ──
+      // Falls back to /leads/list if API key lacks emails:read scope
+      let allItems = [];
+      let useEmailsApi = true;
+      let startingAfterId = null;
+      let hasMore = true;
+
+      // First, test if we have emails:read scope
+      console.log('[Instantly Service] Testing /emails API access...');
+      const testResponse = await fetch(`${this.baseUrl}/emails?limit=1&i_status=1`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Accept': 'application/json' }
+      });
+
+      if (!testResponse.ok) {
+        const testErr = await testResponse.json().catch(() => ({}));
+        if (testErr.message && testErr.message.includes('scope')) {
+          console.warn('[Instantly Service] ⚠️ API key lacks emails:read scope — falling back to /leads/list (no email content will be available)');
+          console.warn('[Instantly Service] To get email subject & body, update your API key at app.instantly.ai → Settings → Integrations → API and add "emails:read" scope');
+          useEmailsApi = false;
+        } else {
+          throw new Error(`Instantly API error: ${testErr.message || testResponse.status}`);
+        }
+      }
+
+      if (useEmailsApi) {
+        // ── EMAILS API: Returns subject, body.text, body.html ──
+        console.log('[Instantly Service] ✅ Using /emails API (full content)');
+        // We already got the test response, use its data
+        const testData = await testResponse.json().catch(() => null);
+        // Don't use test data, start fresh pagination
+        startingAfterId = null;
+        hasMore = true;
+
+        while (hasMore && allItems.length < MAX_ITEMS) {
+          const params = new URLSearchParams({
+            limit: '100',
+            i_status: '1',
+            latest_of_thread: 'true',
+            preview_only: 'false'
           });
-          
-          if (response.ok) {
-            endpoint = testEndpoint;
-            console.log(`[Instantly Service] Success with endpoint: ${endpoint}`);
-            break;
-          } else {
+          if (startingAfterId) params.set('starting_after', startingAfterId);
+
+          const response = await fetch(`${this.baseUrl}/emails?${params.toString()}`, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${apiKey}`, 'Accept': 'application/json' }
+          });
+
+          if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            lastError = errorData.message || `${response.status}: ${response.statusText}`;
-            console.log(`[Instantly Service] Failed ${testEndpoint}: ${lastError}`);
+            throw new Error(`Instantly /emails error: ${errorData.message || response.status}`);
           }
-        } catch (error) {
-          lastError = error.message;
-          console.log(`[Instantly Service] Error with ${testEndpoint}: ${lastError}`);
-        }
-      }
-      
-      if (!response || !response.ok) {
-        throw new Error(`All Instantly.ai endpoints failed. Last error: ${lastError}. Please check your API key scopes and Instantly.ai documentation.`);
-      }
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        const errorMessage = errorData.message || `API error: ${response.status}`;
-        
-        // Handle specific scope error
-        if (errorMessage.includes('leads:read') || errorMessage.includes('emails:read')) {
-          throw new Error('Instantly API key missing required scope: leads:read. Please regenerate your API key with leads permissions.');
-        }
-        
-        throw new Error(errorMessage);
-      }
+          const data = await response.json();
+          const items = data.items || [];
+          console.log(`[Instantly Service] Fetched ${items.length} emails (page ${Math.ceil(allItems.length / 100) + 1})`);
+          allItems.push(...items);
 
-      const data = await response.json();
-      console.log(`[Instantly Service] API Response from ${endpoint}:`, JSON.stringify(data, null, 2));
-      
-      // Handle different response structures based on endpoint
-      let items = [];
-      if (endpoint === '/unibox') {
-        items = data.emails || data.messages || data.items || data.data || [];
-      } else if (endpoint === '/campaigns') {
-        items = data.campaigns || data.data || [];
-        // For campaigns, we'd need to fetch leads from each campaign
-        console.log(`[Instantly Service] Found ${items.length} campaigns, but need to implement campaign-specific lead fetching`);
-        return { total: 0, synced: 0, message: 'Found campaigns but need campaign-specific implementation' };
-      } else if (endpoint === '/lead-lists') {
-        const leadLists = data.items || data.data || [];
-        console.log(`[Instantly Service] Found ${leadLists.length} lead lists`);
-        
-        if (leadLists.length === 0) {
-          return { total: 0, synced: 0, message: 'No lead lists found. Create lead lists in Instantly.ai first.' };
-        }
-        
-        // Fetch leads from each lead list
-        for (const leadList of leadLists) {
-          console.log(`[Instantly Service] Fetching leads from list: ${leadList.name || leadList.id}`);
-          try {
-            const leadsResponse = await fetch(`${this.baseUrl}/lead-lists/${leadList.id}/leads?limit=100`, {
-              headers: {
-                'Authorization': `Bearer ${apiKey}`,
-                'Accept': 'application/json'
-              }
-            });
-            
-            if (leadsResponse.ok) {
-              const leadsData = await leadsResponse.json();
-              const leads = leadsData.items || leadsData.data || [];
-              console.log(`[Instantly Service] Found ${leads.length} leads in list ${leadList.name || leadList.id}`);
-              items.push(...leads);
-            }
-          } catch (error) {
-            console.log(`[Instantly Service] Failed to fetch leads from list ${leadList.id}: ${error.message}`);
+          if (items.length < 100 || !data.next_starting_after) {
+            hasMore = false;
+          } else {
+            startingAfterId = data.next_starting_after;
           }
         }
       } else {
-        items = data.leads || data.items || data.data || data || [];
-      }
-      
-      console.log(`[Instantly Service] Processing ${items.length} items from ${endpoint}`);
-      
-      if (items.length === 0) {
-        return { total: 0, synced: 0, message: `No items found in ${endpoint}` };
-      }
-      
-      let syncCount = 0;
+        // ── LEADS API FALLBACK: Only returns metadata (name, email, company) — NO content ──
+        console.log('[Instantly Service] Using /leads/list fallback (metadata only, no email content)');
+        startingAfterId = null;
+        hasMore = true;
 
-      for (const item of items) {
-        // Handle different item structures based on endpoint
-        let email, lead;
-        if (endpoint === '/unibox') {
-          email = item;
-          lead = null;
-        } else {
-          lead = item;
-          email = item.email || item.last_reply || item;
+        while (hasMore && allItems.length < MAX_ITEMS) {
+          const requestBody = { limit: 100, interest_status: 1 };
+          if (startingAfterId) requestBody.starting_after = startingAfterId;
+
+          const response = await fetch(`${this.baseUrl}/leads/list`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(`Instantly /leads/list error: ${errorData.message || response.status}`);
+          }
+
+          const data = await response.json();
+          const items = data.items || data.data || [];
+          console.log(`[Instantly Service] Fetched ${items.length} leads (page ${Math.ceil(allItems.length / 100) + 1})`);
+          allItems.push(...items);
+
+          if (items.length < 100 || !data.next_starting_after) {
+            hasMore = false;
+          } else {
+            startingAfterId = data.next_starting_after;
+          }
         }
-        
-        const externalId = (item.id || item.lead_id || item.message_id || `${endpoint}-${Date.now()}-${Math.random()}`).toString();
+      }
 
-        // Check if email already exists to avoid duplicates
-        const existing = await db.query(
-          'SELECT id FROM unibox_emails WHERE message_id = $1 AND org_id = $2',
-          [externalId, orgId]
-        );
+      if (allItems.length > MAX_ITEMS) allItems = allItems.slice(0, MAX_ITEMS);
+      console.log(`[Instantly Service] Total items to process: ${allItems.length} (via ${useEmailsApi ? '/emails' : '/leads/list'})`);
 
-        if (existing.rows.length === 0) {
-          const bodyRaw = email?.body_text || email?.body || item.last_reply_body || item.body || '';
-          const isHtml = /<[a-z][\s\S]*>/i.test(bodyRaw) || (typeof email?.body === 'object' && email.body.html);
-          const bodyHtml = email?.body?.html || email?.body_html || (isHtml ? bodyRaw : '');
-          const bodyText = !isHtml ? bodyRaw : (email?.body_text || email?.body?.text || '');
+      if (allItems.length === 0) {
+        return { total: 0, synced: 0, message: 'No interested leads/emails found in Instantly.' };
+      }
 
-          const result = await db.query(
+      // Get existing records for dedup
+      const existingResult = await db.query(
+        'SELECT external_id, sender_email FROM unibox_emails WHERE org_id = $1',
+        [orgId]
+      );
+      const existingExternalIds = new Set(existingResult.rows.map(r => r.external_id));
+      const existingEmails = new Set(existingResult.rows.map(r => r.sender_email));
+
+      let syncCount = 0;
+      let skipCount = 0;
+      let updateCount = 0;
+
+      for (const item of allItems) {
+        // ── Normalize fields based on which API was used ──
+        let leadEmail, externalId, senderName, subject, bodyText, bodyHtml, receivedAt;
+        let firstName, lastName, companyName, phoneNumber;
+
+        if (useEmailsApi) {
+          // /emails API fields
+          leadEmail = item.lead || item.from_address_email || 'unknown@example.com';
+          externalId = (item.id || `inst-${Date.now()}-${Math.random()}`).toString();
+          senderName = item.from_address_email || leadEmail;
+          subject = item.subject || '(No subject)';
+          bodyText = (item.body && item.body.text) || item.content_preview || '';
+          bodyHtml = (item.body && item.body.html) || '';
+          receivedAt = new Date(item.timestamp_email || item.timestamp_created || Date.now());
+          
+          // Try to get lead details from item
+          firstName = item.lead_first_name;
+          lastName = item.lead_last_name;
+          companyName = item.lead_company_name;
+        } else {
+          // /leads/list API fields (NO email content available)
+          leadEmail = item.email || item.lead_email || 'unknown@example.com';
+          externalId = (item.id || item.lead_id || `inst-${Date.now()}-${Math.random()}`).toString();
+          firstName = item.first_name;
+          lastName = item.last_name;
+          companyName = item.company_name;
+          phoneNumber = item.phone;
+          
+          senderName = [firstName, lastName].filter(Boolean).join(' ') || item.lead_name || companyName || 'Unknown Sender';
+          subject = `${senderName} — ${companyName || 'Interested Lead'}`;
+          bodyText = [
+            companyName ? `Company: ${companyName}` : '',
+            phoneNumber ? `Phone: ${phoneNumber}` : '',
+            item.website ? `Website: ${item.website}` : '',
+            item.payload?.Rating ? `Rating: ${item.payload.Rating}` : '',
+            item.payload?.Profile ? `Profile: ${item.payload.Profile}` : '',
+            '',
+            '⚠️ Full email content unavailable — update your Instantly API key to include "emails:read" scope.'
+          ].filter(Boolean).join('\n');
+          bodyHtml = '';
+          receivedAt = new Date(item.timestamp_updated || item.timestamp_created || Date.now());
+        }
+
+        // Auto-add to leads table if enabled
+        if (autoAddLeads) {
+          await this._ensureLeadExists(orgId, {
+            email: leadEmail,
+            first_name: firstName,
+            last_name: lastName,
+            company: companyName,
+            phone: phoneNumber
+          });
+        }
+
+        // Dedup + backfill logic
+        if (existingExternalIds.has(externalId)) {
+          if (useEmailsApi && subject && bodyText) {
+            try {
+              await db.query(
+                `UPDATE unibox_emails 
+                 SET subject = CASE WHEN subject IS NULL OR subject = '' OR subject LIKE 'Lead:%' THEN $1 ELSE subject END,
+                     body_text = CASE WHEN body_text IS NULL OR body_text = '' THEN $2 ELSE body_text END,
+                     body_html = CASE WHEN body_html IS NULL OR body_html = '' THEN $3 ELSE body_html END,
+                     updated_at = NOW()
+                 WHERE external_id = $4 AND org_id = $5 AND (body_text IS NULL OR body_text = '')`,
+                [subject, bodyText, bodyHtml, externalId, orgId]
+              );
+              updateCount++;
+            } catch (err) { /* silent */ }
+          }
+          skipCount++;
+          continue;
+        }
+
+        if (existingEmails.has(leadEmail)) {
+          if (useEmailsApi && subject && bodyText) {
+            try {
+              const updateResult = await db.query(
+                `UPDATE unibox_emails 
+                 SET subject = CASE WHEN subject IS NULL OR subject = '' OR subject LIKE 'Lead:%' THEN $1 ELSE subject END,
+                     body_text = CASE WHEN body_text IS NULL OR body_text = '' THEN $2 ELSE body_text END,
+                     body_html = CASE WHEN body_html IS NULL OR body_html = '' THEN $3 ELSE body_html END,
+                     external_id = COALESCE(NULLIF(external_id, ''), $4),
+                     updated_at = NOW()
+                 WHERE sender_email = $5 AND org_id = $6 AND (body_text IS NULL OR body_text = '')`,
+                [subject, bodyText, bodyHtml, externalId, leadEmail, orgId]
+              );
+              if (updateResult.rowCount > 0) updateCount++;
+            } catch (err) { /* silent */ }
+          }
+          skipCount++;
+          continue;
+        }
+
+        // Insert new record
+        try {
+          await db.query(
             `INSERT INTO unibox_emails (
               org_id, external_id, sender_email, sender_name, subject, body_text, body_html,
               status, priority, received_at, is_read, metadata
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-            RETURNING *`,
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
             [
-              orgId,
-              externalId,
-              item.email || email?.from_address_email || email?.sender || email?.eaccount || 'unknown@example.com',
-              (item.first_name && item.last_name) ? `${item.first_name} ${item.last_name}` : (email?.sender_name || email?.from_name || item.first_name || item.sender_name || 'Unknown Sender'),
-              email?.subject || item.last_reply_subject || item.subject || 'No Subject',
-              bodyText,
-              bodyHtml,
-              'Lead',
-              'Normal',
-              new Date(email?.timestamp_email || email?.received_at || item.last_reply_at || item.received_at || Date.now()),
-              false,
-              JSON.stringify({ endpoint, item, email, lead })
+              orgId, externalId, leadEmail, senderName, subject, bodyText, bodyHtml,
+              'Interested', 'Normal', receivedAt,
+              useEmailsApi ? (item.is_unread === 1) : false,
+              JSON.stringify({ source: useEmailsApi ? 'emails_api' : 'leads_api', item })
             ]
           );
-
-          if (result.rows[0]) {
-            realtimeService.emitUniboxEmailCreated(orgId, result.rows[0]);
-          }
+          existingExternalIds.add(externalId);
+          existingEmails.add(leadEmail);
           syncCount++;
+
+          if (syncCount % 50 === 0) {
+            console.log(`[Instantly Service] Progress: ${syncCount} synced, ${updateCount} backfilled, ${skipCount} skipped`);
+          }
+        } catch (insertErr) {
+          if (insertErr.code !== '23505') {
+            console.error(`[Instantly Service] Insert failed for ${leadEmail}:`, insertErr.message);
+          }
         }
       }
 
@@ -286,7 +415,12 @@ class InstantlyService {
         [orgId]
       );
 
-      return { total: items.length, synced: syncCount, endpoint };
+      let message = `Synced ${syncCount} new, backfilled ${updateCount}, skipped ${skipCount}.`;
+      if (!useEmailsApi) {
+        message += ' ⚠️ Email content unavailable — add "emails:read" scope to your Instantly API key for full subject & body.';
+      }
+      console.log(`[Instantly Service] ✅ ${message}`);
+      return { total: allItems.length, synced: syncCount, updated: updateCount, skipped: skipCount, message, api_used: useEmailsApi ? 'emails' : 'leads_fallback' };
     } catch (error) {
       console.error('[Instantly Service] Sync failed:', error.message);
       throw error;
@@ -294,35 +428,96 @@ class InstantlyService {
   }
 
   /**
-   * Process incoming webhook event
+   * Process incoming webhook event from Instantly.ai
    */
   async handleWebhook(orgId, payload) {
-    // Log the event
+    console.log(`[Instantly Webhook] Raw payload:`, JSON.stringify(payload, null, 2));
+
+    const eventType = payload.event_type || 'unknown';
+
+    // Log the event for audit trail
     await db.query(
       `INSERT INTO instantly_unibox_events (
         org_id, event_type, payload, sender_email, sender_name, subject, body_text, processed
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, false)`,
       [
         orgId,
-        payload.event_type || 'reply_received',
+        eventType,
         JSON.stringify(payload),
-        payload.sender || payload.from_email,
-        payload.sender_name || payload.from_name,
-        payload.subject,
-        payload.body_text || payload.body
+        payload.lead_email || payload.email_account || null,
+        payload.lead_name || null,
+        payload.campaign_name || payload.subject || null,
+        payload.body_text || payload.body || null
       ]
     );
 
-    if (payload.event_type === 'reply_received' || !payload.event_type) {
-      const externalId = (payload.id || payload.message_id || `inst-${Date.now()}`).toString();
+    // Only process events where the lead is marked as interested
+    const isInterested = eventType === 'lead_interested';
+    const isStatusChange = eventType === 'lead_status_changed';
+    const isMarked = eventType === 'lead_marked';
 
-      // Extract and normalize body content
+    let processedAsInterested = false;
+
+    if (isInterested) {
+      processedAsInterested = true;
+      console.log(`[Instantly Webhook] ✅ Lead interested event received for: ${payload.lead_email}`);
+    } else if (isStatusChange || isMarked) {
+      const newStatus = (payload.new_status || payload.lead_status || payload.status || payload.mark || '').toLowerCase();
+      if (newStatus === 'interested') {
+        processedAsInterested = true;
+        console.log(`[Instantly Webhook] ✅ Status change to interested for: ${payload.lead_email || payload.email}`);
+      }
+    }
+
+    if (!processedAsInterested) {
+      console.log(`[Instantly Webhook] Ignoring event type: ${eventType}`);
+      await this._updateWebhookHealth(orgId, false);
+      return;
+    }
+
+    // Extract lead details
+    const leadEmail = payload.lead_email || payload.email || payload.from_email || payload.sender;
+    if (!leadEmail) {
+      console.error('[Instantly Webhook] No lead email found in payload — cannot process');
+      await this._updateWebhookHealth(orgId, false);
+      return;
+    }
+
+    // Auto-add to leads table if enabled
+    const settings = await this.getSettings(orgId);
+    if (settings && settings.auto_add_leads) {
+      await this._ensureLeadExists(orgId, {
+        email: leadEmail,
+        first_name: payload.lead_first_name,
+        last_name: payload.lead_last_name,
+        company: payload.company_name || payload.lead_company_name,
+        phone: payload.phone || payload.lead_phone
+      });
+    }
+
+    const externalId = (payload.id || payload.lead_id || `inst-wh-${Date.now()}`).toString();
+
+    // Check if we already have this lead in unibox
+    const existing = await db.query(
+      'SELECT id FROM unibox_emails WHERE (external_id = $1 OR sender_email = $2) AND org_id = $3',
+      [externalId, leadEmail, orgId]
+    );
+
+    if (existing.rows.length > 0) {
+      // Update existing record to 'Interested'
+      await db.query(
+        "UPDATE unibox_emails SET status = 'Interested', updated_at = now() WHERE id = $1",
+        [existing.rows[0].id]
+      );
+      console.log(`[Instantly Webhook] Updated existing lead to Interested: ${leadEmail}`);
+    } else {
+      // Create new record in unibox_emails
+      const senderName = payload.lead_name || payload.from_name || leadEmail.split('@')[0] || 'Unknown Sender';
       const bodyRaw = payload.reply_body || payload.body_text || payload.body || '';
-      const isHtml = /<[a-z][\s\S]*>/i.test(bodyRaw) || payload.reply_html || payload.body_html;
+      const isHtml = /<[a-z][\s\S]*>/i.test(bodyRaw);
       const bodyHtml = payload.reply_html || payload.body_html || (isHtml ? bodyRaw : '');
       const bodyText = !isHtml ? bodyRaw : (payload.reply_text || payload.body_text || '');
 
-      // Create record in unibox_emails
       const result = await db.query(
         `INSERT INTO unibox_emails (
           org_id, external_id, sender_email, sender_name, subject, body_text, body_html,
@@ -332,14 +527,14 @@ class InstantlyService {
         [
           orgId,
           externalId,
-          payload.from_email || payload.sender || payload.from_address_email || payload.eaccount,
-          payload.from_name || payload.sender_name || payload.lead_name || payload.eaccount?.split('@')[0] || 'Unknown Sender',
-          payload.subject,
+          leadEmail,
+          senderName,
+          payload.subject || `Interested lead from ${payload.campaign_name || 'campaign'}`,
           bodyText,
           bodyHtml,
-          'New',
+          'Interested',
           'Normal',
-          new Date(payload.timestamp_email || payload.received_at || Date.now()),
+          new Date(payload.timestamp || Date.now()),
           false,
           JSON.stringify(payload)
         ]
@@ -347,19 +542,27 @@ class InstantlyService {
 
       if (result.rows[0]) {
         realtimeService.emitUniboxEmailCreated(orgId, result.rows[0]);
+        console.log(`[Instantly Webhook] ✅ Created new Interested lead: ${leadEmail}`);
       }
     }
 
-
     // Update health stats
+    await this._updateWebhookHealth(orgId, true);
+  }
+
+  /**
+   * Update webhook health tracking
+   */
+  async _updateWebhookHealth(orgId, processed) {
+    const processedIncrement = processed ? 1 : 0;
     await db.query(
       `INSERT INTO instantly_webhook_health (org_id, webhook_url, total_received, total_processed, last_received_at)
-       VALUES ($1, $2, 1, 1, now())
+       VALUES ($1, $2, 1, $3, now())
        ON CONFLICT (org_id) DO UPDATE SET
          total_received = instantly_webhook_health.total_received + 1,
-         total_processed = instantly_webhook_health.total_processed + 1,
+         total_processed = instantly_webhook_health.total_processed + ${processedIncrement},
          last_received_at = now()`,
-      [orgId, 'instantly-webhook'] // Simplified for now
+      [orgId, 'instantly-webhook', processedIncrement]
     );
   }
 }
