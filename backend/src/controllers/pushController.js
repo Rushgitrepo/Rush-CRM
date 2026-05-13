@@ -34,8 +34,11 @@ const registerFcmToken = async (req, res, next) => {
   try {
     const { token, deviceType } = req.body;
     if (!token) return res.status(400).json({ error: 'Token is required' });
-    
-    await fcmService.registerToken(req.user.id, token, deviceType || 'web');
+    let finalDeviceType = deviceType;
+    if (!finalDeviceType) {
+      finalDeviceType = (token.length > 100 && !token.startsWith('http')) ? 'android' : 'web';
+    }
+    await fcmService.registerToken(req.user.id, token, finalDeviceType);
     res.json({ success: true });
   } catch (err) {
     next(err);
@@ -54,9 +57,9 @@ const unregisterFcmToken = async (req, res, next) => {
   }
 };
 
-module.exports = { 
-  getVapidKey, 
-  subscribe, 
+module.exports = {
+  getVapidKey,
+  subscribe,
   unsubscribe,
   registerFcmToken,
   unregisterFcmToken
