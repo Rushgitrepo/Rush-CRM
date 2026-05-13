@@ -136,6 +136,20 @@ class InstantlyService {
           ) VALUES ($1, $1, $2, $2, $3, $4, $5, $6, $7, $7, $8, $9, $9, now(), now())`,
           [orgId, fullName, first_name || null, last_name || null, email, phone || null, company || null, source, stageKey]
         );
+      } else {
+        // Update existing lead if info is missing
+        await db.query(
+          `UPDATE leads SET 
+            first_name = COALESCE(first_name, $1),
+            last_name = COALESCE(last_name, $2),
+            name = CASE WHEN (name IS NULL OR name = '' OR name = split_part(email, '@', 1)) AND ($1 IS NOT NULL) THEN (COALESCE($1, '') || ' ' || COALESCE($2, '')) ELSE name END,
+            company = COALESCE(company, $3),
+            company_name = COALESCE(company_name, $3),
+            phone = COALESCE(phone, $4),
+            updated_at = now()
+           WHERE id = $5`,
+          [first_name || null, last_name || null, company || null, phone || null, existing.rows[0].id]
+        );
       }
     } catch (err) {
       console.error('[Instantly Service] Failed to auto-add lead:', err.message);
@@ -303,10 +317,29 @@ class InstantlyService {
           bodyHtml = (item.body && item.body.html) || '';
           receivedAt = new Date(item.timestamp_email || item.timestamp_created || Date.now());
           
-          // Try to get lead details from item
-          firstName = item.lead_first_name;
-          lastName = item.lead_last_name;
-          companyName = item.lead_company_name;
+          // Try to get lead details from item (following fix_leads.js logic)
+          const leadObj = item.lead && typeof item.lead === 'object' ? item.lead : {};
+          const payloadObj = leadObj.payload || item.payload || {};
+
+          firstName = leadObj.first_name || item.lead_first_name || payloadObj.firstName || item.first_name;
+          lastName = leadObj.last_name || item.lead_last_name || payloadObj.lastName || item.last_name;
+          companyName = leadObj.company_name || item.lead_company_name || payloadObj.companyName || item.company_name || item.company;
+          phoneNumber = leadObj.phone || item.lead_phone || payloadObj.phone || item.phone;
+
+          // If still missing, try from_address_json (common in /emails API)
+          if (!firstName && item.from_address_json && item.from_address_json.length > 0) {
+            const name = item.from_address_json[0].name || '';
+            if (name) {
+              const parts = name.split(' ');
+              firstName = parts[0];
+              lastName = parts.slice(1).join(' ');
+            }
+          }
+          if (!firstName && item.from_address_name) {
+            const parts = item.from_address_name.split(' ');
+            firstName = parts[0];
+            lastName = parts.slice(1).join(' ');
+          }
         } else {
           // /leads/list API fields (NO email content available)
           leadEmail = item.email || item.lead_email || 'unknown@example.com';
@@ -334,21 +367,25 @@ class InstantlyService {
         // Auto-add to leads table if enabled
         if (autoAddLeads) {
           // If we use the emails API, the item often lacks lead name/company. Fetch it!
-          if (useEmailsApi && !firstName && !companyName && item.campaign_id) {
+          if (useEmailsApi && (!firstName || !companyName) && item.campaign_id) {
             try {
+              // Try enrichment with campaign_id + email
               const leadRes = await axios.get(`https://api.instantly.ai/api/v1/lead/get`, {
                 params: { campaign_id: item.campaign_id, email: leadEmail },
-                headers: { Authorization: `Bearer ${decryptedKey}` }
+                headers: { Authorization: `Bearer ${apiKey}` }
               });
-              if (leadRes.data && leadRes.data.length > 0) {
-                const leadDetails = leadRes.data[0];
-                firstName = leadDetails.first_name || firstName;
-                lastName = leadDetails.last_name || lastName;
-                companyName = leadDetails.company_name || companyName;
-                phoneNumber = leadDetails.phone || phoneNumber;
+              
+              const leadData = leadRes.data && (Array.isArray(leadRes.data) ? leadRes.data[0] : leadRes.data);
+              
+              if (leadData) {
+                firstName = leadData.first_name || leadData.firstName || firstName;
+                lastName = leadData.last_name || leadData.lastName || lastName;
+                companyName = leadData.company_name || leadData.company || companyName;
+                phoneNumber = leadData.phone || leadData.phone_number || phoneNumber;
               }
             } catch (err) {
-              console.log(`[Instantly Service] Could not fetch extra lead info for ${leadEmail}`);
+              // Silent fail for enrichment, we already have the email
+              // console.log(`[Instantly Service] Enrichment failed for ${leadEmail}`);
             }
           }
 
@@ -505,12 +542,21 @@ class InstantlyService {
     // Auto-add to leads table if enabled
     const settings = await this.getSettings(orgId);
     if (settings && settings.auto_add_leads) {
+      // Robustly extract lead details from webhook payload (matching fix_leads.js logic)
+      const leadObj = payload.lead && typeof payload.lead === 'object' ? payload.lead : {};
+      const payloadObj = leadObj.payload || payload.payload || {};
+
+      const fName = payload.lead_first_name || payload.first_name || leadObj.first_name || payloadObj.firstName;
+      const lName = payload.lead_last_name || payload.last_name || leadObj.last_name || payloadObj.lastName;
+      const comp = payload.company_name || payload.lead_company_name || payload.company || leadObj.company_name || payloadObj.companyName;
+      const ph = payload.phone || payload.lead_phone || leadObj.phone || payloadObj.phone;
+
       await this._ensureLeadExists(orgId, {
         email: leadEmail,
-        first_name: payload.lead_first_name,
-        last_name: payload.lead_last_name,
-        company: payload.company_name || payload.lead_company_name,
-        phone: payload.phone || payload.lead_phone
+        first_name: fName,
+        last_name: lName,
+        company: comp,
+        phone: ph
       });
     }
 
