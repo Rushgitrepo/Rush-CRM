@@ -105,7 +105,35 @@ class InstantlyService {
     try {
       const { email, first_name, last_name, company, phone, source = 'Instantly' } = leadData;
       
-      if (!email) return;
+      // If we are missing critical info, try to enrich from Instantly API
+      let enrichedFirstName = first_name;
+      let enrichedLastName = last_name;
+      let enrichedCompany = company;
+      let enrichedPhone = phone;
+
+      if (!enrichedFirstName || !enrichedCompany) {
+        try {
+          const settings = await this.getSettings(orgId);
+          if (settings && settings.api_key_encrypted) {
+            const res = await axios.post('https://api.instantly.ai/api/v2/leads/list', {
+              filter: `email=${email}`,
+              limit: 1
+            }, {
+              headers: { Authorization: `Bearer ${settings.api_key_encrypted}` }
+            });
+
+            if (res.data && res.data.items && res.data.items.length > 0) {
+              const info = res.data.items[0];
+              enrichedFirstName = enrichedFirstName || info.first_name || info.firstName;
+              enrichedLastName = enrichedLastName || info.last_name || info.lastName;
+              enrichedCompany = enrichedCompany || info.company_name || info.companyName || info.company;
+              enrichedPhone = enrichedPhone || info.phone || info.phoneNumber;
+            }
+          }
+        } catch (apiErr) {
+          console.error('[Instantly Service] API Enrichment failed:', apiErr.message);
+        }
+      }
 
       // Ensure "First Engagement" stage exists
       const stageKey = 'first_engagement';
@@ -129,12 +157,12 @@ class InstantlyService {
 
       if (existing.rows.length === 0) {
         console.log(`[Instantly Service] Auto-adding new lead: ${email}`);
-        const fullName = [first_name, last_name].filter(Boolean).join(' ') || email.split('@')[0];
+        const fullName = [enrichedFirstName, enrichedLastName].filter(Boolean).join(' ') || email.split('@')[0];
         await db.query(
           `INSERT INTO leads (
             org_id, organization_id, title, name, first_name, last_name, email, phone, company, company_name, source, status, stage, created_at, updated_at
           ) VALUES ($1, $1, $2, $2, $3, $4, $5, $6, $7, $7, $8, $9, $9, now(), now())`,
-          [orgId, fullName, first_name || null, last_name || null, email, phone || null, company || null, source, stageKey]
+          [orgId, fullName, enrichedFirstName || null, enrichedLastName || null, email, enrichedPhone || null, enrichedCompany || null, source, stageKey]
         );
       } else {
         // Update existing lead if info is missing
@@ -148,7 +176,7 @@ class InstantlyService {
             phone = COALESCE(phone, $4),
             updated_at = now()
            WHERE id = $5`,
-          [first_name || null, last_name || null, company || null, phone || null, existing.rows[0].id]
+          [enrichedFirstName || null, enrichedLastName || null, enrichedCompany || null, enrichedPhone || null, existing.rows[0].id]
         );
       }
     } catch (err) {
