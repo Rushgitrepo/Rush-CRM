@@ -309,7 +309,7 @@ const getAll = async (req, res, next) => {
           WHERE lwa.lead_id = l.id AND wm.user_id = $${paramIndex}
           AND (lwa.expires_at IS NULL OR lwa.expires_at > CURRENT_TIMESTAMP)
         )
-        ${hasUniboxAccess ? " OR (l.source = 'Instantly' AND EXISTS (SELECT 1 FROM instantly_integrations ii WHERE ii.org_id = l.org_id AND ii.auto_add_leads = true))" : ""}
+        ${hasUniboxAccess ? " OR EXISTS (SELECT 1 FROM unibox_emails ue WHERE ue.sender_email = l.email AND ue.org_id = l.org_id AND ue.status = 'Interested') OR (l.source = 'Instantly' AND EXISTS (SELECT 1 FROM instantly_integrations ii WHERE ii.org_id = l.org_id AND ii.auto_add_leads = true))" : ""}
       )`;
       params.push(req.user.id);
       paramIndex++;
