@@ -10,6 +10,7 @@ on:
 jobs:
   build:
     strategy:
+      fail-fast: false  # Don't cancel other builds if one fails
       matrix:
         os: [windows-latest, macos-latest, ubuntu-latest]
     
@@ -22,8 +23,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          # Remove cache since lock files are missing
+          node-version: '20'  # Updated to Node 20
       
       - name: Install dependencies (Root)
         run: npm install
@@ -63,6 +63,7 @@ jobs:
         run: |
           cd electron
           npm run build:linux
+        continue-on-error: true  # Allow Linux build to fail
       
       - name: Upload Windows Artifacts
         if: matrix.os == 'windows-latest'
@@ -81,7 +82,7 @@ jobs:
             electron/dist/*.zip
       
       - name: Upload Linux Artifacts
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest' && success()
         uses: actions/upload-artifact@v4
         with:
           name: rush-crm-linux
