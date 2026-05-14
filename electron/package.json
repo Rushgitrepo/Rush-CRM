@@ -18,6 +18,7 @@
   "dependencies": {
     "electron-is-dev": "^2.0.0",
     "electron-store": "^8.1.0",
+    "electron-updater": "^6.1.7",
     "express": "^4.22.2"
   },
   "devDependencies": {
@@ -32,6 +33,11 @@
     "electronDownload": {
       "cache": "./cache"
     },
+    "publish": {
+      "provider": "github",
+      "owner": "Jawa090",
+      "repo": "Rush-CRM"
+    },
     "directories": {
       "output": "dist",
       "buildResources": "assets"
@@ -40,7 +46,8 @@
       "main.js",
       "preload.js",
       "assets/**/*",
-      "../frontend/dist/**/*"
+      "../frontend/dist/**/*",
+      "../frontend/public/crm3.png"
     ],
     "extraResources": [
       {
@@ -57,6 +64,7 @@
           ]
         }
       ],
+      "icon": "../frontend/public/crm3.png",
       "artifactName": "${productName}-Setup-${version}.${ext}",
       "sign": null
     },
@@ -76,7 +84,7 @@
         "dmg",
         "zip"
       ],
-      "icon": "assets/icon.icns",
+      "icon": "../frontend/public/crm3.png",
       "category": "public.app-category.business",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
@@ -88,7 +96,7 @@
         "AppImage",
         "deb"
       ],
-      "icon": "assets/icon.png",
+      "icon": "../frontend/public/crm3.png",
       "category": "Office"
     }
   }

@@ -1,7 +1,8 @@
-const { app, BrowserWindow, ipcMain, Menu, Tray, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, Tray, dialog, shell, nativeImage } = require('electron');
 const path = require('path');
 const isDev = require('electron-is-dev');
 const Store = require('electron-store');
+const { autoUpdater } = require('electron-updater');
 
 // Initialize electron store for persistent data
 const store = new Store();
@@ -38,7 +39,7 @@ function createWindow() {
     minWidth: 1024,
     minHeight: 768,
     title: 'Rush CRM',
-    // icon: path.join(__dirname, 'assets/icon.png'), // Commented out for now
+    icon: path.join(__dirname, '../frontend/public/crm3.png'), // Use crm3.png from public folder
     backgroundColor: '#ffffff',
     show: false,
     webPreferences: {
@@ -99,26 +100,59 @@ function createWindow() {
 
 function createTray() {
   try {
-    const trayIconPath = path.join(__dirname, 'assets/tray-icon.png');
+    // Use crm3.png from frontend public folder
+    let trayIconPath = path.join(__dirname, '../frontend/public/crm3.png');
     
-    // Check if tray icon exists, if not skip tray creation
+    // Check if tray icon exists
     const fs = require('fs');
     if (!fs.existsSync(trayIconPath)) {
-      console.log('Tray icon not found, skipping system tray');
-      return;
+      console.log('Tray icon not found at:', trayIconPath);
+      // Fallback to assets folder
+      trayIconPath = path.join(__dirname, 'assets/crm3.png');
+      if (!fs.existsSync(trayIconPath)) {
+        console.log('Using default tray icon');
+        trayIconPath = null;
+      }
     }
     
-    tray = new Tray(trayIconPath);
+    tray = new Tray(trayIconPath || nativeImage.createEmpty());
 
     const contextMenu = Menu.buildFromTemplate([
       {
+        label: 'Rush CRM',
+        enabled: false
+      },
+      { type: 'separator' },
+      {
         label: 'Show App',
         click: () => {
-          mainWindow.show();
+          if (mainWindow) {
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            mainWindow.show();
+            mainWindow.focus();
+          }
         },
       },
       {
-        label: 'Quit',
+        label: 'Hide App',
+        click: () => {
+          if (mainWindow) {
+            mainWindow.hide();
+          }
+        },
+      },
+      { type: 'separator' },
+      {
+        label: 'Notifications',
+        type: 'checkbox',
+        checked: true,
+        click: (menuItem) => {
+          store.set('notifications-enabled', menuItem.checked);
+        }
+      },
+      { type: 'separator' },
+      {
+        label: 'Quit Rush CRM',
         click: () => {
           app.isQuitting = true;
           app.quit();
@@ -126,12 +160,31 @@ function createTray() {
       },
     ]);
 
-    tray.setToolTip('Rush CRM');
+    tray.setToolTip('Rush CRM - Customer Relationship Management');
     tray.setContextMenu(contextMenu);
 
-    tray.on('click', () => {
-      mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
+    // Double click to show/hide
+    tray.on('double-click', () => {
+      if (mainWindow) {
+        if (mainWindow.isVisible()) {
+          mainWindow.hide();
+        } else {
+          if (mainWindow.isMinimized()) mainWindow.restore();
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      }
     });
+
+    // Single click to show
+    tray.on('click', () => {
+      if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    });
+
   } catch (error) {
     console.log('Failed to create system tray:', error.message);
   }
@@ -216,6 +269,71 @@ function createMenu() {
   Menu.setApplicationMenu(menu);
 }
 
+function setupAutoUpdater() {
+  if (isDev) {
+    console.log('Auto-updater disabled in development');
+    return;
+  }
+
+  // Configure auto updater
+  autoUpdater.checkForUpdatesAndNotify();
+
+  autoUpdater.on('checking-for-update', () => {
+    console.log('Checking for update...');
+  });
+
+  autoUpdater.on('update-available', (info) => {
+    console.log('Update available:', info.version);
+    
+    // Show notification
+    const { Notification } = require('electron');
+    if (Notification.isSupported()) {
+      new Notification({
+        title: 'Rush CRM Update Available',
+        body: `Version ${info.version} is available. Downloading...`,
+        icon: path.join(__dirname, '../frontend/public/crm3.png') // Use crm3.png
+      }).show();
+    }
+  });
+
+  autoUpdater.on('update-not-available', (info) => {
+    console.log('Update not available:', info.version);
+  });
+
+  autoUpdater.on('error', (err) => {
+    console.log('Error in auto-updater:', err);
+  });
+
+  autoUpdater.on('download-progress', (progressObj) => {
+    let log_message = "Download speed: " + progressObj.bytesPerSecond;
+    log_message = log_message + ' - Downloaded ' + progressObj.percent + '%';
+    log_message = log_message + ' (' + progressObj.transferred + "/" + progressObj.total + ')';
+    console.log(log_message);
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log('Update downloaded:', info.version);
+    
+    // Show dialog to restart
+    dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: 'Update Ready',
+      message: 'Update downloaded successfully!',
+      detail: `Rush CRM ${info.version} has been downloaded. Restart the application to apply the update.`,
+      buttons: ['Restart Now', 'Later'],
+      defaultId: 0
+    }).then((result) => {
+      if (result.response === 0) {
+        autoUpdater.quitAndInstall();
+      }
+    });
+  });
+
+  // Check for updates every hour
+  setInterval(() => {
+    autoUpdater.checkForUpdatesAndNotify();
+  }, 60 * 60 * 1000);
+}
 function setupIpcHandlers() {
   ipcMain.handle('get-app-version', () => {
     return app.getVersion();
@@ -229,13 +347,43 @@ function setupIpcHandlers() {
     store.set(key, value);
   });
 
-  ipcMain.handle('show-notification', (event, { title, body }) => {
+  ipcMain.handle('show-notification', (event, { title, body, icon }) => {
     const { Notification } = require('electron');
-    new Notification({ title, body }).show();
+    
+    if (Notification.isSupported()) {
+      const notification = new Notification({ 
+        title, 
+        body,
+        icon: icon || path.join(__dirname, '../frontend/public/crm3.png'), // Use crm3.png for notifications
+        silent: false
+      });
+      
+      notification.show();
+      
+      notification.on('click', () => {
+        // Show main window when notification clicked
+        if (mainWindow) {
+          if (mainWindow.isMinimized()) mainWindow.restore();
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      });
+      
+      return true;
+    }
+    return false;
   });
 
   ipcMain.handle('open-external', (event, url) => {
     shell.openExternal(url);
+  });
+
+  // Check for updates manually
+  ipcMain.handle('check-for-updates', () => {
+    if (!isDev) {
+      autoUpdater.checkForUpdatesAndNotify();
+    }
+    return !isDev;
   });
 }
 
@@ -249,6 +397,7 @@ app.whenReady().then(async () => {
     console.log('Skipping frontend server - using hosted server directly');
 
     setupIpcHandlers();
+    setupAutoUpdater();
     createWindow();
     createTray();
 
