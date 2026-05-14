@@ -23,7 +23,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'npm'
+          # Remove cache since lock files are missing
       
       - name: Install dependencies (Root)
         run: npm install
