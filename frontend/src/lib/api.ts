@@ -1,6 +1,18 @@
 import Cookies from 'js-cookie';
 
-export const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+// FORCE hosted backend for ALL production builds
+const isDevelopment = import.meta.env.DEV;
+
+export const API_BASE_URL = isDevelopment 
+  ? "http://localhost:4000/api"  // Development only
+  : "https://rms.rushcorporation.com/api";  // Production (browser + desktop)
+
+console.log('🚀 API_BASE_URL:', API_BASE_URL);
+console.log('🔧 Environment:', isDevelopment ? 'Development' : 'Production');
+console.log('🔧 import.meta.env.DEV:', import.meta.env.DEV);
+console.log('🔧 import.meta.env.PROD:', import.meta.env.PROD);
+console.log('🔧 import.meta.env.MODE:', import.meta.env.MODE);
+
 export const FILE_BASE_URL = API_BASE_URL.replace('/api', '');
 
 class ApiClient {
@@ -38,27 +50,45 @@ class ApiClient {
       (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      ...options,
-      headers,
-      credentials: 'include',
-    });
+    const fullUrl = `${API_BASE_URL}${endpoint}`;
+    console.log('🌐 Making request to:', fullUrl);
+    console.log('🔧 Headers:', headers);
 
-    if (response.status === 401) {
-      const hadToken = !!this.token;
-      this.setToken(null);
-      if (hadToken) window.location.href = '/auth';
-      throw new Error('Unauthorized');
+    try {
+      const response = await fetch(fullUrl, {
+        ...options,
+        headers,
+        credentials: 'include',
+      });
+
+      console.log('📡 Response status:', response.status);
+      console.log('📡 Response ok:', response.ok);
+
+      if (response.status === 401) {
+        const hadToken = !!this.token;
+        this.setToken(null);
+        if (hadToken) window.location.href = '/auth';
+        throw new Error('Unauthorized');
+      }
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        const errorMsg = data.message || data.error || 'Request failed';
+        console.error('❌ API Error:', errorMsg, data);
+        throw new Error(errorMsg);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('❌ Fetch Error:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        stack: error.stack,
+        url: fullUrl
+      });
+      throw error;
     }
-
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      const errorMsg = data.message || data.error || 'Request failed';
-      throw new Error(errorMsg);
-    }
-
-    return data;
   }
 
   get<T>(endpoint: string, params?: Record<string, any>): Promise<T> {

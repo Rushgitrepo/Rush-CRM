@@ -1,0 +1,95 @@
+{
+  "name": "rush-crm-desktop",
+  "version": "1.0.0",
+  "description": "Rush CRM Desktop Application",
+  "main": "main.js",
+  "author": "Jawad Abbas",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "cross-env NODE_ENV=development electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "pack": "electron-builder --dir",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "dependencies": {
+    "electron-is-dev": "^2.0.0",
+    "electron-store": "^8.1.0",
+    "express": "^4.22.2"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.rushcrm.desktop",
+    "productName": "Rush CRM",
+    "copyright": "Copyright © 2024",
+    "electronDownload": {
+      "cache": "./cache"
+    },
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "assets/**/*",
+      "../frontend/dist/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../frontend/dist",
+        "to": "frontend/dist"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "${productName}-Setup-${version}.${ext}",
+      "sign": null
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Rush CRM",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "differentialPackage": false
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.business",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "assets/entitlements.mac.plist",
+      "entitlementsInherit": "assets/entitlements.mac.plist"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "assets/icon.png",
+      "category": "Office"
+    }
+  }
+}

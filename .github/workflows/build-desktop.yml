@@ -1,0 +1,90 @@
+name: Build Desktop Apps
+
+on:
+  push:
+    branches: [ main, desktop-build ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch: # Manual trigger
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies (Root)
+        run: npm install
+      
+      - name: Install dependencies (Frontend)
+        run: |
+          cd frontend
+          npm install
+      
+      - name: Install dependencies (Backend)
+        run: |
+          cd backend
+          npm install
+      
+      - name: Install dependencies (Electron)
+        run: |
+          cd electron
+          npm install
+      
+      - name: Build Frontend
+        run: npm run build:frontend
+      
+      - name: Build Electron App (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          cd electron
+          npm run build:win
+      
+      - name: Build Electron App (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          cd electron
+          npm run build:mac
+      
+      - name: Build Electron App (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cd electron
+          npm run build:linux
+      
+      - name: Upload Windows Artifacts
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rush-crm-windows
+          path: electron/dist/*.exe
+      
+      - name: Upload macOS Artifacts
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rush-crm-macos
+          path: |
+            electron/dist/*.dmg
+            electron/dist/*.zip
+      
+      - name: Upload Linux Artifacts
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rush-crm-linux
+          path: |
+            electron/dist/*.AppImage
+            electron/dist/*.deb
