@@ -39,18 +39,32 @@ function createWindow() {
     minWidth: 1024,
     minHeight: 768,
     title: 'Rush CRM',
-    icon: path.join(__dirname, '../frontend/public/crm3.png'), // Use crm3.png from public folder
+    icon: path.join(__dirname, '../frontend/public/crm3.png'),
     backgroundColor: '#ffffff',
     show: false,
+    autoHideMenuBar: true, // Hide menu bar completely
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       enableRemoteModule: false,
       preload: path.join(__dirname, 'preload.js'),
-      webSecurity: true, // Re-enable for HTTP server
+      webSecurity: true,
     },
     frame: true,
-    titleBarStyle: 'default',
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default', // Mac style
+    vibrancy: process.platform === 'darwin' ? 'under-window' : undefined, // Mac glass effect
+    transparent: false,
+    hasShadow: true,
+    thickFrame: true,
+    skipTaskbar: false, // Show in taskbar
+    resizable: true,
+    maximizable: true,
+    minimizable: true,
+    closable: true,
+    alwaysOnTop: false,
+    fullscreenable: true,
+    kiosk: false,
+    center: true, // Center window on screen
   });
 
   // Load the app - Use hosted server directly in production
@@ -61,16 +75,27 @@ function createWindow() {
   console.log('Loading URL:', startURL);
   mainWindow.loadURL(startURL);
 
-  // Show window when ready
+  // Show window when ready with fade-in effect
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
     mainWindow.focus();
+    
+    // Fade in effect
+    mainWindow.setOpacity(0);
+    let opacity = 0;
+    const fadeIn = setInterval(() => {
+      opacity += 0.05;
+      mainWindow.setOpacity(opacity);
+      if (opacity >= 1) {
+        clearInterval(fadeIn);
+      }
+    }, 10);
 
     // Always open DevTools to debug the issue
     mainWindow.webContents.openDevTools();
   });
 
-  // Save window bounds
+  // Window state management
   mainWindow.on('resize', () => {
     store.set('windowBounds', mainWindow.getBounds());
   });
@@ -79,10 +104,56 @@ function createWindow() {
     store.set('windowBounds', mainWindow.getBounds());
   });
 
+  // Window focus/blur effects
+  mainWindow.on('focus', () => {
+    if (tray) {
+      tray.setHighlightMode('always');
+    }
+  });
+
+  mainWindow.on('blur', () => {
+    if (tray) {
+      tray.setHighlightMode('never');
+    }
+  });
+
+  // Prevent navigation away from app
+  mainWindow.webContents.on('will-navigate', (event, navigationUrl) => {
+    const parsedUrl = new URL(navigationUrl);
+    
+    // Allow navigation within the app domain
+    if (parsedUrl.origin !== 'https://rms.rushcorporation.com' && 
+        !navigationUrl.startsWith('http://localhost')) {
+      event.preventDefault();
+      shell.openExternal(navigationUrl);
+    }
+  });
+
   mainWindow.on('close', (event) => {
     if (!app.isQuitting) {
       event.preventDefault();
+      
+      // Show notification when minimizing to tray
+      const { Notification } = require('electron');
+      if (Notification.isSupported()) {
+        new Notification({
+          title: 'Rush CRM',
+          body: 'App minimized to system tray. Click tray icon to restore.',
+          icon: path.join(__dirname, '../frontend/public/crm3.png'),
+          silent: true
+        }).show();
+      }
+      
       mainWindow.hide();
+      
+      // Flash tray icon to show it's minimized
+      if (tray) {
+        tray.displayBalloon({
+          title: 'Rush CRM',
+          content: 'Running in background. Right-click tray icon for options.',
+          icon: path.join(__dirname, '../frontend/public/crm3.png')
+        });
+      }
     }
   });
 
@@ -119,22 +190,26 @@ function createTray() {
 
     const contextMenu = Menu.buildFromTemplate([
       {
-        label: 'Rush CRM',
-        enabled: false
+        label: '🚀 Rush CRM',
+        enabled: false,
+        icon: trayIconPath ? nativeImage.createFromPath(trayIconPath).resize({ width: 16, height: 16 }) : undefined
       },
       { type: 'separator' },
       {
-        label: 'Show App',
+        label: '📱 Show App',
+        accelerator: 'CmdOrCtrl+Shift+R',
         click: () => {
           if (mainWindow) {
             if (mainWindow.isMinimized()) mainWindow.restore();
             mainWindow.show();
             mainWindow.focus();
+            mainWindow.flashFrame(false); // Stop flashing if it was
           }
         },
       },
       {
-        label: 'Hide App',
+        label: '🙈 Hide App',
+        accelerator: 'CmdOrCtrl+H',
         click: () => {
           if (mainWindow) {
             mainWindow.hide();
@@ -143,16 +218,76 @@ function createTray() {
       },
       { type: 'separator' },
       {
-        label: 'Notifications',
+        label: '🔔 Notifications',
         type: 'checkbox',
-        checked: true,
+        checked: store.get('notifications-enabled', true),
         click: (menuItem) => {
           store.set('notifications-enabled', menuItem.checked);
+          
+          // Show confirmation
+          if (Notification.isSupported()) {
+            new Notification({
+              title: 'Rush CRM',
+              body: `Notifications ${menuItem.checked ? 'enabled' : 'disabled'}`,
+              icon: trayIconPath,
+              silent: !menuItem.checked
+            }).show();
+          }
+        }
+      },
+      {
+        label: '🔄 Check for Updates',
+        click: () => {
+          if (!isDev) {
+            // Trigger update check
+            const { Notification } = require('electron');
+            if (Notification.isSupported()) {
+              new Notification({
+                title: 'Rush CRM',
+                body: 'Checking for updates...',
+                icon: trayIconPath
+              }).show();
+            }
+          }
         }
       },
       { type: 'separator' },
       {
-        label: 'Quit Rush CRM',
+        label: '⚙️ Settings',
+        click: () => {
+          if (mainWindow) {
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            mainWindow.show();
+            mainWindow.focus();
+            // Navigate to settings page
+            mainWindow.webContents.executeJavaScript(`
+              if (window.location.hash !== '#/settings') {
+                window.location.hash = '#/settings';
+              }
+            `);
+          }
+        }
+      },
+      {
+        label: '📊 Dashboard',
+        click: () => {
+          if (mainWindow) {
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            mainWindow.show();
+            mainWindow.focus();
+            // Navigate to dashboard
+            mainWindow.webContents.executeJavaScript(`
+              if (window.location.hash !== '#/dashboard') {
+                window.location.hash = '#/dashboard';
+              }
+            `);
+          }
+        }
+      },
+      { type: 'separator' },
+      {
+        label: '❌ Quit Rush CRM',
+        accelerator: process.platform === 'darwin' ? 'Cmd+Q' : 'Ctrl+Q',
         click: () => {
           app.isQuitting = true;
           app.quit();
@@ -160,13 +295,13 @@ function createTray() {
       },
     ]);
 
-    tray.setToolTip('Rush CRM - Customer Relationship Management');
+    tray.setToolTip('Rush CRM - Customer Relationship Management System');
     tray.setContextMenu(contextMenu);
 
-    // Double click to show/hide
+    // Tray interactions
     tray.on('double-click', () => {
       if (mainWindow) {
-        if (mainWindow.isVisible()) {
+        if (mainWindow.isVisible() && !mainWindow.isMinimized()) {
           mainWindow.hide();
         } else {
           if (mainWindow.isMinimized()) mainWindow.restore();
@@ -176,8 +311,19 @@ function createTray() {
       }
     });
 
-    // Single click to show
+    // Single click behavior (Windows/Linux)
     tray.on('click', () => {
+      if (process.platform !== 'darwin') {
+        if (mainWindow) {
+          if (mainWindow.isMinimized()) mainWindow.restore();
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      }
+    });
+
+    // Balloon click (Windows)
+    tray.on('balloon-click', () => {
       if (mainWindow) {
         if (mainWindow.isMinimized()) mainWindow.restore();
         mainWindow.show();
@@ -265,8 +411,8 @@ function createMenu() {
     });
   }
 
-  const menu = Menu.buildFromTemplate(template);
-  Menu.setApplicationMenu(menu);
+  // Hide menu completely for clean desktop app look
+  Menu.setApplicationMenu(null);
 }
 
 function setupAutoUpdater() {
@@ -334,6 +480,25 @@ function setupAutoUpdater() {
     autoUpdater.checkForUpdatesAndNotify();
   }, 60 * 60 * 1000);
 }
+// Add global shortcuts for better UX
+function setupGlobalShortcuts() {
+  const { globalShortcut } = require('electron');
+  
+  // Register global shortcuts
+  globalShortcut.register('CmdOrCtrl+Shift+R', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+  
+  globalShortcut.register('CmdOrCtrl+Shift+H', () => {
+    if (mainWindow && mainWindow.isVisible()) {
+      mainWindow.hide();
+    }
+  });
+}
 function setupIpcHandlers() {
   ipcMain.handle('get-app-version', () => {
     return app.getVersion();
@@ -398,6 +563,7 @@ app.whenReady().then(async () => {
 
     setupIpcHandlers();
     setupAutoUpdater();
+    setupGlobalShortcuts();
     createWindow();
     createTray();
 
@@ -426,5 +592,7 @@ app.on('before-quit', () => {
 });
 
 app.on('will-quit', () => {
-  // No cleanup needed - using hosted server directly
+  // Unregister all global shortcuts
+  const { globalShortcut } = require('electron');
+  globalShortcut.unregisterAll();
 });
