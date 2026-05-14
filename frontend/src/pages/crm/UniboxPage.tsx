@@ -37,6 +37,9 @@ import {
   TrendingUp,
   BarChart3,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { useInstantlySettings } from "@/hooks/useInstantlySettings";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -65,9 +68,22 @@ export default function UniboxPage() {
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [selectedEmail, setSelectedEmail] = useState<UniboxEmail | null>(null);
   const [convertDialogOpen, setConvertDialogOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 50;
+
+  const uniboxData = useUniboxEmails({
+    status: statusFilter,
+    search: searchQuery,
+    starred: showStarredOnly,
+    unread: showUnreadOnly,
+    page: currentPage,
+    limit: ITEMS_PER_PAGE
+  });
 
   const {
     emails,
+    total,
+    totalPages,
     isLoading,
     updateStatus,
     toggleStarred,
@@ -75,14 +91,21 @@ export default function UniboxPage() {
     toggleArchive,
     convertToLead,
     syncInstantly
-  } = useUniboxEmails({
-    status: statusFilter,
-    search: searchQuery,
-    starred: showStarredOnly,
-    unread: showUnreadOnly,
-  });
+  } = uniboxData;
+
+  // Reset page when filters change
+  const handleFilterChange = (newFilter: string) => {
+    setStatusFilter(newFilter);
+    setCurrentPage(1);
+  };
+
+  const handleSearchChange = (query: string) => {
+    setSearchQuery(query);
+    setCurrentPage(1);
+  };
 
   const { data: stats } = useUniboxStats();
+  const { settings, updateSettings } = useInstantlySettings();
 
   if (permLoading) {
     return (
@@ -205,7 +228,7 @@ export default function UniboxPage() {
             <Input
               placeholder="Search emails..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               className="pl-10"
             />
           </div>
@@ -213,7 +236,10 @@ export default function UniboxPage() {
             <Button
               variant={showUnreadOnly ? "default" : "ghost"}
               size="sm"
-              onClick={() => setShowUnreadOnly(!showUnreadOnly)}
+              onClick={() => {
+                setShowUnreadOnly(!showUnreadOnly);
+                setCurrentPage(1);
+              }}
               className="w-full justify-start gap-2"
             >
               <EyeOff className="h-4 w-4" />
@@ -222,7 +248,10 @@ export default function UniboxPage() {
             <Button
               variant={showStarredOnly ? "default" : "ghost"}
               size="sm"
-              onClick={() => setShowStarredOnly(!showStarredOnly)}
+              onClick={() => {
+                setShowStarredOnly(!showStarredOnly);
+                setCurrentPage(1);
+              }}
               className="w-full justify-start gap-2"
             >
               <Star className="h-4 w-4" />
@@ -232,7 +261,7 @@ export default function UniboxPage() {
           <div className="space-y-1">
             <p className="text-xs font-medium text-muted-foreground mb-2">Status</p>
             <button
-              onClick={() => setStatusFilter("All")}
+              onClick={() => handleFilterChange("All")}
               className={cn(
                 "w-full text-left px-3 py-2 rounded-md text-sm transition-colors",
                 statusFilter === "All"
@@ -248,7 +277,7 @@ export default function UniboxPage() {
             {UNIBOX_STATUSES.map((status) => (
               <button
                 key={status}
-                onClick={() => setStatusFilter(status)}
+                onClick={() => handleFilterChange(status)}
                 className={cn(
                   "w-full text-left px-3 py-2 rounded-md text-sm transition-colors",
                   statusFilter === status
@@ -266,7 +295,7 @@ export default function UniboxPage() {
           <div className="p-3 border-b border-border">
             <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
               <Mail className="h-4 w-4" />
-              Emails ({emails?.length || 0})
+              Emails ({total || 0})
             </h3>
           </div>
           <ScrollArea className="flex-1">
@@ -343,6 +372,30 @@ export default function UniboxPage() {
               </div>
             )}
           </ScrollArea>
+
+          {totalPages && totalPages > 1 && (
+            <div className="p-3 border-t border-border bg-muted/20 flex items-center justify-between gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1 || isLoading}
+              >
+                Previous
+              </Button>
+              <div className="text-xs text-muted-foreground font-medium">
+                Page {currentPage} of {totalPages}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages || isLoading}
+              >
+                Next
+              </Button>
+            </div>
+          )}
         </Card>
 
         <Card className="col-span-5 flex flex-col overflow-hidden">
@@ -500,7 +553,19 @@ export default function UniboxPage() {
               <h1 className="text-3xl font-bold text-foreground">Unibox Mailbox</h1>
               <p className="text-muted-foreground">Manage emails from Instantly.ai and convert to leads</p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-6">
+              {settings && (
+                <div className="flex items-center gap-2 mr-2">
+                  <Switch
+                    id="auto-add-leads"
+                    checked={settings.auto_add_leads}
+                    onCheckedChange={(checked) => updateSettings.mutate({ auto_add_leads: checked })}
+                  />
+                  <Label htmlFor="auto-add-leads" className="text-sm font-medium cursor-pointer">
+                    Auto-add Leads
+                  </Label>
+                </div>
+              )}
               <Button
                 variant="outline"
                 onClick={() => syncInstantly.mutate()}
@@ -532,15 +597,29 @@ export default function UniboxPage() {
               <h1 className="text-3xl font-bold text-foreground">Unibox Mailbox</h1>
               <p className="text-muted-foreground">Manage emails from Instantly.ai and convert to leads</p>
             </div>
-            <Button
-              variant="outline"
-              onClick={() => syncInstantly.mutate()}
-              disabled={syncInstantly.isPending}
-              className="gap-2"
-            >
-              <TrendingUp className={cn("h-4 w-4", syncInstantly.isPending && "animate-spin")} />
-              {syncInstantly.isPending ? "Syncing..." : "Sync Instantly"}
-            </Button>
+            <div className="flex items-center gap-6">
+              {settings && (
+                <div className="flex items-center gap-2 mr-2">
+                  <Switch
+                    id="auto-add-leads-guest"
+                    checked={settings.auto_add_leads}
+                    onCheckedChange={(checked) => updateSettings.mutate({ auto_add_leads: checked })}
+                  />
+                  <Label htmlFor="auto-add-leads-guest" className="text-sm font-medium cursor-pointer">
+                    Auto-add Leads
+                  </Label>
+                </div>
+              )}
+              <Button
+                variant="outline"
+                onClick={() => syncInstantly.mutate()}
+                disabled={syncInstantly.isPending}
+                className="gap-2"
+              >
+                <TrendingUp className={cn("h-4 w-4", syncInstantly.isPending && "animate-spin")} />
+                {syncInstantly.isPending ? "Syncing..." : "Sync Instantly"}
+              </Button>
+            </div>
           </div>
           {mailboxContent}
         </>

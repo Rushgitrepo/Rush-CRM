@@ -9,7 +9,7 @@ const sendPushNotification = async (userId, title, body, data = {}) => {
   try {
     // 1. Get all tokens for this user from database using raw SQL
     const { rows: tokens } = await query(
-      'SELECT token FROM fcm_tokens WHERE user_id = $1',
+      `SELECT token FROM fcm_tokens WHERE user_id = $1 AND device_type != 'web'`,
       [userId]
     );
 
@@ -45,9 +45,9 @@ const sendPushNotification = async (userId, title, body, data = {}) => {
       return;
     }
     const response = await admin.messaging().sendEachForMulticast(message);
-    
+
     console.log(`Successfully sent ${response.successCount} messages to user ${userId}`);
-    
+
     // Cleanup: If any tokens are invalid, remove them from DB
     if (response.failureCount > 0) {
       const failedTokens = [];
@@ -55,13 +55,13 @@ const sendPushNotification = async (userId, title, body, data = {}) => {
         const errorCode = resp.error?.code;
         // Token is invalid or no longer registered
         if (!resp.success && (
-          errorCode === 'messaging/invalid-registration-token' || 
+          errorCode === 'messaging/invalid-registration-token' ||
           errorCode === 'messaging/registration-token-not-registered'
         )) {
           failedTokens.push(registrationTokens[idx]);
         }
       });
-      
+
       if (failedTokens.length > 0) {
         await query(
           'DELETE FROM fcm_tokens WHERE token = ANY($1)',

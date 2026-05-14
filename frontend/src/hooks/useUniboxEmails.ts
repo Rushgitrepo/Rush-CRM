@@ -64,6 +64,8 @@ export function useUniboxEmails(filters: {
   starred?: boolean;
   unread?: boolean;
   priority?: string;
+  page?: number;
+  limit?: number;
 } = {}) {
   const queryClient = useQueryClient();
 
@@ -95,6 +97,12 @@ export function useUniboxEmails(filters: {
       if (filters.starred) params.starred = 'true';
       if (filters.unread) params.unread = 'true';
       if (filters.priority && filters.priority !== 'all') params.priority = filters.priority;
+      
+      // Pagination parameters
+      const limit = filters.limit || 50;
+      const page = filters.page || 1;
+      params.limit = limit;
+      params.offset = (page - 1) * limit;
 
       return api.get("/unibox/emails", params);
     },

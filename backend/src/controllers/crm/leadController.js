@@ -281,6 +281,15 @@ const getAll = async (req, res, next) => {
 
     const isAdmin = req.user.role === 'super_admin' || req.user.role === 'admin';
 
+    let hasUniboxAccess = false;
+    if (!isAdmin) {
+      const userCheck = await db.query(
+        `SELECT has_unibox_access FROM users WHERE id = $1`,
+        [req.user.id]
+      );
+      hasUniboxAccess = userCheck.rows[0]?.has_unibox_access || false;
+    }
+
     // Workspace filtering
     if (workspaceId) {
       query += ` AND l.workspace_id = $${paramIndex}`;
@@ -300,6 +309,7 @@ const getAll = async (req, res, next) => {
           WHERE lwa.lead_id = l.id AND wm.user_id = $${paramIndex}
           AND (lwa.expires_at IS NULL OR lwa.expires_at > CURRENT_TIMESTAMP)
         )
+        ${hasUniboxAccess ? " OR (l.source = 'Instantly' AND EXISTS (SELECT 1 FROM instantly_integrations ii WHERE ii.org_id = l.org_id AND ii.auto_add_leads = true))" : ""}
       )`;
       params.push(req.user.id);
       paramIndex++;
@@ -380,7 +390,9 @@ const getAll = async (req, res, next) => {
     let countIdx = 2;
 
     if (!isAdmin) {
-      countQuery += ` AND (l.assigned_to = $${countIdx} OR l.owner_id = $${countIdx} OR l.user_id = $${countIdx} OR l.created_by = $${countIdx})`;
+      countQuery += ` AND (l.assigned_to = $${countIdx} OR l.owner_id = $${countIdx} OR l.user_id = $${countIdx} OR l.created_by = $${countIdx}
+        ${hasUniboxAccess ? " OR (l.source = 'Instantly' AND EXISTS (SELECT 1 FROM instantly_integrations ii WHERE ii.org_id = l.org_id AND ii.auto_add_leads = true))" : ""}
+      )`;
       countParams.push(req.user.id);
       countIdx++;
     }
@@ -795,11 +807,14 @@ const remove = async (req, res, next) => {
 
     // Ownership check: non-admins can only delete leads they own/created
     if (!isAdmin) {
-      const ownerCheck = await client.query(
-        `SELECT id FROM public.leads WHERE id = $1 AND org_id = $2
-         AND (user_id = $3 OR owner_id = $3 OR created_by = $3 OR assigned_to = $3)`,
-        [id, req.user.orgId, req.user.id]
-      );
+      let ownerCheckQuery = `SELECT id FROM public.leads WHERE id = $1 AND org_id = $2
+         AND (user_id = $3 OR owner_id = $3 OR created_by = $3 OR assigned_to = $3`;
+      if (req.user.has_unibox_access) {
+        ownerCheckQuery += ` OR (source = 'Instantly' AND EXISTS (SELECT 1 FROM instantly_integrations ii WHERE ii.org_id = $2 AND ii.auto_add_leads = true))`;
+      }
+      ownerCheckQuery += `)`;
+
+      const ownerCheck = await client.query(ownerCheckQuery, [id, req.user.orgId, req.user.id]);
       if (ownerCheck.rows.length === 0) {
         await client.query('ROLLBACK');
         return res.status(403).json({ error: 'You do not have permission to delete this lead' });
@@ -895,7 +910,12 @@ const bulkRemove = async (req, res, next) => {
 
       if (!isAdmin) {
         params.push(userId);
-        filterClause += ` AND (user_id = $${params.length} OR owner_id = $${params.length} OR created_by = $${params.length} OR assigned_to = $${params.length})`;
+        let filterPart = `(user_id = $${params.length} OR owner_id = $${params.length} OR created_by = $${params.length} OR assigned_to = $${params.length}`;
+        if (req.user.has_unibox_access) {
+          filterPart += ` OR (source = 'Instantly' AND EXISTS (SELECT 1 FROM instantly_integrations ii WHERE ii.org_id = $1 AND ii.auto_add_leads = true))`;
+        }
+        filterPart += `)`;
+        filterClause += ` AND ${filterPart}`;
       }
 
       const idQuery = await client.query(`SELECT id FROM public.leads WHERE ${filterClause}`, params);
@@ -916,12 +936,15 @@ const bulkRemove = async (req, res, next) => {
       }
 
       if (!isAdmin) {
-        const ownerCheck = await client.query(
-          `SELECT id FROM public.leads
+        let checkQuery = `SELECT id FROM public.leads
            WHERE id = ANY($1) AND org_id = $2
-           AND (user_id = $3 OR owner_id = $3 OR created_by = $3 OR assigned_to = $3)`,
-          [cleanIds, orgId, userId]
-        );
+           AND (user_id = $3 OR owner_id = $3 OR created_by = $3 OR assigned_to = $3`;
+        if (req.user.has_unibox_access) {
+          checkQuery += ` OR (source = 'Instantly' AND EXISTS (SELECT 1 FROM instantly_integrations ii WHERE ii.org_id = $2 AND ii.auto_add_leads = true))`;
+        }
+        checkQuery += `)`;
+
+        const ownerCheck = await client.query(checkQuery, [cleanIds, orgId, userId]);
         allowedIds = ownerCheck.rows.map(r => r.id);
         if (allowedIds.length === 0) {
           return res.status(403).json({ error: 'You do not have permission to delete any of the selected leads' });
