@@ -1,8 +1,7 @@
-const { app, BrowserWindow, ipcMain, Menu, Tray, dialog, shell, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, Tray, dialog, shell, nativeImage, Notification } = require('electron');
 const path = require('path');
 const isDev = require('electron-is-dev');
 const Store = require('electron-store');
-const { autoUpdater } = require('electron-updater');
 
 // Initialize electron store for persistent data
 const store = new Store();
@@ -10,19 +9,38 @@ const store = new Store();
 let mainWindow;
 let tray;
 
-// Backend server configuration
-const BACKEND_PORT = process.env.BACKEND_PORT || 4000;
-const FRONTEND_PORT = process.env.FRONTEND_PORT || 8080;
-const PRODUCTION_FRONTEND_PORT = 8082; // Changed from 8081 to 8082
-
-// No frontend server needed - removed completely
-function startBackendServer() {
-  return new Promise((resolve) => {
-    // NO LOCAL BACKEND IN PRODUCTION - Always use hosted server
-    console.log('Desktop app: Using hosted backend only');
-    resolve();
-  });
+/**
+ * Get the correct icon path for different environments
+ */
+function getIconPath() {
+  const iconPaths = [
+    path.join(__dirname, '../frontend/public/crm3.png'),
+    path.join(__dirname, 'assets/crm3.png'),
+    path.join(process.resourcesPath, 'crm3.png'),
+    path.join(__dirname, 'crm3.png')
+  ];
+  
+  const fs = require('fs');
+  for (const iconPath of iconPaths) {
+    if (fs.existsSync(iconPath)) {
+      console.log('Using icon from:', iconPath);
+      return iconPath;
+    }
+  }
+  
+  console.log('No custom icon found, using default');
+  return null;
 }
+
+const FRONTEND_PORT = process.env.FRONTEND_PORT || 8080;
+
+// Notification settings
+let notificationSettings = {
+  enabled: true,
+  sound: true,
+  showPreview: true,
+  minimizeToTray: true
+};
 
 /**
  * Create the main application window
@@ -34,15 +52,18 @@ function createWindow() {
     height: 900,
   });
 
+  const iconPath = getIconPath();
+
   mainWindow = new BrowserWindow({
     ...windowBounds,
     minWidth: 1024,
     minHeight: 768,
     title: 'Rush CRM',
-    icon: path.join(__dirname, '../frontend/public/crm3.png'),
+    icon: iconPath,
     backgroundColor: '#ffffff',
     show: false,
-    autoHideMenuBar: true, // Hide menu bar completely
+    frame: true, // Keep frame but hide menu
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -50,49 +71,68 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       webSecurity: true,
     },
-    frame: true,
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default', // Mac style
-    vibrancy: process.platform === 'darwin' ? 'under-window' : undefined, // Mac glass effect
-    transparent: false,
-    hasShadow: true,
-    thickFrame: true,
-    skipTaskbar: false, // Show in taskbar
+    skipTaskbar: false,
     resizable: true,
     maximizable: true,
     minimizable: true,
     closable: true,
-    alwaysOnTop: false,
-    fullscreenable: true,
-    kiosk: false,
-    center: true, // Center window on screen
+    center: true,
+    autoHideMenuBar: true, // Auto-hide menu bar
   });
 
-  // Load the app - Use hosted server directly in production
-  const startURL = isDev
-    ? `http://localhost:${FRONTEND_PORT}`
-    : `https://rms.rushcorporation.com`;  // Direct hosted server
+  // COMPLETELY REMOVE MENU - Multiple approaches for different platforms
+  if (process.platform === 'darwin') {
+    // macOS - Create empty menu
+    const template = [];
+    const menu = Menu.buildFromTemplate(template);
+    Menu.setApplicationMenu(menu);
+  } else {
+    // Windows/Linux - Remove menu completely
+    Menu.setApplicationMenu(null);
+  }
+  
+  mainWindow.setMenuBarVisibility(false);
+  mainWindow.setAutoHideMenuBar(true);
+
+  // Load the app - Always use localhost for development
+  const startURL = `http://localhost:${FRONTEND_PORT}`;
 
   console.log('Loading URL:', startURL);
-  mainWindow.loadURL(startURL);
+  
+  // Add error handling for loading
+  mainWindow.loadURL(startURL).catch(err => {
+    console.error('Failed to load URL:', err);
+    // Fallback to hosted server if localhost fails
+    console.log('Trying fallback URL...');
+    mainWindow.loadURL('https://rms.rushcorporation.com').catch(fallbackErr => {
+      console.error('Fallback URL also failed:', fallbackErr);
+    });
+  });
 
-  // Show window when ready with fade-in effect
+  // Show window when ready
   mainWindow.once('ready-to-show', () => {
+    console.log('Window ready to show');
     mainWindow.show();
     mainWindow.focus();
-    
-    // Fade in effect
-    mainWindow.setOpacity(0);
-    let opacity = 0;
-    const fadeIn = setInterval(() => {
-      opacity += 0.05;
-      mainWindow.setOpacity(opacity);
-      if (opacity >= 1) {
-        clearInterval(fadeIn);
-      }
-    }, 10);
 
-    // Always open DevTools to debug the issue
-    mainWindow.webContents.openDevTools();
+    // Open DevTools only in development and only when needed
+    if (isDev) {
+      console.log('Development mode - DevTools available via F12');
+      // Don't auto-open DevTools, let user open with F12 if needed
+    }
+  });
+
+  // Add web contents event handlers for debugging
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+    console.error('Failed to load:', errorCode, errorDescription, validatedURL);
+  });
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    console.log('Page loaded successfully');
+  });
+
+  mainWindow.webContents.on('dom-ready', () => {
+    console.log('DOM ready');
   });
 
   // Window state management
@@ -104,55 +144,20 @@ function createWindow() {
     store.set('windowBounds', mainWindow.getBounds());
   });
 
-  // Window focus/blur effects
-  mainWindow.on('focus', () => {
-    if (tray) {
-      tray.setHighlightMode('always');
-    }
-  });
-
-  mainWindow.on('blur', () => {
-    if (tray) {
-      tray.setHighlightMode('never');
-    }
-  });
-
-  // Prevent navigation away from app
-  mainWindow.webContents.on('will-navigate', (event, navigationUrl) => {
-    const parsedUrl = new URL(navigationUrl);
-    
-    // Allow navigation within the app domain
-    if (parsedUrl.origin !== 'https://rms.rushcorporation.com' && 
-        !navigationUrl.startsWith('http://localhost')) {
-      event.preventDefault();
-      shell.openExternal(navigationUrl);
-    }
-  });
-
   mainWindow.on('close', (event) => {
-    if (!app.isQuitting) {
+    if (!app.isQuitting && notificationSettings.minimizeToTray) {
       event.preventDefault();
-      
-      // Show notification when minimizing to tray
-      const { Notification } = require('electron');
-      if (Notification.isSupported()) {
-        new Notification({
-          title: 'Rush CRM',
-          body: 'App minimized to system tray. Click tray icon to restore.',
-          icon: path.join(__dirname, '../frontend/public/crm3.png'),
-          silent: true
-        }).show();
-      }
-      
       mainWindow.hide();
       
-      // Flash tray icon to show it's minimized
-      if (tray) {
-        tray.displayBalloon({
+      // Show notification when minimizing to tray
+      if (Notification.isSupported()) {
+        const iconPath = getIconPath();
+        new Notification({
           title: 'Rush CRM',
-          content: 'Running in background. Right-click tray icon for options.',
-          icon: path.join(__dirname, '../frontend/public/crm3.png')
-        });
+          body: 'App minimized to system tray. You will receive notifications for new messages.',
+          icon: iconPath,
+          silent: true
+        }).show();
       }
     }
   });
@@ -165,51 +170,32 @@ function createWindow() {
     shell.openExternal(url);
     return { action: 'deny' };
   });
-
-  createMenu();
 }
 
 function createTray() {
   try {
-    // Use crm3.png from frontend public folder
-    let trayIconPath = path.join(__dirname, '../frontend/public/crm3.png');
+    const iconPath = getIconPath();
     
-    // Check if tray icon exists
-    const fs = require('fs');
-    if (!fs.existsSync(trayIconPath)) {
-      console.log('Tray icon not found at:', trayIconPath);
-      // Fallback to assets folder
-      trayIconPath = path.join(__dirname, 'assets/crm3.png');
-      if (!fs.existsSync(trayIconPath)) {
-        console.log('Using default tray icon');
-        trayIconPath = null;
-      }
-    }
-    
-    tray = new Tray(trayIconPath || nativeImage.createEmpty());
+    tray = new Tray(iconPath || nativeImage.createEmpty());
 
     const contextMenu = Menu.buildFromTemplate([
       {
         label: '🚀 Rush CRM',
-        enabled: false,
-        icon: trayIconPath ? nativeImage.createFromPath(trayIconPath).resize({ width: 16, height: 16 }) : undefined
+        enabled: false
       },
       { type: 'separator' },
       {
         label: '📱 Show App',
-        accelerator: 'CmdOrCtrl+Shift+R',
         click: () => {
           if (mainWindow) {
             if (mainWindow.isMinimized()) mainWindow.restore();
             mainWindow.show();
             mainWindow.focus();
-            mainWindow.flashFrame(false); // Stop flashing if it was
           }
         },
       },
       {
         label: '🙈 Hide App',
-        accelerator: 'CmdOrCtrl+H',
         click: () => {
           if (mainWindow) {
             mainWindow.hide();
@@ -218,76 +204,7 @@ function createTray() {
       },
       { type: 'separator' },
       {
-        label: '🔔 Notifications',
-        type: 'checkbox',
-        checked: store.get('notifications-enabled', true),
-        click: (menuItem) => {
-          store.set('notifications-enabled', menuItem.checked);
-          
-          // Show confirmation
-          if (Notification.isSupported()) {
-            new Notification({
-              title: 'Rush CRM',
-              body: `Notifications ${menuItem.checked ? 'enabled' : 'disabled'}`,
-              icon: trayIconPath,
-              silent: !menuItem.checked
-            }).show();
-          }
-        }
-      },
-      {
-        label: '🔄 Check for Updates',
-        click: () => {
-          if (!isDev) {
-            // Trigger update check
-            const { Notification } = require('electron');
-            if (Notification.isSupported()) {
-              new Notification({
-                title: 'Rush CRM',
-                body: 'Checking for updates...',
-                icon: trayIconPath
-              }).show();
-            }
-          }
-        }
-      },
-      { type: 'separator' },
-      {
-        label: '⚙️ Settings',
-        click: () => {
-          if (mainWindow) {
-            if (mainWindow.isMinimized()) mainWindow.restore();
-            mainWindow.show();
-            mainWindow.focus();
-            // Navigate to settings page
-            mainWindow.webContents.executeJavaScript(`
-              if (window.location.hash !== '#/settings') {
-                window.location.hash = '#/settings';
-              }
-            `);
-          }
-        }
-      },
-      {
-        label: '📊 Dashboard',
-        click: () => {
-          if (mainWindow) {
-            if (mainWindow.isMinimized()) mainWindow.restore();
-            mainWindow.show();
-            mainWindow.focus();
-            // Navigate to dashboard
-            mainWindow.webContents.executeJavaScript(`
-              if (window.location.hash !== '#/dashboard') {
-                window.location.hash = '#/dashboard';
-              }
-            `);
-          }
-        }
-      },
-      { type: 'separator' },
-      {
         label: '❌ Quit Rush CRM',
-        accelerator: process.platform === 'darwin' ? 'Cmd+Q' : 'Ctrl+Q',
         click: () => {
           app.isQuitting = true;
           app.quit();
@@ -298,7 +215,6 @@ function createTray() {
     tray.setToolTip('Rush CRM - Customer Relationship Management System');
     tray.setContextMenu(contextMenu);
 
-    // Tray interactions
     tray.on('double-click', () => {
       if (mainWindow) {
         if (mainWindow.isVisible() && !mainWindow.isMinimized()) {
@@ -311,7 +227,6 @@ function createTray() {
       }
     });
 
-    // Single click behavior (Windows/Linux)
     tray.on('click', () => {
       if (process.platform !== 'darwin') {
         if (mainWindow) {
@@ -322,183 +237,11 @@ function createTray() {
       }
     });
 
-    // Balloon click (Windows)
-    tray.on('balloon-click', () => {
-      if (mainWindow) {
-        if (mainWindow.isMinimized()) mainWindow.restore();
-        mainWindow.show();
-        mainWindow.focus();
-      }
-    });
-
   } catch (error) {
     console.log('Failed to create system tray:', error.message);
   }
 }
 
-function createMenu() {
-  const template = [
-    {
-      label: 'File',
-      submenu: [
-        {
-          label: 'Refresh',
-          accelerator: 'CmdOrCtrl+R',
-          click: () => {
-            mainWindow.reload();
-          },
-        },
-        { type: 'separator' },
-        {
-          label: 'Exit',
-          accelerator: 'CmdOrCtrl+Q',
-          click: () => {
-            app.isQuitting = true;
-            app.quit();
-          },
-        },
-      ],
-    },
-    {
-      label: 'Edit',
-      submenu: [
-        { role: 'undo' },
-        { role: 'redo' },
-        { type: 'separator' },
-        { role: 'cut' },
-        { role: 'copy' },
-        { role: 'paste' },
-        { role: 'selectAll' },
-      ],
-    },
-    {
-      label: 'View',
-      submenu: [
-        { role: 'reload' },
-        { role: 'forceReload' },
-        { type: 'separator' },
-        { role: 'resetZoom' },
-        { role: 'zoomIn' },
-        { role: 'zoomOut' },
-        { type: 'separator' },
-        { role: 'togglefullscreen' },
-      ],
-    },
-    {
-      label: 'Help',
-      submenu: [
-        {
-          label: 'About',
-          click: () => {
-            dialog.showMessageBox(mainWindow, {
-              type: 'info',
-              title: 'About Rush CRM',
-              message: 'Rush CRM Desktop',
-              detail: `Version: ${app.getVersion()}`,
-            });
-          },
-        },
-      ],
-    },
-  ];
-
-  if (isDev) {
-    template.push({
-      label: 'Developer',
-      submenu: [
-        { role: 'toggleDevTools' },
-      ],
-    });
-  }
-
-  // Hide menu completely for clean desktop app look
-  Menu.setApplicationMenu(null);
-}
-
-function setupAutoUpdater() {
-  if (isDev) {
-    console.log('Auto-updater disabled in development');
-    return;
-  }
-
-  // Configure auto updater
-  autoUpdater.checkForUpdatesAndNotify();
-
-  autoUpdater.on('checking-for-update', () => {
-    console.log('Checking for update...');
-  });
-
-  autoUpdater.on('update-available', (info) => {
-    console.log('Update available:', info.version);
-    
-    // Show notification
-    const { Notification } = require('electron');
-    if (Notification.isSupported()) {
-      new Notification({
-        title: 'Rush CRM Update Available',
-        body: `Version ${info.version} is available. Downloading...`,
-        icon: path.join(__dirname, '../frontend/public/crm3.png') // Use crm3.png
-      }).show();
-    }
-  });
-
-  autoUpdater.on('update-not-available', (info) => {
-    console.log('Update not available:', info.version);
-  });
-
-  autoUpdater.on('error', (err) => {
-    console.log('Error in auto-updater:', err);
-  });
-
-  autoUpdater.on('download-progress', (progressObj) => {
-    let log_message = "Download speed: " + progressObj.bytesPerSecond;
-    log_message = log_message + ' - Downloaded ' + progressObj.percent + '%';
-    log_message = log_message + ' (' + progressObj.transferred + "/" + progressObj.total + ')';
-    console.log(log_message);
-  });
-
-  autoUpdater.on('update-downloaded', (info) => {
-    console.log('Update downloaded:', info.version);
-    
-    // Show dialog to restart
-    dialog.showMessageBox(mainWindow, {
-      type: 'info',
-      title: 'Update Ready',
-      message: 'Update downloaded successfully!',
-      detail: `Rush CRM ${info.version} has been downloaded. Restart the application to apply the update.`,
-      buttons: ['Restart Now', 'Later'],
-      defaultId: 0
-    }).then((result) => {
-      if (result.response === 0) {
-        autoUpdater.quitAndInstall();
-      }
-    });
-  });
-
-  // Check for updates every hour
-  setInterval(() => {
-    autoUpdater.checkForUpdatesAndNotify();
-  }, 60 * 60 * 1000);
-}
-// Add global shortcuts for better UX
-function setupGlobalShortcuts() {
-  const { globalShortcut } = require('electron');
-  
-  // Register global shortcuts
-  globalShortcut.register('CmdOrCtrl+Shift+R', () => {
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.show();
-      mainWindow.focus();
-    }
-  });
-  
-  globalShortcut.register('CmdOrCtrl+Shift+H', () => {
-    if (mainWindow && mainWindow.isVisible()) {
-      mainWindow.hide();
-    }
-  });
-}
 function setupIpcHandlers() {
   ipcMain.handle('get-app-version', () => {
     return app.getVersion();
@@ -512,25 +255,78 @@ function setupIpcHandlers() {
     store.set(key, value);
   });
 
-  ipcMain.handle('show-notification', (event, { title, body, icon }) => {
-    const { Notification } = require('electron');
+  ipcMain.handle('show-notification', (event, { title, body, icon, tag, data }) => {
+    if (!notificationSettings.enabled) return false;
     
     if (Notification.isSupported()) {
+      const iconPath = icon || getIconPath();
       const notification = new Notification({ 
-        title, 
-        body,
-        icon: icon || path.join(__dirname, '../frontend/public/crm3.png'), // Use crm3.png for notifications
-        silent: false
+        title: title || 'Rush CRM', 
+        body: body || 'New notification',
+        icon: iconPath,
+        silent: !notificationSettings.sound,
+        tag: tag || 'crm-notification',
+        urgency: 'normal'
       });
       
       notification.show();
       
       notification.on('click', () => {
-        // Show main window when notification clicked
+        // Bring window to front when notification is clicked
         if (mainWindow) {
           if (mainWindow.isMinimized()) mainWindow.restore();
           mainWindow.show();
           mainWindow.focus();
+          
+          // If there's specific data, send it to renderer
+          if (data) {
+            mainWindow.webContents.send('notification-clicked', data);
+          }
+        }
+      });
+      
+      // Auto-hide notification after 5 seconds if not clicked
+      setTimeout(() => {
+        try {
+          notification.close();
+        } catch (e) {
+          // Notification might already be closed
+        }
+      }, 5000);
+      
+      return true;
+    }
+    return false;
+  });
+
+  // New: Show desktop notification for CRM messages
+  ipcMain.handle('show-crm-message-notification', (event, { sender, message, type, chatId }) => {
+    if (!notificationSettings.enabled) return false;
+    
+    const title = type === 'direct' ? `New message from ${sender}` : `New message in ${sender}`;
+    const body = message.length > 100 ? message.substring(0, 100) + '...' : message;
+    
+    if (Notification.isSupported()) {
+      const iconPath = getIconPath();
+      const notification = new Notification({
+        title,
+        body,
+        icon: iconPath,
+        silent: !notificationSettings.sound,
+        tag: `crm-message-${chatId}`,
+        urgency: 'normal'
+      });
+      
+      notification.show();
+      
+      notification.on('click', () => {
+        if (mainWindow) {
+          if (mainWindow.isMinimized()) mainWindow.restore();
+          mainWindow.show();
+          mainWindow.focus();
+          
+          // Navigate to the specific chat/channel
+          mainWindow.webContents.send('navigate-to-chat', { chatId, type });
         }
       });
       
@@ -539,31 +335,35 @@ function setupIpcHandlers() {
     return false;
   });
 
-  ipcMain.handle('open-external', (event, url) => {
-    shell.openExternal(url);
+  // Notification settings management
+  ipcMain.handle('get-notification-settings', () => {
+    return store.get('notificationSettings', notificationSettings);
   });
 
-  // Check for updates manually
-  ipcMain.handle('check-for-updates', () => {
-    if (!isDev) {
-      autoUpdater.checkForUpdatesAndNotify();
-    }
-    return !isDev;
+  ipcMain.handle('update-notification-settings', (event, settings) => {
+    notificationSettings = { ...notificationSettings, ...settings };
+    store.set('notificationSettings', notificationSettings);
+    return notificationSettings;
+  });
+
+  ipcMain.handle('open-external', (event, url) => {
+    shell.openExternal(url);
   });
 }
 
 app.whenReady().then(async () => {
   try {
-    console.log('Starting backend server...');
-    await startBackendServer();
-    console.log('Backend server started');
+    console.log('Starting Rush CRM Desktop...');
 
-    // No frontend server needed - direct hosted server
-    console.log('Skipping frontend server - using hosted server directly');
+    // Load notification settings
+    notificationSettings = store.get('notificationSettings', notificationSettings);
+    
+    // Request notification permission on Windows
+    if (process.platform === 'win32') {
+      app.setAppUserModelId('com.rushcrm.desktop');
+    }
 
     setupIpcHandlers();
-    setupAutoUpdater();
-    setupGlobalShortcuts();
     createWindow();
     createTray();
 
@@ -589,10 +389,4 @@ app.on('activate', () => {
 
 app.on('before-quit', () => {
   app.isQuitting = true;
-});
-
-app.on('will-quit', () => {
-  // Unregister all global shortcuts
-  const { globalShortcut } = require('electron');
-  globalShortcut.unregisterAll();
 });

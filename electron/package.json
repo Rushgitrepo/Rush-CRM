@@ -1,6 +1,6 @@
 {
   "name": "rush-crm-desktop",
-  "version": "1.0.0",
+  "version": "1.0.7",
   "description": "Rush CRM Desktop Application",
   "main": "main.js",
   "author": "Jawad Abbas",
@@ -52,6 +52,16 @@
       {
         "from": "../frontend/dist",
         "to": "frontend/dist"
+      },
+      {
+        "from": "../frontend/public/crm3.png",
+        "to": "crm3.png"
+      }
+    ],
+    "extraFiles": [
+      {
+        "from": "../frontend/public/crm3.png",
+        "to": "assets/crm3.png"
       }
     ],
     "win": {
