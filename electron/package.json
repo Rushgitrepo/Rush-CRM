@@ -33,11 +33,6 @@
     "electronDownload": {
       "cache": "./cache"
     },
-    "publish": {
-      "provider": "github",
-      "owner": "Jawa090",
-      "repo": "Rush-CRM"
-    },
     "directories": {
       "output": "dist",
       "buildResources": "assets"
