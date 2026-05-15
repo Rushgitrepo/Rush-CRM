@@ -124,8 +124,8 @@ const create = async (req, res, next) => {
 
     const result = await db.query(
       `INSERT INTO public.activities 
-       (org_id, owner_id, ${entityColumn}, type, subject, description, due_date)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       (org_id, owner_id, ${entityColumn}, type, subject, description, due_date, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, NOW()))
        RETURNING *`,
       [
         req.user.orgId,
@@ -134,7 +134,8 @@ const create = async (req, res, next) => {
         normalizedActivityType,
         title,
         description,
-        dueDate || null
+        dueDate || null,
+        req.body.createdAt || null
       ]
     );
 

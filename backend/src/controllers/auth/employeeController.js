@@ -5,7 +5,7 @@ const { v4: uuidv4 } = require('uuid');
 // GET /api/members — all users with optional filters
 const getAll = async (req, res, next) => {
   try {
-    const { page = 1, limit = 50, search, role, status, department, includeSelf, includeSuperAdmin } = req.query;
+    const { page = 1, limit = 1000, search, role, status, department, includeSelf, includeSuperAdmin } = req.query;
     const offset = (page - 1) * limit;
 
     const params = [];

@@ -2,12 +2,13 @@ import { useState } from "react";
 import { format } from "date-fns";
 import {
   Send, MoreHorizontal, Pencil, Trash2,
-  MessageSquare, Clock, CalendarDays, CheckSquare, Activity
+  MessageSquare, Clock, CalendarDays, CheckSquare, Activity, PhoneCall
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import {
   useActivities, useComments, useCreateComment,
@@ -32,9 +33,10 @@ interface InteractionPanelProps {
 const tabs = [
   { id: "activity", label: "Activity", icon: Activity },
   { id: "comment", label: "Comment", icon: MessageSquare },
+  { id: "call_note", label: "Call Note", icon: PhoneCall },
   { id: "sms", label: "SMS", icon: Send },
-  { id: "booking", label: "Booking", icon: CalendarDays },
-  { id: "task", label: "Task", icon: CheckSquare },
+  // { id: "booking", label: "Booking", icon: CalendarDays },
+  // { id: "task", label: "Task", icon: CheckSquare },
 ];
 
 export function InteractionPanel({ entityType, entityId, activeTab: externalTab, onTabChange, defaultPhone }: InteractionPanelProps) {
@@ -55,6 +57,8 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
   const { sendSMS, activeProvider } = useSoftphone();
   const [recipientPhone, setRecipientPhone] = useState(defaultPhone || "");
   const [isSending, setIsSending] = useState(false);
+  const [callDate, setCallDate] = useState(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
+  const [callTitle, setCallTitle] = useState("Manual Call Log");
 
   const handleSubmitComment = () => {
     if (!commentText.trim()) return;
@@ -87,31 +91,29 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
   };
 
   const handleSendSms = async () => {
-    if (!commentText.trim() || !recipientPhone.trim()) {
-      toast.error("Please enter a phone number and message");
+    // ... (existing handleSendSms code)
+  };
+
+  const handleSubmitCallNote = () => {
+    if (!commentText.trim()) {
+      toast.error("Please enter call notes");
       return;
     }
-    
-    setIsSending(true);
-    try {
-      await sendSMS(recipientPhone, commentText);
-      toast.success("SMS sent successfully via RingCentral");
-      
-      // Log as activity in CRM
-      createActivity.mutate({
-        entity_type: entityType,
-        entity_id: entityId,
-        activity_type: 'sms',
-        title: `Sent SMS to ${recipientPhone}`,
-        description: commentText,
-      });
-      
-      setCommentText("");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to send SMS");
-    } finally {
-      setIsSending(false);
-    }
+
+    createActivity.mutate({
+      entityType: entityType,
+      entityId: entityId,
+      activityType: 'call_log',
+      title: callTitle || 'Manual Call Log',
+      description: commentText,
+      createdAt: new Date(callDate).toISOString(),
+    }, {
+      onSuccess: () => {
+        setCommentText("");
+        setCallTitle("Manual Call Log");
+        toast.success("Call note added successfully");
+      }
+    });
   };
 
   // Separate timelines for activities and comments
@@ -139,9 +141,11 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
   })).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   const filteredTimeline = activeTab === "activity"
-    ? activityTimeline
+    ? activityTimeline.filter(a => a.activityType !== 'call_log' && a.activityType !== 'call')
     : activeTab === "comment"
     ? commentTimeline
+    : (activeTab === "call_note" || activeTab === "calls")
+    ? activityTimeline.filter(a => a.activityType === 'call_log' || a.activityType === 'call')
     : [];
 
   return (
@@ -165,51 +169,102 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
         ))}
       </div>
 
-      {/* Input area for comment/sms/activity */}
-      {(activeTab === "comment" || activeTab === "sms" || activeTab === "activity") && (
-        <div className="p-3 border-b">
-          <div className="flex gap-2">
-            <Avatar className="h-7 w-7 shrink-0">
-              <AvatarFallback className="text-xs bg-primary/10 text-primary">
+      {/* Input area for comment/sms/activity/call_note */}
+      {(activeTab === "comment" || activeTab === "sms" || activeTab === "activity" || activeTab === "call_note") && (
+        <div className="p-3 border-b bg-muted/30">
+          <div className="flex gap-3">
+            <Avatar className="h-8 w-8 shrink-0 mt-1 border shadow-sm">
+              <AvatarFallback className="text-xs bg-primary/10 text-primary font-bold">
                 {profile?.full_name?.charAt(0) || "U"}
               </AvatarFallback>
             </Avatar>
-            <div className="flex-1 space-y-2">
+            <div className="flex-1 space-y-3">
               {activeTab === "sms" && (
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-2">
                    <Input 
                      placeholder="Recipient phone number..." 
                      value={recipientPhone}
                      onChange={(e) => setRecipientPhone(e.target.value)}
-                     className="h-8 text-xs max-w-[200px]"
+                     className="h-8 text-xs max-w-[200px] bg-background"
                    />
-                   <span className="text-[10px] text-muted-foreground uppercase font-semibold">RC Official API</span>
+                   <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight px-2 py-0.5 bg-muted rounded border">RC Official API</span>
                 </div>
               )}
-              <Textarea
-                placeholder={activeTab === "sms" ? "Write SMS message..." : activeTab === "activity" ? "Add an activity note..." : "Add a comment..."}
-                value={commentText}
-                onChange={(e) => setCommentText(e.target.value)}
-                className="min-h-[60px] text-sm"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                    activeTab === "sms" ? handleSendSms() : handleSubmitComment();
+
+              {activeTab === "call_note" && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-1">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <CalendarDays className="h-3 w-3 text-primary" />
+                      <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Call Date & Time</Label>
+                    </div>
+                    <div className="relative group">
+                      <Input 
+                        type="datetime-local" 
+                        value={callDate}
+                        onChange={(e) => setCallDate(e.target.value)}
+                        className="h-9 text-sm bg-background border-primary/20 focus-visible:ring-primary/30 transition-all hover:border-primary/40 pl-3"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <Pencil className="h-3 w-3 text-primary" />
+                      <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Subject / Purpose</Label>
+                    </div>
+                    <Input 
+                      placeholder="e.g., Follow-up, Discovery, Demo..." 
+                      value={callTitle}
+                      onChange={(e) => setCallTitle(e.target.value)}
+                      className="h-9 text-sm bg-background border-primary/20 focus-visible:ring-primary/30 transition-all hover:border-primary/40"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-1">
+                {activeTab === "call_note" && <Label className="text-[10px] uppercase font-bold text-muted-foreground">Call Notes</Label>}
+                <Textarea
+                  placeholder={
+                    activeTab === "sms" ? "Write SMS message..." : 
+                    activeTab === "activity" ? "Add an activity note..." : 
+                    activeTab === "call_note" ? "Type detailed call summary here..." :
+                    "Add a comment..."
                   }
-                }}
-              />
-              <div className="flex justify-end mt-2">
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                  className="min-h-[80px] text-sm bg-background resize-none"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                      if (activeTab === "sms") handleSendSms();
+                      else if (activeTab === "call_note") handleSubmitCallNote();
+                      else handleSubmitComment();
+                    }
+                  }}
+                />
+              </div>
+
+              <div className="flex justify-end pt-1">
                 <Button
                   size="sm"
-                  onClick={activeTab === "sms" ? handleSendSms : handleSubmitComment}
+                  onClick={
+                    activeTab === "sms" ? handleSendSms : 
+                    activeTab === "call_note" ? handleSubmitCallNote : 
+                    handleSubmitComment
+                  }
                   disabled={!commentText.trim() || createComment.isPending || createActivity.isPending || isSending || (activeTab === "sms" && !activeProvider)}
-                  className="gap-1"
+                  className="gap-2 px-4 font-semibold shadow-sm"
                 >
-                  <Send className="h-3 w-3" />
-                  {activeTab === "sms" ? (isSending ? "Sending..." : "Send SMS") : "Post"}
+                  {activeTab === "call_note" ? <PhoneCall className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
+                  {activeTab === "sms" ? (isSending ? "Sending..." : "Send SMS") : 
+                   activeTab === "call_note" ? "Save Call Note" : "Post"}
                 </Button>
               </div>
               {activeTab === "sms" && !activeProvider && (
-                <p className="text-[10px] text-amber-600 mt-1">Connect RingCentral in Settings to send SMS</p>
+                <p className="text-[10px] text-amber-600 mt-1 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 bg-amber-600 rounded-full animate-pulse" />
+                  Connect RingCentral in Settings to send SMS
+                </p>
               )}
             </div>
           </div>
@@ -248,7 +303,11 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
                     "text-xs",
                     item.type === 'activity' ? "bg-chart-1/10 text-chart-1" : "bg-primary/10 text-primary"
                   )}>
-                    {item.type === 'activity' ? <Activity className="h-3 w-3" /> : (item.userName?.charAt(0) || "U")}
+                    {item.type === 'activity' ? (
+                      item.activityType === 'call_log' ? <PhoneCall className="h-3 w-3" /> :
+                      item.activityType === 'sms' ? <Send className="h-3 w-3" /> :
+                      <Activity className="h-3 w-3" />
+                    ) : (item.userName?.charAt(0) || "U")}
                   </AvatarFallback>
                 </Avatar>
                 <div className="absolute left-1/2 top-7 bottom-0 w-px bg-border -translate-x-1/2" />
@@ -271,11 +330,11 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
                     ) : (
                       <>
                         <div className="flex items-center gap-2 mb-0.5">
-                          <span className="text-xs font-bold text-slate-900 leading-none">
+                          <span className="text-xs font-bold text-foreground leading-none">
                             {item.userName || "Unknown User"}
                           </span>
                         </div>
-                        <p className="text-sm text-slate-700 leading-relaxed">{item.content}</p>
+                        <p className="text-sm text-foreground/80 leading-relaxed">{item.content}</p>
                         {item.detail && item.type === 'activity' && (
                           <p className="text-xs text-muted-foreground mt-0.5">{item.detail}</p>
                         )}

@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Sparkles, Mail, Phone, Building2, Filter, Download, Upload, MoreHorizontal, Edit, Trash2, Eye, Globe, XCircle, CheckCircle } from "lucide-react";
-import { useLeads, useDeleteLead, useBulkDeleteLeads } from "@/hooks/useCrmData";
+import { useLeads, useDeleteLead, useBulkDeleteLeads, useUsers } from "@/hooks/useCrmData";
 import { useUpdateLead } from "@/hooks/useCrmMutations";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -65,6 +65,11 @@ export default function LeadsPage() {
   const [pageSize, setPageSize] = useState(100);
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+  const [priorityFilter, setPriorityFilter] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const [assignedToFilter, setAssignedToFilter] = useState("all");
+  const [tagsFilter, setTagsFilter] = useState("");
+  const [campaignFilter, setCampaignFilter] = useState("");
 
   const { data: dbLeads, isLoading, isError } = useLeads({
     search,
@@ -74,8 +79,14 @@ export default function LeadsPage() {
     page: currentPage,
     limit: pageSize,
     startDate: startDate || undefined,
-    endDate: endDate || undefined
+    endDate: endDate || undefined,
+    priority: priorityFilter !== "all" ? priorityFilter : undefined,
+    source: sourceFilter !== "all" ? sourceFilter : undefined,
+    assignedTo: assignedToFilter !== "all" ? assignedToFilter : undefined,
+    tags: tagsFilter || undefined,
+    campaign: campaignFilter || undefined,
   });
+  const { data: users = [] } = useUsers({ includeSelf: true });
   const { data: pipelineStages = [] } = usePipelineStages();
   const deleteLead = useDeleteLead();
   const bulkDeleteLeads = useBulkDeleteLeads();
@@ -396,8 +407,12 @@ export default function LeadsPage() {
             value: status,
             onChange: setStatus,
             options: [
-              { label: "All stages", value: "all" },
-              ...pipelineStages.map(s => ({ label: s.stage_label, value: s.stage_key }))
+              { label: "All Statuses", value: "all" },
+              { label: "New", value: "new" },
+              { label: "Contacted", value: "contacted" },
+              { label: "Qualified", value: "qualified" },
+              { label: "Converted", value: "converted" },
+              { label: "Disqualified", value: "disqualified" },
             ],
           },
           {
@@ -409,11 +424,77 @@ export default function LeadsPage() {
               { label: "Inbound", value: "inbound" },
               { label: "Planned", value: "planned" },
             ],
+          }, {
+            label: "Priority",
+            value: priorityFilter,
+            onChange: setPriorityFilter,
+            options: [
+              { label: "All Priority", value: "all" },
+              { label: "Low", value: "low" },
+              { label: "Medium", value: "medium" },
+              { label: "High", value: "high" },
+              { label: "Urgent", value: "urgent" },
+            ],
           },
-        ]}
-        quickFilters={[
-          { label: "Inbound", value: "inbound", active: type === "inbound", onToggle: setType },
-          { label: "Planned", value: "planned", active: type === "planned", onToggle: setType },
+          {
+            label: "Source",
+            value: sourceFilter,
+            onChange: setSourceFilter,
+            options: [
+              { label: "All Sources", value: "all" },
+              { label: "Website", value: "Website" },
+              { label: "Referral", value: "Referral" },
+              { label: "Cold Call", value: "Cold Call" },
+              { label: "LinkedIn", value: "LinkedIn" },
+              { label: "Email", value: "Email" },
+              { label: "Other", value: "Other" },
+            ],
+          },
+          {
+            label: "Responsible Person",
+            value: assignedToFilter,
+            onChange: setAssignedToFilter,
+            options: [
+              { label: "All Users", value: "all" },
+              ...(users?.map(u => ({ label: u.full_name, value: u.id })) || [])
+            ]
+          },
+          {
+            label: "Workspace",
+            type: "custom",
+            value: workspaceFilter,
+            onChange: setWorkspaceFilter,
+            render: () => (
+              <WorkspaceFilter
+                value={workspaceFilter}
+                onChange={setWorkspaceFilter}
+              />
+            )
+          },
+          {
+            label: "Campaign",
+            type: "input",
+            value: campaignFilter,
+            onChange: setCampaignFilter
+          },
+          {
+            label: "Tags",
+            type: "input",
+            value: tagsFilter,
+            onChange: setTagsFilter
+          },
+          {
+            label: "From",
+            type: "date",
+            value: startDate,
+            onChange: setStartDate
+          },
+          {
+            label: "To",
+            type: "date",
+            value: endDate,
+            onChange: setEndDate
+          }
         ]}
         sortValue={sortBy}
         sortOptions={[
@@ -431,37 +512,11 @@ export default function LeadsPage() {
         ]}
         onViewChange={(v) => setView(v as ViewType)}
       >
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] font-medium text-muted-foreground uppercase px-1">From</span>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="h-8 w-[130px] bg-muted/40 border-border/60 text-xs"
-              />
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] font-medium text-muted-foreground uppercase px-1">To</span>
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="h-8 w-[130px] bg-muted/40 border-border/60 text-xs"
-              />
-            </div>
-          </div>
-
-          <div className="flex gap-2 items-center">
-            <WorkspaceFilter
-              value={workspaceFilter}
-              onChange={setWorkspaceFilter}
-            />
-            <Button variant="outline" size="sm" onClick={() => { setType("all"); setWorkspaceFilter("all"); setStartDate(""); setEndDate(""); }}>
-              Reset Filters
-            </Button>
-          </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="h-9 border-dashed">
+            <Plus className="mr-2 h-4 w-4" />
+            Add View
+          </Button>
         </div>
       </DataToolbar>
 
