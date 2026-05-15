@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useNavigate } from "react-router-dom";
 import { AppSidebar } from "./AppSidebar";
 import { TopBar } from "./Header";
 import { TelephonyOverlay } from "@/components/telephony/TelephonyProvider";
@@ -13,11 +13,29 @@ export function MainLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
 
+  const navigate = useNavigate();
+
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+    
+    // Handle global navigation events (e.g. from notifications)
+    const handleGlobalNavigate = (e: any) => {
+      const url = e.detail;
+      if (url) {
+        console.log('[MainLayout] Received navigate event:', url);
+        // Handle HashRouter paths (remove /#/ if present)
+        const cleanUrl = url.replace('/#/', '/').replace('#/', '/');
+        navigate(cleanUrl);
+      }
+    };
+    window.addEventListener('navigate', handleGlobalNavigate);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('navigate', handleGlobalNavigate);
+    };
+  }, [navigate]);
 
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = localStorage.getItem('sidebar-width');

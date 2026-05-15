@@ -3,6 +3,7 @@ import { Phone, Video, X, Mic, PhoneOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { getAvatarUrl } from '@/lib/utils';
 
 const IncomingCallOverlay = () => {
   const [callData, setCallData] = useState<any>(null);
@@ -56,7 +57,7 @@ const IncomingCallOverlay = () => {
       <div className="flex flex-col items-center mt-8 space-y-4">
         <div className="relative">
           <Avatar className="w-24 h-24 border-2 border-white/20 shadow-xl">
-            <AvatarImage src={callData.callerAvatar} />
+            <AvatarImage src={getAvatarUrl(callData.callerAvatar)} />
             <AvatarFallback className="bg-zinc-800 text-3xl font-bold">
               {callData.callerName?.[0]?.toUpperCase() || '?'}
             </AvatarFallback>

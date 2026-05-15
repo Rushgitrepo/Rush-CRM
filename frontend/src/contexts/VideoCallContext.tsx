@@ -970,6 +970,23 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
           },
         },
       }));
+
+      // Auto-navigate to the chat where the call is coming from
+      const cleanWorkgroupId =
+        p.workgroupId && p.workgroupId !== "undefined" ? p.workgroupId : "";
+      if (cleanWorkgroupId) {
+        const basePath = p.isBroadcast
+          ? "/collaboration/broadcast"
+          : p.isDirectChat
+            ? "/collaboration/direct-chats"
+            : "/collaboration/workgroups";
+
+        const queryKey = p.isDirectChat ? "chat" : "team";
+        const path = `${basePath}?${queryKey}=${cleanWorkgroupId}`;
+
+        console.log("[VideoCall] Auto-navigating to call context:", path);
+        window.dispatchEvent(new CustomEvent("navigate", { detail: path }));
+      }
       playRingtoneRef.current("incoming");
 
       // Show electron call overlay if applicable
@@ -983,6 +1000,43 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
           callerAvatar: p.callerAvatar,
           workgroupId: p.workgroupId,
         });
+      }
+
+      // Show browser notification when tab is not focused
+      if (document.hidden || !document.hasFocus()) {
+        try {
+          if (Notification.permission === "granted") {
+            const isVideo = p.callType === "video";
+            const displayName = p.isGroupCall && p.groupName ? p.groupName : p.callerName;
+            const displayAvatar = p.isGroupCall && p.groupAvatar ? p.groupAvatar : p.callerAvatar;
+            const apiBase = (import.meta.env.VITE_API_URL || "http://localhost:4000/api").replace(/\/api$/, "");
+            let iconUrl = "/crm.png";
+            if (displayAvatar) {
+              iconUrl = displayAvatar.startsWith("http")
+                ? displayAvatar
+                : `${apiBase}${displayAvatar.startsWith("/") ? "" : "/"}${displayAvatar}`;
+            }
+            const callIcon = isVideo ? "📹" : "📞";
+            const callLabel = isVideo ? "Incoming video call" : "Incoming voice call";
+
+            const notif = new Notification(displayName || "Incoming Call", {
+              body: `${callIcon} ${callLabel}`,
+              icon: iconUrl,
+              tag: `incoming-call-${p.callId}`,
+              requireInteraction: true,
+            });
+
+            notif.onclick = () => {
+              window.focus();
+              notif.close();
+            };
+
+            // Auto-close after 30s
+            setTimeout(() => notif.close(), 30000);
+          }
+        } catch (e) {
+          console.warn("[VideoCall] Browser notification failed:", e);
+        }
       }
     };
 
@@ -1547,7 +1601,7 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       // @ts-ignore
-      window.electronAPI.removeAllListeners('call-accepted-from-overlay');
+      window.electronAPI.removeAllListeners("call-accepted-from-overlay");
     };
   }, [acceptCall]);
 

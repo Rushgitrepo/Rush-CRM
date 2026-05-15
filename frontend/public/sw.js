@@ -10,6 +10,10 @@ self.addEventListener('push', (event) => {
   try { data = event.data.json(); }
   catch { data = { title: 'Rush Management', body: event.data.text() }; }
 
+  // Incoming calls are handled by the frontend via browser Notification API
+  // (VideoCallContext.tsx) — skip here to avoid duplicate notifications
+  if (data.type === 'incoming_call') return;
+
   const workgroupId = data.workgroup_id;
   const isDirectChat = data.is_direct_chat;
   const targetParam = isDirectChat ? `chat=${workgroupId}` : `team=${workgroupId}`;
@@ -67,18 +71,25 @@ self.addEventListener('push', (event) => {
     body = `${body}\n${unread} unread messages`;
   }
 
+  // Sanitize workgroupId
+  const cleanWgId = (workgroupId && workgroupId !== 'undefined') ? workgroupId : '';
+
   const options = {
     body,
     icon,
     badge: '/crm.png',
-    tag: `workgroup-${workgroupId || 'general'}`,
+    tag: `workgroup-${cleanWgId || 'general'}`,
     renotify: true,
     data: {
-      url: data.action_url || (isDirectChat
-        ? `/#/collaboration/direct-chats?chat=${workgroupId}`
-        : data.is_broadcast
-          ? `/#/collaboration/broadcast?team=${workgroupId}`
-          : `/#/collaboration/workgroups?team=${workgroupId}`),
+      url: data.action_url && !data.action_url.includes('undefined')
+        ? data.action_url
+        : (isDirectChat && cleanWgId
+          ? `/#/collaboration/direct-chats?chat=${cleanWgId}`
+          : (data.is_broadcast || data.is_broadcast === 'true') && cleanWgId
+            ? `/#/collaboration/broadcast?team=${cleanWgId}`
+            : cleanWgId
+              ? `/#/collaboration/workgroups?team=${cleanWgId}`
+              : '/#/'),
     },
   };
 

@@ -328,8 +328,9 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState("");
   const [showAddMember, setShowAddMember] = useState(false);
-  const [selectedUserId, setSelectedUserId] = useState("");
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [addMemberSearch, setAddMemberSearch] = useState("");
+  const [isAddingMembers, setIsAddingMembers] = useState(false);
   const [showCreateWikiPage, setShowCreateWikiPage] = useState(false);
   const [newWikiPageTitle, setNewWikiPageTitle] = useState("");
   const [newWikiPageContent, setNewWikiPageContent] = useState("");
@@ -709,11 +710,25 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
     const hasElevatedRole = ["owner", "admin"].includes(
       currentUserMembership?.role || "",
     );
-    // Only allow "delete for everyone" if user is the author of ALL selected posts
-    // OR if user is owner/admin (elevated role)
+
+    // In Direct Chats, ONLY the author can delete for everyone.
+    // We ignore the technical 'owner' role here to ensure parity.
+    if (isDirectChat) {
+      return (
+        selectedDeletePosts.length > 0 &&
+        selectedDeletePosts.every((post) => post.user_id === user?.id)
+      );
+    }
+
+    // In normal Groups/Broadcasts, allow if user is author of ALL selected 
+    // OR if user is owner/admin (elevated role).
     if (hasElevatedRole) return true;
-    return selectedDeletePosts.every((post) => post.user_id === user?.id);
+    return (
+      selectedDeletePosts.length > 0 &&
+      selectedDeletePosts.every((post) => post.user_id === user?.id)
+    );
   }, [
+    isDirectChat,
     currentUserMembership?.role,
     selectedDeletePosts,
     user?.id,
@@ -1368,22 +1383,30 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
     }
   };
 
-  const handleAddMember = () => {
-    if (!selectedUserId) return;
-    addMember.mutate(
-      { workgroupId, userId: selectedUserId, role: "member" },
-      {
-        onSuccess: () => {
-          setShowAddMember(false);
-          setSelectedUserId("");
-          setAddMemberSearch("");
-          toast.success("Team member added successfully!");
-        },
-        onError: (error: any) => {
-          toast.error(error.response?.data?.error || "Failed to add member");
-        },
-      },
-    );
+  const handleAddMember = async () => {
+    if (selectedUserIds.length === 0) return;
+    setIsAddingMembers(true);
+    let successCount = 0;
+    let failCount = 0;
+    for (const userId of selectedUserIds) {
+      try {
+        await workgroupsApi.addMember(workgroupId, { user_id: userId, role: "member" });
+        successCount++;
+      } catch (error: any) {
+        failCount++;
+        const userName = availableUsers.find(u => u.id === userId)?.full_name || "User";
+        toast.error(`Failed to add ${userName}: ${error.response?.data?.error || error.message}`);
+      }
+    }
+    if (successCount > 0) {
+      queryClient.invalidateQueries({ queryKey: ["workgroup-members", workgroupId] });
+      queryClient.invalidateQueries({ queryKey: ["workgroups"] });
+      toast.success(`${successCount} member${successCount > 1 ? "s" : ""} added successfully!`);
+    }
+    setShowAddMember(false);
+    setSelectedUserIds([]);
+    setAddMemberSearch("");
+    setIsAddingMembers(false);
   };
 
   const handleRemoveTeam = async () => {
@@ -3016,10 +3039,10 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserPlus className="h-5 w-5 text-blue-600" />
-              Add Team Member
+              Add Team Members
             </DialogTitle>
             <DialogDescription>
-              Add a colleague from your organization to this team.
+              Select one or more colleagues to add to this team.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -3044,11 +3067,18 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
             ) : (
               <>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-white dark:text-white">
-                    Select User ({availableUsers.length} available)
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-foreground">
+                      Select Users ({availableUsers.length} available)
+                    </label>
+                    {selectedUserIds.length > 0 && (
+                      <Badge variant="secondary" className="text-xs">
+                        {selectedUserIds.length} selected
+                      </Badge>
+                    )}
+                  </div>
 
-                  {/* Inline search + avatar list — same style as other dropdowns */}
+                  {/* Inline search + avatar list */}
                   <div className="rounded-md border border-input bg-background overflow-hidden">
                     {/* Search input */}
                     <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
@@ -3065,7 +3095,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                     </div>
 
                     {/* Scrollable user list */}
-                    <div className="max-h-48 overflow-y-auto">
+                    <div className="space-y-0 max-h-52 overflow-y-auto">
                       {availableUsers
                         .filter(u => {
                           const q = addMemberSearch.toLowerCase();
@@ -3073,14 +3103,26 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                         })
                         .map((u) => {
                           const initials = (u.full_name || u.email || "?").split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2);
-                          const isSelected = selectedUserId === u.id;
+                          const isSelected = selectedUserIds.includes(u.id);
                           return (
                             <button
                               key={u.id}
                               type="button"
-                              onClick={() => setSelectedUserId(isSelected ? "" : u.id)}
+                              onClick={() => {
+                                if (isSelected) {
+                                  setSelectedUserIds(prev => prev.filter(id => id !== u.id));
+                                } else {
+                                  setSelectedUserIds(prev => [...prev, u.id]);
+                                }
+                              }}
                               className={`w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-muted/50 transition-colors ${isSelected ? "bg-primary/10" : ""}`}
                             >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                readOnly
+                                className="h-4 w-4 rounded border-gray-300 text-primary accent-primary shrink-0"
+                              />
                               <Avatar className="h-8 w-8 shrink-0">
                                 <AvatarImage src={getAvatarUrl((u as any).avatar_url)} />
                                 <AvatarFallback className="bg-blue-100 text-blue-700 text-xs font-bold">
@@ -3093,7 +3135,6 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                                 </p>
                                 <p className="text-xs text-muted-foreground truncate">{u.email}</p>
                               </div>
-                              {isSelected && <span className="text-primary text-xs shrink-0">✓</span>}
                             </button>
                           );
                         })}
@@ -3107,32 +3148,36 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                   </div>
                 </div>
 
-                {selectedUserId && (
+                {selectedUserIds.length > 0 && (
                   <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage src={getAvatarUrl((availableUsers.find((u) => u.id === selectedUserId) as any)?.avatar_url)} />
-                        <AvatarFallback className="bg-blue-100 text-blue-700">
-                          {(
-                            availableUsers.find((u) => u.id === selectedUserId)
-                              ?.full_name || "?"
-                          )
-                            .slice(0, 2)
-                            .toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-medium text-gray-900 dark:text-white">
-                          {availableUsers.find((u) => u.id === selectedUserId)
-                            ?.full_name || "Unknown"}
-                        </p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {availableUsers.find((u) => u.id === selectedUserId)?.email}
-                        </p>
-                        <p className="text-xs text-blue-600 dark:text-blue-400">
-                          Will be added as Member
-                        </p>
-                      </div>
+                    <p className="text-xs font-medium text-blue-600 dark:text-blue-400 mb-2">
+                      {selectedUserIds.length} member{selectedUserIds.length > 1 ? "s" : ""} selected
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedUserIds.map(uid => {
+                        const u = availableUsers.find(x => x.id === uid);
+                        if (!u) return null;
+                        return (
+                          <div key={uid} className="flex items-center gap-1.5 bg-white dark:bg-zinc-800 rounded-full px-2 py-1 border border-blue-200 dark:border-blue-700">
+                            <Avatar className="h-5 w-5">
+                              <AvatarImage src={getAvatarUrl((u as any).avatar_url)} />
+                              <AvatarFallback className="bg-blue-100 text-blue-700 text-[8px]">
+                                {(u.full_name || "?").slice(0, 2).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="text-xs font-medium text-foreground max-w-[100px] truncate">
+                              {u.full_name || u.email}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedUserIds(prev => prev.filter(id => id !== uid))}
+                              className="text-muted-foreground hover:text-red-500 transition-colors"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -3144,7 +3189,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
               variant="outline"
               onClick={() => {
                 setShowAddMember(false);
-                setSelectedUserId("");
+                setSelectedUserIds([]);
               }}
             >
               Cancel
@@ -3152,10 +3197,10 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
             {availableUsers.length > 0 && (
               <Button
                 onClick={handleAddMember}
-                disabled={!selectedUserId || addMember.isPending}
+                disabled={selectedUserIds.length === 0 || isAddingMembers}
                 className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
               >
-                {addMember.isPending ? (
+                {isAddingMembers ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     Adding...
@@ -3163,7 +3208,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                 ) : (
                   <>
                     <UserPlus className="h-4 w-4" />
-                    Add to Team
+                    Add {selectedUserIds.length > 0 ? `${selectedUserIds.length} ` : ""}to Team
                   </>
                 )}
               </Button>
