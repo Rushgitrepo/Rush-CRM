@@ -189,16 +189,21 @@ class RealtimeService {
             for (const member of membersResult.rows) {
               const targetRoom = `user:${member.user_id}`;
               this.io.to(targetRoom).emit('call:incoming', incomingPayload);
-              // SEND PUSH TO GROUP MEMBERS
-              fcmService.sendPushNotification(member.user_id, pushTitle, pushBody, pushData);
+              // Only send FCM push if user has NO active socket (mobile app background)
+              // Web browsers get notified via browser Notification API in VideoCallContext
+              if (!this.isUserConnected(member.user_id)) {
+                fcmService.sendPushNotification(member.user_id, pushTitle, pushBody, pushData);
+              }
             }
           } catch (err) {
             console.error('[WebRTC] Group invite error:', err);
           }
         } else if (payload.targetUserId) {
           this.io.to(`user:${payload.targetUserId}`).emit('call:incoming', incomingPayload);
-          // SEND PUSH TO DIRECT TARGET
-          fcmService.sendPushNotification(payload.targetUserId, pushTitle, pushBody, pushData);
+          // Only send FCM push if user has NO active socket (mobile app background)
+          if (!this.isUserConnected(payload.targetUserId)) {
+            fcmService.sendPushNotification(payload.targetUserId, pushTitle, pushBody, pushData);
+          }
         }
       });
 
