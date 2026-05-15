@@ -134,6 +134,8 @@ import RecruitmentAnalyticsPage from "./pages/recruitment/AnalyticsPage";
 import PlaceholderPage from "./pages/PlaceholderPage";
 import SettingsPage from "./pages/SettingsPage";
 import UnqualifiedPage from "./pages/crm/UnqualifiedPage";
+import IncomingCallOverlay from "./pages/electron/IncomingCallOverlay";
+import MessageOverlay from "./pages/electron/MessageOverlay";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -178,6 +180,8 @@ const App = () => (
                       <Route path="/force-password-change" element={<ForcePasswordChangePage />} />
                       <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
                       <Route path="/auth/microsoft/callback" element={<MicrosoftCallbackPage />} />
+                      <Route path="/electron/incoming-call" element={<IncomingCallOverlay />} />
+                      <Route path="/electron/message-overlay" element={<MessageOverlay />} />
 
                       {/* Protected Routes */}
                       <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>

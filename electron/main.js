@@ -299,39 +299,69 @@ function setupIpcHandlers() {
     return false;
   });
 
-  // New: Show desktop notification for CRM messages
-  ipcMain.handle('show-crm-message-notification', (event, { sender, message, type, chatId }) => {
-    if (!notificationSettings.enabled) return false;
-    
-    const title = type === 'direct' ? `New message from ${sender}` : `New message in ${sender}`;
-    const body = message.length > 100 ? message.substring(0, 100) + '...' : message;
-    
-    if (Notification.isSupported()) {
-      const iconPath = getIconPath();
-      const notification = new Notification({
-        title,
-        body,
-        icon: iconPath,
-        silent: !notificationSettings.sound,
-        tag: `crm-message-${chatId}`,
-        urgency: 'normal'
-      });
-      
-      notification.show();
-      
-      notification.on('click', () => {
-        if (mainWindow) {
-          if (mainWindow.isMinimized()) mainWindow.restore();
-          mainWindow.show();
-          mainWindow.focus();
-          
-          // Navigate to the specific chat/channel
-          mainWindow.webContents.send('navigate-to-chat', { chatId, type });
-        }
-      });
-      
-      return true;
+  // --- Message Overlay Logic (WhatsApp style) ---
+  let messageOverlayWindow = null;
+
+  ipcMain.handle('show-message-overlay', (event, msgData) => {
+    // If a window already exists, we could either update it or close it. 
+    // To keep it simple and avoid overlapping, let's close the old one if it exists.
+    if (messageOverlayWindow) {
+      messageOverlayWindow.close();
+      messageOverlayWindow = null;
     }
+
+    const { screen } = require('electron');
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width, height } = primaryDisplay.workAreaSize;
+
+    messageOverlayWindow = new BrowserWindow({
+      width: 400,
+      height: 220,
+      x: width - 420, // Bottom right
+      y: height - 240,
+      frame: false,
+      alwaysOnTop: true,
+      transparent: true,
+      resizable: false,
+      skipTaskbar: true,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'preload.js'),
+      }
+    });
+
+    const overlayURL = `http://localhost:${FRONTEND_PORT}/#/electron/message-overlay?data=${encodeURIComponent(JSON.stringify(msgData))}`;
+    messageOverlayWindow.loadURL(overlayURL);
+
+    messageOverlayWindow.on('closed', () => {
+      messageOverlayWindow = null;
+    });
+
+    // Auto-close after 10 seconds if no interaction?
+    // Maybe let the user decide or keep it for now.
+  });
+
+  ipcMain.handle('close-message-overlay', () => {
+    if (messageOverlayWindow) {
+      messageOverlayWindow.close();
+      messageOverlayWindow = null;
+    }
+  });
+
+  ipcMain.handle('send-message-reply', (event, { workgroupId, reply, isDirectChat }) => {
+    if (mainWindow) {
+      mainWindow.webContents.send('message-reply-received', { workgroupId, reply, isDirectChat });
+    }
+    if (messageOverlayWindow) {
+      messageOverlayWindow.close();
+      messageOverlayWindow = null;
+    }
+  });
+
+  ipcMain.handle('show-crm-message-notification', (event, { sender, message, type, chatId }) => {
+    // Keeping this as a fallback or for simple system notifications if needed
+    // But we'll mostly use the rich overlay now.
     return false;
   });
 
@@ -348,6 +378,62 @@ function setupIpcHandlers() {
 
   ipcMain.handle('open-external', (event, url) => {
     shell.openExternal(url);
+  });
+
+  // --- Incoming Call Overlay Logic ---
+  let callWindow = null;
+
+  ipcMain.handle('show-incoming-call', (event, callData) => {
+    if (callWindow) return;
+
+    const { screen } = require('electron');
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width, height } = primaryDisplay.workAreaSize;
+
+    callWindow = new BrowserWindow({
+      width: 360,
+      height: 480,
+      x: width - 380, // Bottom right
+      y: height - 500,
+      frame: false,
+      alwaysOnTop: true,
+      transparent: true,
+      resizable: false,
+      skipTaskbar: true,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'preload.js'),
+      }
+    });
+
+    // Load the specific overlay route from our React app
+    const overlayURL = `http://localhost:${FRONTEND_PORT}/#/electron/incoming-call?data=${encodeURIComponent(JSON.stringify(callData))}`;
+    callWindow.loadURL(overlayURL);
+
+    callWindow.on('closed', () => {
+      callWindow = null;
+    });
+  });
+
+  ipcMain.handle('close-incoming-call', () => {
+    if (callWindow) {
+      callWindow.close();
+      callWindow = null;
+    }
+  });
+
+  ipcMain.handle('accept-incoming-call', () => {
+    if (callWindow) {
+      callWindow.close();
+      callWindow = null;
+    }
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+      mainWindow.webContents.send('call-accepted-from-overlay');
+    }
   });
 }
 

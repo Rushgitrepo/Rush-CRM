@@ -43,6 +43,9 @@ class RealtimeService {
     // Connection handling
     this.io.on('connection', (socket) => {
       console.log(`User connected: ${socket.userId} (Org: ${socket.orgId})`);
+
+      const wasOnline = this.isUserConnected(socket.userId);
+
       // Track multi-tab/socket presence at app level
       const existingSockets = this.userSockets.get(socket.userId) || new Set();
       existingSockets.add(socket.id);
@@ -53,6 +56,11 @@ class RealtimeService {
         orgId: socket.orgId,
         connectedAt: new Date(),
       });
+
+      if (!wasOnline) {
+        this.lastSeenAt.delete(socket.userId);
+        this.emitPresenceUpdate(socket.orgId, socket.userId, true, null);
+      }
 
       // Join organization room
       socket.join(`org:${socket.orgId}`);
@@ -83,14 +91,11 @@ class RealtimeService {
       });
 
       socket.on('presence:active', () => {
+        // We still keep the activeSet for future 'Idle' status implementation if needed,
+        // but online status is now managed by connection/disconnection.
         const activeSet = this.userActiveSockets.get(socket.userId) || new Set();
-        const wasOnline = this.isUserConnected(socket.userId);
         activeSet.add(socket.id);
         this.userActiveSockets.set(socket.userId, activeSet);
-        this.lastSeenAt.delete(socket.userId);
-        if (!wasOnline) {
-          this.emitPresenceUpdate(socket.orgId, socket.userId, true, null);
-        }
       });
 
       socket.on('presence:inactive', () => {
@@ -99,10 +104,6 @@ class RealtimeService {
           activeSet.delete(socket.id);
           if (activeSet.size === 0) {
             this.userActiveSockets.delete(socket.userId);
-            const now = new Date();
-            this.lastSeenAt.set(socket.userId, now);
-            this.persistLastSeenAt(socket.userId, now);
-            this.emitPresenceUpdate(socket.orgId, socket.userId, false, now);
           } else {
             this.userActiveSockets.set(socket.userId, activeSet);
           }
@@ -354,7 +355,7 @@ class RealtimeService {
 
         if (payload.callId) {
           const roomName = `call_room:${payload.callId}`;
-          
+
           // Notify everyone in the actual call room that the call is ending
           socket.to(roomName).emit('call:end', endPayload);
 
@@ -562,9 +563,9 @@ class RealtimeService {
     });
   }
 
-  // Check if user is connected
+  // Check if user is connected (has at least one open tab/socket)
   isUserConnected(userId) {
-    const sockets = this.userActiveSockets.get(userId);
+    const sockets = this.userSockets.get(userId);
     return Boolean(sockets && sockets.size > 0);
   }
 

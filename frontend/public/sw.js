@@ -74,18 +74,22 @@ self.addEventListener('push', (event) => {
     tag: `workgroup-${workgroupId || 'general'}`,
     renotify: true,
     data: {
-      url: isDirectChat
-        ? `/collaboration/direct-chats?chat=${workgroupId}`
-        : `/collaboration/workgroups?team=${workgroupId}`,
+      url: data.action_url || (isDirectChat
+        ? `/#/collaboration/direct-chats?chat=${workgroupId}`
+        : data.is_broadcast
+          ? `/#/collaboration/broadcast?team=${workgroupId}`
+          : `/#/collaboration/workgroups?team=${workgroupId}`),
     },
   };
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      const isOnChat = clientList.some(
-        c => c.visibilityState === 'visible' && c.url.includes(targetParam)
+      // If ANY project tab is visible, suppress the push notification.
+      // The in-app toast (via socket) will handle it in the visible tab.
+      const isAnyTabVisible = clientList.some(
+        c => c.visibilityState === 'visible'
       );
-      if (isOnChat) return;
+      if (isAnyTabVisible) return;
       return self.registration.showNotification(title, options);
     })
   );

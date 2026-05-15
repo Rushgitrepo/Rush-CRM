@@ -210,10 +210,14 @@ export function RushNotificationContainer() {
                     notif={n}
                     onClose={() => remove(n.id)}
                     onClick={() => {
-                        const url = n.isDirectChat
+                        const baseUrl = n.isDirectChat
                             ? `/collaboration/direct-chats?chat=${n.workgroupId}`
+                            : n.isBroadcast
+                            ? `/collaboration/broadcast?team=${n.workgroupId}`
                             : `/collaboration/workgroups?team=${n.workgroupId}`;
-                        window.location.href = url;
+                        
+                        // Use /# for HashRouter compatibility
+                        window.location.href = `/#${baseUrl}`;
                         remove(n.id);
                     }}
                 />

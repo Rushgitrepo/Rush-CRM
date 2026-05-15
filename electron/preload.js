@@ -22,7 +22,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Event listeners for notifications
   onNotificationClicked: (callback) => ipcRenderer.on('notification-clicked', callback),
   onNavigateToChat: (callback) => ipcRenderer.on('navigate-to-chat', callback),
+  onCallAcceptedFromOverlay: (callback) => ipcRenderer.on('call-accepted-from-overlay', callback),
   removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel),
+
+  // Call Overlay
+  showIncomingCall: (callData) => ipcRenderer.invoke('show-incoming-call', callData),
+  closeIncomingCall: () => ipcRenderer.invoke('close-incoming-call'),
+  acceptIncomingCall: () => ipcRenderer.invoke('accept-incoming-call'),
+
+  // Message Overlay
+  showMessageOverlay: (msgData) => ipcRenderer.invoke('show-message-overlay', msgData),
+  closeMessageOverlay: () => ipcRenderer.invoke('close-message-overlay'),
+  sendMessageReply: (data) => ipcRenderer.invoke('send-message-reply', data),
+  onMessageReplyReceived: (callback) => ipcRenderer.on('message-reply-received', callback),
 
   // Platform info
   platform: process.platform,

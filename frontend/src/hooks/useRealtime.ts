@@ -25,16 +25,24 @@ function getCurrentUserId(): string | null {
 }
 
 function isViewingWorkgroup(workgroupId: string): boolean {
-  const params = new URLSearchParams(window.location.search);
+  // HashRouter puts query params inside the hash: /#/page?team=123
+  const hash = window.location.hash || '';
+  const qIndex = hash.indexOf('?');
+  const search = qIndex >= 0 ? hash.slice(qIndex) : '';
+  const params = new URLSearchParams(search);
   const activeId = params.get('team') || params.get('chat');
   return activeId === workgroupId;
 }
 
-function showDesktopNotification(title: string, body: string, workgroupId: string, isDirectChat: boolean) {
+function showDesktopNotification(title: string, body: string, workgroupId: string, isDirectChat: boolean, isBroadcast?: boolean) {
   if (Notification.permission !== 'granted') return;
-  const url = isDirectChat
+  const baseUrl = isDirectChat
     ? `/collaboration/direct-chats?chat=${workgroupId}`
-    : `/collaboration/workgroups?team=${workgroupId}`;
+    : isBroadcast
+      ? `/collaboration/broadcast?team=${workgroupId}`
+      : `/collaboration/workgroups?team=${workgroupId}`;
+  
+  const url = `/#${baseUrl}`;
   const n = new Notification(title, {
     body,
     icon: '/crm.png',
@@ -50,17 +58,12 @@ function showDesktopNotification(title: string, body: string, workgroupId: strin
 
 const emitPresenceFromWindowState = () => {
   if (!socketInstance || !socketInstance.connected) return;
-  const isVisible = document.visibilityState === 'visible';
-  if (isVisible) {
-    socketInstance.emit('presence:active');
-  } else {
-    socketInstance.emit('presence:inactive');
-  }
+  // Always emit active as long as the tab is open/connected
+  socketInstance.emit('presence:active');
 };
 
 const handleBeforeUnload = () => {
-  if (!socketInstance || !socketInstance.connected) return;
-  socketInstance.emit('presence:inactive');
+  // Socket disconnect will handle offline status on the backend
 };
 
 export const getSocket = (): Socket | null => {
@@ -147,7 +150,41 @@ export const getSocket = (): Socket | null => {
         unreadCount: msg?.unread_count || 1,
         authorName: msg?.author_name || '',
       });
+
+      // Electron Rich Overlay
+      // @ts-ignore
+      if (window.electronAPI?.isElectron) {
+        // Only show if tab is not visible OR user is not in this specific chat
+        if (document.visibilityState !== 'visible' || !isViewingWorkgroup(workgroupId)) {
+          // @ts-ignore
+          window.electronAPI.showMessageOverlay({
+            workgroupId,
+            title,
+            body: displayBody,
+            avatar: notifAvatar,
+            isDirectChat,
+            unreadCount: msg?.unread_count || 1,
+          });
+        }
+      }
     });
+
+    // Handle Quick Replies from Electron Overlay
+    // @ts-ignore
+    if (window.electronAPI?.isElectron) {
+      // @ts-ignore
+      window.electronAPI.onMessageReplyReceived((payload: any) => {
+        const { workgroupId, reply } = payload;
+        if (!workgroupId || !reply) return;
+        
+        console.log('[Electron] Sending quick reply to:', workgroupId);
+        socketInstance?.emit('workgroup_post:create', {
+          workgroup_id: workgroupId,
+          content: reply,
+        });
+      });
+    }
+
     workgroupNotificationListenerAttached = true;
   }
 
@@ -158,8 +195,6 @@ export const getSocket = (): Socket | null => {
   emitPresenceFromWindowState();
   if (!presenceWindowListenersAttached) {
     window.addEventListener('focus', emitPresenceFromWindowState);
-    window.addEventListener('blur', emitPresenceFromWindowState);
-    document.addEventListener('visibilitychange', emitPresenceFromWindowState);
     window.addEventListener('beforeunload', handleBeforeUnload);
     presenceWindowListenersAttached = true;
   }

@@ -178,6 +178,13 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const playRingtone = useCallback((type: "incoming" | "outgoing") => {
+    // If we are in Electron and it's an incoming call, we let the overlay handle the ringtone
+    // to avoid double audio (one from main window, one from overlay).
+    // @ts-ignore
+    if (type === "incoming" && window.electronAPI?.isElectron) {
+      return;
+    }
+
     if (type === "incoming") {
       incomingRingtoneRef.current
         ?.play()
@@ -233,6 +240,11 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
     stopCallTimer();
     cleanupMedia();
     loggedCallsRef.current.clear();
+
+    // Close electron call overlay if it's open
+    // @ts-ignore
+    window.electronAPI?.closeIncomingCall?.();
+
     setState({
       callState: "idle",
       callType: "video",
@@ -959,6 +971,19 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
         },
       }));
       playRingtoneRef.current("incoming");
+
+      // Show electron call overlay if applicable
+      // @ts-ignore
+      if (window.electronAPI?.isElectron) {
+        // @ts-ignore
+        window.electronAPI.showIncomingCall({
+          callId: p.callId,
+          callType: p.callType,
+          callerName: p.callerName,
+          callerAvatar: p.callerAvatar,
+          workgroupId: p.workgroupId,
+        });
+      }
     };
 
     // ─── Stable call:end handler ─────────────────────────────────
@@ -1506,6 +1531,25 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
       socket.off("call:user-left", handleUserLeft);
     };
   }, [playRingtone, createPeerConnection, resetCallState, stopRingtone]);
+
+  // Electron event listeners
+  useEffect(() => {
+    // @ts-ignore
+    if (!window.electronAPI?.isElectron) return;
+
+    const handleAcceptFromOverlay = () => {
+      console.log("[Electron] Call accepted from overlay");
+      acceptCall();
+    };
+
+    // @ts-ignore
+    window.electronAPI.onCallAcceptedFromOverlay(handleAcceptFromOverlay);
+
+    return () => {
+      // @ts-ignore
+      window.electronAPI.removeAllListeners('call-accepted-from-overlay');
+    };
+  }, [acceptCall]);
 
   // Cleanup on unmount
   useEffect(() => {

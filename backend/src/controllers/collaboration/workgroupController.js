@@ -418,7 +418,7 @@ const updateWorkgroup = async (req, res, next) => {
         if (!wgSettings?.moderator_permissions?.edit_group) {
           return res.status(403).json({ error: 'Moderator does not have permission to edit this group' });
         }
-        
+
         // As a moderator, you can only update name, description, and certain settings (locks)
         // We will prevent updating type, is_private, or moderator_permissions themselves if we were being strict
         // But for now, let's just allow the update since the frontend filtered the UI
@@ -724,10 +724,10 @@ const addWorkgroupMember = async (req, res, next) => {
     const isAssignedMemberManager = assignedManagerUserId === req.user.id;
 
     const isModerator = currentUserRole === 'moderator' || isAssignedMemberManager;
-    const canAddMembers = 
-      ['owner', 'admin'].includes(currentUserRole) || 
-      allow_member_add_remove || 
-      isTeamCreator || 
+    const canAddMembers =
+      ['owner', 'admin'].includes(currentUserRole) ||
+      allow_member_add_remove ||
+      isTeamCreator ||
       (isModerator && settings?.moderator_permissions?.add_members);
 
     if (!canAddMembers) {
@@ -848,9 +848,9 @@ const removeWorkgroupMember = async (req, res, next) => {
     // Users can remove themselves, owners can remove anyone, admins can remove members/guests
     if (targetUserId !== req.user.id) {
       const isModerator = currentUserRole === 'moderator' || isAssignedMemberManager;
-      const canRemoveMembers = 
-        ['owner', 'admin'].includes(currentUserRole) || 
-        isTeamCreator || 
+      const canRemoveMembers =
+        ['owner', 'admin'].includes(currentUserRole) ||
+        isTeamCreator ||
         (isModerator && permissionResult.rows[0].settings?.moderator_permissions?.delete_members);
 
       if (currentUserRole === 'owner') {
@@ -1207,6 +1207,14 @@ const createWorkgroupPost = async (req, res, next) => {
       channelAvatar = channelAvatarResult.rows[0]?.avatar_url || null;
     }
 
+    const isBroadcast = workgroup?.settings?.is_broadcast === true || workgroup?.settings?.is_broadcast === 'true';
+
+    const actionUrl = isDirectChat
+      ? `/#/collaboration/direct-chats?chat=${id}`
+      : isBroadcast
+        ? `/#/collaboration/broadcast?team=${id}`
+        : `/#/collaboration/workgroups?team=${id}`;
+
     const notifPayload = {
       title: notifTitle,
       body: notifBody,
@@ -1218,6 +1226,8 @@ const createWorkgroupPost = async (req, res, next) => {
       workgroup_avatar: toAbsoluteUrl(channelAvatar || workgroup?.avatar_url),
       post_id: insertedPost.id,
       is_direct_chat: isDirectChat,
+      is_broadcast: isBroadcast,
+      action_url: actionUrl,
     };
 
     // Create database notification for all members except sender
@@ -1234,29 +1244,33 @@ const createWorkgroupPost = async (req, res, next) => {
     }
 
     for (const { user_id } of membersResult.rows) {
-      // Per-user socket notification (reaches connected clients on any page)
+      // ALWAYS send the socket event — frontend shows toast when on another page,
+      // suppresses when user is viewing this specific chat
       realtimeService.emitWorkgroupNotification(user_id, notifPayload);
-      
-      // Web push for standard browsers (VAPID)
+
+      // ALWAYS send VAPID web push — the service worker (sw.js) will suppress it
+      // if any project tab is visible (user sees the in-app toast instead)
       pushService.sendPushToUser(user_id, {
         type: 'workgroup_message',
         ...notifPayload,
       });
 
-      // FCM for Mobile (Android/iOS) and FCM-enabled Web clients
-      fcmService.sendPushNotification(
-        user_id,
-        notifTitle,
-        notifBody,
-        {
-          type: 'workgroup_message',
-          ...notifPayload,
-          // Ensure all values are strings for FCM data payload
-          post_id: String(notifPayload.post_id),
-          workgroup_id: String(notifPayload.workgroup_id),
-          is_direct_chat: String(notifPayload.is_direct_chat)
-        }
-      ).catch(err => console.error(`FCM error for user ${user_id}:`, err.message));
+      // FCM only when user has NO open tabs (for mobile apps)
+      const isOnline = realtimeService.isUserConnected(user_id);
+      if (!isOnline) {
+        fcmService.sendPushNotification(
+          user_id,
+          notifTitle,
+          notifBody,
+          {
+            type: 'workgroup_message',
+            ...notifPayload,
+            post_id: String(notifPayload.post_id),
+            workgroup_id: String(notifPayload.workgroup_id),
+            is_direct_chat: String(notifPayload.is_direct_chat)
+          }
+        ).catch(err => console.error(`FCM error for user ${user_id}:`, err.message));
+      }
     }
 
     // Send Mention Events
