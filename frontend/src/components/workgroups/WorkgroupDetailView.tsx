@@ -3751,9 +3751,21 @@ function PostCard({
 
   const isAuthor = post.user_id === currentUserId;
 
-  const isCallLog = post.content_type === "call";
+  let isCallLog = post.content_type === "call";
   let callData: any = {};
-  if (isCallLog) {
+  
+  // Auto-detect call log JSON if it wasn't marked correctly (historical data or mobile)
+  if (!isCallLog && (post.content || "").trim().startsWith('{')) {
+    try {
+      const parsed = JSON.parse(post.content);
+      if (parsed && (parsed.type === 'video' || parsed.type === 'voice' || parsed.type === 'call') && parsed.status) {
+        isCallLog = true;
+        callData = parsed;
+      }
+    } catch (e) {
+      // Not a call log JSON
+    }
+  } else if (isCallLog) {
     try {
       callData = JSON.parse(post.content);
     } catch (e) {

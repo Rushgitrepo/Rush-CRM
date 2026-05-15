@@ -65,7 +65,7 @@ const notify = async (orgId, targetUserId, type, title, message, actionUrl = nul
         'SELECT notification_settings FROM public.users WHERE id = $1',
         [userId]
       );
-      
+
       const settings = userResult.rows[0]?.notification_settings;
       if (settings && typeof settings === 'object') {
         // If categories are disabled (e.g. settings.crm === false), skip
@@ -99,15 +99,12 @@ const notify = async (orgId, targetUserId, type, title, message, actionUrl = nul
       });
 
       // Send Push Notification via FCM
-      fcmService.sendToUser(userId, {
-        title: notification.title,
-        body: notification.message,
-        data: {
-          id: String(notification.id),
-          type: String(notification.type),
-          category: String(notification.category),
-          action_url: notification.action_url || '/',
-        }
+      fcmService.sendPushNotification(userId, notification.title, notification.message, {
+        id: String(notification.id),
+        type: String(notification.type),
+        category: String(notification.category),
+        action_url: notification.action_url || '/',
+
       });
     }
   } catch (err) {

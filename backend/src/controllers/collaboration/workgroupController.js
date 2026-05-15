@@ -1120,6 +1120,20 @@ const createWorkgroupPost = async (req, res, next) => {
     const attachments = Array.isArray(files) ? files : [];
     const messageMentions = Array.isArray(mentions) ? mentions : [];
 
+    let finalContentType = content_type || 'text';
+
+    // Auto-detect call logs if sent as text (e.g. from mobile)
+    if (finalContentType === 'text' && content.trim().startsWith('{')) {
+      try {
+        const parsed = JSON.parse(content);
+        if (parsed && (parsed.type === 'video' || parsed.type === 'voice' || parsed.type === 'call') && parsed.status) {
+          finalContentType = 'call';
+        }
+      } catch (e) {
+        // Not a valid JSON or not a call log, keep as text
+      }
+    }
+
     const postId = uuidv4();
     const insertQuery = `
       INSERT INTO workgroup_posts (
@@ -1135,7 +1149,7 @@ const createWorkgroupPost = async (req, res, next) => {
       req.user.id,
       parent_id || null,
       content.trim(),
-      content_type || 'text',
+      finalContentType,
       JSON.stringify(attachments),
       messageMentions
     ]);
