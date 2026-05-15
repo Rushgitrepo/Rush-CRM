@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
-import { io, Socket } from 'socket.io-client';
-import { toast } from 'sonner';
-import { useQueryClient } from '@tanstack/react-query';
-import Cookies from 'js-cookie';
-import { fireRushNotification } from '@/components/ui/RushNotification';
+import { useEffect, useRef, useState } from "react";
+import { io, Socket } from "socket.io-client";
+import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import Cookies from "js-cookie";
+import { fireRushNotification } from "@/components/ui/RushNotification";
 
-const SOCKET_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || "http://localhost:4000";
+const SOCKET_URL =
+  import.meta.env.VITE_API_URL?.replace("/api", "") || "http://localhost:4000";
 
 // Global Socket Instance
 let socketInstance: Socket | null = null;
@@ -17,8 +18,8 @@ let presenceHeartbeatId: number | null = null;
 
 function getCurrentUserId(): string | null {
   try {
-    const raw = localStorage.getItem('user');
-    return raw ? JSON.parse(raw)?.id ?? null : null;
+    const raw = localStorage.getItem("user");
+    return raw ? (JSON.parse(raw)?.id ?? null) : null;
   } catch {
     return null;
   }
@@ -26,26 +27,32 @@ function getCurrentUserId(): string | null {
 
 function isViewingWorkgroup(workgroupId: string): boolean {
   // HashRouter puts query params inside the hash: /#/page?team=123
-  const hash = window.location.hash || '';
-  const qIndex = hash.indexOf('?');
-  const search = qIndex >= 0 ? hash.slice(qIndex) : '';
+  const hash = window.location.hash || "";
+  const qIndex = hash.indexOf("?");
+  const search = qIndex >= 0 ? hash.slice(qIndex) : "";
   const params = new URLSearchParams(search);
-  const activeId = params.get('team') || params.get('chat');
+  const activeId = params.get("team") || params.get("chat");
   return activeId === workgroupId;
 }
 
-function showDesktopNotification(title: string, body: string, workgroupId: string, isDirectChat: boolean, isBroadcast?: boolean) {
-  if (Notification.permission !== 'granted') return;
+function showDesktopNotification(
+  title: string,
+  body: string,
+  workgroupId: string,
+  isDirectChat: boolean,
+  isBroadcast?: boolean,
+) {
+  if (Notification.permission !== "granted") return;
   const baseUrl = isDirectChat
     ? `/collaboration/direct-chats?chat=${workgroupId}`
     : isBroadcast
       ? `/collaboration/broadcast?team=${workgroupId}`
       : `/collaboration/workgroups?team=${workgroupId}`;
-  
+
   const url = `/#${baseUrl}`;
   const n = new Notification(title, {
     body,
-    icon: '/crm.png',
+    icon: "/crm.png",
     tag: `workgroup-${workgroupId}`,
     renotify: true,
   });
@@ -59,7 +66,7 @@ function showDesktopNotification(title: string, body: string, workgroupId: strin
 const emitPresenceFromWindowState = () => {
   if (!socketInstance || !socketInstance.connected) return;
   // Always emit active as long as the tab is open/connected
-  socketInstance.emit('presence:active');
+  socketInstance.emit("presence:active");
 };
 
 const handleBeforeUnload = () => {
@@ -69,24 +76,24 @@ const handleBeforeUnload = () => {
 export const getSocket = (): Socket | null => {
   if (socketInstance) return socketInstance;
 
-  const token = Cookies.get('token');
+  const token = Cookies.get("token");
   if (!token) return null;
 
   socketInstance = io(SOCKET_URL, {
     auth: { token },
-    transports: ['websocket', 'polling'],
+    transports: ["websocket", "polling"],
   });
 
-  socketInstance.on('connect', () => {
-    console.log('✅ Global WebSocket connected');
+  socketInstance.on("connect", () => {
+    console.log("✅ Global WebSocket connected");
   });
 
-  socketInstance.on('disconnect', () => {
-    console.log('❌ Global WebSocket disconnected');
+  socketInstance.on("disconnect", () => {
+    console.log("❌ Global WebSocket disconnected");
   });
 
-  socketInstance.on('connect_error', (error) => {
-    console.error('WebSocket connection error:', error);
+  socketInstance.on("connect_error", (error) => {
+    console.error("WebSocket connection error:", error);
   });
 
   // Legacy room-based toast — kept for workgroup rooms the user is subscribed to,
@@ -97,7 +104,7 @@ export const getSocket = (): Socket | null => {
 
   // Per-user notification handler — fires regardless of which page the user is on.
   if (!workgroupNotificationListenerAttached) {
-    socketInstance.on('workgroup:notification', (msg: any) => {
+    socketInstance.on("workgroup:notification", (msg: any) => {
       const workgroupId: string = msg?.workgroup_id;
       if (!workgroupId) return;
 
@@ -106,10 +113,17 @@ export const getSocket = (): Socket | null => {
       if (currentUserId && msg?.user_id === currentUserId) return;
 
       // Suppress if user is actively viewing this exact chat (WhatsApp behaviour)
-      if (isViewingWorkgroup(workgroupId) && document.visibilityState === 'visible') return;
+      if (
+        isViewingWorkgroup(workgroupId) &&
+        document.visibilityState === "visible"
+      )
+        return;
 
-      const title: string = msg?.title || msg?.author_name || 'Rush CRM';
-      const rawBody: string = String(msg?.body || msg?.content || '').replace('[SYSTEM] ', '');
+      const title: string = msg?.title || msg?.author_name || "Rush CRM";
+      const rawBody: string = String(msg?.body || msg?.content || "").replace(
+        "[SYSTEM] ",
+        "",
+      );
       if (!rawBody.trim()) return;
       const isDirectChat: boolean = Boolean(msg?.is_direct_chat);
 
@@ -118,16 +132,22 @@ export const getSocket = (): Socket | null => {
       try {
         const parsed = JSON.parse(rawBody);
         if (parsed && parsed.type && parsed.status) {
-          const isVideo = parsed.type === 'video';
-          const isMissed = parsed.status === 'missed' || parsed.status === 'rejected';
+          const isVideo = parsed.type === "video";
+          const isMissed =
+            parsed.status === "missed" || parsed.status === "rejected";
           if (isMissed) {
-            displayBody = isVideo ? '📵 Missed video call' : '📵 Missed voice call';
-          } else if (parsed.status === 'completed') {
+            displayBody = isVideo
+              ? "📵 Missed video call"
+              : "📵 Missed voice call";
+          } else if (parsed.status === "completed") {
             const dur = parsed.duration || 0;
             const m = Math.floor(dur / 60);
             const s = dur % 60;
-            const durStr = dur > 0 ? ` (${m}:${s.toString().padStart(2, '0')})` : '';
-            displayBody = isVideo ? `📹 Video call${durStr}` : `📞 Voice call${durStr}`;
+            const durStr =
+              dur > 0 ? ` (${m}:${s.toString().padStart(2, "0")})` : "";
+            displayBody = isVideo
+              ? `📹 Video call${durStr}`
+              : `📞 Voice call${durStr}`;
           }
         }
       } catch (_) {
@@ -136,8 +156,8 @@ export const getSocket = (): Socket | null => {
 
       // Always use custom Rush notification — both when tab is visible and hidden
       const notifAvatar = isDirectChat
-        ? (msg?.author_avatar || null)
-        : (msg?.workgroup_avatar || null);
+        ? msg?.author_avatar || null
+        : msg?.workgroup_avatar || null;
 
       fireRushNotification({
         title,
@@ -148,14 +168,17 @@ export const getSocket = (): Socket | null => {
         isBroadcast: Boolean(msg?.is_broadcast),
         workgroupId,
         unreadCount: msg?.unread_count || 1,
-        authorName: msg?.author_name || '',
+        authorName: msg?.author_name || "",
       });
 
       // Electron Rich Overlay
       // @ts-ignore
       if (window.electronAPI?.isElectron) {
         // Only show if tab is not visible OR user is not in this specific chat
-        if (document.visibilityState !== 'visible' || !isViewingWorkgroup(workgroupId)) {
+        if (
+          document.visibilityState !== "visible" ||
+          !isViewingWorkgroup(workgroupId)
+        ) {
           // @ts-ignore
           window.electronAPI.showMessageOverlay({
             workgroupId,
@@ -176,12 +199,33 @@ export const getSocket = (): Socket | null => {
       window.electronAPI.onMessageReplyReceived((payload: any) => {
         const { workgroupId, reply } = payload;
         if (!workgroupId || !reply) return;
-        
-        console.log('[Electron] Sending quick reply to:', workgroupId);
-        socketInstance?.emit('workgroup_post:create', {
+
+        console.log("[Electron] Sending quick reply to:", workgroupId);
+        socketInstance?.emit("workgroup_post:create", {
           workgroup_id: workgroupId,
           content: reply,
         });
+      });
+    }
+
+    // Handle Notification Clicks from Electron
+    // @ts-ignore
+    if (window.electronAPI?.isElectron) {
+      // @ts-ignore
+      window.electronAPI.onNotificationClicked((data: any) => {
+        let url = data?.url || data?.action_url;
+        if (url) {
+          // Guard against 'undefined' in URL
+          if (url.includes("undefined")) {
+            console.warn(
+              "[Electron] Suppressing navigation to undefined URL:",
+              url,
+            );
+            url = "/#/";
+          }
+          console.log("[Electron] Navigating to:", url);
+          window.dispatchEvent(new CustomEvent("navigate", { detail: url }));
+        }
       });
     }
 
@@ -194,15 +238,18 @@ export const getSocket = (): Socket | null => {
 
   emitPresenceFromWindowState();
   if (!presenceWindowListenersAttached) {
-    window.addEventListener('focus', emitPresenceFromWindowState);
-    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener("focus", emitPresenceFromWindowState);
+    window.addEventListener("beforeunload", handleBeforeUnload);
     presenceWindowListenersAttached = true;
   }
   if (presenceHeartbeatId === null) {
-    presenceHeartbeatId = window.setInterval(emitPresenceFromWindowState, 10000);
+    presenceHeartbeatId = window.setInterval(
+      emitPresenceFromWindowState,
+      10000,
+    );
   }
-  socketInstance.off('connect', emitPresenceFromWindowState);
-  socketInstance.on('connect', emitPresenceFromWindowState);
+  socketInstance.off("connect", emitPresenceFromWindowState);
+  socketInstance.on("connect", emitPresenceFromWindowState);
 
   return socketInstance;
 };
@@ -219,7 +266,9 @@ export const closeSocket = () => {
 };
 
 export function useRealtime() {
-  const [isConnected, setIsConnected] = useState(socketInstance?.connected || false);
+  const [isConnected, setIsConnected] = useState(
+    socketInstance?.connected || false,
+  );
   const socket = getSocket();
   const queryClient = useQueryClient();
 
@@ -237,43 +286,43 @@ export function useRealtime() {
       queryClient.invalidateQueries({ queryKey: ["workgroups"] });
     };
 
-    socket.on('connect', onConnect);
-    socket.on('disconnect', onDisconnect);
-    socket.on('workgroup:updated', handleGlobalWorkgroupSync);
-    socket.on('workgroup:member_added', handleGlobalWorkgroupSync);
-    socket.on('workgroup:member_removed', handleGlobalWorkgroupSync);
-    socket.on('workgroup:notification', handleGlobalWorkgroupSync);
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+    socket.on("workgroup:updated", handleGlobalWorkgroupSync);
+    socket.on("workgroup:member_added", handleGlobalWorkgroupSync);
+    socket.on("workgroup:member_removed", handleGlobalWorkgroupSync);
+    socket.on("workgroup:notification", handleGlobalWorkgroupSync);
 
     return () => {
-      socket.off('connect', onConnect);
-      socket.off('disconnect', onDisconnect);
-      socket.off('workgroup:updated', handleGlobalWorkgroupSync);
-      socket.off('workgroup:member_added', handleGlobalWorkgroupSync);
-      socket.off('workgroup:member_removed', handleGlobalWorkgroupSync);
-      socket.off('workgroup:notification', handleGlobalWorkgroupSync);
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
+      socket.off("workgroup:updated", handleGlobalWorkgroupSync);
+      socket.off("workgroup:member_added", handleGlobalWorkgroupSync);
+      socket.off("workgroup:member_removed", handleGlobalWorkgroupSync);
+      socket.off("workgroup:notification", handleGlobalWorkgroupSync);
       connectionCount--;
       if (connectionCount === 0) closeSocket();
     };
   }, [socket, queryClient]);
 
   const subscribeToCampaign = (campaignId: string) => {
-    socket?.emit('subscribe:campaign', campaignId);
+    socket?.emit("subscribe:campaign", campaignId);
   };
 
   const unsubscribeFromCampaign = (campaignId: string) => {
-    socket?.emit('unsubscribe:campaign', campaignId);
+    socket?.emit("unsubscribe:campaign", campaignId);
   };
 
   const subscribeToAnalytics = () => {
-    socket?.emit('subscribe:analytics');
+    socket?.emit("subscribe:analytics");
   };
 
   const subscribeToWorkgroup = (workgroupId: string) => {
-    socket?.emit('subscribe:workgroup', workgroupId);
+    socket?.emit("subscribe:workgroup", workgroupId);
   };
 
   const unsubscribeFromWorkgroup = (workgroupId: string) => {
-    socket?.emit('unsubscribe:workgroup', workgroupId);
+    socket?.emit("unsubscribe:workgroup", workgroupId);
   };
 
   const on = (event: string, callback: (...args: any[]) => void) => {
@@ -299,7 +348,8 @@ export function useRealtime() {
 
 // Hook for campaign real-time stats
 export function useCampaignRealtime(campaignId: string) {
-  const { subscribeToCampaign, unsubscribeFromCampaign, on, off } = useRealtime();
+  const { subscribeToCampaign, unsubscribeFromCampaign, on, off } =
+    useRealtime();
   const [stats, setStats] = useState<any>(null);
 
   useEffect(() => {
@@ -312,22 +362,26 @@ export function useCampaignRealtime(campaignId: string) {
     };
 
     const handleOpened = (data: any) => {
-      setStats((prev: any) => prev ? { ...prev, opened_count: prev.opened_count + 1 } : null);
+      setStats((prev: any) =>
+        prev ? { ...prev, opened_count: prev.opened_count + 1 } : null,
+      );
     };
 
     const handleClicked = (data: any) => {
-      setStats((prev: any) => prev ? { ...prev, clicked_count: prev.clicked_count + 1 } : null);
+      setStats((prev: any) =>
+        prev ? { ...prev, clicked_count: prev.clicked_count + 1 } : null,
+      );
     };
 
-    on('campaign:stats', handleStats);
-    on('campaign:opened', handleOpened);
-    on('campaign:clicked', handleClicked);
+    on("campaign:stats", handleStats);
+    on("campaign:opened", handleOpened);
+    on("campaign:clicked", handleClicked);
 
     return () => {
       unsubscribeFromCampaign(campaignId);
-      off('campaign:stats', handleStats);
-      off('campaign:opened', handleOpened);
-      off('campaign:clicked', handleClicked);
+      off("campaign:stats", handleStats);
+      off("campaign:opened", handleOpened);
+      off("campaign:clicked", handleClicked);
     };
   }, [campaignId]);
 
@@ -339,9 +393,9 @@ export function useDriveRealtime(onUpdate: (data: any) => void) {
   const { on, off } = useRealtime();
 
   useEffect(() => {
-    on('drive:update', onUpdate);
+    on("drive:update", onUpdate);
     return () => {
-      off('drive:update', onUpdate);
+      off("drive:update", onUpdate);
     };
   }, [onUpdate]);
 }
@@ -362,12 +416,12 @@ export function useAnalyticsRealtime() {
       setMetrics((prev) => ({ ...prev, [data.metric]: data.value }));
     };
 
-    on('analytics:update', handleUpdate);
-    on('metric:update', handleMetric);
+    on("analytics:update", handleUpdate);
+    on("metric:update", handleMetric);
 
     return () => {
-      off('analytics:update', handleUpdate);
-      off('metric:update', handleMetric);
+      off("analytics:update", handleUpdate);
+      off("metric:update", handleMetric);
     };
   }, []);
 
@@ -384,16 +438,20 @@ export function useDirectMessageRealtime(onMessage: (message: any) => void) {
     if (!socket) return;
 
     const handleMessage = (msg: any) => onMessageRef.current(msg);
-    socket.on('direct_message:new', handleMessage);
+    socket.on("direct_message:new", handleMessage);
 
     return () => {
-      socket.off('direct_message:new', handleMessage);
+      socket.off("direct_message:new", handleMessage);
     };
   }, []);
 }
 
 // Hook for workgroup real-time updates
-export function useWorkgroupRealtime(workgroupId: string, onMessage: (message: any) => void, onReaction?: (data: any) => void) {
+export function useWorkgroupRealtime(
+  workgroupId: string,
+  onMessage: (message: any) => void,
+  onReaction?: (data: any) => void,
+) {
   const onMessageRef = useRef(onMessage);
   const onReactionRef = useRef(onReaction);
   // Always keep refs current without triggering re-subscription
@@ -409,20 +467,20 @@ export function useWorkgroupRealtime(workgroupId: string, onMessage: (message: a
     const handleMessage = (msg: any) => onMessageRef.current(msg);
     const handleReaction = (data: any) => onReactionRef.current?.(data);
 
-    const subscribe = () => socket.emit('subscribe:workgroup', workgroupId);
+    const subscribe = () => socket.emit("subscribe:workgroup", workgroupId);
 
     // Subscribe now and re-subscribe automatically after any reconnect
     // (Socket.IO rooms are per-connection — they're lost on disconnect)
     subscribe();
-    socket.on('workgroup_post:new', handleMessage);
-    socket.on('reaction:added', handleReaction);
-    socket.on('connect', subscribe);
+    socket.on("workgroup_post:new", handleMessage);
+    socket.on("reaction:added", handleReaction);
+    socket.on("connect", subscribe);
 
     return () => {
-      socket.emit('unsubscribe:workgroup', workgroupId);
-      socket.off('workgroup_post:new', handleMessage);
-      socket.off('reaction:added', handleReaction);
-      socket.off('connect', subscribe);
+      socket.emit("unsubscribe:workgroup", workgroupId);
+      socket.off("workgroup_post:new", handleMessage);
+      socket.off("reaction:added", handleReaction);
+      socket.off("connect", subscribe);
     };
   }, [workgroupId]);
 }
@@ -432,24 +490,27 @@ export function useUniboxRealtime(onNewEmail: (email: any) => void) {
   const { on, off } = useRealtime();
 
   useEffect(() => {
-    on('unibox:email_created', onNewEmail);
+    on("unibox:email_created", onNewEmail);
     return () => {
-      off('unibox:email_created', onNewEmail);
+      off("unibox:email_created", onNewEmail);
     };
   }, [onNewEmail]);
 }
 
 // Hook for mentions and broadcasts
-export function useCollaborationNotifications(onMention: (notification: any) => void, onBroadcast: (notification: any) => void) {
+export function useCollaborationNotifications(
+  onMention: (notification: any) => void,
+  onBroadcast: (notification: any) => void,
+) {
   const { on, off } = useRealtime();
 
   useEffect(() => {
-    on('mention:new', onMention);
-    on('broadcast:new', onBroadcast);
+    on("mention:new", onMention);
+    on("broadcast:new", onBroadcast);
 
     return () => {
-      off('mention:new', onMention);
-      off('broadcast:new', onBroadcast);
+      off("mention:new", onMention);
+      off("broadcast:new", onBroadcast);
     };
   }, [onMention, onBroadcast]);
 }

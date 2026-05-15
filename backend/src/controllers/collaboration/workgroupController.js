@@ -1295,8 +1295,9 @@ const deleteWorkgroupPost = async (req, res, next) => {
 
     // Check if post exists and get post info
     const postQuery = `
-      SELECT p.*, wm.role
+      SELECT p.*, wm.role, w.settings as workgroup_settings
       FROM workgroup_posts p
+      JOIN workgroups w ON p.workgroup_id = w.id
       LEFT JOIN workgroup_members wm ON p.workgroup_id = wm.workgroup_id AND wm.user_id = $1
       WHERE p.id = $2 AND p.workgroup_id = $3
     `;
@@ -1307,10 +1308,19 @@ const deleteWorkgroupPost = async (req, res, next) => {
     }
 
     const post = postResult.rows[0];
+    const isDirectChat = post.workgroup_settings?.is_direct_chat === true || post.workgroup_settings?.is_direct_chat === 'true';
 
-    // Check permissions: author can delete their own posts, admins/owners can delete any post
-    if (post.user_id !== req.user.id && !['owner', 'admin'].includes(post.role)) {
-      return res.status(403).json({ error: 'You can only delete your own posts or be an admin' });
+    // Check permissions:
+    // In Direct Chats, ONLY the author can delete their own posts for everyone.
+    // In Groups/Broadcasts, the author OR admins/owners can delete any post.
+    if (isDirectChat) {
+      if (post.user_id !== req.user.id) {
+        return res.status(403).json({ error: 'In direct chats, you can only delete your own messages for everyone' });
+      }
+    } else {
+      if (post.user_id !== req.user.id && !['owner', 'admin'].includes(post.role)) {
+        return res.status(403).json({ error: 'You can only delete your own posts or be an admin' });
+      }
     }
 
     // Soft delete the post

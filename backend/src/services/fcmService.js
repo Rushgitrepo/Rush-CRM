@@ -5,75 +5,250 @@ const { query } = require('../config/database');
  * Send a push notification to a specific user
  * Works for both Web and Android tokens stored in fcm_tokens table
  */
-const sendPushNotification = async (userId, title, body, data = {}) => {
+// const sendPushNotification = async (userId, title, body, data = {}) => {
+//   try {
+//     // 1. Get all tokens for this user from database using raw SQL
+//     const { rows: tokens } = await query(
+//       `SELECT token FROM fcm_tokens WHERE user_id = $1`,
+//       [userId]
+//     );
+
+//     if (!tokens || tokens.length === 0) {
+//       console.log(`No FCM tokens found for user ${userId}`);
+//       return;
+//     }
+
+//     const registrationTokens = tokens.map(t => t.token);
+
+//     // 2. Construct the message
+//     const message = {
+//       notification: {
+//         title: title,
+//         body: body,
+//       },
+//       data: {
+//         ...data,
+//       },
+//       android: {
+//         priority: 'high',
+//         notification: {
+//           sound: 'default',
+//           badge: '1',
+//         }
+//       },
+//       tokens: registrationTokens,
+//     };
+
+//     // 3. Send via Firebase Admin
+//     let messagingInstance;
+//     try {
+//       messagingInstance = admin.messaging();
+//     } catch (initErr) {
+//       console.warn('[FCM] Firebase not initialized. Background notifications will not be sent.');
+//       return;
+//     }
+
+//     const response = await messagingInstance.sendEachForMulticast(message);
+//     console.log(`[FCM] user=${userId} success=${response.successCount} failure=${response.failureCount}`);
+//     response.responses.forEach((resp, idx) => {
+//       if (resp.success) {
+//         console.log(`[FCM] Token[${idx}] OK, messageId=${resp.messageId}`);
+//       } else {
+//         console.error(`[FCM] Token[${idx}] FAILED: code=${resp.error?.code} msg=${resp.error?.message}`);
+//       }
+//     });
+//     // const response = await admin.messaging().sendEachForMulticast(message);
+
+//     console.log(`Successfully sent ${response.successCount} messages to user ${userId}`);
+
+//     // Cleanup: If any tokens are invalid, remove them from DB
+//     if (response.failureCount > 0) {
+//       const failedTokens = [];
+//       response.responses.forEach((resp, idx) => {
+//         const errorCode = resp.error?.code;
+//         // Token is invalid or no longer registered
+//         if (!resp.success && (
+//           errorCode === 'messaging/invalid-registration-token' ||
+//           errorCode === 'messaging/registration-token-not-registered'
+//         )) {
+//           failedTokens.push(registrationTokens[idx]);
+//         }
+//       });
+
+//       if (failedTokens.length > 0) {
+//         await query(
+//           'DELETE FROM fcm_tokens WHERE token = ANY($1)',
+//           [failedTokens]
+//         );
+//         console.log(`Cleaned up ${failedTokens.length} invalid tokens`);
+//       }
+//     }
+
+//     return response;
+//   } catch (error) {
+//     console.error('Error sending FCM notification:', error);
+//   }
+// };
+
+
+const sendPushNotification = async (
+  userId,
+  title,
+  body,
+  data = {}
+) => {
   try {
-    // 1. Get all tokens for this user from database using raw SQL
-    const { rows: tokens } = await query(
-      `SELECT token FROM fcm_tokens WHERE user_id = $1 AND device_type != 'web'`,
+    // 1. Get all FCM tokens for this user
+    const { rows } = await query(
+      `
+      SELECT token, device_type
+      FROM fcm_tokens
+      WHERE user_id = $1
+      `,
       [userId]
     );
 
-    if (!tokens || tokens.length === 0) {
-      console.log(`No FCM tokens found for user ${userId}`);
+    if (!rows || rows.length === 0) {
+      console.log(`[FCM] No tokens found for user ${userId}`);
       return;
     }
 
-    const registrationTokens = tokens.map(t => t.token);
+    // 2. Optional:
+    // Skip desktop if Electron notifications handled via socket
+    const filteredTokens = rows
+      .filter((t) => t.device_type !== "desktop")
+      .map((t) => t.token);
 
-    // 2. Construct the message
+    // 3. Remove duplicate tokens
+    const registrationTokens = [...new Set(filteredTokens)];
+
+    if (registrationTokens.length === 0) {
+      console.log(`[FCM] No valid tokens after filtering`);
+      return;
+    }
+
+    // 4. Convert all data values to string
+    const formattedData = {};
+
+    Object.entries(data).forEach(([key, value]) => {
+      formattedData[key] =
+        typeof value === "string"
+          ? value
+          : JSON.stringify(value);
+    });
+
+    // 5. Construct FCM message
     const message = {
       notification: {
-        title: title,
-        body: body,
+        title,
+        body,
       },
-      data: {
-        ...data,
-      },
+
+      data: formattedData,
+
       android: {
-        priority: 'high',
+        priority: "high",
         notification: {
-          sound: 'default',
-          badge: '1',
-        }
+          sound: "default",
+          channelId: "default",
+          clickAction: "OPEN_CHAT",
+        },
       },
+
+      apns: {
+        payload: {
+          aps: {
+            sound: "default",
+            badge: 1,
+          },
+        },
+      },
+
+      webpush: {
+        notification: {
+          icon: "/logo.png",
+          badge: "/badge.png",
+          requireInteraction: true,
+        },
+      },
+
       tokens: registrationTokens,
     };
 
-    // 3. Send via Firebase Admin
-    if (!admin.apps || admin.apps.length === 0) {
-      console.warn('[FCM] Firebase not initialized. Background notifications will not be sent.');
+    // 6. Firebase messaging instance
+    let messagingInstance;
+
+    try {
+      messagingInstance = admin.messaging();
+    } catch (initErr) {
+      console.warn(
+        "[FCM] Firebase not initialized. Notifications not sent."
+      );
       return;
     }
-    const response = await admin.messaging().sendEachForMulticast(message);
 
-    console.log(`Successfully sent ${response.successCount} messages to user ${userId}`);
+    // 7. Send notifications
+    const response =
+      await messagingInstance.sendEachForMulticast(message);
 
-    // Cleanup: If any tokens are invalid, remove them from DB
+    console.log(
+      `[FCM] user=${userId} success=${response.successCount} failure=${response.failureCount}`
+    );
+
+    // 8. Log responses
+    response.responses.forEach((resp, idx) => {
+      if (resp.success) {
+        console.log(
+          `[FCM] Token[${idx}] SUCCESS messageId=${resp.messageId}`
+        );
+      } else {
+        console.error(
+          `[FCM] Token[${idx}] FAILED code=${resp.error?.code} message=${resp.error?.message}`
+        );
+      }
+    });
+
+    // 9. Cleanup invalid tokens
     if (response.failureCount > 0) {
       const failedTokens = [];
+
       response.responses.forEach((resp, idx) => {
         const errorCode = resp.error?.code;
-        // Token is invalid or no longer registered
-        if (!resp.success && (
-          errorCode === 'messaging/invalid-registration-token' ||
-          errorCode === 'messaging/registration-token-not-registered'
-        )) {
+
+        if (
+          !resp.success &&
+          (
+            errorCode ===
+            "messaging/invalid-registration-token" ||
+            errorCode ===
+            "messaging/registration-token-not-registered"
+          )
+        ) {
           failedTokens.push(registrationTokens[idx]);
         }
       });
 
       if (failedTokens.length > 0) {
         await query(
-          'DELETE FROM fcm_tokens WHERE token = ANY($1)',
+          `
+          DELETE FROM fcm_tokens
+          WHERE token = ANY($1)
+          `,
           [failedTokens]
         );
-        console.log(`Cleaned up ${failedTokens.length} invalid tokens`);
+
+        console.log(
+          `[FCM] Removed ${failedTokens.length} invalid tokens`
+        );
       }
     }
 
     return response;
   } catch (error) {
-    console.error('Error sending FCM notification:', error);
+    console.error(
+      "[FCM] Error sending push notification:",
+      error
+    );
   }
 };
 

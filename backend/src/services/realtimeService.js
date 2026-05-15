@@ -133,29 +133,51 @@ class RealtimeService {
           }
         }
 
-        const incomingPayload = {
-          callId: payload.callId,
-          callerId: socket.userId,
-          callerName: payload.callerName,
-          callerAvatar: payload.callerAvatar,
-          callType: payload.callType,
-          isGroupCall: payload.isGroupCall,
-          workgroupId: payload.workgroupId,
-          groupName,
-          groupAvatar,
-        };
-
         // Send Push Notification for Android/Web Background
         const pushTitle = payload.isGroupCall ? `Group Call: ${groupName || 'Meeting'}` : `Incoming ${payload.callType} Call`;
         const pushBody = `${payload.callerName} is calling you`;
+        // Determine correct path
+        let cleanWorkgroupId = (payload.workgroupId && payload.workgroupId !== 'undefined') ? payload.workgroupId : '';
+        let basePath = '/collaboration/workgroups';
+        let queryKey = 'team';
+
+        if (cleanWorkgroupId) {
+          try {
+            const wgResult = await db.query('SELECT type, settings FROM workgroups WHERE id = $1', [cleanWorkgroupId]);
+            if (wgResult.rows.length > 0) {
+              const wg = wgResult.rows[0];
+              const settings = wg.settings || {};
+              if (settings.is_broadcast === true || settings.is_broadcast === 'true') {
+                basePath = '/collaboration/broadcast';
+              } else if (settings.is_direct_chat === true || settings.is_direct_chat === 'true') {
+                basePath = '/collaboration/direct-chats';
+                queryKey = 'chat';
+              }
+            }
+          } catch (err) {
+            console.error('[WebRTC] Error fetching wg type:', err);
+          }
+        }
+
+        const action_url = cleanWorkgroupId ? `${basePath}?${queryKey}=${cleanWorkgroupId}` : '/#/';
+
         const pushData = {
           type: 'incoming_call',
           callId: payload.callId,
           callerId: socket.userId,
           callType: payload.callType,
           isGroupCall: String(payload.isGroupCall),
-          workgroupId: payload.workgroupId || '',
-          action_url: `/collaboration/workgroups?team=${payload.workgroupId || ''}`,
+          workgroupId: cleanWorkgroupId,
+          action_url: action_url,
+        };
+
+        const incomingPayload = {
+          ...payload,
+          callerId: socket.userId,
+          groupName,
+          groupAvatar,
+          isBroadcast: basePath.includes('broadcast'),
+          isDirectChat: basePath.includes('direct-chats'),
         };
 
         if (payload.isGroupCall && payload.workgroupId && !payload.targetUserId) {
@@ -184,24 +206,46 @@ class RealtimeService {
         // Similar to initiate but specifically for adding a peer to an existing session
         const pushTitle = `Incoming ${payload.callType} Invite`;
         const pushBody = `${payload.callerName} is inviting you to a call`;
+        // Determine correct path
+        let cleanWorkgroupId = (payload.workgroupId && payload.workgroupId !== 'undefined') ? payload.workgroupId : '';
+        let basePath = '/collaboration/workgroups';
+        let queryKey = 'team';
+
+        if (cleanWorkgroupId) {
+          try {
+            const wgResult = await db.query('SELECT type, settings FROM workgroups WHERE id = $1', [cleanWorkgroupId]);
+            if (wgResult.rows.length > 0) {
+              const wg = wgResult.rows[0];
+              const settings = wg.settings || {};
+              if (settings.is_broadcast === true || settings.is_broadcast === 'true') {
+                basePath = '/collaboration/broadcast';
+              } else if (settings.is_direct_chat === true || settings.is_direct_chat === 'true') {
+                basePath = '/collaboration/direct-chats';
+                queryKey = 'chat';
+              }
+            }
+          } catch (err) {
+            console.error('[WebRTC] Error fetching wg type:', err);
+          }
+        }
+
+        const action_url = cleanWorkgroupId ? `${basePath}?${queryKey}=${cleanWorkgroupId}` : '/#/';
+
         const pushData = {
           type: 'incoming_call',
           callId: payload.callId,
           callerId: socket.userId,
           callType: payload.callType,
           isGroupCall: String(payload.isGroupCall || false),
-          workgroupId: payload.workgroupId || '',
-          action_url: `/collaboration/workgroups?team=${payload.workgroupId || ''}`,
+          workgroupId: cleanWorkgroupId,
+          action_url: action_url,
         };
 
         const invitePayload = {
-          callId: payload.callId,
+          ...payload,
           callerId: socket.userId,
-          callerName: payload.callerName,
-          callerAvatar: payload.callerAvatar,
-          callType: payload.callType,
-          isGroupCall: payload.isGroupCall,
-          workgroupId: payload.workgroupId,
+          isBroadcast: basePath.includes('broadcast'),
+          isDirectChat: basePath.includes('direct-chats'),
         };
 
         this.io.to(`user:${payload.targetUserId}`).emit('call:incoming', invitePayload);

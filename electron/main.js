@@ -19,7 +19,7 @@ function getIconPath() {
     path.join(process.resourcesPath, 'crm3.png'),
     path.join(__dirname, 'crm3.png')
   ];
-  
+
   const fs = require('fs');
   for (const iconPath of iconPaths) {
     if (fs.existsSync(iconPath)) {
@@ -27,7 +27,7 @@ function getIconPath() {
       return iconPath;
     }
   }
-  
+
   console.log('No custom icon found, using default');
   return null;
 }
@@ -90,7 +90,7 @@ function createWindow() {
     // Windows/Linux - Remove menu completely
     Menu.setApplicationMenu(null);
   }
-  
+
   mainWindow.setMenuBarVisibility(false);
   mainWindow.setAutoHideMenuBar(true);
 
@@ -98,7 +98,7 @@ function createWindow() {
   const startURL = `http://localhost:${FRONTEND_PORT}`;
 
   console.log('Loading URL:', startURL);
-  
+
   // Add error handling for loading
   mainWindow.loadURL(startURL).catch(err => {
     console.error('Failed to load URL:', err);
@@ -148,7 +148,7 @@ function createWindow() {
     if (!app.isQuitting && notificationSettings.minimizeToTray) {
       event.preventDefault();
       mainWindow.hide();
-      
+
       // Show notification when minimizing to tray
       if (Notification.isSupported()) {
         const iconPath = getIconPath();
@@ -175,7 +175,7 @@ function createWindow() {
 function createTray() {
   try {
     const iconPath = getIconPath();
-    
+
     tray = new Tray(iconPath || nativeImage.createEmpty());
 
     const contextMenu = Menu.buildFromTemplate([
@@ -257,34 +257,34 @@ function setupIpcHandlers() {
 
   ipcMain.handle('show-notification', (event, { title, body, icon, tag, data }) => {
     if (!notificationSettings.enabled) return false;
-    
+
     if (Notification.isSupported()) {
       const iconPath = icon || getIconPath();
-      const notification = new Notification({ 
-        title: title || 'Rush CRM', 
+      const notification = new Notification({
+        title: title || 'Rush CRM',
         body: body || 'New notification',
         icon: iconPath,
         silent: !notificationSettings.sound,
         tag: tag || 'crm-notification',
         urgency: 'normal'
       });
-      
+
       notification.show();
-      
+
       notification.on('click', () => {
         // Bring window to front when notification is clicked
         if (mainWindow) {
           if (mainWindow.isMinimized()) mainWindow.restore();
           mainWindow.show();
           mainWindow.focus();
-          
+
           // If there's specific data, send it to renderer
           if (data) {
             mainWindow.webContents.send('notification-clicked', data);
           }
         }
       });
-      
+
       // Auto-hide notification after 5 seconds if not clicked
       setTimeout(() => {
         try {
@@ -293,7 +293,7 @@ function setupIpcHandlers() {
           // Notification might already be closed
         }
       }, 5000);
-      
+
       return true;
     }
     return false;
@@ -328,11 +328,16 @@ function setupIpcHandlers() {
         nodeIntegration: false,
         contextIsolation: true,
         preload: path.join(__dirname, 'preload.js'),
-      }
+      },
+      show: false,
     });
 
     const overlayURL = `http://localhost:${FRONTEND_PORT}/#/electron/message-overlay?data=${encodeURIComponent(JSON.stringify(msgData))}`;
     messageOverlayWindow.loadURL(overlayURL);
+
+    messageOverlayWindow.once('ready-to-show', () => {
+      if (messageOverlayWindow) messageOverlayWindow.show();
+    });
 
     messageOverlayWindow.on('closed', () => {
       messageOverlayWindow = null;
@@ -404,12 +409,17 @@ function setupIpcHandlers() {
         nodeIntegration: false,
         contextIsolation: true,
         preload: path.join(__dirname, 'preload.js'),
-      }
+      },
+      show: false,
     });
 
     // Load the specific overlay route from our React app
     const overlayURL = `http://localhost:${FRONTEND_PORT}/#/electron/incoming-call?data=${encodeURIComponent(JSON.stringify(callData))}`;
     callWindow.loadURL(overlayURL);
+
+    callWindow.once('ready-to-show', () => {
+      if (callWindow) callWindow.show();
+    });
 
     callWindow.on('closed', () => {
       callWindow = null;
@@ -443,7 +453,7 @@ app.whenReady().then(async () => {
 
     // Load notification settings
     notificationSettings = store.get('notificationSettings', notificationSettings);
-    
+
     // Request notification permission on Windows
     if (process.platform === 'win32') {
       app.setAppUserModelId('com.rushcrm.desktop');

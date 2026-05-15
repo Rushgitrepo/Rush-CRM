@@ -3,7 +3,7 @@ import { X, Send, MessageSquare } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, getAvatarUrl } from "@/lib/utils";
 
 const MessageOverlay = () => {
   const [data, setData] = useState<any>(null);
@@ -44,6 +44,15 @@ const MessageOverlay = () => {
     });
   };
 
+  const getInitials = (name: string) => {
+    if (!name) return "R";
+    const parts = name.split(" ").filter(Boolean);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return parts[0].slice(0, 2).toUpperCase();
+  };
+
   if (!data) return null;
 
   return (
@@ -66,12 +75,41 @@ const MessageOverlay = () => {
 
       {/* Content */}
       <div className="flex-1 flex gap-3 p-4 min-w-0">
-        <Avatar className="w-12 h-12 shrink-0 border border-zinc-100 dark:border-zinc-800">
-          <AvatarImage src={data.avatar} />
-          <AvatarFallback className="bg-indigo-500 text-white font-bold">
-            {data.title?.[0]?.toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
+        <div className="relative shrink-0">
+          <div
+            className={cn(
+              "w-12 h-12 rounded-full overflow-hidden flex items-center justify-center shrink-0 relative bg-indigo-500",
+            )}
+            style={{ color: "#ffffff" }}
+          >
+            <span
+              style={{
+                color: "#ffffff",
+                fontWeight: 700,
+                fontSize: "16px",
+                lineHeight: 1,
+                position: "absolute",
+                zIndex: 1,
+              }}
+            >
+              {getInitials(data.title || "R")}
+            </span>
+            {getAvatarUrl(data.avatar) && (
+              <img
+                src={getAvatarUrl(data.avatar)}
+                alt={data.title}
+                className="w-full h-full object-cover absolute inset-0"
+                style={{ zIndex: 2 }}
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = "none";
+                }}
+              />
+            )}
+          </div>
+          {data.isOnline && (
+            <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white dark:border-zinc-900 rounded-full" />
+          )}
+        </div>
         <div className="flex-1 min-w-0 flex flex-col justify-center">
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-bold truncate">{data.title}</h3>
