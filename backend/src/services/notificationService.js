@@ -65,7 +65,6 @@ const notify = async (orgId, targetUserId, type, title, message, actionUrl = nul
         'SELECT notification_settings FROM public.users WHERE id = $1',
         [userId]
       );
-
       const settings = userResult.rows[0]?.notification_settings;
       if (settings && typeof settings === 'object') {
         // If categories are disabled (e.g. settings.crm === false), skip

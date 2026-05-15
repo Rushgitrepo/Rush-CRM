@@ -1,0 +1,33 @@
+{
+  "name": "rush-crm",
+  "version": "1.0.0",
+  "description": "Rush CRM - Desktop Application",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:electron": "cd electron && npm run dev",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" \"wait-on http://localhost:8080 && npm run dev:electron\"",
+    "build:frontend": "cd frontend && npm run build",
+    "build:backend": "cd backend && npm install --production",
+    "build:electron": "cd electron && npm run build",
+    "build": "npm run build:frontend && npm run build:backend && npm run build:electron",
+    "build:win": "npm run build:frontend && cd electron && npm run build:win",
+    "build:mac": "npm run build:frontend && cd electron && npm run build:mac",
+    "build:linux": "npm run build:frontend && cd electron && npm run build:linux",
+    "postinstall": "cd frontend && npm install && cd ../backend && npm install && cd ../electron && npm install"
+  },
+  "keywords": [
+    "crm",
+    "electron",
+    "desktop",
+    "react",
+    "nodejs"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "wait-on": "^7.2.0"
+  }
+}

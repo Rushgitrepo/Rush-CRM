@@ -18,7 +18,7 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 app.use(cors({
-  origin: ['http://localhost:8080', `http://localhost:${process.env.APP_URL.slice(17)}`, "https://rms.rushcorporation.com"], // Allow frontend port 8080
+  origin: ['http://localhost:8080', 'http://localhost:8081', 'http://localhost:9000', 'http://localhost:5173', "https://rms.rushcorporation.com"], // Allow frontend ports + desktop app
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],

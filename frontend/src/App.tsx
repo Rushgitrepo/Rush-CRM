@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, HashRouter } from "react-router-dom";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { OrganizationProvider } from "@/contexts/OrganizationContext";
@@ -152,7 +152,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <RushNotificationContainer />
-        <BrowserRouter>
+        <HashRouter>
           <AuthProvider>
             <PushNotificationsSetup />
             <NotificationsProvider>
@@ -295,7 +295,7 @@ const App = () => (
             </NotificationsProvider>
           </AuthProvider>
 
-        </BrowserRouter>
+        </HashRouter>
       </TooltipProvider>
     </ThemeProvider>
   </QueryClientProvider>
