@@ -113,23 +113,30 @@ const sendPushNotification = async (
       return;
     }
 
-    // 2. Optional:
-    // Skip desktop if Electron notifications handled via socket
-    const filteredTokens = rows
-      .filter((t) => t.device_type !== "desktop")
-      .map((t) => t.token);
+    // 2. Partition tokens into Web vs Mobile
+    const webTokens = [];
+    const mobileTokens = [];
 
-    // 3. Remove duplicate tokens
-    const registrationTokens = [...new Set(filteredTokens)];
+    rows.forEach((r) => {
+      const token = r.token;
+      const deviceType = r.device_type || 'web';
+      if (deviceType === 'web') {
+        webTokens.push(token);
+      } else if (deviceType !== 'desktop') {
+        mobileTokens.push(token);
+      }
+    });
 
-    if (registrationTokens.length === 0) {
+    const uniqueWebTokens = [...new Set(webTokens)];
+    const uniqueMobileTokens = [...new Set(mobileTokens)];
+
+    if (uniqueWebTokens.length === 0 && uniqueMobileTokens.length === 0) {
       console.log(`[FCM] No valid tokens after filtering`);
       return;
     }
 
-    // 4. Convert all data values to string
+    // 3. Convert all data values to string
     const formattedData = {};
-
     Object.entries(data).forEach(([key, value]) => {
       formattedData[key] =
         typeof value === "string"
@@ -137,47 +144,8 @@ const sendPushNotification = async (
           : JSON.stringify(value);
     });
 
-    // 5. Construct FCM message
-    const message = {
-      notification: {
-        title,
-        body,
-      },
-
-      data: formattedData,
-
-      android: {
-        priority: "high",
-        notification: {
-          sound: "default",
-          channelId: "default",
-          clickAction: "OPEN_CHAT",
-        },
-      },
-
-      apns: {
-        payload: {
-          aps: {
-            sound: "default",
-            badge: 1,
-          },
-        },
-      },
-
-      webpush: {
-        notification: {
-          icon: "/logo.png",
-          badge: "/badge.png",
-          requireInteraction: true,
-        },
-      },
-
-      tokens: registrationTokens,
-    };
-
-    // 6. Firebase messaging instance
+    // 4. Firebase messaging instance
     let messagingInstance;
-
     try {
       messagingInstance = admin.messaging();
     } catch (initErr) {
@@ -187,63 +155,120 @@ const sendPushNotification = async (
       return;
     }
 
-    // 7. Send notifications
-    const response =
-      await messagingInstance.sendEachForMulticast(message);
+    const failedTokens = [];
+    let totalSuccessCount = 0;
+    let totalFailureCount = 0;
 
-    console.log(
-      `[FCM] user=${userId} success=${response.successCount} failure=${response.failureCount}`
-    );
+    // 5. Send Standard Notification to Mobile Tokens
+    if (uniqueMobileTokens.length > 0) {
+      const mobileMessage = {
+        notification: {
+          title,
+          body,
+        },
+        data: formattedData,
+        android: {
+          priority: "high",
+          notification: {
+            sound: "default",
+            channelId: "default",
+            clickAction: "OPEN_CHAT",
+          },
+        },
+        apns: {
+          payload: {
+            aps: {
+              sound: "default",
+              badge: 1,
+            },
+          },
+        },
+        tokens: uniqueMobileTokens,
+      };
 
-    // 8. Log responses
-    response.responses.forEach((resp, idx) => {
-      if (resp.success) {
-        console.log(
-          `[FCM] Token[${idx}] SUCCESS messageId=${resp.messageId}`
-        );
-      } else {
-        console.error(
-          `[FCM] Token[${idx}] FAILED code=${resp.error?.code} message=${resp.error?.message}`
-        );
-      }
-    });
+      const response = await messagingInstance.sendEachForMulticast(mobileMessage);
+      totalSuccessCount += response.successCount;
+      totalFailureCount += response.failureCount;
 
-    // 9. Cleanup invalid tokens
-    if (response.failureCount > 0) {
-      const failedTokens = [];
+      console.log(
+        `[FCM Mobile] user=${userId} success=${response.successCount} failure=${response.failureCount}`
+      );
 
       response.responses.forEach((resp, idx) => {
-        const errorCode = resp.error?.code;
-
-        if (
-          !resp.success &&
-          (
-            errorCode ===
-            "messaging/invalid-registration-token" ||
-            errorCode ===
-            "messaging/registration-token-not-registered"
-          )
-        ) {
-          failedTokens.push(registrationTokens[idx]);
+        if (resp.success) {
+          console.log(
+            `[FCM Mobile] Token[${idx}] SUCCESS messageId=${resp.messageId}`
+          );
+        } else {
+          console.error(
+            `[FCM Mobile] Token[${idx}] FAILED code=${resp.error?.code} message=${resp.error?.message}`
+          );
+          const errorCode = resp.error?.code;
+          if (
+            errorCode === "messaging/invalid-registration-token" ||
+            errorCode === "messaging/registration-token-not-registered"
+          ) {
+            failedTokens.push(uniqueMobileTokens[idx]);
+          }
         }
       });
-
-      if (failedTokens.length > 0) {
-        await query(
-          `
-          DELETE FROM fcm_tokens
-          WHERE token = ANY($1)
-          `,
-          [failedTokens]
-        );
-
-        console.log(
-          `[FCM] Removed ${failedTokens.length} invalid tokens`
-        );
-      }
     }
 
-    return response;
+    // 6. Send Data-Only Notification to Web Tokens (to avoid duplicate browser notifications)
+    if (uniqueWebTokens.length > 0) {
+      const webMessage = {
+        // DATA-ONLY: No top-level notification block!
+        data: {
+          ...formattedData,
+          title,
+          body,
+        },
+        tokens: uniqueWebTokens,
+      };
+
+      const response = await messagingInstance.sendEachForMulticast(webMessage);
+      totalSuccessCount += response.successCount;
+      totalFailureCount += response.failureCount;
+
+      console.log(
+        `[FCM Web] user=${userId} success=${response.successCount} failure=${response.failureCount}`
+      );
+
+      response.responses.forEach((resp, idx) => {
+        if (resp.success) {
+          console.log(
+            `[FCM Web] Token[${idx}] SUCCESS messageId=${resp.messageId}`
+          );
+        } else {
+          console.error(
+            `[FCM Web] Token[${idx}] FAILED code=${resp.error?.code} message=${resp.error?.message}`
+          );
+          const errorCode = resp.error?.code;
+          if (
+            errorCode === "messaging/invalid-registration-token" ||
+            errorCode === "messaging/registration-token-not-registered"
+          ) {
+            failedTokens.push(uniqueWebTokens[idx]);
+          }
+        }
+      });
+    }
+
+    // 7. Cleanup invalid tokens
+    if (failedTokens.length > 0) {
+      await query(
+        `
+        DELETE FROM fcm_tokens
+        WHERE token = ANY($1)
+        `,
+        [failedTokens]
+      );
+      console.log(
+        `[FCM] Removed ${failedTokens.length} invalid tokens`
+      );
+    }
+
+    return { successCount: totalSuccessCount, failureCount: totalFailureCount };
   } catch (error) {
     console.error(
       "[FCM] Error sending push notification:",

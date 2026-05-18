@@ -5,52 +5,103 @@ self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim(
 
 self.addEventListener('push', (event) => {
   if (!event.data) return;
+  let rawData;
+  try {
+    rawData = event.data.json();
+  } catch (err) {
+    rawData = { title: 'Rush Management', body: event.data.text() };
+  }
 
-  let data;
-  try { data = event.data.json(); }
-  catch { data = { title: 'Rush Management', body: event.data.text() }; }
+  // Normalize FCM data-only or mixed payload
+  // If rawData contains a nested data object, merge it to the top level.
+  let data = rawData;
+  if (rawData && rawData.data && typeof rawData.data === 'object') {
+    data = {
+      ...rawData.data,
+      title: rawData.notification?.title || rawData.data.title || rawData.title,
+      body: rawData.notification?.body || rawData.data.body || rawData.body,
+    };
+  } else if (rawData && rawData.notification) {
+    data = {
+      ...rawData,
+      title: rawData.notification.title || rawData.title,
+      body: rawData.notification.body || rawData.body,
+    };
+  }
 
-  // Incoming calls are handled by the frontend via browser Notification API
-  // (VideoCallContext.tsx) — skip here to avoid duplicate notifications
-  if (data.type === 'incoming_call') return;
+  // Handle cancel call push to dismiss incoming call notifications in real-time
+  if (data.type === 'cancel_call') {
+    const targetCallId = data.callId;
+    if (targetCallId) {
+      event.waitUntil(
+        self.registration.getNotifications().then((notifications) => {
+          notifications.forEach((notification) => {
+            const notifData = notification.data || {};
+            if (notifData.callId === targetCallId) {
+              notification.close();
+              console.log('[sw] Dismissed call notification:', targetCallId);
+            }
+          });
+        })
+      );
+    }
+    return;
+  }
 
   const workgroupId = data.workgroup_id;
   const isDirectChat = data.is_direct_chat;
   const targetParam = isDirectChat ? `chat=${workgroupId}` : `team=${workgroupId}`;
 
-  // Title
-  const title = data.title || data.author_name || 'Rush Management';
-
-  // Parse body — handle call log JSON
+  // Title & Body construction
+  let title = data.title || data.author_name || 'Rush Management';
   let body = data.body || '';
-  try {
-    const parsed = JSON.parse(body);
-    if (parsed && parsed.type && parsed.status) {
-      const isVideo = parsed.type === 'video';
-      const isMissed = parsed.status === 'missed' || parsed.status === 'rejected';
-      if (isMissed) {
-        body = isVideo ? '📵 Missed video call' : '📵 Missed voice call';
-      } else if (parsed.status === 'completed') {
-        const dur = parsed.duration || 0;
-        const m = Math.floor(dur / 60);
-        const s = dur % 60;
-        const durStr = dur > 0 ? ` (${m}:${String(s).padStart(2, '0')})` : '';
-        body = isVideo ? `📹 Video call${durStr}` : `📞 Voice call${durStr}`;
-      }
-    }
-  } catch (_) { /* not JSON */ }
 
-  // Group message: prefix body with sender name
-  if (!isDirectChat && data.author_name && !body.startsWith('📵') && !body.startsWith('📹') && !body.startsWith('📞')) {
-    body = `${data.author_name}: ${body}`;
+  if (data.type === 'incoming_call') {
+    title = data.isGroupCall === 'true' && data.groupName
+      ? data.groupName
+      : (data.callerName || 'Incoming Call');
+
+    const isVideo = data.callType === 'video';
+    body = isVideo ? '📹 Incoming video call' : '📞 Incoming voice call';
+  } else {
+    // Parse body — handle call log JSON
+    try {
+      const parsed = JSON.parse(body);
+      if (parsed && parsed.type && parsed.status) {
+        const isVideo = parsed.type === 'video';
+        const isMissed = parsed.status === 'missed' || parsed.status === 'rejected';
+        if (isMissed) {
+          body = isVideo ? '📵 Missed video call' : '📵 Missed voice call';
+        } else if (parsed.status === 'completed') {
+          const dur = parsed.duration || 0;
+          const m = Math.floor(dur / 60);
+          const s = dur % 60;
+          const durStr = dur > 0 ? ` (${m}:${String(s).padStart(2, '0')})` : '';
+          body = isVideo ? `📹 Video call${durStr}` : `📞 Voice call${durStr}`;
+        }
+      }
+    } catch (_) { /* not JSON */ }
+
+    // Group message: prefix body with sender name
+    if (!isDirectChat && data.author_name && !body.startsWith('📵') && !body.startsWith('📹') && !body.startsWith('📞')) {
+      body = `${data.author_name}: ${body}`;
+    }
   }
 
   // Icon: avatar of sender (direct) or group/channel (group/broadcast)
   // Backend sends absolute URLs — fallback handles relative paths
   let icon = '/crm.png';
-  const avatarField = isDirectChat
-    ? data.author_avatar
-    : (data.workgroup_avatar || data.author_avatar);
+  let avatarField = '';
+
+  if (data.type === 'incoming_call') {
+    avatarField = data.isGroupCall === 'true' && data.groupAvatar
+      ? data.groupAvatar
+      : data.callerAvatar;
+  } else {
+    avatarField = isDirectChat
+      ? data.author_avatar
+      : (data.workgroup_avatar || data.author_avatar);
+  }
 
   if (avatarField) {
     if (avatarField.startsWith('http')) {
@@ -74,6 +125,21 @@ self.addEventListener('push', (event) => {
   // Sanitize workgroupId
   const cleanWgId = (workgroupId && workgroupId !== 'undefined') ? workgroupId : '';
 
+  let clickUrl = data.action_url && !data.action_url.includes('undefined')
+    ? data.action_url
+    : (isDirectChat && cleanWgId
+      ? `/#/collaboration/direct-chats?chat=${cleanWgId}`
+      : (data.is_broadcast || data.is_broadcast === 'true') && cleanWgId
+        ? `/#/collaboration/broadcast?team=${cleanWgId}`
+        : cleanWgId
+          ? `/#/collaboration/workgroups?team=${cleanWgId}`
+          : '/#/');
+
+  if (data.type === 'incoming_call') {
+    const separator = clickUrl.includes('?') ? '&' : '?';
+    clickUrl = `${clickUrl}${separator}incomingCall=true&callId=${data.callId || ''}&callerId=${data.callerId || ''}&callType=${data.callType || ''}&isGroupCall=${data.isGroupCall || ''}&callerName=${encodeURIComponent(data.callerName || '')}&callerAvatar=${encodeURIComponent(data.callerAvatar || '')}`;
+  }
+
   const options = {
     body,
     icon,
@@ -81,15 +147,9 @@ self.addEventListener('push', (event) => {
     tag: `workgroup-${cleanWgId || 'general'}`,
     renotify: true,
     data: {
-      url: data.action_url && !data.action_url.includes('undefined')
-        ? data.action_url
-        : (isDirectChat && cleanWgId
-          ? `/#/collaboration/direct-chats?chat=${cleanWgId}`
-          : (data.is_broadcast || data.is_broadcast === 'true') && cleanWgId
-            ? `/#/collaboration/broadcast?team=${cleanWgId}`
-            : cleanWgId
-              ? `/#/collaboration/workgroups?team=${cleanWgId}`
-              : '/#/'),
+      url: clickUrl,
+      callId: data.callId || '',
+      type: data.type || '',
     },
   };
 
