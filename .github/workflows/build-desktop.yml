@@ -60,6 +60,24 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Remove existing macOS release assets (retry-safe)
+        if: matrix.os == 'macos-latest' && env.PUBLISH_FLAG == 'always'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(node -p "require('./electron/package.json').version")
+          TAG="v${VERSION}"
+          if ! gh release view "$TAG" --repo Jawa090/Rush-CRM &>/dev/null; then
+            exit 0
+          fi
+          gh release view "$TAG" --repo Jawa090/Rush-CRM --json assets --jq '.assets[].name' | while read -r name; do
+            case "$name" in
+              *.dmg|*.dmg.blockmap|*-mac.zip|*-mac.zip.blockmap|Rush-CRM-*.zip|Rush-CRM-*.zip.blockmap|"Rush CRM"*.zip|"Rush CRM"*.zip.blockmap|latest-mac.yml)
+                gh release delete-asset "$TAG" "$name" --repo Jawa090/Rush-CRM -y || true
+                ;;
+            esac
+          done
+
       - name: Build Electron App (macOS)
         if: matrix.os == 'macos-latest'
         run: |
@@ -92,10 +110,10 @@ jobs:
         with:
           name: rush-crm-macos
           path: |
-            electron/dist/*.dmg
-            electron/dist/*.zip
+            electron/dist/Rush-CRM-*.dmg
+            electron/dist/Rush-CRM-*.zip
             electron/dist/latest-mac.yml
-            electron/dist/*-mac.zip
+            electron/dist/*.blockmap
 
       - name: Upload Linux Artifacts
         if: matrix.os == 'ubuntu-latest' && success()

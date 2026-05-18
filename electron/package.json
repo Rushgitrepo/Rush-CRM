@@ -83,7 +83,7 @@
         }
       ],
       "icon": "../frontend/public/crm3.png",
-      "artifactName": "${productName}-Setup-${version}.${ext}",
+      "artifactName": "Rush-CRM-Setup-${version}.${ext}",
       "sign": null
     },
     "nsis": {
@@ -108,6 +108,7 @@
           "arch": ["universal"]
         }
       ],
+      "artifactName": "Rush-CRM-${version}-${arch}.${ext}",
       "category": "public.app-category.business",
       "hardenedRuntime": false,
       "gatekeeperAssess": false,
