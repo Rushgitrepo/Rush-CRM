@@ -2,6 +2,12 @@ const { app, BrowserWindow, ipcMain, Menu, Tray, dialog, shell, nativeImage, Not
 const path = require('path');
 const isDev = require('electron-is-dev');
 const Store = require('electron-store');
+const {
+  setupAutoUpdater,
+  checkForUpdates,
+  scheduleUpdateCheck,
+  setMainWindow: setUpdaterMainWindow,
+} = require('./autoUpdater');
 
 // Initialize electron store for persistent data
 const store = new Store();
@@ -199,7 +205,10 @@ function createWindow() {
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+    setUpdaterMainWindow(null);
   });
+
+  setUpdaterMainWindow(mainWindow);
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
@@ -281,6 +290,13 @@ function createTray() {
 function setupIpcHandlers() {
   ipcMain.handle('get-app-version', () => {
     return app.getVersion();
+  });
+
+  ipcMain.handle('check-for-updates', async () => {
+    if (isDev) {
+      return { status: 'dev', message: 'Updates are disabled in development mode.' };
+    }
+    return checkForUpdates({ silent: false });
   });
 
   ipcMain.handle('store-get', (event, key) => {
@@ -498,6 +514,11 @@ app.whenReady().then(async () => {
     setupIpcHandlers();
     createWindow();
     createTray();
+
+    if (!isDev) {
+      setupAutoUpdater();
+      scheduleUpdateCheck();
+    }
 
     console.log('Application ready!');
   } catch (error) {

@@ -1,6 +1,6 @@
 {
   "name": "rush-crm-desktop",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Rush CRM Desktop Application",
   "main": "main.js",
   "author": "Jawad Abbas",
@@ -15,6 +15,8 @@
     "build": "electron-builder --publish=never",
     "build:win": "electron-builder --win --publish=never",
     "build:mac": "electron-builder --mac --publish=never",
+    "build:win:publish": "electron-builder --win --publish always",
+    "build:mac:publish": "electron-builder --mac --publish always",
     "build:linux": "electron-builder --linux --publish=never",
     "pack": "electron-builder --dir",
     "postinstall": "electron-builder install-app-deps"
@@ -43,6 +45,7 @@
     },
     "files": [
       "main.js",
+      "autoUpdater.js",
       "preload.js",
       "assets/**/*",
       "../frontend/dist/**/*",
@@ -64,6 +67,12 @@
         "to": "assets/crm3.png"
       }
     ],
+    "publish": {
+      "provider": "github",
+      "owner": "Jawa090",
+      "repo": "Rush-CRM",
+      "releaseType": "release"
+    },
     "win": {
       "target": [
         {
@@ -93,12 +102,16 @@
         {
           "target": "dmg",
           "arch": ["universal"]
+        },
+        {
+          "target": "zip",
+          "arch": ["universal"]
         }
       ],
       "category": "public.app-category.business",
       "hardenedRuntime": false,
       "gatekeeperAssess": false,
-      "identity": null
+      "identity": "-"
     },
     "linux": {
       "target": [
