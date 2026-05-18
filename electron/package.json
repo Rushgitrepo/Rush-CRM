@@ -1,6 +1,6 @@
 {
   "name": "rush-crm-desktop",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Rush CRM Desktop Application",
   "main": "main.js",
   "author": "Jawad Abbas",
@@ -90,12 +90,15 @@
     },
     "mac": {
       "target": [
-        "dmg",
-        "zip"
+        {
+          "target": "dmg",
+          "arch": ["universal"]
+        }
       ],
       "category": "public.app-category.business",
-      "hardenedRuntime": true,
-      "gatekeeperAssess": false
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "identity": null
     },
     "linux": {
       "target": [

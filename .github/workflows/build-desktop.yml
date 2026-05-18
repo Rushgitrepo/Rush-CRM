@@ -61,6 +61,7 @@ jobs:
           npm run build:mac
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
       
       - name: Build Electron App (Linux)
         if: matrix.os == 'ubuntu-latest'
@@ -83,9 +84,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: rush-crm-macos
-          path: |
-            electron/dist/*.dmg
-            electron/dist/*.zip
+          path: electron/dist/*.dmg
       
       - name: Upload Linux Artifacts
         if: matrix.os == 'ubuntu-latest' && success()
