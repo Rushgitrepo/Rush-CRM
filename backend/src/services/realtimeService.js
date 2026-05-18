@@ -169,6 +169,10 @@ class RealtimeService {
           isGroupCall: String(payload.isGroupCall),
           workgroupId: cleanWorkgroupId,
           action_url: action_url,
+          callerName: payload.callerName,
+          callerAvatar: payload.callerAvatar || '',
+          groupName: groupName || '',
+          groupAvatar: groupAvatar || '',
         };
 
         const incomingPayload = {
@@ -244,6 +248,8 @@ class RealtimeService {
           isGroupCall: String(payload.isGroupCall || false),
           workgroupId: cleanWorkgroupId,
           action_url: action_url,
+          callerName: payload.callerName,
+          callerAvatar: payload.callerAvatar || '',
         };
 
         const invitePayload = {
@@ -394,12 +400,22 @@ class RealtimeService {
             );
             for (const member of membersResult.rows) {
               this.io.to(`user:${member.user_id}`).emit('call:end', endPayload);
+              // Send FCM push to cancel active notifications on closed tabs
+              fcmService.sendPushNotification(member.user_id, '', '', {
+                type: 'cancel_call',
+                callId: payload.callId
+              });
             }
           } catch (err) {
             console.error('[WebRTC] Failed to fetch workgroup members for call:end emit:', err);
           }
         } else if (payload.targetUserId) {
           this.io.to(`user:${payload.targetUserId}`).emit('call:end', endPayload);
+          // Send FCM push to cancel active notifications on closed tabs
+          fcmService.sendPushNotification(payload.targetUserId, '', '', {
+            type: 'cancel_call',
+            callId: payload.callId
+          });
         }
 
         if (payload.callId) {

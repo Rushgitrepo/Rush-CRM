@@ -156,6 +156,7 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
   const loggedCallsRef = useRef<Set<string>>(new Set());
   const callStateRef = useRef(state.callState);
   const stateRef = useRef(state);
+  const activeNotificationRef = useRef<Notification | null>(null);
 
   useEffect(() => {
     callStateRef.current = state.callState;
@@ -244,6 +245,27 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
     // Close electron call overlay if it's open
     // @ts-ignore
     window.electronAPI?.closeIncomingCall?.();
+
+    // Dismiss active browser notifications (for tab-change/minimized background state)
+    if (activeNotificationRef.current) {
+      activeNotificationRef.current.close();
+      activeNotificationRef.current = null;
+    }
+
+    // Dismiss service worker notifications matching the current callId
+    const currentCallId = stateRef.current.callId;
+    if (currentCallId && navigator.serviceWorker && navigator.serviceWorker.ready) {
+      navigator.serviceWorker.ready.then((reg) => {
+        reg.getNotifications().then((notifications) => {
+          notifications.forEach((notification) => {
+            const notifData = notification.data || {};
+            if (notifData.callId === currentCallId) {
+              notification.close();
+            }
+          });
+        });
+      });
+    }
 
     setState({
       callState: "idle",
@@ -1026,13 +1048,20 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
               requireInteraction: true,
             });
 
+            activeNotificationRef.current = notif;
+
             notif.onclick = () => {
               window.focus();
               notif.close();
             };
 
             // Auto-close after 30s
-            setTimeout(() => notif.close(), 30000);
+            setTimeout(() => {
+              if (activeNotificationRef.current === notif) {
+                activeNotificationRef.current = null;
+              }
+              notif.close();
+            }, 30000);
           }
         } catch (e) {
           console.warn("[VideoCall] Browser notification failed:", e);
@@ -1197,8 +1226,110 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
       s?.off("call:rejected", handleRejected);
       s?.off("connect", attach);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // stable: mount once only
+
+  useEffect(() => {
+    // Check if there is an incoming call in the URL query parameters (loaded from push notification click)
+    const checkUrlForIncomingCall = () => {
+      const search = window.location.hash.includes("?")
+        ? window.location.hash.split("?")[1]
+        : window.location.search;
+
+      if (!search) return;
+
+      const params = new URLSearchParams(search);
+      const incomingCall = params.get("incomingCall");
+      const callId = params.get("callId");
+      const callerId = params.get("callerId");
+      const callType = params.get("callType") as CallType;
+      const isGroupCall = params.get("isGroupCall") === "true";
+      const callerName = params.get("callerName");
+      const callerAvatar = params.get("callerAvatar");
+      const workgroupId =
+        params.get("chat") ||
+        params.get("team") ||
+        params.get("workgroupId") ||
+        null;
+
+      if (
+        incomingCall === "true" &&
+        callId &&
+        callerId &&
+        callStateRef.current === "idle"
+      ) {
+        console.log(
+          "[VideoCallContext] Found active incoming call in URL parameters:",
+          {
+            callId,
+            callerId,
+            callType,
+            isGroupCall,
+            callerName,
+          }
+        );
+
+        // Set state to incoming call
+        setState((prev) => ({
+          ...prev,
+          callState: "incoming",
+          callType: callType || "video",
+          callId,
+          callStatus: null,
+          workgroupId,
+          isOutgoing: false,
+          isGroupCall,
+          peers: {
+            [callerId]: {
+              userId: callerId,
+              name: decodeURIComponent(callerName || "Someone"),
+              avatar: callerAvatar ? decodeURIComponent(callerAvatar) : null,
+              isMuted: false,
+              isVideoOff: false,
+              isScreenSharing: false,
+              stream: null,
+            },
+          },
+        }));
+
+        // Clean the URL parameters so refreshing the page doesn't re-trigger the call overlay,
+        // but preserve routing parameters like chat/team
+        const cleanHash = window.location.hash.split("?")[0];
+        const cleanParams = new URLSearchParams(search);
+        cleanParams.delete("incomingCall");
+        cleanParams.delete("callId");
+        cleanParams.delete("callerId");
+        cleanParams.delete("callType");
+        cleanParams.delete("isGroupCall");
+        cleanParams.delete("callerName");
+        cleanParams.delete("callerAvatar");
+
+        const newParamsString = cleanParams.toString();
+        const newHash = newParamsString
+          ? `${cleanHash}?${newParamsString}`
+          : cleanHash;
+        window.history.replaceState(null, "", newHash);
+
+        // Play the ringtone
+        playRingtone("incoming");
+      }
+    };
+
+    // Run initially
+    checkUrlForIncomingCall();
+
+    // Small delay listeners to catch navigation/route events
+    const handleNav = () => {
+      setTimeout(checkUrlForIncomingCall, 250);
+    };
+
+    window.addEventListener("hashchange", handleNav);
+    window.addEventListener("navigate", handleNav);
+
+    return () => {
+      window.removeEventListener("hashchange", handleNav);
+      window.removeEventListener("navigate", handleNav);
+    };
+  }, [playRingtone]);
 
   useEffect(() => {
     const socket = getSocket();
