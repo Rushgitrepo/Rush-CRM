@@ -518,12 +518,7 @@ export default function DealsPage() {
         ]}
         onViewChange={(v) => setView(v as ViewType)}
       >
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-9 border-dashed">
-            <Plus className="mr-2 h-4 w-4" />
-            Add View
-          </Button>
-        </div>
+    
       </DataToolbar>
 
       {view === "list" && (

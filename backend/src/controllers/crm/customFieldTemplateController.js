@@ -16,10 +16,11 @@ const getTemplates = async (req, res, next) => {
   try {
     const { entityType } = req.params;
     const orgId = req.user.orgId;
+    const userId = req.user.id;
 
     const result = await db.query(
-      'SELECT key, type, section_id as "sectionId", after_field_id as "afterFieldId" FROM crm_custom_field_templates WHERE org_id = $1 AND entity_type = $2 ORDER BY created_at ASC',
-      [orgId, entityType]
+      'SELECT key, type, section_id as "sectionId", after_field_id as "afterFieldId" FROM crm_custom_field_templates WHERE org_id = $1 AND entity_type = $2 AND created_by = $3 ORDER BY created_at ASC',
+      [orgId, entityType, userId]
     );
 
     res.json(result.rows);
@@ -32,6 +33,7 @@ const saveTemplates = async (req, res, next) => {
   try {
     const { entityType } = req.params;
     const orgId = req.user.orgId;
+    const userId = req.user.id;
     const { error, value: templates } = bulkSaveSchema.validate(req.body);
 
     if (error) {
@@ -43,18 +45,18 @@ const saveTemplates = async (req, res, next) => {
     try {
       await client.query('BEGIN');
 
-      // Delete existing templates for this org/entityType
+      // Delete existing templates for this org/entityType scoped to this user
       await client.query(
-        'DELETE FROM crm_custom_field_templates WHERE org_id = $1 AND entity_type = $2',
-        [orgId, entityType]
+        'DELETE FROM crm_custom_field_templates WHERE org_id = $1 AND entity_type = $2 AND created_by = $3',
+        [orgId, entityType, userId]
       );
 
       // Insert new templates
       if (templates.length > 0) {
         for (const template of templates) {
           await client.query(
-            'INSERT INTO crm_custom_field_templates (org_id, entity_type, key, type, section_id, after_field_id) VALUES ($1, $2, $3, $4, $5, $6)',
-            [orgId, entityType, template.key, template.type, template.sectionId, template.afterFieldId]
+            'INSERT INTO crm_custom_field_templates (org_id, entity_type, key, type, section_id, after_field_id, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+            [orgId, entityType, template.key, template.type, template.sectionId, template.afterFieldId, userId]
           );
         }
       }

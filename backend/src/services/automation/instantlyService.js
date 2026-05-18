@@ -1,6 +1,24 @@
 const db = require('../../config/database');
 const realtimeService = require('../realtimeService');
 
+// Designation signature parser from bottom of email body text
+const extractDesignationFromEmail = (bodyText) => {
+  if (!bodyText) return null;
+  const lines = bodyText.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  if (lines.length === 0) return null;
+  const bottomLines = lines.slice(-15);
+  const titlesPattern = /\b(Owner|Founder|CEO|Co-Founder|President|VP|Vice President|COO|CFO|CTO|Director|Partner|Principal|General Manager|Project Manager|PM|Estimator|Purchasing Agent|Purchasing Manager|Purchaser|Sales Manager|Account Executive|Estimating Manager|Chief Estimator|Estimating)\b/i;
+  for (let i = bottomLines.length - 1; i >= 0; i--) {
+    const line = bottomLines[i];
+    if (line.length > 80) continue;
+    const match = line.match(titlesPattern);
+    if (match) {
+      return line;
+    }
+  }
+  return null;
+};
+
 class InstantlyService {
   constructor() {
     this.baseUrl = 'https://api.instantly.ai/api/v2';
@@ -110,30 +128,51 @@ class InstantlyService {
       let enrichedLastName = last_name;
       let enrichedCompany = company;
       let enrichedPhone = phone;
+      let enrichedWebsite = leadData.website || '';
+      let enrichedAddress = leadData.location || '';
+      let customFields = leadData.payload || {};
 
-      if (!enrichedFirstName || !enrichedCompany) {
+      if (!enrichedFirstName || !enrichedCompany || !enrichedPhone || !enrichedWebsite || !enrichedAddress) {
         try {
           const settings = await this.getSettings(orgId);
           if (settings && settings.api_key_encrypted) {
-            const res = await axios.post('https://api.instantly.ai/api/v2/leads/list', {
-              filter: `email=${email}`,
-              limit: 1
-            }, {
-              headers: { Authorization: `Bearer ${settings.api_key_encrypted}` }
+            const res = await fetch('https://api.instantly.ai/api/v2/leads/list', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${settings.api_key_encrypted}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ search: email, limit: 1 })
             });
 
-            if (res.data && res.data.items && res.data.items.length > 0) {
-              const info = res.data.items[0];
-              enrichedFirstName = enrichedFirstName || info.first_name || info.firstName;
-              enrichedLastName = enrichedLastName || info.last_name || info.lastName;
-              enrichedCompany = enrichedCompany || info.company_name || info.companyName || info.company;
-              enrichedPhone = enrichedPhone || info.phone || info.phoneNumber;
+            if (res.ok) {
+              const resData = await res.json();
+              if (resData.items && resData.items.length > 0) {
+                const info = resData.items[0];
+                console.log(`[Instantly Service] Enrichment found for ${email}:`, JSON.stringify({ company: info.company_name, phone: info.phone, website: info.website, payload_keys: Object.keys(info.payload || {}) }));
+                enrichedFirstName = enrichedFirstName || info.first_name || info.firstName;
+                enrichedLastName = enrichedLastName || info.last_name || info.lastName;
+                enrichedCompany = enrichedCompany || info.company_name || info.companyName || info.company || info.payload?.companyName;
+                enrichedPhone = enrichedPhone || info.phone || info.phoneNumber || info.payload?.phone || info.payload?.Myphone;
+                enrichedWebsite = enrichedWebsite || info.website || info.payload?.website;
+                enrichedAddress = enrichedAddress || info.payload?.location || info.payload?.Location;
+                customFields = { ...customFields, ...(info.payload || {}) };
+              }
             }
           }
         } catch (apiErr) {
           console.error('[Instantly Service] API Enrichment failed:', apiErr.message);
         }
       }
+
+      // Remove standard mapped fields from custom fields so they don't pollute the custom_fields JSON
+      const standardKeysToRemove = [
+        'firstName', 'first_name', 'lastName', 'last_name', 'name', 
+        'companyName', 'company_name', 'company', 
+        'phone', 'Myphone', 'phoneNumber',
+        'website', 'location', 'Location', 'address', 'email'
+      ];
+      standardKeysToRemove.forEach(k => delete customFields[k]);
 
       // Ensure "First Engagement" stage exists
       const stageKey = 'first_engagement';
@@ -149,34 +188,102 @@ class InstantlyService {
         );
       }
 
+      // Designation signature parsing from email body text!
+      const designation = extractDesignationFromEmail(leadData.body_text);
+
+      // Created date should come from unibox email received_at date!
+      const createdDate = leadData.received_at ? new Date(leadData.received_at) : new Date();
+
+      // Additional notes with email subject, sender, date, body
+      let interactionNotes = '';
+      if (leadData.subject || leadData.body_text) {
+        const bodyText = (leadData.body_text || "").trim();
+        const firstPara = bodyText.split(/\n\s*\n/)[0].trim();
+        interactionNotes = `Email Subject: ${leadData.subject || 'No Subject'}\n` +
+          `From: ${enrichedFirstName || ''} ${enrichedLastName || ''} <${email}>\n` +
+          `Date: ${createdDate.toLocaleString()}\n\n` +
+          `Email Body:\n${firstPara}`;
+      }
+
       // Check if lead exists
       const existing = await db.query(
         'SELECT id FROM leads WHERE email = $1 AND (org_id = $2 OR organization_id = $2)',
         [email, orgId]
       );
 
+      const fullName = [enrichedFirstName, enrichedLastName].filter(Boolean).join(' ') || email.split('@')[0];
+
+      // Clean reply prefixes (RE:, FW:, etc.) from lead title
+      const cleanLeadTitle = (leadData.subject || 'Lead from Instantly')
+        .replace(/^((re|fw|fwd)\s*:\s*)+/i, '')
+        .trim();
+
       if (existing.rows.length === 0) {
         console.log(`[Instantly Service] Auto-adding new lead: ${email}`);
-        const fullName = [enrichedFirstName, enrichedLastName].filter(Boolean).join(' ') || email.split('@')[0];
         await db.query(
           `INSERT INTO leads (
-            org_id, organization_id, title, name, first_name, last_name, email, phone, company, company_name, source, status, stage, created_at, updated_at
-          ) VALUES ($1, $1, $2, $2, $3, $4, $5, $6, $7, $7, $8, $9, $9, now(), now())`,
-          [orgId, fullName, enrichedFirstName || null, enrichedLastName || null, email, enrichedPhone || null, enrichedCompany || null, source, stageKey]
+            org_id, organization_id, title, name, first_name, last_name, email, phone, company, company_name, 
+            company_phone, company_email, designation, website, address, source, status, stage, 
+            interaction_notes, description, custom_fields, created_at, updated_at
+          ) VALUES ($1, $1, $2, $3, $4, $5, $6, $7, $8, $8, $7, $6, $9, $10, $11, $12, $13, $14, $15, $15, $16, $17, now())`,
+          [
+            orgId,
+            cleanLeadTitle,
+            fullName,
+            enrichedFirstName || null,
+            enrichedLastName || null,
+            email,
+            enrichedPhone || null,
+            enrichedCompany || null,
+            designation || null,
+            enrichedWebsite || null,
+            enrichedAddress || null,
+            source,
+            'Interested',
+            stageKey,
+            interactionNotes,
+            JSON.stringify(customFields),
+            createdDate
+          ]
         );
       } else {
-        // Update existing lead if info is missing
+        // Update existing lead if info is missing, and merge custom_fields
+        const existingLead = existing.rows[0];
+        
+        // Fetch existing custom fields to merge them
+        const customFieldsCheck = await db.query('SELECT custom_fields FROM leads WHERE id = $1', [existingLead.id]);
+        const existingCustomFields = customFieldsCheck.rows[0]?.custom_fields || {};
+        const mergedCustomFields = { ...existingCustomFields, ...customFields };
+
         await db.query(
           `UPDATE leads SET 
-            first_name = COALESCE(first_name, $1),
-            last_name = COALESCE(last_name, $2),
+            first_name = COALESCE(NULLIF(first_name, ''), $1),
+            last_name = COALESCE(NULLIF(last_name, ''), $2),
             name = CASE WHEN (name IS NULL OR name = '' OR name = split_part(email, '@', 1)) AND ($1 IS NOT NULL) THEN (COALESCE($1, '') || ' ' || COALESCE($2, '')) ELSE name END,
-            company = COALESCE(company, $3),
-            company_name = COALESCE(company_name, $3),
-            phone = COALESCE(phone, $4),
+            company = COALESCE(NULLIF(company, ''), $3),
+            company_name = COALESCE(NULLIF(company_name, ''), $3),
+            phone = COALESCE(NULLIF(phone, ''), $4),
+            company_phone = COALESCE(NULLIF(company_phone, ''), $4),
+            website = COALESCE(NULLIF(website, ''), $5),
+            address = COALESCE(NULLIF(address, ''), $6),
+            designation = COALESCE(NULLIF(designation, ''), $7),
+            interaction_notes = COALESCE(NULLIF(interaction_notes, ''), $8),
+            description = COALESCE(NULLIF(description, ''), $8),
+            custom_fields = $9,
             updated_at = now()
-           WHERE id = $5`,
-          [enrichedFirstName || null, enrichedLastName || null, enrichedCompany || null, enrichedPhone || null, existing.rows[0].id]
+           WHERE id = $10`,
+          [
+            enrichedFirstName || null,
+            enrichedLastName || null,
+            enrichedCompany || null,
+            enrichedPhone || null,
+            enrichedWebsite || null,
+            enrichedAddress || null,
+            designation || null,
+            interactionNotes || null,
+            JSON.stringify(mergedCustomFields),
+            existingLead.id
+          ]
         );
       }
     } catch (err) {
@@ -398,18 +505,23 @@ class InstantlyService {
           if (useEmailsApi && (!firstName || !companyName) && item.campaign_id) {
             try {
               // Try enrichment with campaign_id + email
-              const leadRes = await axios.get(`https://api.instantly.ai/api/v1/lead/get`, {
-                params: { campaign_id: item.campaign_id, email: leadEmail },
-                headers: { Authorization: `Bearer ${apiKey}` }
+              const enrichUrl = new URL('https://api.instantly.ai/api/v1/lead/get');
+              enrichUrl.searchParams.set('campaign_id', item.campaign_id);
+              enrichUrl.searchParams.set('email', leadEmail);
+              const leadRes = await fetch(enrichUrl.toString(), {
+                headers: { 'Authorization': `Bearer ${apiKey}` }
               });
               
-              const leadData = leadRes.data && (Array.isArray(leadRes.data) ? leadRes.data[0] : leadRes.data);
-              
-              if (leadData) {
-                firstName = leadData.first_name || leadData.firstName || firstName;
-                lastName = leadData.last_name || leadData.lastName || lastName;
-                companyName = leadData.company_name || leadData.company || companyName;
-                phoneNumber = leadData.phone || leadData.phone_number || phoneNumber;
+              if (leadRes.ok) {
+                const leadResData = await leadRes.json();
+                const leadData = leadResData && (Array.isArray(leadResData) ? leadResData[0] : leadResData);
+                
+                if (leadData) {
+                  firstName = leadData.first_name || leadData.firstName || firstName;
+                  lastName = leadData.last_name || leadData.lastName || lastName;
+                  companyName = leadData.company_name || leadData.company || companyName;
+                  phoneNumber = leadData.phone || leadData.phone_number || phoneNumber;
+                }
               }
             } catch (err) {
               // Silent fail for enrichment, we already have the email
@@ -422,7 +534,13 @@ class InstantlyService {
             first_name: firstName,
             last_name: lastName,
             company: companyName,
-            phone: phoneNumber
+            phone: phoneNumber,
+            website: item.website || (item.lead && item.lead.website) || (item.payload && (item.payload.website || item.payload.Website)) || null,
+            location: item.location || (item.lead && item.lead.location) || (item.payload && (item.payload.location || item.payload.Location || item.payload.address || item.payload.Address)) || null,
+            payload: (item.lead && item.lead.payload) || item.payload || {},
+            subject: subject,
+            body_text: bodyText,
+            received_at: receivedAt
           });
         }
 
@@ -584,7 +702,13 @@ class InstantlyService {
         first_name: fName,
         last_name: lName,
         company: comp,
-        phone: ph
+        phone: ph,
+        website: leadObj.website || payloadObj.website || null,
+        location: leadObj.location || payloadObj.location || payloadObj.Location || payloadObj.address || payloadObj.Address || null,
+        payload: payloadObj,
+        subject: payload.subject || `Webhook Event: ${eventType}`,
+        body_text: payload.reply_body || payload.body_text || payload.body || '',
+        received_at: new Date(payload.timestamp || Date.now())
       });
     }
 

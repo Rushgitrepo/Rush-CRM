@@ -306,6 +306,8 @@ export function useUniboxEmails(filters: {
         company_name: string;
         company_email: string;
         company_phone: string;
+        website: string;
+        address: string;
         interaction_notes: string;
       };
     }) => {
@@ -359,5 +361,49 @@ export function useUniboxTemplates() {
     queryKey: ["unibox-templates"],
     queryFn: () => api.get("/unibox/templates"),
     staleTime: 300000, // 5 minutes
+  });
+}
+
+export interface MatchedLead {
+  id: string;
+  title: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  company: string | null;
+  website: string | null;
+  address: string | null;
+  source: string | null;
+  stage: string | null;
+  custom_fields?: Record<string, any>;
+  createdAt: string;
+}
+
+export interface InstantlyExtractedMetadata {
+  campaign: string;
+  rating: string;
+  profile: string;
+  facebook: string;
+  location: string;
+  website: string;
+  phone: string;
+  companyName: string;
+  payload?: Record<string, any>;
+}
+
+export interface UniboxLeadInfoResponse {
+  lead: MatchedLead | null;
+  instantly: InstantlyExtractedMetadata;
+}
+
+export function useUniboxLeadInfo(emailId: string | null) {
+  return useQuery({
+    queryKey: ["unibox-lead-info", emailId],
+    queryFn: async () => {
+      if (!emailId) return null;
+      return api.get<UniboxLeadInfoResponse>(`/unibox/emails/${emailId}/lead-info`);
+    },
+    enabled: !!emailId,
+    staleTime: 5000,
   });
 }

@@ -12,6 +12,7 @@ router.patch('/emails/:id/starred', uniboxController.toggleStarred);
 router.patch('/emails/:id/read', uniboxController.markAsRead);
 router.patch('/emails/:id/archive', uniboxController.toggleArchive);
 router.post('/emails/:id/convert-to-lead', uniboxController.convertToLead);
+router.get('/emails/:id/lead-info', uniboxController.getEmailLeadInfo);
 router.post('/emails/sample', uniboxController.createSampleEmail);
 
 // Statistics and templates

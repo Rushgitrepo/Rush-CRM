@@ -1,11 +1,18 @@
 import { useState } from "react";
-import { useUniboxEmails, useUniboxStats, UNIBOX_STATUSES, type UniboxEmail } from "@/hooks/useUniboxEmails";
+import { useUniboxEmails, useUniboxStats, UNIBOX_STATUSES, type UniboxEmail, useUniboxLeadInfo } from "@/hooks/useUniboxEmails";
 import { useUniboxPermission } from "@/hooks/useUniboxPermission";
+import { toast } from "sonner";
 import { ConvertToLeadDialog } from "@/components/unibox/ConvertToLeadDialog";
 import { UniboxPermissionsManager } from "@/components/unibox/UniboxPermissionsManager";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -36,6 +43,9 @@ import {
   Users,
   TrendingUp,
   BarChart3,
+  Copy,
+  ExternalLink,
+  Info,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -68,8 +78,18 @@ export default function UniboxPage() {
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [selectedEmail, setSelectedEmail] = useState<UniboxEmail | null>(null);
   const [convertDialogOpen, setConvertDialogOpen] = useState(false);
+  const [showLeadInfo, setShowLeadInfo] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 50;
+
+  const { data: leadInfoResponse, isLoading: leadInfoLoading } = useUniboxLeadInfo(selectedEmail?.id || null);
+  const matchedLead = leadInfoResponse?.lead;
+  const instantlyData = leadInfoResponse?.instantly;
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success("Copied to clipboard");
+  };
 
   const uniboxData = useUniboxEmails({
     status: statusFilter,
@@ -133,6 +153,8 @@ export default function UniboxPage() {
     company_name: string;
     company_email: string;
     company_phone: string;
+    website: string;
+    address: string;
     interaction_notes: string;
   }) => {
     if (!selectedEmail) return;
@@ -479,6 +501,16 @@ export default function UniboxPage() {
                     )}
                     {selectedEmail.is_archived ? "Unarchive" : "Archive"}
                   </Button>
+
+                  <Button
+                    variant={showLeadInfo ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setShowLeadInfo(!showLeadInfo)}
+                    className="gap-1 ml-auto"
+                  >
+                    <Info className="h-4 w-4" />
+                    {showLeadInfo ? "Hide Info" : "Show Info"}
+                  </Button>
                 </div>
 
                 <div className="flex items-center gap-3 flex-wrap">
@@ -540,6 +572,273 @@ export default function UniboxPage() {
             </div>
           )}
         </Card>
+
+        <Dialog open={!!(selectedEmail && showLeadInfo)} onOpenChange={(open) => setShowLeadInfo(open)}>
+          <DialogContent className="max-w-2xl max-h-[85vh] p-0 overflow-hidden bg-card border border-border flex flex-col">
+            <DialogHeader className="p-4 border-b border-border bg-muted/20 flex flex-row items-center justify-between">
+              <DialogTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <Users className="h-4 w-4 text-primary" />
+                Contact Detail & Instantly Info
+              </DialogTitle>
+              {matchedLead && (
+                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] px-1.5 py-0 mr-6">
+                  Matched Lead
+                </Badge>
+              )}
+            </DialogHeader>
+
+            {leadInfoLoading ? (
+              <div className="p-6 space-y-6 flex-1 overflow-y-auto">
+                <div className="flex flex-col items-center space-y-2">
+                  <Skeleton className="h-16 w-16 rounded-full" />
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-3 w-40" />
+                </div>
+                <div className="space-y-4 pt-4">
+                  {[...Array(6)].map((_, i) => (
+                    <div key={i} className="flex justify-between items-center">
+                      <Skeleton className="h-3 w-20" />
+                      <Skeleton className="h-3 w-32" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto">
+                {/* Header / Avatar info */}
+                <div className="flex flex-col items-center justify-center p-6 border-b border-border bg-muted/5">
+                  <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary text-2xl font-bold mb-3 border border-primary/20">
+                    {(matchedLead?.name || selectedEmail?.sender_name || selectedEmail?.sender_email || "P")[0].toUpperCase()}
+                  </div>
+                  <h4 className="text-lg font-semibold text-foreground text-center">
+                    {matchedLead?.name || selectedEmail?.sender_name || "Prospect"}
+                  </h4>
+                  <div className="flex items-center gap-1.5 mt-1 text-sm text-muted-foreground">
+                    <span>{selectedEmail?.sender_email}</span>
+                    <button
+                      onClick={() => copyToClipboard(selectedEmail?.sender_email || "")}
+                      className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                      title="Copy Email"
+                    >
+                      <Copy className="h-3 w-3" />
+                    </button>
+                  </div>
+
+                  {matchedLead ? (
+                    <div className="mt-4 w-full max-w-xs">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open(`/crm/leads/${matchedLead.id}`, "_blank")}
+                        className="w-full text-xs h-9 gap-1.5"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        View Lead Profile
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="mt-4 w-full max-w-xs">
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setShowLeadInfo(false);
+                          setConvertDialogOpen(true);
+                        }}
+                        className="w-full text-xs h-9 gap-1.5 bg-blue-600 hover:bg-blue-700 text-white"
+                      >
+                        <UserPlus className="h-3.5 w-3.5" />
+                        Convert to Lead
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Two-Column Grid */}
+                <div className="p-6 grid grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <h5 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest border-b border-border/40 pb-1">
+                      General Details
+                    </h5>
+                    
+                    {/* Campaign */}
+                    {instantlyData?.campaign && (
+                      <div className="flex flex-col pb-2 border-b border-border/50">
+                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Campaign</span>
+                        <span className="text-xs text-foreground font-semibold truncate">
+                          {instantlyData.campaign}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Email */}
+                    <div className="flex flex-col pb-2 border-b border-border/50">
+                      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Email</span>
+                      <span className="text-xs text-foreground font-medium truncate">
+                        {matchedLead?.email || selectedEmail?.sender_email}
+                      </span>
+                    </div>
+
+                    {/* Phone */}
+                    {(matchedLead?.phone || instantlyData?.phone) && (
+                      <div className="flex flex-col pb-2 border-b border-border/50">
+                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Phone</span>
+                        <span className="text-xs text-foreground font-medium">
+                          {matchedLead?.phone || instantlyData?.phone}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Rating */}
+                    {instantlyData?.rating && (
+                      <div className="flex flex-col pb-2 border-b border-border/50">
+                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Rating</span>
+                        <span className="text-xs text-foreground font-medium">
+                          ⭐️ {instantlyData.rating}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Profile */}
+                    {instantlyData?.profile && (
+                      <div className="flex flex-col pb-2 border-b border-border/50">
+                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Profile</span>
+                        <a
+                          href={instantlyData.profile}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-500 hover:underline flex items-center gap-1 font-medium truncate"
+                        >
+                          {instantlyData.profile}
+                          <ExternalLink className="h-3 w-3 shrink-0" />
+                        </a>
+                      </div>
+                    )}
+
+                    {/* Website */}
+                    {(matchedLead?.website || instantlyData?.website) && (
+                      <div className="flex flex-col pb-2 border-b border-border/50">
+                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Website</span>
+                        <a
+                          href={matchedLead?.website || instantlyData?.website || "#"}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-500 hover:underline flex items-center gap-1 font-medium truncate"
+                        >
+                          {matchedLead?.website || instantlyData?.website}
+                          <ExternalLink className="h-3 w-3 shrink-0" />
+                        </a>
+                      </div>
+                    )}
+
+                    {/* Facebook */}
+                    {instantlyData?.facebook && (
+                      <div className="flex flex-col pb-2 border-b border-border/50">
+                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Facebook</span>
+                        <a
+                          href={instantlyData.facebook}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-500 hover:underline flex items-center gap-1 font-medium truncate"
+                        >
+                          {instantlyData.facebook}
+                          <ExternalLink className="h-3 w-3 shrink-0" />
+                        </a>
+                      </div>
+                    )}
+
+                    {/* Location */}
+                    {(matchedLead?.address || instantlyData?.location) && (
+                      <div className="flex flex-col pb-2 border-b border-border/50">
+                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Location</span>
+                        <span className="text-xs text-foreground font-medium">
+                          {matchedLead?.address || instantlyData?.location}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Company Name */}
+                    {(matchedLead?.company || instantlyData?.companyName) && (
+                      <div className="flex flex-col pb-2 border-b border-border/50">
+                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Company Name</span>
+                        <span className="text-xs text-foreground font-medium">
+                          {matchedLead?.company || instantlyData?.companyName}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* CRM Stage & Source */}
+                    {matchedLead && (
+                      <>
+                        <div className="flex flex-col pb-2 border-b border-border/50">
+                          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">CRM Stage</span>
+                          <Badge variant="secondary" className="w-fit text-[10px] font-semibold py-0.5 px-2 mt-1">
+                            {matchedLead.stage || "New"}
+                          </Badge>
+                        </div>
+                        <div className="flex flex-col pb-2 border-b border-border/50">
+                          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Lead Source</span>
+                          <span className="text-xs text-foreground font-medium">
+                            {matchedLead.source || "Unibox Email"}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="space-y-4">
+                    {/* Instantly Payload Fields */}
+                    {instantlyData?.payload && Object.keys(instantlyData.payload).length > 0 && (
+                      <div>
+                        <h5 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest border-b border-border/40 pb-1 mb-3">
+                          Instantly Custom Fields
+                        </h5>
+                        <div className="space-y-4">
+                          {Object.entries(instantlyData.payload)
+                            .filter(([key, val]) => {
+                              const normalizedKey = key.toLowerCase();
+                              const standardKeys = ['email', 'phone', 'myphone', 'firstname', 'lastname', 'companyname', 'location', 'rating', 'profile', 'facebook', 'website'];
+                              return !standardKeys.includes(normalizedKey) && val !== null && val !== undefined && String(val).trim() !== '';
+                            })
+                            .map(([key, val]) => {
+                              const beautifiedKey = key
+                                .replace(/([A-Z])/g, ' $1')
+                                .replace(/^./, (str) => str.toUpperCase())
+                                .trim();
+
+                              const isUrl = String(val).startsWith('http://') || String(val).startsWith('https://');
+
+                              return (
+                                <div key={key} className="flex flex-col pb-2 border-b border-border/30">
+                                  <span className="text-[10px] font-medium text-muted-foreground/80 uppercase tracking-wider mb-1">
+                                    {beautifiedKey}
+                                  </span>
+                                  {isUrl ? (
+                                    <a
+                                      href={String(val)}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-xs text-blue-500 hover:underline flex items-center gap-1 font-medium truncate"
+                                    >
+                                      {String(val)}
+                                      <ExternalLink className="h-3 w-3 shrink-0" />
+                                    </a>
+                                  ) : (
+                                    <span className="text-xs text-foreground font-medium whitespace-pre-wrap break-words">
+                                      {String(val)}
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </>
   );
@@ -631,6 +930,7 @@ export default function UniboxPage() {
         onOpenChange={setConvertDialogOpen}
         onConvert={handleConvert}
         isConverting={convertToLead.isPending}
+        instantlyInfo={instantlyData}
       />
     </div>
   );
