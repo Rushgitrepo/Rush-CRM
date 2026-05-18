@@ -6,9 +6,29 @@ self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim(
 self.addEventListener('push', (event) => {
   if (!event.data) return;
 
-  let data;
-  try { data = event.data.json(); }
-  catch { data = { title: 'Rush Management', body: event.data.text() }; }
+  let rawData;
+  try {
+    rawData = event.data.json();
+  } catch (err) {
+    rawData = { title: 'Rush Management', body: event.data.text() };
+  }
+
+  // Normalize FCM data-only or mixed payload
+  // If rawData contains a nested data object, merge it to the top level.
+  let data = rawData;
+  if (rawData && rawData.data && typeof rawData.data === 'object') {
+    data = {
+      ...rawData.data,
+      title: rawData.notification?.title || rawData.data.title || rawData.title,
+      body: rawData.notification?.body || rawData.data.body || rawData.body,
+    };
+  } else if (rawData && rawData.notification) {
+    data = {
+      ...rawData,
+      title: rawData.notification.title || rawData.title,
+      body: rawData.notification.body || rawData.body,
+    };
+  }
 
   // Incoming calls are handled by the frontend via browser Notification API
   // (VideoCallContext.tsx) — skip here to avoid duplicate notifications
