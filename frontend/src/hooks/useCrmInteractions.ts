@@ -21,6 +21,7 @@ export function useCreateActivity() {
       title?: string;
       description?: string;
       metadata?: any;
+      createdAt?: string;
     }) => activitiesApi.create(data),
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ['activities', vars.entityType, vars.entityId] });

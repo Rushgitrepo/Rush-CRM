@@ -251,7 +251,12 @@ const getAll = async (req, res, next) => {
       workspaceId,
       external_source_id,
       startDate,
-      endDate
+      endDate,
+      priority,
+      source,
+      assignedTo,
+      tags,
+      campaign
     } = req.query;
     const offset = (page - 1) * limit;
 
@@ -344,6 +349,37 @@ const getAll = async (req, res, next) => {
       params.push(endDate);
       paramIndex++;
     }
+    
+    if (priority) {
+      query += ` AND l.priority = $${paramIndex}`;
+      params.push(priority);
+      paramIndex++;
+    }
+
+    if (source) {
+      query += ` AND l.source = $${paramIndex}`;
+      params.push(source);
+      paramIndex++;
+    }
+
+    if (assignedTo) {
+      query += ` AND l.assigned_to = $${paramIndex}`;
+      params.push(assignedTo);
+      paramIndex++;
+    }
+
+    if (tags) {
+      const tagList = Array.isArray(tags) ? tags : tags.split(',').map(t => t.trim());
+      query += ` AND l.tags @> $${paramIndex}`;
+      params.push(tagList);
+      paramIndex++;
+    }
+
+    if (campaign) {
+      query += ` AND l.campaign_id = $${paramIndex}`;
+      params.push(campaign);
+      paramIndex++;
+    }
 
     if (search) {
       query += ` AND (
@@ -414,6 +450,32 @@ const getAll = async (req, res, next) => {
     if (req.query.type && req.query.type !== 'all') {
       countQuery += ` AND l.type = $${countIdx}`;
       countParams.push(req.query.type);
+      countIdx++;
+    }
+    if (priority) {
+      countQuery += ` AND l.priority = $${countIdx}`;
+      countParams.push(priority);
+      countIdx++;
+    }
+    if (source) {
+      countQuery += ` AND l.source = $${countIdx}`;
+      countParams.push(source);
+      countIdx++;
+    }
+    if (assignedTo) {
+      countQuery += ` AND l.assigned_to = $${countIdx}`;
+      countParams.push(assignedTo);
+      countIdx++;
+    }
+    if (tags) {
+      const tagList = Array.isArray(tags) ? tags : tags.split(',').map(t => t.trim());
+      countQuery += ` AND l.tags @> $${countIdx}`;
+      countParams.push(tagList);
+      countIdx++;
+    }
+    if (campaign) {
+      countQuery += ` AND l.campaign_id = $${countIdx}`;
+      countParams.push(campaign);
       countIdx++;
     }
     if (search) {

@@ -15,6 +15,11 @@ export function useLeads(params?: {
   limit?: number;
   startDate?: string | null;
   endDate?: string | null;
+  priority?: string;
+  source?: string;
+  assignedTo?: string;
+  tags?: string | string[];
+  campaign?: string;
 }) {
   return useQuery({
     queryKey: ['leads', params],
@@ -198,6 +203,11 @@ export function useDeals(params?: {
   search?: string;
   startDate?: string | null;
   endDate?: string | null;
+  priority?: string;
+  source?: string;
+  assignedTo?: string;
+  tags?: string | string[];
+  campaign?: string;
 }) {
   return useQuery({
     queryKey: ['deals', params],
@@ -1054,7 +1064,14 @@ export function useDeletePurchaseOrder() {
 }
 
 // Users hooks
-export function useUsers(params?: { search?: string }) {
+export function useUsers(params?: { 
+  search?: string; 
+  role?: string; 
+  status?: string; 
+  department?: string; 
+  includeSelf?: boolean | string; 
+  includeSuperAdmin?: boolean | string 
+}) {
   return useQuery({
     queryKey: ['users', params],
     queryFn: () => usersApi.getAll(params),

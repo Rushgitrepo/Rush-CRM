@@ -165,7 +165,21 @@ export const emailApi = {
 };
 
 export const leadsApi = {
-  getAll: (params?: { page?: number; limit?: number; stage?: string; status?: string; search?: string }) =>
+  getAll: (params?: { 
+    page?: number; 
+    limit?: number; 
+    stage?: string; 
+    status?: string; 
+    search?: string;
+    priority?: string;
+    source?: string;
+    assignedTo?: string;
+    tags?: string | string[];
+    startDate?: string | null;
+    endDate?: string | null;
+    workspaceId?: string;
+    campaign?: string;
+  }) =>
     api.get<{ data: any[]; pagination: any }>('/leads', params),
   getById: (id: string) => api.get<any>(`/leads/${id}`),
   create: (data: any) => api.post<any>('/leads', data),
@@ -180,7 +194,21 @@ export const leadsApi = {
 };
 
 export const dealsApi = {
-  getAll: (params?: { page?: number; limit?: number; stage?: string; status?: string; search?: string }) =>
+  getAll: (params?: { 
+    page?: number; 
+    limit?: number; 
+    stage?: string; 
+    status?: string; 
+    search?: string;
+    priority?: string;
+    source?: string;
+    assignedTo?: string;
+    tags?: string | string[];
+    startDate?: string | null;
+    endDate?: string | null;
+    workspaceId?: string;
+    campaign?: string;
+  }) =>
     api.get<{ data: any[]; pagination: any }>('/deals', params),
   getById: (id: string) => api.get<any>(`/deals/${id}`),
   create: (data: any) => api.post<any>('/deals', data),

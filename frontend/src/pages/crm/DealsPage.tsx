@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect, Suspense, lazy } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Sparkles, Phone, Mail, Building2, Layers, MoreHorizontal, Edit, Trash2, Eye, Download, Upload, XCircle } from "lucide-react";
-import { useDeals, useDeleteDeal, useBulkDeleteDeals } from "@/hooks/useCrmData";
+import { useDeals, useDeleteDeal, useBulkDeleteDeals, useUsers } from "@/hooks/useCrmData";
 import { useUpdateDeal } from "@/hooks/useCrmMutations";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,7 @@ import { DealsCalendarView } from "@/components/crm/deals/DealsCalendarView";
 import { toast } from "sonner";
 import { ClickToCall } from "@/components/telephony/ClickToCall";
 import { useDealPipelineStages } from "@/hooks/usePipelineStages";
+import { WorkspaceFilter } from "@/components/crm/leads/WorkspaceFilter";
 
 const WorkflowsPage = lazy(() => import("@/pages/automation/WorkflowsPage"));
 
@@ -56,6 +57,7 @@ export default function DealsPage() {
   const [search, setSearch] = useState("");
   const [stage, setStage] = useState("all");
   const [status, setStatus] = useState("all");
+  const [workspaceFilter, setWorkspaceFilter] = useState("all");
   const [sortBy, setSortBy] = useState("recent");
   const [selectedDeals, setSelectedDeals] = useState<string[]>([]);
   const [pageSize, setPageSize] = useState(100);
@@ -63,16 +65,28 @@ export default function DealsPage() {
   const [isAllSelectedGlobally, setIsAllSelectedGlobally] = useState(false);
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+  const [priorityFilter, setPriorityFilter] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const [assignedToFilter, setAssignedToFilter] = useState("all");
+  const [tagsFilter, setTagsFilter] = useState("");
+  const [campaignFilter, setCampaignFilter] = useState("");
 
   const { data: dbDeals, isLoading, isError } = useDeals({
     search,
     stage: stage !== "all" ? stage : undefined,
     status: status !== "all" ? status : undefined,
+    workspaceId: workspaceFilter !== "all" ? workspaceFilter : undefined,
     page: currentPage,
     limit: pageSize,
     startDate: startDate || undefined,
-    endDate: endDate || undefined
+    endDate: endDate || undefined,
+    priority: priorityFilter !== "all" ? priorityFilter : undefined,
+    source: sourceFilter !== "all" ? sourceFilter : undefined,
+    assignedTo: assignedToFilter !== "all" ? assignedToFilter : undefined,
+    tags: tagsFilter || undefined,
+    campaign: campaignFilter || undefined,
   });
+  const { data: users = [] } = useUsers({ includeSelf: true });
   const { data: pipelineStages = [] } = useDealPipelineStages();
   const deleteDeal = useDeleteDeal();
   const bulkDeleteDeals = useBulkDeleteDeals();
@@ -411,6 +425,77 @@ export default function DealsPage() {
               { label: "Lost", value: "lost" },
             ],
           },
+          {
+            label: "Priority",
+            value: priorityFilter,
+            onChange: setPriorityFilter,
+            options: [
+              { label: "All Priority", value: "all" },
+              { label: "Low", value: "low" },
+              { label: "Medium", value: "medium" },
+              { label: "High", value: "high" },
+              { label: "Urgent", value: "urgent" },
+            ],
+          },
+          {
+            label: "Source",
+            value: sourceFilter,
+            onChange: setSourceFilter,
+            options: [
+              { label: "All Sources", value: "all" },
+              { label: "Website", value: "Website" },
+              { label: "Referral", value: "Referral" },
+              { label: "Cold Call", value: "Cold Call" },
+              { label: "LinkedIn", value: "LinkedIn" },
+              { label: "Email", value: "Email" },
+              { label: "Other", value: "Other" },
+            ],
+          },
+          {
+            label: "Responsible Person",
+            value: assignedToFilter,
+            onChange: setAssignedToFilter,
+            options: [
+              { label: "Anyone", value: "all" },
+              ...users.map((u: any) => ({ label: u.full_name || u.email, value: u.id })),
+            ],
+          },
+          {
+            label: "Workspace",
+            type: "custom",
+            value: workspaceFilter,
+            onChange: setWorkspaceFilter,
+            render: () => (
+              <WorkspaceFilter
+                value={workspaceFilter}
+                onChange={setWorkspaceFilter}
+              />
+            )
+          },
+          {
+            label: "Campaign",
+            type: "input",
+            value: campaignFilter,
+            onChange: setCampaignFilter
+          },
+          {
+            label: "Tags",
+            type: "input",
+            value: tagsFilter,
+            onChange: setTagsFilter
+          },
+          {
+            label: "From",
+            type: "date",
+            value: startDate,
+            onChange: setStartDate
+          },
+          {
+            label: "To",
+            type: "date",
+            value: endDate,
+            onChange: setEndDate
+          }
         ]}
         quickFilters={[
           { label: "Won", value: "won", active: status === "won", onToggle: setStatus },
@@ -434,24 +519,10 @@ export default function DealsPage() {
         onViewChange={(v) => setView(v as ViewType)}
       >
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] font-medium text-muted-foreground uppercase px-1">From</span>
-            <Input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="h-8 w-[130px] bg-muted/40 border-border/60 text-xs"
-            />
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] font-medium text-muted-foreground uppercase px-1">To</span>
-            <Input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="h-8 w-[130px] bg-muted/40 border-border/60 text-xs"
-            />
-          </div>
+          <Button variant="outline" size="sm" className="h-9 border-dashed">
+            <Plus className="mr-2 h-4 w-4" />
+            Add View
+          </Button>
         </div>
       </DataToolbar>
 
