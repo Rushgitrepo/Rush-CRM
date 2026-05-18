@@ -22,9 +22,18 @@ interface ConvertToLeadDialogProps {
     company_name: string;
     company_email: string;
     company_phone: string;
+    website: string;
+    address: string;
     interaction_notes: string;
   }) => void;
   isConverting: boolean;
+  instantlyInfo?: {
+    companyName?: string;
+    website?: string;
+    phone?: string;
+    location?: string;
+    address?: string;
+  } | null;
 }
 
 function extractCompanyFromDomain(email: string): string {
@@ -46,22 +55,38 @@ export function ConvertToLeadDialog({
   onOpenChange,
   onConvert,
   isConverting,
+  instantlyInfo,
 }: ConvertToLeadDialogProps) {
   const [title, setTitle] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [companyEmail, setCompanyEmail] = useState("");
   const [companyPhone, setCompanyPhone] = useState("");
+  const [website, setWebsite] = useState("");
+  const [address, setAddress] = useState("");
   const [notes, setNotes] = useState("");
 
   // Reset and prefill when email changes
   const handleOpenChange = (isOpen: boolean) => {
     if (isOpen && email) {
-      setTitle(email.subject || "Untitled Lead");
-      setCompanyName(email.sender_name || extractCompanyFromDomain(email.sender_email));
+      // Clean reply prefixes from subject/title
+      const cleanTitle = (email.subject || "Untitled Lead")
+        .replace(/^((re|fw|fwd)\s*:\s*)+/i, '')
+        .trim();
+      setTitle(cleanTitle);
+      
+      // Use real company name if available in Instantly metadata
+      const realCompany = instantlyInfo?.companyName || email.sender_name || extractCompanyFromDomain(email.sender_email);
+      setCompanyName(realCompany);
+      
       setCompanyEmail(email.sender_email);
-      setCompanyPhone(email.phone || extractPhone(email.body_text));
+      setCompanyPhone(instantlyInfo?.phone || email.phone || extractPhone(email.body_text));
+      setWebsite(instantlyInfo?.website || "");
+      setAddress(instantlyInfo?.location || instantlyInfo?.address || "");
+      
       const timestamp = new Date(email.received_at).toISOString();
-      setNotes(`[${timestamp}] Email received via Instantly.ai Unibox:\n\n${email.body_text || ""}`);
+      const bodyText = (email.body_text || "").trim();
+      const firstPara = bodyText.split(/\n\s*\n/)[0].trim();
+      setNotes(`[${timestamp}] Email received via Instantly.ai Unibox:\n\n${firstPara}`);
     }
     onOpenChange(isOpen);
   };
@@ -81,9 +106,15 @@ export function ConvertToLeadDialog({
             <Label>Lead Name</Label>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
-          <div className="space-y-2">
-            <Label>Company Name</Label>
-            <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Company Name</Label>
+              <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Website</Label>
+              <Input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="e.g. www.company.com" />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -94,6 +125,10 @@ export function ConvertToLeadDialog({
               <Label>Phone</Label>
               <Input value={companyPhone} onChange={(e) => setCompanyPhone(e.target.value)} placeholder="Optional" />
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Address</Label>
+            <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Company Address or Location" />
           </div>
           <div className="space-y-2">
             <Label>Interaction Notes</Label>
@@ -116,6 +151,8 @@ export function ConvertToLeadDialog({
                 company_name: companyName,
                 company_email: companyEmail,
                 company_phone: companyPhone,
+                website,
+                address,
                 interaction_notes: notes,
               })
             }

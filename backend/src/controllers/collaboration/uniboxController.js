@@ -1,5 +1,23 @@
 const db = require('../../config/database');
 
+// Designation signature parser from bottom of email body text
+const extractDesignationFromEmail = (bodyText) => {
+  if (!bodyText) return null;
+  const lines = bodyText.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  if (lines.length === 0) return null;
+  const bottomLines = lines.slice(-15);
+  const titlesPattern = /\b(Owner|Founder|CEO|Co-Founder|President|VP|Vice President|COO|CFO|CTO|Director|Partner|Principal|General Manager|Project Manager|PM|Estimator|Purchasing Agent|Purchasing Manager|Purchaser|Sales Manager|Account Executive|Estimating Manager|Chief Estimator|Estimating)\b/i;
+  for (let i = bottomLines.length - 1; i >= 0; i--) {
+    const line = bottomLines[i];
+    if (line.length > 80) continue;
+    const match = line.match(titlesPattern);
+    if (match) {
+      return line;
+    }
+  }
+  return null;
+};
+
 // Get unibox emails with enhanced features
 const getEmails = async (req, res, next) => {
   try {
@@ -262,15 +280,15 @@ const getTemplates = async (req, res, next) => {
 const convertToLead = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { title, company_name, company_email, company_phone, interaction_notes } = req.body;
+    const { title, company_name, company_email, company_phone, website, address, interaction_notes } = req.body;
 
     if (!title) {
       return res.status(400).json({ error: 'Lead title is required' });
     }
 
-    // Fetch email details first to get sender information
+    // Fetch email details first to get sender information, metadata and received_at date
     const emailResult = await db.query(
-      'SELECT sender_name, sender_email, subject, body_text FROM unibox_emails WHERE id = $1 AND org_id = $2',
+      'SELECT * FROM unibox_emails WHERE id = $1 AND org_id = $2',
       [id, req.user.orgId]
     );
 
@@ -280,19 +298,135 @@ const convertToLead = async (req, res, next) => {
 
     const email = emailResult.rows[0];
 
-    // Create the lead
+    // Parse existing metadata
+    const metadata = typeof email.metadata === 'string' ? JSON.parse(email.metadata) : (email.metadata || {});
+    const item = metadata.item || {};
+    const payload = item.payload || metadata.payload || {};
+
+    // Get Instantly integration settings to do a real-time enrichment if API key is present
+    let enrichedFirstName = item.first_name || '';
+    let enrichedLastName = item.last_name || '';
+    let enrichedCompany = company_name || item.company_name || payload.companyName || '';
+    let enrichedPhone = company_phone || item.phone || payload.phone || payload.Myphone || '';
+    let enrichedWebsite = website || item.website || payload.website || '';
+    let enrichedAddress = address || payload.location || payload.Location || '';
+    let mergedPayload = { ...payload };
+
+    const integrationResult = await db.query(
+      'SELECT api_key_encrypted FROM instantly_integrations WHERE org_id = $1',
+      [req.user.orgId]
+    );
+    const settings = integrationResult.rows[0];
+    const apiKey = settings?.api_key_encrypted || process.env.INSTANTLY_API_KEY;
+
+    if (apiKey) {
+      try {
+        const response = await fetch('https://api.instantly.ai/api/v2/leads/list', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            search: email.sender_email,
+            limit: 1
+          })
+        });
+
+        if (response.ok) {
+          const apiData = await response.json();
+          if (apiData.items && apiData.items.length > 0) {
+            const instLead = apiData.items[0];
+            enrichedFirstName = instLead.first_name || enrichedFirstName;
+            enrichedLastName = instLead.last_name || enrichedLastName;
+            enrichedCompany = enrichedCompany || instLead.company_name || instLead.payload?.companyName;
+            enrichedPhone = enrichedPhone || instLead.phone || instLead.payload?.phone || instLead.payload?.Myphone;
+            enrichedWebsite = enrichedWebsite || instLead.website || instLead.payload?.website;
+            enrichedAddress = enrichedAddress || instLead.payload?.location || instLead.payload?.Location;
+            mergedPayload = { ...mergedPayload, ...(instLead.payload || {}) };
+          }
+        }
+      } catch (apiErr) {
+        console.error('[Unibox Controller] Real-time lookup during convert failed:', apiErr.message);
+      }
+    }
+
+    // Remove standard mapped fields from custom fields so they don't pollute the custom_fields JSON
+    const standardKeysToRemove = [
+      'firstName', 'first_name', 'lastName', 'last_name', 'name', 
+      'companyName', 'company_name', 'company', 
+      'phone', 'Myphone', 'phoneNumber',
+      'website', 'location', 'Location', 'address', 'email'
+    ];
+    standardKeysToRemove.forEach(k => delete mergedPayload[k]);
+
+    // Split and assemble names
+    const fullName = [enrichedFirstName, enrichedLastName].filter(Boolean).join(' ') || email.sender_name || 'Prospect';
+
+    // Designation signature parsing from email body text!
+    const designation = extractDesignationFromEmail(email.body_text);
+
+    // Created date should come from unibox email received_at date!
+    const createdDate = email.received_at ? new Date(email.received_at) : new Date();
+
+    // Use the carefully curated interaction notes from the frontend!
+    // Fallback to first paragraph of body if empty.
+    let formattedNotes = interaction_notes || '';
+    if (!formattedNotes) {
+      const bodyText = (email.body_text || "").trim();
+      const firstPara = bodyText.split(/\n\s*\n/)[0].trim();
+      formattedNotes = `Email Subject: ${email.subject || 'No Subject'}\n` +
+        `From: ${email.sender_name || 'Unknown'} <${email.sender_email}>\n` +
+        `Date: ${createdDate.toLocaleString()}\n\n` +
+        `Email Body:\n${firstPara}`;
+    }
+
+    // Ensure first_engagement stage exists
+    const stageKey = 'first_engagement';
+    const stageCheck = await db.query(
+      "SELECT id FROM pipeline_stages WHERE org_id = $1 AND pipeline = 'leads' AND stage_key = $2",
+      [req.user.orgId, stageKey]
+    );
+    if (stageCheck.rows.length === 0) {
+      await db.query(
+        `INSERT INTO pipeline_stages (org_id, pipeline, stage_key, stage_label, sort_order, color, is_active)
+         VALUES ($1, 'leads', $2, 'First Engagement', 1, '#10b981', true)`,
+        [req.user.orgId, stageKey]
+      );
+    }
+
+    // Clean reply prefixes (RE:, FW:, etc.) from lead title
+    const cleanLeadTitle = (title || email.subject || 'Lead from Unibox')
+      .replace(/^((re|fw|fwd)\s*:\s*)+/i, '')
+      .trim();
+
+    // Create the lead with every single field mapped!
     const leadResult = await db.query(
-      `INSERT INTO leads (org_id, title, name, email, phone, company, description, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      `INSERT INTO leads (
+        org_id, title, name, first_name, last_name, email, phone, company, company_name, 
+        company_phone, company_email, designation, website, address, source, status, stage, 
+        interaction_notes, description, custom_fields, created_by, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8, $7, $6, $9, $10, $11, $12, $13, $14, $15, $15, $16, $17, $18, NOW()) 
+      RETURNING *`,
       [
         req.user.orgId,
-        title || email.subject || 'Lead from Unibox',
-        company_name || email.sender_name || 'Prospect',
-        company_email || email.sender_email,
-        company_phone || null,
-        company_name || null,
-        interaction_notes || email.body_text?.substring(0, 1000) || '',
-        req.user.id
+        cleanLeadTitle,
+        fullName,
+        enrichedFirstName || null,
+        enrichedLastName || null,
+        email.sender_email,
+        enrichedPhone || null,
+        enrichedCompany || null,
+        designation || null,
+        enrichedWebsite || null,
+        enrichedAddress || null,
+        'Instantly',
+        'Interested',
+        stageKey,
+        formattedNotes,
+        JSON.stringify(mergedPayload),
+        req.user.id,
+        createdDate
       ]
     );
 
@@ -488,6 +622,190 @@ const createSampleEmail = async (req, res, next) => {
   }
 };
 
+// Get combined lead and instantly metadata for an email
+const getEmailLeadInfo = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const emailResult = await db.query(
+      'SELECT * FROM unibox_emails WHERE id = $1 AND org_id = $2',
+      [id, req.user.orgId]
+    );
+
+    if (emailResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Email record not found' });
+    }
+
+    const email = emailResult.rows[0];
+    let lead = null;
+
+    if (email.converted_to_lead_id) {
+      const leadResult = await db.query(
+        `SELECT l.*,
+                c.first_name as contact_first_name, c.last_name as contact_last_name, c.email as contact_email, c.phone as contact_phone, 
+                co.name as linked_company_name, co.email as linked_company_email, co.phone as linked_company_phone
+         FROM public.leads l
+         LEFT JOIN public.contacts c ON c.id = l.contact_id
+         LEFT JOIN public.companies co ON co.id = l.company_id
+         WHERE l.id = $1 AND l.org_id = $2`,
+        [email.converted_to_lead_id, req.user.orgId]
+      );
+      if (leadResult.rows.length > 0) {
+        lead = leadResult.rows[0];
+      }
+    }
+
+    if (!lead) {
+      const leadResult = await db.query(
+        `SELECT l.*,
+                c.first_name as contact_first_name, c.last_name as contact_last_name, c.email as contact_email, c.phone as contact_phone, 
+                co.name as linked_company_name, co.email as linked_company_email, co.phone as linked_company_phone
+         FROM public.leads l
+         LEFT JOIN public.contacts c ON c.id = l.contact_id
+         LEFT JOIN public.companies co ON co.id = l.company_id
+         WHERE (l.email = $1 OR c.email = $1) AND l.org_id = $2
+         ORDER BY l.created_at DESC LIMIT 1`,
+        [email.sender_email, req.user.orgId]
+      );
+      if (leadResult.rows.length > 0) {
+        lead = leadResult.rows[0];
+      }
+    }
+
+    // Safely extract metadata from Instantly payload
+    const metadata = typeof email.metadata === 'string' ? JSON.parse(email.metadata) : (email.metadata || {});
+    const item = metadata.item || {};
+    const payload = item.payload || metadata.payload || {};
+
+    // Real-time enrichment from Instantly V2 API
+    let updatedMetadata = metadata;
+    let updatedItem = item;
+    let updatedPayload = payload;
+
+    const integrationResult = await db.query(
+      'SELECT api_key_encrypted FROM instantly_integrations WHERE org_id = $1',
+      [req.user.orgId]
+    );
+    const settings = integrationResult.rows[0];
+    const apiKey = settings?.api_key_encrypted || process.env.INSTANTLY_API_KEY;
+
+    if (apiKey) {
+      try {
+        const response = await fetch('https://api.instantly.ai/api/v2/leads/list', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            search: email.sender_email,
+            limit: 1
+          })
+        });
+
+        if (response.ok) {
+          const apiData = await response.json();
+          if (apiData.items && apiData.items.length > 0) {
+            const instLead = apiData.items[0];
+            
+            // Found the real Instantly lead! Update metadata cache in DB
+            updatedItem = { ...updatedItem, ...instLead };
+            updatedPayload = { ...updatedPayload, ...(instLead.payload || {}) };
+            updatedMetadata = { ...updatedMetadata, item: updatedItem };
+
+            await db.query(
+              'UPDATE unibox_emails SET metadata = $1, updated_at = NOW() WHERE id = $2',
+              [JSON.stringify(updatedMetadata), email.id]
+            );
+
+            // Also backfill the matched lead in our leads table!
+            if (lead) {
+              const enrichedPhone = lead.phone || instLead.phone || updatedPayload.phone || updatedPayload.Myphone || null;
+              const enrichedCompany = lead.company_name || lead.company || instLead.company_name || updatedPayload.companyName || null;
+              const enrichedWebsite = lead.website || instLead.website || updatedPayload.website || null;
+              const enrichedAddress = lead.address || updatedPayload.location || null;
+              const enrichedFirstName = lead.first_name || instLead.first_name || null;
+              const enrichedLastName = lead.last_name || instLead.last_name || null;
+
+              // Merge custom variables into the lead's custom_fields JSONB column
+              const currentCustomFields = typeof lead.custom_fields === 'string' ? JSON.parse(lead.custom_fields) : (lead.custom_fields || {});
+              const mergedCustomFields = { ...currentCustomFields, ...updatedPayload };
+
+              // Remove standard mapped fields from custom fields so they don't pollute the custom_fields JSON
+              const standardKeysToRemove = [
+                'firstName', 'first_name', 'lastName', 'last_name', 'name', 
+                'companyName', 'company_name', 'company', 
+                'phone', 'Myphone', 'phoneNumber',
+                'website', 'location', 'Location', 'address', 'email'
+              ];
+              standardKeysToRemove.forEach(k => delete mergedCustomFields[k]);
+
+              await db.query(
+                `UPDATE leads SET 
+                  phone = COALESCE(NULLIF(phone, ''), $1),
+                  company = COALESCE(NULLIF(company, ''), $2),
+                  company_name = COALESCE(NULLIF(company_name, ''), $2),
+                  website = COALESCE(NULLIF(website, ''), $3),
+                  address = COALESCE(NULLIF(address, ''), $4),
+                  first_name = COALESCE(NULLIF(first_name, ''), $5),
+                  last_name = COALESCE(NULLIF(last_name, ''), $6),
+                  custom_fields = $7,
+                  updated_at = NOW()
+                 WHERE id = $8`,
+                [enrichedPhone, enrichedCompany, enrichedWebsite, enrichedAddress, enrichedFirstName, enrichedLastName, JSON.stringify(mergedCustomFields), lead.id]
+              );
+
+              // Update our local lead object to match the newly enriched data in the response
+              lead.phone = enrichedPhone;
+              lead.company_name = enrichedCompany;
+              lead.company = enrichedCompany;
+              lead.website = enrichedWebsite;
+              lead.address = enrichedAddress;
+              lead.first_name = enrichedFirstName;
+              lead.last_name = enrichedLastName;
+              lead.custom_fields = mergedCustomFields;
+            }
+          }
+        }
+      } catch (apiErr) {
+        console.error('[Unibox Controller] Real-time Instantly lookup failed:', apiErr.message);
+      }
+    }
+
+    const extracted = {
+      campaign: updatedMetadata.campaign_name || updatedItem.campaign_name || updatedMetadata.campaign || updatedItem.campaign_id || '',
+      rating: updatedPayload.Rating || updatedPayload.rating || '',
+      profile: updatedPayload.Profile || updatedPayload.profile || '',
+      facebook: updatedPayload.Facebook || updatedPayload.facebook || '',
+      location: updatedPayload.location || updatedPayload.Location || lead?.address || '',
+      website: lead?.website || updatedItem.website || updatedMetadata.website || updatedPayload.website || '',
+      phone: lead?.phone || updatedItem.phone || updatedMetadata.phone || updatedPayload.phone || '',
+      companyName: lead?.company_name || lead?.company || updatedItem.company_name || updatedItem.company || updatedMetadata.company || '',
+      payload: updatedPayload
+    };
+
+    res.json({
+      lead: lead ? {
+        id: lead.id,
+        title: lead.title,
+        name: lead.name,
+        email: lead.email,
+        phone: lead.phone,
+        company: lead.company_name || lead.company,
+        website: lead.website,
+        address: lead.address,
+        source: lead.source,
+        stage: lead.stage,
+        custom_fields: typeof lead.custom_fields === 'string' ? JSON.parse(lead.custom_fields) : (lead.custom_fields || {}),
+        createdAt: lead.created_at
+      } : null,
+      instantly: extracted
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getEmails,
   updateEmailStatus,
@@ -502,4 +820,5 @@ module.exports = {
   grantPermission,
   revokePermission,
   createSampleEmail,
+  getEmailLeadInfo,
 };
