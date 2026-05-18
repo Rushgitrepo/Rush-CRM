@@ -15,6 +15,9 @@ const store = new Store();
 let mainWindow;
 let tray;
 
+// Persist cookies/localStorage for the hosted app between app restarts
+const PERSISTENT_SESSION = 'persist:rushcrm';
+
 /**
  * Get the correct icon path for different environments
  */
@@ -94,6 +97,7 @@ function createWindow() {
       enableRemoteModule: false,
       preload: path.join(__dirname, 'preload.js'),
       webSecurity: true,
+      partition: PERSISTENT_SESSION,
     },
     skipTaskbar: false,
     resizable: true,
@@ -380,6 +384,7 @@ function setupIpcHandlers() {
         nodeIntegration: false,
         contextIsolation: true,
         preload: path.join(__dirname, 'preload.js'),
+        partition: PERSISTENT_SESSION,
       },
       show: false,
     });
@@ -461,6 +466,7 @@ function setupIpcHandlers() {
         nodeIntegration: false,
         contextIsolation: true,
         preload: path.join(__dirname, 'preload.js'),
+        partition: PERSISTENT_SESSION,
       },
       show: false,
     });
