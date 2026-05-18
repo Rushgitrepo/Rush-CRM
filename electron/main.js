@@ -33,6 +33,24 @@ function getIconPath() {
 }
 
 const FRONTEND_PORT = process.env.FRONTEND_PORT || 8080;
+const HOSTED_APP_URL = 'https://rms.rushcorporation.com';
+
+/**
+ * Base URL for the renderer (dev server vs hosted production app).
+ */
+function getAppBaseURL() {
+  return isDev ? `http://localhost:${FRONTEND_PORT}` : HOSTED_APP_URL;
+}
+
+/**
+ * setHighlightMode is macOS-only; calling it on Windows throws.
+ */
+function setTrayHighlightMode(mode) {
+  if (process.platform !== 'darwin' || !tray) return;
+  if (typeof tray.setHighlightMode === 'function') {
+    tray.setHighlightMode(mode);
+  }
+}
 
 // Notification settings
 let notificationSettings = {
@@ -94,37 +112,54 @@ function createWindow() {
   mainWindow.setMenuBarVisibility(false);
   mainWindow.setAutoHideMenuBar(true);
 
-  // Load the app - Always use localhost for development
-  const startURL = `http://localhost:${FRONTEND_PORT}`;
-
+  const startURL = getAppBaseURL();
   console.log('Loading URL:', startURL);
 
-  // Add error handling for loading
-  mainWindow.loadURL(startURL).catch(err => {
-    console.error('Failed to load URL:', err);
-    // Fallback to hosted server if localhost fails
-    console.log('Trying fallback URL...');
-    mainWindow.loadURL('https://rms.rushcorporation.com').catch(fallbackErr => {
-      console.error('Fallback URL also failed:', fallbackErr);
-    });
-  });
-
-  // Show window when ready
-  mainWindow.once('ready-to-show', () => {
-    console.log('Window ready to show');
-    mainWindow.show();
+  const showMainWindow = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (!mainWindow.isVisible()) {
+      mainWindow.show();
+    }
     mainWindow.focus();
+    setTrayHighlightMode('always');
+  };
 
-    // Open DevTools only in development and only when needed
-    if (isDev) {
-      console.log('Development mode - DevTools available via F12');
-      // Don't auto-open DevTools, let user open with F12 if needed
+  mainWindow.loadURL(startURL).catch((err) => {
+    console.error('Failed to load URL:', err);
+    if (startURL !== HOSTED_APP_URL) {
+      console.log('Trying hosted fallback URL...');
+      mainWindow.loadURL(HOSTED_APP_URL).catch((fallbackErr) => {
+        console.error('Fallback URL also failed:', fallbackErr);
+        showMainWindow();
+      });
+    } else {
+      showMainWindow();
     }
   });
 
-  // Add web contents event handlers for debugging
+  mainWindow.once('ready-to-show', () => {
+    console.log('Window ready to show');
+    showMainWindow();
+
+    if (isDev) {
+      console.log('Development mode - DevTools available via F12');
+    }
+  });
+
+  mainWindow.on('focus', () => setTrayHighlightMode('always'));
+  mainWindow.on('blur', () => setTrayHighlightMode('never'));
+
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+    if (errorCode === -3) return; // aborted navigation (e.g. redirect)
     console.error('Failed to load:', errorCode, errorDescription, validatedURL);
+
+    if (!isDev && validatedURL !== HOSTED_APP_URL) {
+      console.log('Retrying with hosted URL...');
+      mainWindow.loadURL(HOSTED_APP_URL).catch((err) => {
+        console.error('Hosted fallback failed:', err);
+        showMainWindow();
+      });
+    }
   });
 
   mainWindow.webContents.on('did-finish-load', () => {
@@ -214,6 +249,7 @@ function createTray() {
 
     tray.setToolTip('Rush CRM - Customer Relationship Management System');
     tray.setContextMenu(contextMenu);
+    setTrayHighlightMode('always');
 
     tray.on('double-click', () => {
       if (mainWindow) {
@@ -332,7 +368,7 @@ function setupIpcHandlers() {
       show: false,
     });
 
-    const overlayURL = `http://localhost:${FRONTEND_PORT}/#/electron/message-overlay?data=${encodeURIComponent(JSON.stringify(msgData))}`;
+    const overlayURL = `${getAppBaseURL()}/#/electron/message-overlay?data=${encodeURIComponent(JSON.stringify(msgData))}`;
     messageOverlayWindow.loadURL(overlayURL);
 
     messageOverlayWindow.once('ready-to-show', () => {
@@ -414,7 +450,7 @@ function setupIpcHandlers() {
     });
 
     // Load the specific overlay route from our React app
-    const overlayURL = `http://localhost:${FRONTEND_PORT}/#/electron/incoming-call?data=${encodeURIComponent(JSON.stringify(callData))}`;
+    const overlayURL = `${getAppBaseURL()}/#/electron/incoming-call?data=${encodeURIComponent(JSON.stringify(callData))}`;
     callWindow.loadURL(overlayURL);
 
     callWindow.once('ready-to-show', () => {
@@ -478,7 +514,11 @@ app.on('window-all-closed', () => {
 });
 
 app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  } else if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
   }
 });
