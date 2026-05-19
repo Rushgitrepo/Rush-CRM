@@ -386,10 +386,10 @@ const oauthCallback = async (req, res, next) => {
       );
     }
 
-    res.redirect(`${process.env.APP_URL}/collaboration/drive?connected=google_drive&driveId=${finalDriveId}`);
+    res.redirect(`${process.env.APP_URL}/#/collaboration/drive?connected=google_drive&driveId=${finalDriveId}`);
   } catch (error) {
     console.error('OAuth Callback Error:', error);
-    res.redirect(`${process.env.APP_URL}/collaboration/drive?error=${encodeURIComponent(error.message)}`);
+    res.redirect(`${process.env.APP_URL}/#/collaboration/drive?error=${encodeURIComponent(error.message)}`);
   }
 };
 

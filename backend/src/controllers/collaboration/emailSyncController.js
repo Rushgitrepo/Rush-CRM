@@ -472,9 +472,9 @@ const oauthCallbackGet = async (req, res, next) => {
       result = await processGmailCallback({ ...req, code, state });
     }
 
-    res.redirect(process.env.APP_URL + '/collaboration/mail?connected=' + provider + '&email=' + encodeURIComponent(result.userInfo.email));
+    res.redirect(process.env.APP_URL + '/#/collaboration/mail?connected=' + provider + '&email=' + encodeURIComponent(result.userInfo.email));
   } catch (err) {
-    res.redirect(process.env.APP_URL + '/collaboration/mail?error=' + encodeURIComponent(err.message));
+    res.redirect(process.env.APP_URL + '/#/collaboration/mail?error=' + encodeURIComponent(err.message));
   }
 };
 
