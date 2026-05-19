@@ -2,7 +2,7 @@ import { useState } from "react";
 import { format } from "date-fns";
 import {
   Send, MoreHorizontal, Pencil, Trash2,
-  MessageSquare, Clock, CalendarDays, CheckSquare, Activity, PhoneCall
+  MessageSquare, Clock, CalendarDays, CheckSquare, Activity, PhoneCall, Mail
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -34,6 +34,7 @@ const tabs = [
   { id: "activity", label: "Activity", icon: Activity },
   { id: "comment", label: "Comment", icon: MessageSquare },
   { id: "call_note", label: "Call Note", icon: PhoneCall },
+  { id: "email", label: "Email", icon: Mail },
   { id: "sms", label: "SMS", icon: Send },
   // { id: "booking", label: "Booking", icon: CalendarDays },
   // { id: "task", label: "Task", icon: CheckSquare },
@@ -59,6 +60,9 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
   const [isSending, setIsSending] = useState(false);
   const [callDate, setCallDate] = useState(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
   const [callTitle, setCallTitle] = useState("Manual Call Log");
+  const [recipientEmail, setRecipientEmail] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
 
   const handleSubmitComment = () => {
     if (!commentText.trim()) return;
@@ -92,6 +96,30 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
 
   const handleSendSms = async () => {
     // ... (existing handleSendSms code)
+  };
+
+  const handleSendEmail = () => {
+    if (!emailSubject.trim() || !emailBody.trim()) {
+      toast.error("Please enter email subject and body");
+      return;
+    }
+
+    // Create activity log for email
+    createActivity.mutate({
+      entityType: entityType,
+      entityId: entityId,
+      activityType: 'email_sent',
+      title: `Email: ${emailSubject}`,
+      description: recipientEmail ? `To: ${recipientEmail}\n\n${emailBody}` : emailBody,
+    }, {
+      onSuccess: () => {
+        // Clear form
+        setRecipientEmail("");
+        setEmailSubject("");
+        setEmailBody("");
+        toast.success("Email log added successfully");
+      }
+    });
   };
 
   const handleSubmitCallNote = () => {
@@ -144,6 +172,8 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
     ? activityTimeline.filter(a => a.activityType !== 'call_log' && a.activityType !== 'call')
     : activeTab === "comment"
     ? commentTimeline
+    : activeTab === "email"
+    ? activityTimeline.filter(a => a.activityType === 'email_sent' || a.activityType === 'email_received')
     : (activeTab === "call_note" || activeTab === "calls")
     ? activityTimeline.filter(a => a.activityType === 'call_log' || a.activityType === 'call')
     : [];
@@ -169,8 +199,8 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
         ))}
       </div>
 
-      {/* Input area for comment/sms/activity/call_note */}
-      {(activeTab === "comment" || activeTab === "sms" || activeTab === "activity" || activeTab === "call_note") && (
+      {/* Input area for comment/sms/activity/call_note/email */}
+      {(activeTab === "comment" || activeTab === "sms" || activeTab === "activity" || activeTab === "call_note" || activeTab === "email") && (
         <div className="p-3 border-b bg-muted/30">
           <div className="flex gap-3">
             <Avatar className="h-8 w-8 shrink-0 mt-1 border shadow-sm">
@@ -222,22 +252,46 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
                 </div>
               )}
 
+              {activeTab === "email" && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Input 
+                      placeholder="To: recipient@example.com (optional)" 
+                      value={recipientEmail}
+                      onChange={(e) => setRecipientEmail(e.target.value)}
+                      className="h-8 text-xs flex-1 bg-background"
+                      type="email"
+                    />
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight px-2 py-0.5 bg-muted rounded border">Email Log</span>
+                  </div>
+                  <Input 
+                    placeholder="Email subject..." 
+                    value={emailSubject}
+                    onChange={(e) => setEmailSubject(e.target.value)}
+                    className="h-8 text-xs bg-background"
+                  />
+                </div>
+              )}
+
               <div className="space-y-1">
                 {activeTab === "call_note" && <Label className="text-[10px] uppercase font-bold text-muted-foreground">Call Notes</Label>}
+                {activeTab === "email" && <Label className="text-[10px] uppercase font-bold text-muted-foreground">Email Body (optional)</Label>}
                 <Textarea
                   placeholder={
                     activeTab === "sms" ? "Write SMS message..." : 
                     activeTab === "activity" ? "Add an activity note..." : 
                     activeTab === "call_note" ? "Type detailed call summary here..." :
+                    activeTab === "email" ? "Pre-fill email content (optional)..." :
                     "Add a comment..."
                   }
-                  value={commentText}
-                  onChange={(e) => setCommentText(e.target.value)}
+                  value={activeTab === "email" ? emailBody : commentText}
+                  onChange={(e) => activeTab === "email" ? setEmailBody(e.target.value) : setCommentText(e.target.value)}
                   className="min-h-[80px] text-sm bg-background resize-none"
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                       if (activeTab === "sms") handleSendSms();
                       else if (activeTab === "call_note") handleSubmitCallNote();
+                      else if (activeTab === "email") handleSendEmail();
                       else handleSubmitComment();
                     }
                   }}
@@ -250,14 +304,23 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
                   onClick={
                     activeTab === "sms" ? handleSendSms : 
                     activeTab === "call_note" ? handleSubmitCallNote : 
+                    activeTab === "email" ? handleSendEmail :
                     handleSubmitComment
                   }
-                  disabled={!commentText.trim() || createComment.isPending || createActivity.isPending || isSending || (activeTab === "sms" && !activeProvider)}
+                  disabled={
+                    activeTab === "email" 
+                      ? (!recipientEmail.trim())
+                      : (!commentText.trim() || createComment.isPending || createActivity.isPending || isSending || (activeTab === "sms" && !activeProvider))
+                  }
                   className="gap-2 px-4 font-semibold shadow-sm"
                 >
-                  {activeTab === "call_note" ? <PhoneCall className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
+                  {activeTab === "call_note" ? <PhoneCall className="h-3.5 w-3.5" /> : 
+                   activeTab === "email" ? <Mail className="h-3.5 w-3.5" /> :
+                   <Send className="h-3.5 w-3.5" />}
                   {activeTab === "sms" ? (isSending ? "Sending..." : "Send SMS") : 
-                   activeTab === "call_note" ? "Save Call Note" : "Post"}
+                   activeTab === "call_note" ? "Save Call Note" : 
+                   activeTab === "email" ? "Compose Email" :
+                   "Post"}
                 </Button>
               </div>
               {activeTab === "sms" && !activeProvider && (
@@ -306,6 +369,7 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
                     {item.type === 'activity' ? (
                       item.activityType === 'call_log' ? <PhoneCall className="h-3 w-3" /> :
                       item.activityType === 'sms' ? <Send className="h-3 w-3" /> :
+                      item.activityType === 'email_sent' || item.activityType === 'email_received' ? <Mail className="h-3 w-3" /> :
                       <Activity className="h-3 w-3" />
                     ) : (item.userName?.charAt(0) || "U")}
                   </AvatarFallback>

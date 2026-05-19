@@ -758,20 +758,20 @@ export default function DealDetailPage() {
 
                     {!editing && (
                       <div className="flex items-center gap-2 ml-2">
-                        {linkedContact?.phone && (
+                        {(linkedContact?.phone || deal.phone) && (
                           <ClickToCall
-                            phoneNumber={linkedContact.phone}
+                            phoneNumber={linkedContact?.phone || deal.phone}
                             entityType="deal"
                             entityId={deal.id}
                             className="h-8 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white border-none shadow-sm transition-all hover:scale-105 active:scale-95"
                           />
                         )}
-                        {linkedContact?.email && (
+                        {(linkedContact?.email || deal.email) && (
                           <Button
                             variant="default"
                             size="sm"
                             className="h-8 gap-1.5 bg-primary hover:bg-primary/90 text-white text-xs shadow-sm transition-all hover:scale-105 active:scale-95"
-                            onClick={() => navigate("/collaboration/mail", { state: { composeTo: linkedContact.email } })}
+                            onClick={() => navigate("/collaboration/mail", { state: { composeTo: linkedContact?.email || deal.email } })}
                           >
                             <Mail className="h-3.5 w-3.5" />
                             Email
@@ -1941,9 +1941,9 @@ export default function DealDetailPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-4 grid grid-cols-2 gap-3">
-                {deal.phone && (
+                {(linkedContact?.phone || deal.phone) && (
                   <ClickToCall
-                    phoneNumber={deal.phone}
+                    phoneNumber={linkedContact?.phone || deal.phone}
                     entityType="deal"
                     entityId={deal.id}
                     className="w-full"
@@ -1955,11 +1955,11 @@ export default function DealDetailPage() {
                     }
                   />
                 )}
-                {deal.linkedContact?.email && (
+                {(linkedContact?.email || deal.email) && (
                   <Button
                     variant="outline"
                     className="w-full justify-start gap-2 h-10 border hover:bg-muted/50"
-                    onClick={() => navigate("/collaboration/mail", { state: { composeTo: deal.linkedContact.email } })}
+                    onClick={() => navigate("/collaboration/mail", { state: { composeTo: linkedContact?.email || deal.email } })}
                   >
                     <Mail className="h-4 w-4 text-muted-foreground" />
                     <span className="truncate">Email</span>
