@@ -62,6 +62,8 @@ interface WebmailViewProps {
   onBackToIntegration: () => void;
   initialOpenComposer?: boolean;
   initialTo?: string;
+  entityType?: string;
+  entityId?: string;
 }
 
 

@@ -650,14 +650,28 @@ const sendEmail = async (req, res, next) => {
     // Auto-log email to CRM activities if entity context is provided
     if (entity_type && entity_id) {
       try {
-        await db.query(
-          `INSERT INTO activities (
-            org_id, entity_type, entity_id, activity_type, title, description, user_id, created_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
-          [req.user.orgId, entity_type, entity_id, 'email_sent',
-           `Email: ${subject || 'No Subject'}`, `To: ${toStr}\n\n${body || html_body || ''}`, req.user.id]
-        );
-        console.log(`✅ Email activity logged for ${entity_type} ${entity_id}`);
+        const entityColumn = entity_type === 'lead' ? 'lead_id'
+          : entity_type === 'deal' ? 'deal_id'
+          : entity_type === 'contact' ? 'contact_id'
+          : entity_type === 'company' ? 'company_id'
+          : null;
+
+        if (entityColumn) {
+          await db.query(
+            `INSERT INTO public.activities
+               (org_id, owner_id, ${entityColumn}, type, subject, description, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+            [
+              req.user.orgId,
+              req.user.id,
+              entity_id,
+              'email',
+              `Email: ${subject || 'No Subject'}`,
+              `To: ${toStr}\n\n${body || html_body || ''}`
+            ]
+          );
+          console.log(`✅ Email activity logged for ${entity_type} ${entity_id}`);
+        }
       } catch (logError) {
         console.error('❌ Failed to log email activity:', logError.message);
       }
