@@ -15,21 +15,54 @@ console.log('🔧 import.meta.env.MODE:', import.meta.env.MODE);
 
 export const FILE_BASE_URL = API_BASE_URL.replace('/api', '');
 
+const AUTH_TOKEN_KEY = 'rush_crm_auth_token';
+const AUTH_TOKEN_DAYS = 30;
+
+function readStoredToken(): string | null {
+  try {
+    return localStorage.getItem(AUTH_TOKEN_KEY) || Cookies.get('token') || null;
+  } catch {
+    return Cookies.get('token') || null;
+  }
+}
+
+function writeStoredToken(token: string | null) {
+  const secure =
+    typeof window !== 'undefined' && window.location.protocol === 'https:';
+
+  if (token) {
+    try {
+      localStorage.setItem(AUTH_TOKEN_KEY, token);
+    } catch {
+      // ignore quota / private mode
+    }
+    Cookies.set('token', token, {
+      expires: AUTH_TOKEN_DAYS,
+      path: '/',
+      secure,
+      sameSite: 'lax',
+    });
+  } else {
+    try {
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+    } catch {
+      // ignore
+    }
+    Cookies.remove('token', { path: '/' });
+  }
+}
+
 class ApiClient {
   private token: string | null = null;
 
   setToken(token: string | null) {
     this.token = token;
-    if (token) {
-      Cookies.set('token', token, { expires: 1, path: '/' }); // 1 day
-    } else {
-      Cookies.remove('token', { path: '/' });
-    }
+    writeStoredToken(token);
   }
 
   getToken(): string | null {
     if (!this.token) {
-      this.token = Cookies.get('token') || null;
+      this.token = readStoredToken();
     }
     return this.token;
   }
