@@ -31,9 +31,11 @@ interface EmailComposerProps {
   replyTo?: any;
   forwardEmail?: any;
   initialTo?: string;
+  entityType?: string;
+  entityId?: string;
 }
 
-export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardEmail, initialTo }: EmailComposerProps) {
+export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardEmail, initialTo, entityType, entityId }: EmailComposerProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [showCcBcc, setShowCcBcc] = useState(false);
@@ -149,6 +151,8 @@ export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardE
           attachments: base64Attachments,
           in_reply_to: replyTo?.message_id || undefined,
           thread_id: replyTo?.thread_id || undefined,
+          entity_type: entityType || undefined,
+          entity_id: entityId || undefined,
       });
       if (data?.error) throw new Error(data.error);
 

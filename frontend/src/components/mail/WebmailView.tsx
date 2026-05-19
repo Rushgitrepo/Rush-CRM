@@ -96,7 +96,7 @@ function EmailListSkeleton() {
   );
 }
 
-export function WebmailView({ mailboxes, onBackToIntegration, initialOpenComposer = false, initialTo }: WebmailViewProps) {
+export function WebmailView({ mailboxes, onBackToIntegration, initialOpenComposer = false, initialTo, entityType, entityId }: WebmailViewProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { syncMailbox, syncing } = useEmailSync();
@@ -239,6 +239,8 @@ export function WebmailView({ mailboxes, onBackToIntegration, initialOpenCompose
           replyTo={replyTo}
           forwardEmail={forwardEmail}
           initialTo={initialTo}
+          entityType={replyTo || forwardEmail ? undefined : entityType}
+          entityId={replyTo || forwardEmail ? undefined : entityId}
         />
       </div>
     );
@@ -511,6 +513,8 @@ export function WebmailView({ mailboxes, onBackToIntegration, initialOpenCompose
         replyTo={replyTo}
         forwardEmail={forwardEmail}
         initialTo={initialTo}
+        entityType={replyTo || forwardEmail ? undefined : entityType}
+        entityId={replyTo || forwardEmail ? undefined : entityId}
       />
     </div>
   );
