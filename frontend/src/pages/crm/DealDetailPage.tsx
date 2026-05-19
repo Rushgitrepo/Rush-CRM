@@ -771,7 +771,13 @@ export default function DealDetailPage() {
                             variant="default"
                             size="sm"
                             className="h-8 gap-1.5 bg-primary hover:bg-primary/90 text-white text-xs shadow-sm transition-all hover:scale-105 active:scale-95"
-                            onClick={() => navigate("/collaboration/mail", { state: { composeTo: linkedContact?.email || deal.email } })}
+                            onClick={() => navigate("/collaboration/mail", { 
+                              state: { 
+                                composeTo: linkedContact?.email || deal.email,
+                                entityType: 'deal',
+                                entityId: id
+                              } 
+                            })}
                           >
                             <Mail className="h-3.5 w-3.5" />
                             Email
@@ -1959,7 +1965,13 @@ export default function DealDetailPage() {
                   <Button
                     variant="outline"
                     className="w-full justify-start gap-2 h-10 border hover:bg-muted/50"
-                    onClick={() => navigate("/collaboration/mail", { state: { composeTo: linkedContact?.email || deal.email } })}
+                    onClick={() => navigate("/collaboration/mail", { 
+                      state: { 
+                        composeTo: linkedContact?.email || deal.email,
+                        entityType: 'deal',
+                        entityId: id
+                      } 
+                    })}
                   >
                     <Mail className="h-4 w-4 text-muted-foreground" />
                     <span className="truncate">Email</span>

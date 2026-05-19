@@ -319,7 +319,7 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
                    <Send className="h-3.5 w-3.5" />}
                   {activeTab === "sms" ? (isSending ? "Sending..." : "Send SMS") : 
                    activeTab === "call_note" ? "Save Call Note" : 
-                   activeTab === "email" ? "Compose Email" :
+                   activeTab === "email" ? "Add Email Log" :
                    "Post"}
                 </Button>
               </div>

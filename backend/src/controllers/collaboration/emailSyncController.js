@@ -557,7 +557,9 @@ const saveDraft = async (req, res, next) => {
 const sendEmail = async (req, res, next) => {
   try {
     const emailService = require('../../services/emailService');
-    const result = await emailService.sendEmail(req.user.id, {
+    const db = require('../../config/database');
+    
+    const emailData = {
       mailbox_id: req.body.mailbox_id,
       to: req.body.to,
       cc: req.body.cc,
@@ -566,7 +568,33 @@ const sendEmail = async (req, res, next) => {
       body: req.body.body,
       html_body: req.body.html_body,
       attachments: req.body.attachments || []
-    });
+    };
+    
+    const result = await emailService.sendEmail(req.user.id, emailData);
+
+    // Auto-log email to CRM activities if entity context is provided
+    if (req.body.entity_type && req.body.entity_id) {
+      try {
+        await db.query(
+          `INSERT INTO activities (
+            org_id, entity_type, entity_id, activity_type, title, description, user_id, created_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+          [
+            req.user.orgId,
+            req.body.entity_type,
+            req.body.entity_id,
+            'email_sent',
+            `Email: ${emailData.subject || 'No Subject'}`,
+            `To: ${emailData.to}\n\n${emailData.body || emailData.html_body || ''}`,
+            req.user.id
+          ]
+        );
+        console.log(`✅ Email activity logged for ${req.body.entity_type} ${req.body.entity_id}`);
+      } catch (logError) {
+        console.error('❌ Failed to log email activity:', logError.message);
+        // Don't fail the email send if logging fails
+      }
+    }
 
     res.json(result);
   } catch (err) {
