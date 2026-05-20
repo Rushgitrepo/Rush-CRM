@@ -308,7 +308,14 @@ const remove = async (req, res, next) => {
     await db.query('DELETE FROM public.deals WHERE assigned_to = $1', [id]);
     await db.query('DELETE FROM public.tasks WHERE assigned_to = $1 OR created_by = $1', [id]);
     await db.query('DELETE FROM public.crm_activities WHERE user_id = $1', [id]);
+    await db.query('UPDATE public.employees SET created_by = NULL WHERE created_by = $1', [id]);
+    await db.query('DELETE FROM public.employees WHERE id = $1', [id]);
+    await db.query('DELETE FROM public.workgroup_posts WHERE user_id = $1', [id]);
+    await db.query('DELETE FROM public.workgroup_post_reads WHERE user_id = $1', [id]);
+    await db.query('DELETE FROM public.workgroup_files WHERE uploaded_by = $1', [id]);
     await db.query('DELETE FROM public.workgroup_members WHERE user_id = $1', [id]);
+    await db.query('DELETE FROM public.workgroup_notifications WHERE user_id = $1', [id]);
+    await db.query('DELETE FROM public.workgroup_activities WHERE user_id = $1', [id]);
     await db.query('DELETE FROM public.connected_mailboxes WHERE user_id = $1', [id]);
     await db.query('DELETE FROM public.calendar_connections WHERE user_id = $1', [id]);
     await db.query('DELETE FROM public.calendar_event_attendees WHERE user_id = $1', [id]);
