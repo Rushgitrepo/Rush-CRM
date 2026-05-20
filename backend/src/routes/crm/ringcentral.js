@@ -64,11 +64,11 @@ router.get('/callback', async (req, res) => {
 
     // Redirect back to admin settings
     const appUrl = process.env.APP_URL || 'http://localhost:8080';
-    res.redirect(`${appUrl}/admin/settings?rc=connected`);
+    res.redirect(`${appUrl}/#/admin/settings?rc=connected`);
   } catch (err) {
     console.error('[RC] callback error:', err);
     const appUrl = process.env.APP_URL || 'http://localhost:8080';
-    res.redirect(`${appUrl}/admin/settings?rc=error&message=${encodeURIComponent(err.message)}`);
+    res.redirect(`${appUrl}/#/admin/settings?rc=error&message=${encodeURIComponent(err.message)}`);
   }
 });
 

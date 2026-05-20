@@ -706,7 +706,13 @@ export default function LeadDetailPage() {
                             variant="default"
                             size="sm"
                             className="h-8 gap-1.5 bg-primary hover:bg-primary/90 text-white text-xs shadow-sm transition-all hover:scale-105 active:scale-95"
-                            onClick={() => navigate("/collaboration/mail", { state: { composeTo: lead.email } })}
+                            onClick={() => navigate("/collaboration/mail", { 
+                              state: { 
+                                composeTo: lead.email,
+                                entityType: 'lead',
+                                entityId: id
+                              } 
+                            })}
                           >
                             <Mail className="h-3.5 w-3.5" />
                             Email

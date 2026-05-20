@@ -1,4 +1,4 @@
-const db = require('../../config/database');
+﻿const db = require('../../config/database');
 const calendarController = require('./calendarController');
 const gmailSyncService = require('../../services/gmailSyncService');
 const imapSyncService = require('../../services/imapSyncService');
@@ -472,9 +472,9 @@ const oauthCallbackGet = async (req, res, next) => {
       result = await processGmailCallback({ ...req, code, state });
     }
 
-    res.redirect(process.env.APP_URL + '/collaboration/mail?connected=' + provider + '&email=' + encodeURIComponent(result.userInfo.email));
+    res.redirect(process.env.APP_URL + '/#/collaboration/mail?connected=' + provider + '&email=' + encodeURIComponent(result.userInfo.email));
   } catch (err) {
-    res.redirect(process.env.APP_URL + '/collaboration/mail?error=' + encodeURIComponent(err.message));
+    res.redirect(process.env.APP_URL + '/#/collaboration/mail?error=' + encodeURIComponent(err.message));
   }
 };
 
@@ -556,17 +556,126 @@ const saveDraft = async (req, res, next) => {
 
 const sendEmail = async (req, res, next) => {
   try {
-    const emailService = require('../../services/emailService');
-    const result = await emailService.sendEmail(req.user.id, {
-      mailbox_id: req.body.mailbox_id,
-      to: req.body.to,
-      cc: req.body.cc,
-      bcc: req.body.bcc,
-      subject: req.body.subject,
-      body: req.body.body,
-      html_body: req.body.html_body,
-      attachments: req.body.attachments || []
-    });
+    const { mailbox_id, to, cc, bcc, subject, body, html_body, attachments = [], entity_type, entity_id } = req.body;
+
+    if (!mailbox_id) return res.status(400).json({ error: 'mailbox_id is required' });
+
+    // Normalise `to` — frontend may send an array or a comma-string
+    const toStr = Array.isArray(to) ? to.join(', ') : (to || '');
+    if (!toStr.trim()) return res.status(400).json({ error: 'Recipient (to) is required' });
+
+    // Look up the mailbox to determine provider and credentials
+    const mbRes = await db.query(
+      'SELECT * FROM connected_mailboxes WHERE id = $1 AND user_id = $2 AND is_active = true',
+      [mailbox_id, req.user.id]
+    );
+    if (mbRes.rows.length === 0) return res.status(404).json({ error: 'Mailbox not found' });
+
+    const mailbox = mbRes.rows[0];
+    let result;
+
+    if (mailbox.provider === 'gmail') {
+      const gmailOAuth = require('../../services/gmailOAuth');
+      let accessToken = mailbox.access_token;
+      if (mailbox.token_expires_at && new Date(mailbox.token_expires_at) <= new Date()) {
+        const refreshed = await gmailOAuth.refreshAccessToken(mailbox.refresh_token);
+        accessToken = refreshed.access_token;
+        await db.query(
+          'UPDATE connected_mailboxes SET access_token = $1, token_expires_at = $2 WHERE id = $3',
+          [refreshed.access_token, new Date(refreshed.expiry_date), mailbox_id]
+        );
+      }
+      const gmailResult = await gmailOAuth.sendEmail(accessToken, { to: toStr, cc, bcc, subject, body, html: html_body, attachments: attachments || [] });
+      result = { success: true, messageId: gmailResult.id };
+
+    } else if (mailbox.provider === 'outlook' || mailbox.provider === 'office365') {
+      const microsoftOAuth = require('../../services/microsoftMailOAuth');
+      let accessToken = mailbox.access_token;
+      if (mailbox.token_expires_at && new Date(mailbox.token_expires_at) <= new Date()) {
+        const refreshed = await microsoftOAuth.refreshAccessToken(mailbox.refresh_token);
+        accessToken = refreshed.access_token;
+        await db.query(
+          'UPDATE connected_mailboxes SET access_token = $1, token_expires_at = $2 WHERE id = $3',
+          [refreshed.access_token, new Date(refreshed.expiry_date), mailbox_id]
+        );
+      }
+      const toRecipients = toStr.split(',').map(e => ({ emailAddress: { address: e.trim() } }));
+      const ccRecipients = cc ? String(cc).split(',').map(e => ({ emailAddress: { address: e.trim() } })) : [];
+      const bccRecipients = bcc ? String(bcc).split(',').map(e => ({ emailAddress: { address: e.trim() } })) : [];
+      const graphResponse = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: {
+            subject: subject || '',
+            body: { contentType: 'HTML', content: html_body || body || '' },
+            toRecipients,
+            ...(ccRecipients.length > 0 && { ccRecipients }),
+            ...(bccRecipients.length > 0 && { bccRecipients }),
+          },
+          saveToSentItems: true,
+        }),
+      });
+      if (!graphResponse.ok) {
+        const errBody = await graphResponse.json().catch(() => ({}));
+        throw new Error(errBody?.error?.message || 'Failed to send via Microsoft Graph');
+      }
+      result = { success: true };
+
+    } else {
+      // IMAP mailbox — send via its SMTP credentials
+      const nodemailer = require('nodemailer');
+      const smtpPort = parseInt(mailbox.smtp_port || 587);
+      const smtpUser = mailbox.smtp_username || mailbox.imap_username || mailbox.email_address;
+      console.log(`📧 Sending via SMTP: host=${mailbox.smtp_host} port=${smtpPort} user=${smtpUser}`);
+      const smtpTransporter = nodemailer.createTransport({
+        host: mailbox.smtp_host,
+        port: smtpPort,
+        secure: smtpPort === 465,
+        auth: { user: smtpUser, pass: mailbox.encrypted_password },
+        tls: { rejectUnauthorized: false },
+      });
+      const info = await smtpTransporter.sendMail({
+        from: `"${mailbox.display_name || ''}" <${mailbox.email_address}>`,
+        to: toStr,
+        cc: cc || undefined,
+        bcc: bcc || undefined,
+        subject: subject || '',
+        html: html_body || body || '',
+        text: body || undefined,
+      });
+      result = { success: true, messageId: info.messageId };
+    }
+
+    // Auto-log email to CRM activities if entity context is provided
+    if (entity_type && entity_id) {
+      try {
+        const entityColumn = entity_type === 'lead' ? 'lead_id'
+          : entity_type === 'deal' ? 'deal_id'
+          : entity_type === 'contact' ? 'contact_id'
+          : entity_type === 'company' ? 'company_id'
+          : null;
+
+        if (entityColumn) {
+          await db.query(
+            `INSERT INTO public.activities
+               (org_id, owner_id, ${entityColumn}, type, subject, description, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+            [
+              req.user.orgId,
+              req.user.id,
+              entity_id,
+              'email',
+              `Email: ${subject || 'No Subject'}`,
+              `To: ${toStr}\n\n${body || html_body || ''}`
+            ]
+          );
+          console.log(`✅ Email activity logged for ${entity_type} ${entity_id}`);
+        }
+      } catch (logError) {
+        console.error('❌ Failed to log email activity:', logError.message);
+      }
+    }
 
     res.json(result);
   } catch (err) {

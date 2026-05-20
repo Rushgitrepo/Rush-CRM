@@ -15,7 +15,7 @@ class SystemEmailService {
   }
 
   async sendInvite(email, fullName, inviteToken) {
-    const inviteUrl = `${process.env.APP_URL}/accept-invite?token=${inviteToken}`;
+    const inviteUrl = `${process.env.APP_URL}/#/accept-invite?token=${inviteToken}`;
 
     const mailOptions = {
       from: `"Rush CRM" <${process.env.SMTP_USER}>`,
