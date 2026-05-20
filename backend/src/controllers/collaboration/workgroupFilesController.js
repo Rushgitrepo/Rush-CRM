@@ -19,7 +19,7 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ 
+const upload = multer({
   storage,
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
   fileFilter: (req, file, cb) => {
@@ -32,7 +32,7 @@ const upload = multer({
 const getWorkgroupFiles = async (req, res, next) => {
   try {
     const { workgroupId } = req.params;
-    
+
     // Check if user has access to workgroup
     const accessQuery = `
       SELECT w.is_private, wm.user_id
@@ -41,15 +41,15 @@ const getWorkgroupFiles = async (req, res, next) => {
       WHERE w.id = $2 AND w.org_id = $3
     `;
     const accessResult = await db.query(accessQuery, [req.user.id, workgroupId, req.user.orgId]);
-    
+
     if (accessResult.rows.length === 0) {
       return res.status(404).json({ error: 'Workgroup not found' });
     }
-    
+
     if (accessResult.rows[0].is_private && !accessResult.rows[0].user_id) {
       return res.status(403).json({ error: 'Access denied to private workgroup' });
     }
-    
+
     const query = `
       SELECT 
         wf.*,
@@ -60,7 +60,7 @@ const getWorkgroupFiles = async (req, res, next) => {
       WHERE wf.workgroup_id = $1 AND wf.is_deleted = FALSE
       ORDER BY wf.created_at DESC
     `;
-    
+
     const result = await db.query(query, [workgroupId]);
     res.json(result.rows);
   } catch (err) {
@@ -72,22 +72,22 @@ const getWorkgroupFiles = async (req, res, next) => {
 const uploadWorkgroupFile = async (req, res, next) => {
   try {
     const { workgroupId } = req.params;
-    
+
     // Check if user is member
     const memberQuery = `
       SELECT id FROM workgroup_members 
       WHERE workgroup_id = $1 AND user_id = $2
     `;
     const memberResult = await db.query(memberQuery, [workgroupId, req.user.id]);
-    
+
     if (memberResult.rows.length === 0) {
       return res.status(403).json({ error: 'You must be a member to upload files' });
     }
-    
+
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
-    
+
     const fileId = uuidv4();
     const insertQuery = `
       INSERT INTO workgroup_files (
@@ -96,7 +96,7 @@ const uploadWorkgroupFile = async (req, res, next) => {
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
     `;
-    
+
     const result = await db.query(insertQuery, [
       fileId,
       workgroupId,
@@ -107,13 +107,13 @@ const uploadWorkgroupFile = async (req, res, next) => {
       req.file.originalname,
       req.user.id
     ]);
-    
+
     // Create notification
-    await createNotification(workgroupId, req.user.id, 'file_shared', 
+    await createNotification(workgroupId, req.user.id, 'file_shared',
       `${req.user.full_name || req.user.email} shared a file: ${req.file.originalname}`,
       { file_id: fileId, file_name: req.file.originalname }
     );
-    
+
     // Get file with user info
     const fileQuery = `
       SELECT 
@@ -125,7 +125,7 @@ const uploadWorkgroupFile = async (req, res, next) => {
       WHERE wf.id = $1
     `;
     const fileResult = await db.query(fileQuery, [fileId]);
-    
+
     res.status(201).json(fileResult.rows[0]);
   } catch (err) {
     next(err);
@@ -136,7 +136,7 @@ const uploadWorkgroupFile = async (req, res, next) => {
 const deleteWorkgroupFile = async (req, res, next) => {
   try {
     const { workgroupId, fileId } = req.params;
-    
+
     // Check if user owns the file or is admin
     const fileQuery = `
       SELECT wf.*, wm.role
@@ -145,17 +145,17 @@ const deleteWorkgroupFile = async (req, res, next) => {
       WHERE wf.id = $2 AND wf.workgroup_id = $3
     `;
     const fileResult = await db.query(fileQuery, [req.user.id, fileId, workgroupId]);
-    
+
     if (fileResult.rows.length === 0) {
       return res.status(404).json({ error: 'File not found' });
     }
-    
+
     const file = fileResult.rows[0];
-    
+
     if (file.uploaded_by !== req.user.id && !['owner', 'admin'].includes(file.role)) {
       return res.status(403).json({ error: 'You can only delete your own files or be an admin' });
     }
-    
+
     // Soft delete
     const deleteQuery = `
       UPDATE workgroup_files 
@@ -163,7 +163,7 @@ const deleteWorkgroupFile = async (req, res, next) => {
       WHERE id = $1
     `;
     await db.query(deleteQuery, [fileId]);
-    
+
     // Delete physical file
     try {
       if (fs.existsSync(file.file_path)) {
@@ -172,7 +172,7 @@ const deleteWorkgroupFile = async (req, res, next) => {
     } catch (fsErr) {
       console.error('Error deleting physical file:', fsErr);
     }
-    
+
     res.json({ message: 'File deleted successfully' });
   } catch (err) {
     next(err);
@@ -183,7 +183,7 @@ const deleteWorkgroupFile = async (req, res, next) => {
 const downloadWorkgroupFile = async (req, res, next) => {
   try {
     const { workgroupId, fileId } = req.params;
-    
+
     // Check if user has access to workgroup or if the file is shared in a post they can see
     const accessQuery = `
       SELECT 1 FROM workgroup_members 
@@ -202,35 +202,35 @@ const downloadWorkgroupFile = async (req, res, next) => {
         LIMIT 1
       `;
       const postAccessResult = await db.query(postAccessQuery, [req.user.id, fileId]);
-      
+
       if (postAccessResult.rows.length === 0) {
         return res.status(403).json({ error: 'Access denied to this file' });
       }
     }
-    
+
     // Get file info
     const fileQuery = `
       SELECT * FROM workgroup_files 
       WHERE id = $1 AND workgroup_id = $2 AND is_deleted = FALSE
     `;
     const fileResult = await db.query(fileQuery, [fileId, workgroupId]);
-    
+
     if (fileResult.rows.length === 0) {
       return res.status(404).json({ error: 'File not found' });
     }
-    
+
     const file = fileResult.rows[0];
-    
+
     // Check if file exists on disk
     if (!fs.existsSync(file.file_path)) {
       return res.status(404).json({ error: 'File not found on disk' });
     }
-    
+
     // Set headers for download
     res.setHeader('Content-Disposition', `attachment; filename="${file.original_name}"`);
     res.setHeader('Content-Type', file.file_type || 'application/octet-stream');
     res.setHeader('Content-Length', file.file_size);
-    
+
     // Stream the file
     const fileStream = fs.createReadStream(file.file_path);
     fileStream.pipe(res);
@@ -262,7 +262,7 @@ const viewWorkgroupFile = async (req, res, next) => {
         LIMIT 1
       `;
       const postAccessResult = await db.query(postAccessQuery, [req.user.id, fileId]);
-      
+
       if (postAccessResult.rows.length === 0) {
         return res.status(403).json({ error: 'Access denied to this file' });
       }
@@ -306,7 +306,7 @@ const createNotification = async (workgroupId, userId, type, message, data = {})
       WHERE wm.workgroup_id = $1 AND wm.user_id != $2
     `;
     const membersResult = await db.query(membersQuery, [workgroupId, userId]);
-    
+
     // Create notification for each member
     for (const member of membersResult.rows) {
       const notificationId = uuidv4();
