@@ -184,21 +184,28 @@ const downloadWorkgroupFile = async (req, res, next) => {
   try {
     const { workgroupId, fileId } = req.params;
     
-    // Check if user has access to workgroup
+    // Check if user has access to workgroup or if the file is shared in a post they can see
     const accessQuery = `
-      SELECT w.is_private, wm.user_id
-      FROM workgroups w
-      LEFT JOIN workgroup_members wm ON w.id = wm.workgroup_id AND wm.user_id = $1
-      WHERE w.id = $2
+      SELECT 1 FROM workgroup_members 
+      WHERE user_id = $1 AND workgroup_id = $2
     `;
     const accessResult = await db.query(accessQuery, [req.user.id, workgroupId]);
-    
+
     if (accessResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Workgroup not found' });
-    }
-    
-    if (accessResult.rows[0].is_private && !accessResult.rows[0].user_id) {
-      return res.status(403).json({ error: 'Access denied to private workgroup' });
+      // Check if the file is attached to any post the user has access to
+      const postAccessQuery = `
+        SELECT 1 
+        FROM workgroup_posts p
+        JOIN workgroup_members wm ON p.workgroup_id = wm.workgroup_id
+        WHERE wm.user_id = $1 
+          AND p.attachments @> jsonb_build_array(jsonb_build_object('id', $2::text))
+        LIMIT 1
+      `;
+      const postAccessResult = await db.query(postAccessQuery, [req.user.id, fileId]);
+      
+      if (postAccessResult.rows.length === 0) {
+        return res.status(403).json({ error: 'Access denied to this file' });
+      }
     }
     
     // Get file info
@@ -237,20 +244,28 @@ const viewWorkgroupFile = async (req, res, next) => {
   try {
     const { workgroupId, fileId } = req.params;
 
+    // Check if user has access to workgroup or if the file is shared in a post they can see
     const accessQuery = `
-      SELECT w.is_private, wm.user_id
-      FROM workgroups w
-      LEFT JOIN workgroup_members wm ON w.id = wm.workgroup_id AND wm.user_id = $1
-      WHERE w.id = $2
+      SELECT 1 FROM workgroup_members 
+      WHERE user_id = $1 AND workgroup_id = $2
     `;
     const accessResult = await db.query(accessQuery, [req.user.id, workgroupId]);
 
     if (accessResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Workgroup not found' });
-    }
-
-    if (accessResult.rows[0].is_private && !accessResult.rows[0].user_id) {
-      return res.status(403).json({ error: 'Access denied to private workgroup' });
+      // Check if the file is attached to any post the user has access to
+      const postAccessQuery = `
+        SELECT 1 
+        FROM workgroup_posts p
+        JOIN workgroup_members wm ON p.workgroup_id = wm.workgroup_id
+        WHERE wm.user_id = $1 
+          AND p.attachments @> jsonb_build_array(jsonb_build_object('id', $2::text))
+        LIMIT 1
+      `;
+      const postAccessResult = await db.query(postAccessQuery, [req.user.id, fileId]);
+      
+      if (postAccessResult.rows.length === 0) {
+        return res.status(403).json({ error: 'Access denied to this file' });
+      }
     }
 
     const fileQuery = `

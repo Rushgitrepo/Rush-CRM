@@ -195,7 +195,7 @@ export function TopBar({
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 ml-4">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button className="bg-primary hover:bg-primary/80 gap-2">
