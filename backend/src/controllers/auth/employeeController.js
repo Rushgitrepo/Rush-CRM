@@ -300,27 +300,70 @@ const remove = async (req, res, next) => {
 
     await db.query('BEGIN');
 
-    await db.query('DELETE FROM public.attendance WHERE user_id = $1 OR employee_id = $1', [id]);
-    await db.query('DELETE FROM public.leave_requests WHERE employee_id = $1', [id]);
-    await db.query('DELETE FROM public.salary_slips WHERE employee_id = $1', [id]);
-    await db.query('DELETE FROM public.employee_documents WHERE employee_id = $1', [id]);
+    // Step 1: Dynamically find and handle ALL foreign key references to the users table
+    const fkQuery = `
+      SELECT 
+        tc.table_name, 
+        kcu.column_name
+      FROM information_schema.table_constraints tc
+      JOIN information_schema.key_column_usage kcu 
+        ON tc.constraint_name = kcu.constraint_name
+      JOIN information_schema.constraint_column_usage ccu 
+        ON tc.constraint_name = ccu.constraint_name
+      WHERE tc.constraint_type = 'FOREIGN KEY'
+        AND ccu.table_name = 'users'
+        AND ccu.column_name = 'id'
+        AND tc.table_schema = 'public'
+    `;
+    const fkResult = await db.query(fkQuery);
+    
+    // Step 2: For each referencing table/column, either SET NULL or DELETE
+    const deleteTargets = [
+      'attendance', 'leave_requests', 'salary_slips', 'employee_documents',
+      'crm_activities', 'workgroup_posts', 'workgroup_post_reads',
+      'workgroup_files', 'workgroup_members', 'workgroup_notifications',
+      'workgroup_activities', 'connected_mailboxes', 'calendar_connections',
+      'calendar_event_attendees', 'profiles', 'push_subscriptions',
+      'fcm_tokens', 'user_settings'
+    ];
+
+    for (const fk of fkResult.rows) {
+      const tableName = fk.table_name;
+      const columnName = fk.column_name;
+      
+      // Skip the users table itself
+      if (tableName === 'users') continue;
+      
+      try {
+        if (deleteTargets.includes(tableName)) {
+          // Delete records from tables that are user-specific data
+          await db.query(`DELETE FROM public."${tableName}" WHERE "${columnName}" = $1`, [id]);
+        } else {
+          // For shared tables (workgroups, channels, etc.), reassign to the deleting admin
+          try {
+            await db.query(`UPDATE public."${tableName}" SET "${columnName}" = $2 WHERE "${columnName}" = $1`, [id, req.user.id]);
+          } catch (updateErr) {
+            // If UPDATE fails (e.g. NOT NULL + unique), try SET NULL
+            try {
+              await db.query(`UPDATE public."${tableName}" SET "${columnName}" = NULL WHERE "${columnName}" = $1`, [id]);
+            } catch (nullErr) {
+              // Last resort: delete the referencing rows  
+              await db.query(`DELETE FROM public."${tableName}" WHERE "${columnName}" = $1`, [id]);
+            }
+          }
+        }
+      } catch (e) {
+        console.log(`Cleanup: skipping ${tableName}.${columnName} - ${e.message}`);
+      }
+    }
+
+    // Step 3: Explicit cleanup for known tables with multiple user references
     await db.query('DELETE FROM public.leads WHERE assigned_to = $1', [id]);
     await db.query('DELETE FROM public.deals WHERE assigned_to = $1', [id]);
     await db.query('DELETE FROM public.tasks WHERE assigned_to = $1 OR created_by = $1', [id]);
-    await db.query('DELETE FROM public.crm_activities WHERE user_id = $1', [id]);
-    await db.query('UPDATE public.employees SET created_by = NULL WHERE created_by = $1', [id]);
     await db.query('DELETE FROM public.employees WHERE id = $1', [id]);
-    await db.query('DELETE FROM public.workgroup_posts WHERE user_id = $1', [id]);
-    await db.query('DELETE FROM public.workgroup_post_reads WHERE user_id = $1', [id]);
-    await db.query('DELETE FROM public.workgroup_files WHERE uploaded_by = $1', [id]);
-    await db.query('DELETE FROM public.workgroup_members WHERE user_id = $1', [id]);
-    await db.query('DELETE FROM public.workgroup_notifications WHERE user_id = $1', [id]);
-    await db.query('DELETE FROM public.workgroup_activities WHERE user_id = $1', [id]);
-    await db.query('DELETE FROM public.connected_mailboxes WHERE user_id = $1', [id]);
-    await db.query('DELETE FROM public.calendar_connections WHERE user_id = $1', [id]);
-    await db.query('DELETE FROM public.calendar_event_attendees WHERE user_id = $1', [id]);
-    await db.query('DELETE FROM public.profiles WHERE id = $1', [id]);
 
+    // Step 4: Final delete of the user
     const result = await db.query(
       'DELETE FROM public.users WHERE id = $1 AND org_id = $2 RETURNING id',
       [id, req.user.orgId]
