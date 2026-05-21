@@ -13,11 +13,16 @@ export default function MailPage() {
   const [hasInitialSwitched, setHasInitialSwitched] = useState(false);
   const [openComposer, setOpenComposer] = useState(false);
   const [initialTo, setInitialTo] = useState<string | undefined>(undefined);
+  const [entityContext, setEntityContext] = useState<{ entityType?: string; entityId?: string }>({});
 
   // Check for navigation state to pre-fill composer
   useEffect(() => {
     if (location.state?.composeTo) {
       setInitialTo(location.state.composeTo);
+      setEntityContext({
+        entityType: location.state.entityType,
+        entityId: location.state.entityId,
+      });
       setOpenComposer(true);
       // Clear state to avoid reopening on refresh
       window.history.replaceState({}, document.title);
@@ -49,6 +54,8 @@ export default function MailPage() {
         onBackToIntegration={() => setView("integration")}
         initialOpenComposer={openComposer}
         initialTo={initialTo}
+        entityType={entityContext.entityType}
+        entityId={entityContext.entityId}
       />
     );
   }

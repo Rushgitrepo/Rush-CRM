@@ -116,7 +116,7 @@ const create = async (req, res, next) => {
       const userData = userResult.rows[0];
 
       if (userData?.email) {
-        const calendarLink = `${process.env.APP_URL}/collaboration/calendar`;
+        const calendarLink = `${process.env.APP_URL}/#/collaboration/calendar`;
         const htmlBody = `
           <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
             <div style="background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); padding: 30px; color: white;">
@@ -335,7 +335,7 @@ const googleCallback = async (req, res, next) => {
       // In case user session is not available (though it should be for the start)
       // but callback can happen after session timeout if not careful.
       // Redirect back with error for now.
-      return res.redirect(process.env.APP_URL + '/calendar?error=unauthorized');
+      return res.redirect(process.env.APP_URL + '/#/collaboration/calendar?error=unauthorized');
     }
 
     const tokens = await googleCalendarOAuth.exchangeCodeForTokens(code);
@@ -363,10 +363,10 @@ const googleCallback = async (req, res, next) => {
     );
 
     // Redirect to frontend calendar page
-    res.redirect(process.env.APP_URL + '/collaboration/calendar?connected=google');
+    res.redirect(process.env.APP_URL + '/#/collaboration/calendar?connected=google');
   } catch (err) {
     console.error('❌ Google Calendar callback error:', err);
-    res.redirect(process.env.APP_URL + '/collaboration/calendar?error=' + encodeURIComponent(err.message));
+    res.redirect(process.env.APP_URL + '/#/collaboration/calendar?error=' + encodeURIComponent(err.message));
   }
 };
 
@@ -404,7 +404,7 @@ const microsoftCallback = async (req, res, next) => {
     }
 
     if (!userId || !orgId) {
-      return res.redirect(process.env.APP_URL + '/calendar?error=unauthorized');
+      return res.redirect(process.env.APP_URL + '/#/collaboration/calendar?error=unauthorized');
     }
 
     const tokens = await microsoftCalendarOAuth.exchangeCodeForTokens(code);
@@ -432,10 +432,10 @@ const microsoftCallback = async (req, res, next) => {
     );
 
     // Redirect to frontend calendar page
-    res.redirect(process.env.APP_URL + '/collaboration/calendar?connected=microsoft');
+    res.redirect(process.env.APP_URL + '/#/collaboration/calendar?connected=microsoft');
   } catch (err) {
     console.error('❌ Microsoft Calendar callback error:', err);
-    res.redirect(process.env.APP_URL + '/collaboration/calendar?error=' + encodeURIComponent(err.message));
+    res.redirect(process.env.APP_URL + '/#/collaboration/calendar?error=' + encodeURIComponent(err.message));
   }
 };
 

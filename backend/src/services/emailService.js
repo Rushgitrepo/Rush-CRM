@@ -37,7 +37,7 @@ class EmailService {
       throw new Error('Email service not initialized');
     }
 
-    const resetLink = `${process.env.APP_URL}/reset-password?token=${resetToken}`;
+    const resetLink = `${process.env.APP_URL}/#/reset-password?token=${resetToken}`;
     
     const mailOptions = {
       from: `"Rush RMS" <${process.env.SMTP_USER}>`,

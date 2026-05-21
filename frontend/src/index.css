@@ -198,6 +198,14 @@
     background: hsl(var(--primary) / 0.5);
     background-clip: padding-box;
   }
+
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 input[type="date"]::-webkit-calendar-picker-indicator,

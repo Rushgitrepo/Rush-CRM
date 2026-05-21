@@ -758,7 +758,7 @@ exports.generateApplicationForm = async (req, res) => {
     console.log('Token saved to database');
 
     // Generate public form URL
-    const formUrl = `${process.env.APP_URL || 'http://localhost:8080'}/public/application-form/${formToken}`;
+    const formUrl = `${process.env.APP_URL || 'http://localhost:8080'}/#/public/application-form/${formToken}`;
 
     console.log('Form URL:', formUrl);
 

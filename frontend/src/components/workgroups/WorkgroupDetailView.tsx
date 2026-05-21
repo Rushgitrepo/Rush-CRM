@@ -991,12 +991,22 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
         "User";
       for (const targetWorkgroupId of selectedForwardWorkgroupIds) {
         for (const post of selectedForwardPosts) {
-          const cleanedContent = (post.content || "").replace(
-            /^(\[Forwarded from [^\]]+\]\s*\n)+/g,
-            "",
-          );
+          const hasImage = (post.attachments || []).some(a => a.file_type?.startsWith('image/'));
+          const cleanedContent = (post.content || "")
+            .replace(/\[Forwarded from [^\]]+\]\s*/gi, "")
+            .replace(/^📎 .*/, "");
+          
+          const attachmentsToSend = (post.attachments || []).map(att => ({
+            id: att.id,
+            original_name: att.original_name,
+            file_type: att.file_type,
+            file_size: att.file_size,
+            download_url: att.download_url,
+            workgroup_id: att.workgroup_id || post.workgroup_id // Prefer existing source ID
+          }));
           await workgroupsApi.createPost(targetWorkgroupId, {
-            content: `[Forwarded from ${forwardedBy}]\n${cleanedContent}`,
+            content: `[Forwarded from ${post.author_name || "Unknown"}]${cleanedContent ? `\n${cleanedContent}` : ""}`,
+            files: attachmentsToSend
           });
         }
       }
@@ -1164,7 +1174,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
       const uploadedFile = await workgroupsApi.uploadFile(workgroupId, file);
       await createPost.mutateAsync({
         workgroupId,
-        content: newPost.trim() || `📎 ${uploadedFile.original_name}`,
+        content: newPost.trim() || (file.type.startsWith('image/') ? "" : `📎 ${uploadedFile.original_name}`),
         parentId: replyTo || undefined,
         mentions: selectedMentions
           .filter((m) => (newPost.trim() || "").includes(`@${m.label}`))
@@ -1776,7 +1786,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
 
           <div
             ref={membersScrollRef}
-            className="space-y-2 flex-1 overflow-y-auto pr-1 custom-scrollbar"
+            className="space-y-2 flex-1 overflow-y-auto pr-1 scrollbar-none"
           >
             {sortedMembers.map((member) => (
               <div
@@ -2021,7 +2031,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                     onDragLeave={handleDragLeave}
                     onDragOver={handleDragOver}
                     onDrop={handleDrop}
-                    className="flex-1 overflow-y-auto p-4 space-y-2 relative"
+                    className="flex-1 overflow-y-auto p-4 space-y-2 relative scrollbar-none"
                     style={{
                       backgroundImage:
                         "url(\"data:image/svg+xml,%3Csvg width='200' height='200' viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%239C92AC' fill-opacity='0.03'%3E%3Cpath d='M100 0L200 100L100 200L0 100Z'/%3E%3C/g%3E%3C/svg%3E\")",
@@ -2147,7 +2157,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                                     </span>
                                   </div>
                                 )}
-                <PostCard
+                                <PostCard
                                   post={post}
                                   allPosts={flatPosts}
                                   workgroupId={workgroupId}
@@ -2155,6 +2165,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                                   isMember={isMember}
                                   canSendMessages={canSendMessages}
                                   isBroadcast={workgroup?.type === "private" && Boolean(workgroup?.settings?.is_broadcast)}
+                                  isDirectChat={isDirectChat}
                                   currentUserId={user?.id}
                                   memberDirectory={members}
                                   postAuthorRole={
@@ -2287,15 +2298,34 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                             {replyTo && (
                               <div className="flex animate-in slide-in-from-bottom-2 duration-200">
                                 <div className="flex-1 flex gap-3 p-2 bg-muted/50 rounded-lg border-l-4 border-primary shadow-sm">
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-[11px] font-bold text-primary uppercase tracking-tight">
-                                      Replying to{" "}
-                                      {findMessageById(replyTo)?.author_name}
-                                    </p>
-                                    <p className="text-xs text-gray-500 dark:text-gray-300 truncate mt-0.5">
-                                      {findMessageById(replyTo)?.content}
-                                    </p>
-                                  </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-[11px] font-bold text-primary uppercase tracking-tight">
+                                        Replying to{" "}
+                                        {findMessageById(replyTo)?.author_name}
+                                      </p>
+                                      <p className="text-xs text-gray-500 dark:text-gray-300 truncate mt-0.5">
+                                        {(() => {
+                                          const msg = findMessageById(replyTo);
+                                          const isImage = msg?.attachments?.some(a => a.file_type?.startsWith('image/'));
+                                          if (isImage && (msg?.content || "").startsWith("📎 ")) return "Photo";
+                                          return msg?.content;
+                                        })()}
+                                      </p>
+                                    </div>
+                                    {(() => {
+                                      const msg = findMessageById(replyTo);
+                                      const imageAttachment = msg?.attachments?.find(a => a.file_type?.startsWith('image/'));
+                                      if (!imageAttachment) return null;
+                                      return (
+                                        <div className="h-10 w-10 shrink-0 rounded overflow-hidden">
+                                          <img 
+                                            src={getAuthedFileUrl(imageAttachment.id, "view")} 
+                                            className="h-full w-full object-cover"
+                                            alt="thumbnail"
+                                          />
+                                        </div>
+                                      );
+                                    })()}
                                   <button
                                     onClick={() => setReplyTo(null)}
                                     className="h-6 w-6 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
@@ -2338,7 +2368,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                                   }
                                   disabled={!canSendMessages}
                                   rows={1}
-                                  className="w-full pl-4 pr-32 bg-muted border-none rounded-2xl min-h-[44px] max-h-[160px] focus-visible:ring-1 focus-visible:ring-primary shadow-inner resize-none overflow-y-auto py-2.5 leading-6"
+                                  className="w-full pl-4 pr-32 bg-muted border-none rounded-2xl min-h-[44px] max-h-[160px] focus-visible:ring-1 focus-visible:ring-primary shadow-inner resize-none overflow-y-auto py-2.5 leading-6 scrollbar-none"
                                   style={{ height: 'auto' }}
                                   onInput={(e) => {
                                     const el = e.currentTarget;
@@ -2355,7 +2385,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                                 />
                                 {showMentionSuggestions &&
                                   filteredMentionMembers.length > 0 && (
-                                    <div className="absolute bottom-12 left-0 z-30 w-[60%] max-w-[92vw] rounded-xl border border-border bg-card shadow-lg max-h-56 overflow-y-auto">
+                                    <div className="absolute bottom-12 left-0 z-30 w-[60%] max-w-[92vw] rounded-xl border border-border bg-card shadow-lg max-h-56 overflow-y-auto scrollbar-none">
                                       {filteredMentionMembers.map((member) => (
                                         <button
                                           key={member.user_id}
@@ -2442,11 +2472,11 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                                   </button>
                                 </div>
                                 {showInputEmojiPicker && (
-                                  <div className="absolute bottom-12 left-2 z-20 shadow-xl rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
+                                  <div className="absolute bottom-16 left-2 z-20 shadow-xl rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
                                     <EmojiPicker
                                       onEmojiClick={handleComposerEmojiSelect}
                                       width={280}
-                                      height={360}
+                                      height={340}
                                       theme={Theme.AUTO}
                                     />
                                   </div>
@@ -2650,7 +2680,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                   Upload Files
                 </Button>
               </div>
-              <div className="flex-1 overflow-y-auto p-4">
+              <div className="flex-1 overflow-y-auto p-4 scrollbar-none">
                 {files.length === 0 ? (
                   <div className="h-full flex items-center justify-center">
                     <div className="text-center">
@@ -2763,7 +2793,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                   Create Page
                 </Button>
               </div>
-              <div className="flex-1 overflow-y-auto p-4">
+              <div className="flex-1 overflow-y-auto p-4 scrollbar-none">
                 {wikiPages.length === 0 ? (
                   <div className="h-full flex items-center justify-center">
                     <div className="text-center">
@@ -3751,6 +3781,7 @@ interface PostCardProps {
   searchQuery?: string;
   canSendMessages?: boolean;
   isBroadcast?: boolean;
+  isDirectChat?: boolean;
 }
 
 function PostCard({
@@ -3782,6 +3813,7 @@ function PostCard({
   searchQuery = "",
   canSendMessages = true,
   isBroadcast = false,
+  isDirectChat = false,
 }: PostCardProps) {
   const navigate = useNavigate();
   if ((post.content || "").startsWith("[SYSTEM] ")) {
@@ -3974,6 +4006,16 @@ function PostCard({
     });
     return map;
   }, [mentionEntries]);
+
+  const forwardedMatch = (post.content || "").match(/\[Forwarded from ([^\]]+)\]/i) || (post.content || "").match(/\[Forwarded\]/i);
+  const isForwarded = Boolean(forwardedMatch);
+
+  const displayContent = (post.content || "")
+    .replace(/\[Forwarded from [^\]]+\]\s*/gi, "")
+    .replace(/\[Forwarded\]\s*/gi, "")
+    .replace(/^📎 .*/gm, "") // Strip paperclip and filename lines
+    .trim();
+
   const escapeRegex = (value: string) =>
     value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const renderMessageWithMentions = (text: string) => {
@@ -4096,9 +4138,11 @@ function PostCard({
   const getAuthedFileUrlForPost = (
     fileId: string,
     mode: "view" | "download" = "download",
+    sourceWorkgroupId?: string
   ) => {
     const token = api.getToken();
-    const baseUrl = `${API_BASE_URL}/workgroups/${workgroupId}/files/${fileId}/${mode}`;
+    const effectiveWorkgroupId = sourceWorkgroupId || workgroupId;
+    const baseUrl = `${API_BASE_URL}/workgroups/${effectiveWorkgroupId}/files/${fileId}/${mode}`;
     return token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl;
   };
 
@@ -4145,18 +4189,30 @@ function PostCard({
         <div
           className={`relative flex items-center gap-2 max-w-[90%] ${isAuthor ? "flex-row" : "flex-row-reverse"} justify-end w-full`}
         >
-          {/* Action buttons - placed according to user request */}
+          {/* Action buttons - circular style as requested */}
           {!isDeletedMessage && (
             <div
-              className={`flex items-center opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 order-${isAuthor ? "2" : "0"} ${isAuthor ? "ml-1" : "mr-1"}`}
+              className={`flex items-center gap-1 transition-opacity flex-shrink-0 order-${isAuthor ? "0" : "2"} ${isAuthor ? "mr-1" : "ml-1"}`}
             >
               <button
                 onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/5"
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-1.5 rounded-full bg-card/50 backdrop-blur-sm border border-border/50 shadow-sm hover:bg-card"
                 title="React with emoji"
               >
-                <Smile className="h-4.5 w-4.5" />
+                <Smile className="h-4 w-4" />
               </button>
+              {(isForwarded || attachments.length > 0) && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onStartForwardSelection?.(post.id);
+                  }}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-1.5 rounded-full bg-card/50 backdrop-blur-sm border border-border/50 shadow-sm hover:bg-card"
+                  title="Forward"
+                >
+                  <Forward className="h-4 w-4" />
+                </button>
+              )}
             </div>
           )}
 
@@ -4167,6 +4223,12 @@ function PostCard({
               : `${memberColor!.bg} ${memberColor!.text} rounded-2xl rounded-tl-sm`
               } px-3 py-2 shadow-sm group/bubble border border-black/5`}
           >
+            {isForwarded && (
+              <div className="flex items-center gap-1 text-[11px] font-medium text-gray-500 italic mb-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
+                <Forward className="h-3 w-3" />
+                <span>Forwarded</span>
+              </div>
+            )}
             {/* Dropdown Chevron - Inside Bubble top-right */}
             <div
               className={`absolute top-1 right-1 z-[20] opacity-0 group-hover/bubble:opacity-100 transition-opacity`}
@@ -4294,14 +4356,36 @@ function PostCard({
                 className="mb-1.5 p-2 bg-black/5 dark:bg-black/10 rounded border-l-[3px] border-primary cursor-pointer hover:bg-black/10 transition-colors overflow-hidden"
                 onClick={() => onScrollToMessage?.(post.parent_id!)}
               >
-                <p className="text-[10px] font-bold text-emerald-600 flex items-center gap-1 uppercase tracking-tight">
-                  {allPosts.find((p) => p.id === post.parent_id)?.author_name ||
-                    "Original Message"}
-                </p>
-                <p className="text-[11px] text-gray-500 dark:text-gray-300 truncate mt-0.5 whitespace-nowrap overflow-hidden">
-                  {allPosts.find((p) => p.id === post.parent_id)?.content ||
-                    "Message deleted or missing"}
-                </p>
+                <div className="flex gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-bold text-emerald-600 flex items-center gap-1 uppercase tracking-tight">
+                      {allPosts.find((p) => p.id === post.parent_id)?.author_name ||
+                        "Original Message"}
+                    </p>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-300 truncate mt-0.5 whitespace-nowrap overflow-hidden">
+                      {(() => {
+                        const parentMsg = allPosts.find((p) => p.id === post.parent_id);
+                        const isImage = parentMsg?.attachments?.some(a => a.file_type?.startsWith('image/'));
+                        if (isImage && (parentMsg?.content || "").startsWith("📎 ")) return "Photo";
+                        return parentMsg?.content || "Message deleted or missing";
+                      })()}
+                    </p>
+                  </div>
+                  {(() => {
+                    const parentMsg = allPosts.find(p => p.id === post.parent_id);
+                    const imageAttachment = parentMsg?.attachments?.find(a => a.file_type?.startsWith('image/'));
+                    if (!imageAttachment) return null;
+                    return (
+                      <div className="h-8 w-8 shrink-0 rounded overflow-hidden">
+                        <img 
+                          src={getAuthedFileUrlForPost(imageAttachment.id, "view")} 
+                          className="h-full w-full object-cover"
+                          alt="thumbnail"
+                        />
+                      </div>
+                    );
+                  })()}
+                </div>
               </div>
             )}
 
@@ -4311,8 +4395,8 @@ function PostCard({
               createPortal(
                 <div
                   ref={emojiPickerRef}
-                  className={`fixed z-[999] ${isAuthor ? "right-[700px]" : "left-[1250px]"
-                    } top-40 shadow-xl bg-card/80 backdrop-blur-md border border-border rounded-xl shadow-2xl`}
+                  className={`fixed z-[999] ${isAuthor ? "right-[420px]" : "left-[950px]"
+                    } bottom-[70px] shadow-xl bg-card/80 backdrop-blur-md border border-border rounded-xl shadow-2xl`}
                 >
                   <button
                     onClick={() => setShowEmojiPicker(false)}
@@ -4325,7 +4409,7 @@ function PostCard({
                       handleEmojiClick(emojiData.emoji)
                     }
                     width={280}
-                    height={360}
+                    height={350}
                     theme={Theme.AUTO}
                     style={
                       {
@@ -4432,7 +4516,7 @@ function PostCard({
                 ) : (
                   <>
                     {(() => {
-                      const content = post.content || "";
+                      const content = displayContent;
                       const lines = content.split("\n");
                       const isLong = lines.length > 10;
                       const hasMore = visibleLinesCount < lines.length;
@@ -4469,23 +4553,37 @@ function PostCard({
               <div className="mt-2 space-y-2">
                 {attachments.map((attachment: any, idx: number) => {
                   const downloadUrl = attachment.id
-                    ? getAuthedFileUrlForPost(attachment.id, "download")
+                    ? getAuthedFileUrlForPost(attachment.id, "download", attachment.workgroup_id)
                     : attachment.download_url || "#";
                   const previewUrl = attachment.id
-                    ? getAuthedFileUrlForPost(attachment.id, "view")
+                    ? getAuthedFileUrlForPost(attachment.id, "view", attachment.workgroup_id)
                     : attachment.download_url || "#";
                   return (
                     <div
                       key={attachment.id || `${post.id}-attachment-${idx}`}
                       className="rounded-lg border border-black/10 bg-black/5 p-2"
                     >
+                      {/* Image Preview with Download */}
                       {isImageAttachment(attachment.file_type) ? (
-                        <img
-                          src={previewUrl}
-                          alt={attachment.original_name || "attachment"}
-                          className="w-full max-h-56 object-cover rounded-md cursor-pointer"
-                          onClick={() => window.open(previewUrl, "_blank")}
-                        />
+                        <div className="space-y-2">
+                          <img
+                            src={previewUrl}
+                            alt={attachment.original_name || "attachment"}
+                            className="w-full h-auto max-h-[500px] object-contain rounded-md cursor-pointer"
+                            onClick={() => window.open(previewUrl, "_blank")}
+                          />
+                          <div className="flex justify-end">
+                            <a
+                              href={downloadUrl}
+                              download={attachment.original_name}
+                              className="inline-flex items-center gap-1.5 text-[10px] font-bold text-primary hover:underline bg-white/50 dark:bg-black/20 p-1 px-2 rounded-md transition-colors"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Download className="h-3 w-3" />
+                              Download Photo
+                            </a>
+                          </div>
+                        </div>
                       ) : (
                         <button
                           type="button"
@@ -4495,45 +4593,47 @@ function PostCard({
                           {attachment.original_name || "Attachment"}
                         </button>
                       )}
-                      <div className="mt-2 flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-xs font-medium truncate">
-                            {attachment.original_name || "Attachment"}
-                          </p>
-                          <p className="text-[11px] text-gray-500">
-                            {formatFileSize(attachment.file_size || 0)}
-                          </p>
+                      {!isImageAttachment(attachment.file_type) && (
+                        <div className="mt-2 flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium truncate">
+                              {attachment.original_name || "Attachment"}
+                            </p>
+                            <p className="text-[11px] text-gray-500">
+                              {formatFileSize(attachment.file_size || 0)}
+                            </p>
+                          </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => window.open(previewUrl, "_blank")}
+                              >
+                                Open
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  const link = document.createElement("a");
+                                  link.href = downloadUrl;
+                                  link.download =
+                                    attachment.original_name || "attachment";
+                                  link.click();
+                                }}
+                              >
+                                Download
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                            >
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => window.open(previewUrl, "_blank")}
-                            >
-                              Open
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => {
-                                const link = document.createElement("a");
-                                link.href = downloadUrl;
-                                link.download =
-                                  attachment.original_name || "attachment";
-                                link.click();
-                              }}
-                            >
-                              Download
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
+                      )}
                     </div>
                   );
                 })}
