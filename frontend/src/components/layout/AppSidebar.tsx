@@ -153,6 +153,7 @@ const navigation: NavItem[] = [
         href: "/crm/customers",
         icon: Building2,
         nestedChildren: [
+          { title: "Overview", href: "/crm/customers" },
           { title: "Contacts", href: "/crm/customers/contacts" },
           { title: "Companies", href: "/crm/customers/companies" },
           {

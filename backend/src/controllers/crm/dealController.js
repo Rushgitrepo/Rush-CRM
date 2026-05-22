@@ -1218,14 +1218,20 @@ const convertToCustomer = async (req, res, next) => {
     }
 
     let companyName = null;
+    let companyEmail = null;
+    let companyPhone = null;
+    let companyIndustry = null;
     if (deal.company_id) {
       try {
         const { rows: companyRows } = await db.query(
-          'SELECT name FROM public.companies WHERE id = $1',
+          'SELECT name, email, phone, industry FROM public.companies WHERE id = $1',
           [deal.company_id]
         );
         if (companyRows[0]) {
           companyName = companyRows[0].name;
+          companyEmail = companyRows[0].email;
+          companyPhone = companyRows[0].phone;
+          companyIndustry = companyRows[0].industry;
         }
       } catch (companyErr) {
         console.error('Failed to fetch company details:', companyErr);
@@ -1233,25 +1239,33 @@ const convertToCustomer = async (req, res, next) => {
     }
 
     const customerName = contactName || companyName || deal.title || 'Customer';
+    const customerEmail = contactEmail || companyEmail || deal.email || null;
+    const customerPhone = contactPhone || companyPhone || deal.phone || null;
+    const customerIndustry = companyIndustry || null;
+    const customerNotes = deal.notes || null;
+    const customerTags = deal.tags || null;
 
     const { rows: customerRows } = await db.query(
       `INSERT INTO public.customers 
        (org_id, user_id, name, email, phone, status, tier, total_revenue, 
-        converted_from_lead_id, converted_from_deal_id, company_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        converted_from_lead_id, converted_from_deal_id, company_id, industry, notes, tags)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
       [
         req.user.orgId,
         req.user.id,
         customerName,
-        contactEmail,
-        contactPhone,
+        customerEmail,
+        customerPhone,
         'active',
         null, // tier
         deal.value || 0,
         deal.converted_from_lead_id,
         deal.id,
         deal.company_id,
+        customerIndustry,
+        customerNotes,
+        customerTags,
       ]
     );
 
