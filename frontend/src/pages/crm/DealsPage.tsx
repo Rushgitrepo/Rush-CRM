@@ -48,6 +48,11 @@ type DealRow = {
   projectType?: string;
   responsiblePersonName?: string;
   responsiblePersonAvatar?: string;
+  priority?: string;
+  probability?: number;
+  expectedCloseDate?: string;
+  deadline?: string;
+  invoiceAmount?: number;
 };
 
 export default function DealsPage() {
@@ -184,10 +189,15 @@ export default function DealsPage() {
         contact: contactName,
         email: email,
         phone: phone,
-        createdAt: d.created_at,
-        projectType: d.project_type,
-        responsiblePersonName: d.responsible_person_name,
-        responsiblePersonAvatar: d.responsible_person_avatar,
+        createdAt: d.created_at || d.createdAt,
+        projectType: d.project_type || d.projectType,
+        responsiblePersonName: d.responsible_person_name || d.responsiblePersonName,
+        responsiblePersonAvatar: d.responsible_person_avatar || d.responsiblePersonAvatar,
+        priority: d.priority || "medium",
+        probability: d.probability !== undefined ? Number(d.probability) : 0,
+        expectedCloseDate: d.expected_close_date || d.expectedCloseDate,
+        deadline: d.deadline,
+        invoiceAmount: d.invoice_amount !== undefined ? Number(d.invoice_amount) : 0,
       };
     });
   }, [dbDeals]);

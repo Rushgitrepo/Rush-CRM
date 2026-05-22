@@ -282,13 +282,14 @@ const getProfile = async (req, res, next) => {
 };
 
 const remove = async (req, res, next) => {
+  const client = await db.pool.connect();
   try {
     const { id } = req.params;
 
-    const requesterResult = await db.query('SELECT role FROM public.users WHERE id = $1', [req.user.id]);
+    const requesterResult = await client.query('SELECT role FROM public.users WHERE id = $1', [req.user.id]);
     const requesterRole = requesterResult.rows[0]?.role;
 
-    const targetResult = await db.query('SELECT role FROM public.users WHERE id = $1', [id]);
+    const targetResult = await client.query('SELECT role FROM public.users WHERE id = $1', [id]);
     if (targetResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -298,37 +299,160 @@ const remove = async (req, res, next) => {
       return res.status(403).json({ error: 'You are not authorized to delete a Super Admin' });
     }
 
-    await db.query('BEGIN');
+    await client.query('BEGIN');
 
-    await db.query('DELETE FROM public.attendance WHERE user_id = $1 OR employee_id = $1', [id]);
-    await db.query('DELETE FROM public.leave_requests WHERE employee_id = $1', [id]);
-    await db.query('DELETE FROM public.salary_slips WHERE employee_id = $1', [id]);
-    await db.query('DELETE FROM public.employee_documents WHERE employee_id = $1', [id]);
-    await db.query('DELETE FROM public.leads WHERE assigned_to = $1', [id]);
-    await db.query('DELETE FROM public.deals WHERE assigned_to = $1', [id]);
-    await db.query('DELETE FROM public.tasks WHERE assigned_to = $1 OR created_by = $1', [id]);
-    await db.query('DELETE FROM public.crm_activities WHERE user_id = $1', [id]);
-    await db.query('DELETE FROM public.workgroup_members WHERE user_id = $1', [id]);
-    await db.query('DELETE FROM public.connected_mailboxes WHERE user_id = $1', [id]);
-    await db.query('DELETE FROM public.calendar_connections WHERE user_id = $1', [id]);
-    await db.query('DELETE FROM public.calendar_event_attendees WHERE user_id = $1', [id]);
-    await db.query('DELETE FROM public.profiles WHERE id = $1', [id]);
+    // 1. Find the employee ID associated with this user
+    const empResult = await client.query('SELECT id FROM public.employees WHERE user_id = $1', [id]);
+    const empId = empResult.rows[0]?.id;
 
-    const result = await db.query(
+    if (empId) {
+      // Set manager_id and reporting_manager_id to NULL where they refer to this employee
+      await client.query('UPDATE public.employees SET manager_id = NULL WHERE manager_id = $1', [empId]);
+      await client.query('UPDATE public.employees SET reporting_manager_id = NULL WHERE reporting_manager_id = $1', [empId]);
+
+      // Explicitly delete leave requests, payroll, documents, etc. related to this employee (though they cascade, doing it explicitly is safe)
+      await client.query('DELETE FROM public.attendance WHERE employee_id = $1', [empId]);
+      await client.query('DELETE FROM public.leave_requests WHERE employee_id = $1', [empId]);
+      await client.query('DELETE FROM public.salary_slips WHERE employee_id = $1', [empId]);
+      await client.query('DELETE FROM public.employee_documents WHERE employee_id = $1', [empId]);
+      await client.query('DELETE FROM public.employee_leave_balances WHERE employee_id = $1', [empId]);
+      await client.query('DELETE FROM public.leave_balances WHERE employee_id = $1', [empId]);
+      await client.query('DELETE FROM public.payroll WHERE employee_id = $1', [empId]);
+      await client.query('DELETE FROM public.employees WHERE id = $1', [empId]);
+    }
+
+    // Set created_by reference to NULL in employees for other employee records created by this user
+    await client.query('UPDATE public.employees SET created_by = NULL WHERE created_by = $1', [id]);
+
+    // Handle crm / leads / deals / activities / tasks
+    await client.query('UPDATE public.activities SET assigned_to = NULL WHERE assigned_to = $1', [id]);
+    await client.query('UPDATE public.activities SET owner_id = NULL WHERE owner_id = $1', [id]);
+    await client.query('UPDATE public.companies SET created_by = NULL WHERE created_by = $1', [id]);
+    await client.query('UPDATE public.companies SET owner_id = NULL WHERE owner_id = $1', [id]);
+    await client.query('UPDATE public.contacts SET created_by = NULL WHERE created_by = $1', [id]);
+    await client.query('UPDATE public.contacts SET owner_id = NULL WHERE owner_id = $1', [id]);
+    await client.query('UPDATE public.contacts SET responsible_id = NULL WHERE responsible_id = $1', [id]);
+    await client.query('UPDATE public.deals SET owner_id = NULL WHERE owner_id = $1', [id]);
+    await client.query('DELETE FROM public.deals WHERE assigned_to = $1', [id]);
+    await client.query('UPDATE public.leads SET owner_id = NULL WHERE owner_id = $1', [id]);
+    await client.query('UPDATE public.leads SET created_by = NULL WHERE created_by = $1', [id]);
+    await client.query('UPDATE public.leads SET updated_by = NULL WHERE updated_by = $1', [id]);
+    await client.query('DELETE FROM public.leads WHERE assigned_to = $1', [id]);
+    await client.query('DELETE FROM public.tasks WHERE assigned_to = $1 OR created_by = $1', [id]);
+    await client.query('DELETE FROM public.crm_activities WHERE user_id = $1', [id]);
+
+    // Drive & files
+    await client.query('UPDATE public.drive_file_versions SET created_by = NULL WHERE created_by = $1', [id]);
+    await client.query('UPDATE public.drive_files SET created_by = NULL WHERE created_by = $1', [id]);
+    await client.query('UPDATE public.drive_files SET uploaded_by = NULL WHERE uploaded_by = $1', [id]);
+    await client.query('UPDATE public.drive_folders SET created_by = NULL WHERE created_by = $1', [id]);
+    await client.query('DELETE FROM public.drive_permissions WHERE user_id = $1', [id]);
+    await client.query('DELETE FROM public.drive_activities WHERE user_id = $1', [id]);
+    await client.query('UPDATE public.entity_drive_files SET linked_by = NULL WHERE linked_by = $1', [id]);
+    await client.query('UPDATE public.workgroup_files SET uploaded_by = NULL WHERE uploaded_by = $1', [id]);
+
+    // Calendar & Mailbox
+    await client.query('DELETE FROM public.connected_drives WHERE connected_by = $1', [id]);
+    await client.query('DELETE FROM public.connected_mailboxes WHERE user_id = $1', [id]);
+    await client.query('DELETE FROM public.calendar_connections WHERE user_id = $1', [id]);
+    await client.query('DELETE FROM public.calendar_event_attendees WHERE user_id = $1', [id]);
+    await client.query('UPDATE public.calendar_events SET created_by = NULL WHERE created_by = $1', [id]);
+    await client.query('UPDATE public.call_logs SET user_id = NULL WHERE user_id = $1', [id]);
+    await client.query('DELETE FROM public.emails WHERE user_id = $1', [id]);
+
+    // Leave & Payroll
+    await client.query('UPDATE public.leave_request_comments SET user_id = NULL WHERE user_id = $1', [id]);
+    await client.query('UPDATE public.leave_requests SET approved_by = NULL WHERE approved_by = $1', [id]);
+    await client.query('UPDATE public.leave_requests SET approver_id = NULL WHERE approver_id = $1', [id]);
+    await client.query('UPDATE public.leave_requests SET created_by = NULL WHERE created_by = $1', [id]);
+    await client.query('UPDATE public.leave_requests SET updated_by = NULL WHERE updated_by = $1', [id]);
+    await client.query('UPDATE public.payroll SET created_by = NULL WHERE created_by = $1', [id]);
+
+    // Invoices & Purchase orders
+    await client.query('UPDATE public.invoices SET created_by = NULL WHERE created_by = $1', [id]);
+    await client.query('UPDATE public.project_invoices SET created_by = NULL WHERE created_by = $1', [id]);
+    await client.query('UPDATE public.purchase_orders SET created_by = NULL WHERE created_by = $1', [id]);
+
+    // Lead workspace
+    await client.query('UPDATE public.lead_workspace_access SET granted_by = NULL WHERE granted_by = $1', [id]);
+    await client.query('UPDATE public.lead_workspaces SET created_by = NULL WHERE created_by = $1', [id]);
+
+    // Marketing tables
+    await client.query('UPDATE public.marketing_ab_tests SET created_by = NULL WHERE created_by = $1', [id]);
+    await client.query('UPDATE public.marketing_campaigns SET created_by = NULL WHERE created_by = $1', [id]);
+    await client.query('UPDATE public.marketing_forms SET created_by = NULL WHERE created_by = $1', [id]);
+    await client.query('UPDATE public.marketing_lists SET created_by = NULL WHERE created_by = $1', [id]);
+    await client.query('UPDATE public.marketing_segments SET created_by = NULL WHERE created_by = $1', [id]);
+    await client.query('UPDATE public.marketing_sequences SET created_by = NULL WHERE created_by = $1', [id]);
+    await client.query('UPDATE public.marketing_templates SET created_by = NULL WHERE created_by = $1', [id]);
+    await client.query('UPDATE public.marketing_webhooks SET created_by = NULL WHERE created_by = $1', [id]);
+
+    // Projects
+    await client.query('UPDATE public.project_documents SET uploaded_by = NULL WHERE uploaded_by = $1', [id]);
+    await client.query('UPDATE public.project_risks SET owner_id = NULL WHERE owner_id = $1', [id]);
+    await client.query('UPDATE public.project_tasks SET assigned_to = NULL WHERE assigned_to = $1', [id]);
+    await client.query('UPDATE public.project_tasks SET created_by = NULL WHERE created_by = $1', [id]);
+    await client.query('DELETE FROM public.project_time_entries WHERE user_id = $1', [id]);
+    await client.query('UPDATE public.projects SET created_by = NULL WHERE created_by = $1', [id]);
+    await client.query('UPDATE public.projects SET manager_id = NULL WHERE manager_id = $1', [id]);
+    await client.query('UPDATE public.projects SET owner_id = NULL WHERE owner_id = $1', [id]);
+    await client.query('UPDATE public.project_templates SET created_by = NULL WHERE created_by = $1', [id]);
+    await client.query('DELETE FROM public.project_notifications WHERE user_id = $1', [id]);
+
+    // Stock & Products
+    await client.query('UPDATE public.products SET created_by = NULL WHERE created_by = $1', [id]);
+    await client.query('UPDATE public.stock SET created_by = NULL WHERE created_by = $1', [id]);
+    await client.query('UPDATE public.stock_movements SET created_by = NULL WHERE created_by = $1', [id]);
+    await client.query('UPDATE public.vendors SET created_by = NULL WHERE created_by = $1', [id]);
+    await client.query('UPDATE public.warehouses SET manager_id = NULL WHERE manager_id = $1', [id]);
+
+    // Workgroup channels / wiki / meetings
+    await client.query('UPDATE public.workgroup_activities SET user_id = NULL WHERE user_id = $1', [id]);
+    await client.query('UPDATE public.workgroup_channels SET created_by = NULL WHERE created_by = $1', [id]);
+    await client.query('UPDATE public.workgroup_meetings SET created_by = NULL WHERE created_by = $1', [id]);
+    await client.query('UPDATE public.workgroup_members SET invited_by = NULL WHERE invited_by = $1', [id]);
+    await client.query('DELETE FROM public.workgroup_members WHERE user_id = $1', [id]);
+    await client.query('DELETE FROM public.workgroup_notifications WHERE user_id = $1', [id]);
+    await client.query('DELETE FROM public.workgroup_posts WHERE user_id = $1', [id]);
+    await client.query('UPDATE public.workgroup_wiki SET created_by = NULL WHERE created_by = $1', [id]);
+    await client.query('UPDATE public.workgroup_wiki SET updated_by = NULL WHERE updated_by = $1', [id]);
+    await client.query('UPDATE public.workgroup_wiki_pages SET created_by = NULL WHERE created_by = $1', [id]);
+    await client.query('UPDATE public.workgroup_wiki_pages SET last_modified_by = NULL WHERE last_modified_by = $1', [id]);
+    await client.query('DELETE FROM public.workgroup_wiki_pages WHERE user_id = $1', [id]);
+    await client.query('UPDATE public.workgroups SET created_by = NULL WHERE created_by = $1', [id]);
+    await client.query('UPDATE public.workflows SET created_by = NULL WHERE created_by = $1', [id]);
+
+    // Car Workspace
+    await client.query('UPDATE public.car_workspaces SET admin_id = NULL WHERE admin_id = $1', [id]);
+    await client.query('UPDATE public.car_workspaces SET created_by = NULL WHERE created_by = $1', [id]);
+
+    // Employee documents uploaded by references
+    await client.query('UPDATE public.employee_documents SET uploaded_by = NULL WHERE uploaded_by = $1', [id]);
+
+    // User Roles / profiles / notifications
+    await client.query('DELETE FROM public.user_roles WHERE user_id = $1', [id]);
+    await client.query('DELETE FROM public.profiles WHERE id = $1 OR user_id = $1', [id]);
+    await client.query('DELETE FROM public.notifications WHERE user_id = $1', [id]);
+    await client.query('DELETE FROM public.attendance WHERE user_id = $1', [id]);
+
+    // Delete the user
+    const result = await client.query(
       'DELETE FROM public.users WHERE id = $1 AND org_id = $2 RETURNING id',
       [id, req.user.orgId]
     );
 
     if (result.rows.length === 0) {
-      await db.query('ROLLBACK');
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'User not found or you do not have permission' });
     }
 
-    await db.query('COMMIT');
+    await client.query('COMMIT');
     res.json({ message: 'User and all related records deleted permanently' });
   } catch (err) {
-    await db.query('ROLLBACK').catch(() => {});
+    await client.query('ROLLBACK').catch(() => {});
     next(err);
+  } finally {
+    client.release();
   }
 };
 

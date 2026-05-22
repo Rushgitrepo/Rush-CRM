@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, MoreHorizontal, DollarSign, Calendar, GripVertical, CreditCard } from "lucide-react";
+import { 
+  Plus, MoreHorizontal, DollarSign, Calendar, GripVertical, 
+  CreditCard, Building2, User, Mail, Phone, ArrowUpRight 
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import {
   DropdownMenu,
@@ -13,8 +16,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useUpdateDeal, useDeleteDeal } from "@/hooks/useCrmMutations";
-import { useDealPipelineStages, useUpdateDealPipelineStage, useDeleteDealPipelineStage, useCreateDealPipelineStage } from "@/hooks/usePipelineStages";
+import { useDealPipelineStages, useUpdateDealPipelineStage, useDeleteDealPipelineStage } from "@/hooks/usePipelineStages";
 import { DeleteConfirmationDialog } from "@/components/crm/DeleteConfirmationDialog";
+import { ClickToCall } from "@/components/telephony/ClickToCall";
 import {
   Dialog,
   DialogContent,
@@ -27,23 +31,54 @@ import { Label } from "@/components/ui/label";
 
 interface DealData {
   id: string;
-  title: string;
+  title?: string;
+  name?: string; // Fallback
   stage: string | null;
   status: string;
   value: number | null;
   probability: number | null;
-  currency: string | null;
-  expected_close_date: string | null;
+  currency?: string | null;
+  expected_close_date?: string | null;
+  expectedCloseDate?: string | null; // Fallback
   invoice_amount?: number | null;
+  invoiceAmount?: number | null; // Fallback
   companies?: { name: string } | null;
+  company?: string; // Fallback
   contacts?: { 
     first_name: string; 
     last_name?: string | null;
     email?: string | null;
   } | null;
   contact_name?: string | null;
+  contact?: string; // Fallback
+  email?: string;
+  phone?: string;
   deadline?: string | null;
+  projectType?: string;
+  responsiblePersonName?: string;
+  responsiblePersonAvatar?: string;
+  priority?: string;
 }
+
+const getPriorityStyles = (priority?: string) => {
+  const p = (priority || "medium").toLowerCase();
+  switch (p) {
+    case "urgent":
+      return "bg-destructive/15 text-destructive border-destructive/20 dark:bg-destructive/25";
+    case "high":
+      return "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/20 dark:bg-orange-500/25";
+    case "medium":
+      return "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/20 dark:bg-blue-500/25";
+    case "low":
+    default:
+      return "bg-muted text-muted-foreground border-border";
+  }
+};
+
+const getProjectTypeLabel = (type?: string) => {
+  if (!type) return "";
+  return type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+};
 
 // Replaced by useDealPipelineStages
 
@@ -210,9 +245,19 @@ export function DealsKanbanView({ deals = [], selectedStage, onStageSelect }: De
             {/* Deals */}
             <div className="p-2 space-y-2 max-h-[600px] overflow-y-auto">
               {stageDeals.map((deal) => {
-                const companyName = deal.companies?.name || "";
+                const dealTitle = deal.name || deal.title || "Untitled Deal";
+                const companyName = deal.company || deal.companies?.name || "";
+                const contactName = deal.contact || deal.contact_name || 
+                  (deal.contacts ? `${deal.contacts.first_name} ${deal.contacts.last_name || ''}`.trim() : '');
+                const email = deal.email || deal.contacts?.email || "";
+                const phone = deal.phone || "";
+                const priority = deal.priority || "medium";
+                const projectType = deal.projectType;
+                
                 const prob = deal.probability ?? 0;
-                const closeDate = deal.expected_close_date;
+                const closeDate = deal.deadline || deal.expectedCloseDate || deal.expected_close_date;
+                const value = Number(deal.value) || 0;
+                const invoiceAmount = Number(deal.invoiceAmount || deal.invoice_amount) || 0;
 
                 return (
                   <div
@@ -220,42 +265,38 @@ export function DealsKanbanView({ deals = [], selectedStage, onStageSelect }: De
                     draggable
                     onDragStart={(e) => handleDragStart(e, deal.id)}
                     className={cn(
-                      "rounded-lg border border-border/60 bg-card p-4 cursor-grab active:cursor-grabbing",
-                      "hover:shadow-md hover:border-primary/30 transition-all duration-200 group"
+                      "rounded-xl border border-border/50 bg-card p-4 cursor-grab active:cursor-grabbing",
+                      "hover:shadow-md hover:border-primary/40 transition-all duration-200 group flex flex-col gap-3 relative",
+                      "bg-gradient-to-b from-card to-card/95"
                     )}
                   >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-start gap-2">
-                        <GripVertical className="h-4 w-4 mt-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-                        <div className="flex flex-col gap-1">
+                    {/* Header: Title and Actions */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-1 min-w-0">
+                        <GripVertical className="h-4 w-4 mt-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 cursor-grab" />
+                        <div className="min-w-0">
                           <h4
-                            className="font-semibold text-sm hover:text-primary cursor-pointer transition-colors"
+                            className="font-semibold text-sm leading-tight text-foreground hover:text-primary cursor-pointer transition-colors break-words flex items-center gap-1"
                             onClick={() => navigate(`/crm/deals/${deal.id}`)}
-                            title="Project Name"
                           >
-                            {deal.title}
+                            {dealTitle}
+                            <ArrowUpRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary shrink-0" />
                           </h4>
-                          {companyName && (
-                            <p className="text-xs font-medium text-muted-foreground" title="Customer Name">
-                              {companyName}
-                            </p>
-                          )}
-                          {(deal.contact_name || (deal.contacts ? `${deal.contacts.first_name} ${deal.contacts.last_name || ''}`.trim() : '')) && (
-                            <p className="text-xs text-muted-foreground" title="Lead/Contact Name">
-                              {deal.contact_name || (deal.contacts ? `${deal.contacts.first_name} ${deal.contacts.last_name || ''}`.trim() : '')}
-                            </p>
-                          )}
                         </div>
                       </div>
+                      
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0">
+                          <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0 hover:bg-muted/80 rounded-md">
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => navigate(`/crm/deals/${deal.id}`)}>
                             View Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => navigate(`/crm/deals/${deal.id}/edit`)}>
+                            Edit Deal
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             className="text-destructive"
@@ -267,43 +308,149 @@ export function DealsKanbanView({ deals = [], selectedStage, onStageSelect }: De
                       </DropdownMenu>
                     </div>
 
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-1 font-semibold">
-                          <DollarSign className="h-4 w-4 text-success" />
-                          ${(Number(deal.value) || 0).toLocaleString()}
-                        </div>
-                        {deal.deadline && (
-                          <div className="flex items-center gap-1 text-xs text-destructive font-medium" title="Deadline">
-                            <Calendar className="h-3 w-3" />
-                            {new Date(deal.deadline).toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                            })}
-                          </div>
+                    {/* Metadata Badges (Project Type & Priority) */}
+                    {(projectType || priority) && (
+                      <div className="flex flex-wrap gap-1">
+                        {projectType && (
+                          <Badge variant="outline" className="text-[10px] py-0 px-2 font-medium bg-primary/5 text-primary border-primary/10">
+                            {getProjectTypeLabel(projectType)}
+                          </Badge>
+                        )}
+                        {priority && (
+                          <Badge variant="outline" className={cn("text-[10px] py-0 px-2 font-semibold capitalize", getPriorityStyles(priority))}>
+                            {priority}
+                          </Badge>
                         )}
                       </div>
+                    )}
 
-                      {/* Payment received indicator for Approved stage */}
-                      {(deal.stage === "proposal_approved") && (() => {
-                        const totalValue = Number(deal.value) || 0;
-                        const invoicePaid = Number(deal.invoice_amount) || 0;
-                        const paymentPct = totalValue > 0 ? Math.min(Math.round((invoicePaid / totalValue) * 100), 100) : 0;
-                        const paymentLabel = paymentPct >= 100 ? "Full" : paymentPct > 0 ? "Partial" : "None";
-                        return (
-                          <div>
-                            <div className="flex items-center justify-between text-xs mb-1">
-                              <span className="text-muted-foreground flex items-center gap-1">
-                                <CreditCard className="h-3 w-3" />
-                                {paymentLabel} Payment
-                              </span>
-                              <span className="font-medium">{paymentPct}%</span>
+                    {/* Company and Contact Details */}
+                    <div className="space-y-1 text-xs text-muted-foreground">
+                      {companyName && (
+                        <div className="flex items-center gap-1.5" title="Company">
+                          <Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
+                          <span className="truncate font-medium text-foreground/80">{companyName}</span>
+                        </div>
+                      )}
+                      {contactName && (
+                        <div className="flex items-center gap-1.5" title="Contact Person">
+                          <User className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
+                          <span className="truncate">{contactName}</span>
+                        </div>
+                      )}
+                      
+                      {/* Email and Phone micro-actions */}
+                      {(email || phone) && (
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1 pt-1 border-t border-border/30">
+                          {email && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate("/collaboration/mail", { state: { composeTo: email } });
+                              }}
+                              className="flex items-center gap-1 hover:text-primary transition-colors hover:underline min-w-0"
+                              title={`Send email to ${email}`}
+                            >
+                              <Mail className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate max-w-[120px]">{email}</span>
+                            </button>
+                          )}
+                          {phone && (
+                            <div className="flex items-center gap-1 hover:text-primary transition-colors min-w-0" onClick={(e) => e.stopPropagation()}>
+                              <Phone className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
+                              <ClickToCall
+                                phoneNumber={phone}
+                                entityType="deal"
+                                entityId={deal.id}
+                                className="hover:underline text-[11px]"
+                              />
                             </div>
-                            <Progress value={paymentPct} className="h-1.5" />
-                          </div>
-                        );
-                      })()}
+                          )}
+                        </div>
+                      )}
                     </div>
+
+                    {/* Cost / Value & Progress / Close Date */}
+                    <div className="mt-auto pt-2 border-t border-border/40 flex items-center justify-between gap-2">
+                      <div className="flex flex-col">
+                        <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Value</span>
+                        <div className="flex items-center text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                          <DollarSign className="h-3.5 w-3.5 shrink-0" />
+                          {value.toLocaleString()}
+                        </div>
+                      </div>
+
+                      {closeDate && (
+                        <div className="flex flex-col items-end">
+                          <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Close Date</span>
+                          <div className="flex items-center gap-1 text-xs font-semibold text-foreground/80">
+                            <Calendar className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            {new Date(closeDate).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "2-digit"
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Progress Bar (Probability) & Responsible Person Footer */}
+                    <div className="flex items-center justify-between gap-3 pt-1">
+                      {/* Probability Progress */}
+                      <div className="flex-grow">
+                        <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-0.5 font-medium">
+                          <span>Probability</span>
+                          <span>{prob}%</span>
+                        </div>
+                        <Progress value={prob} className="h-1" />
+                      </div>
+
+                      {/* Owner / Responsible Person Avatar */}
+                      {deal.responsiblePersonName ? (
+                        <div className="shrink-0" title={`Responsible: ${deal.responsiblePersonName}`}>
+                          <Avatar className="h-6 w-6 border border-border">
+                            {deal.responsiblePersonAvatar && (
+                              <AvatarImage src={deal.responsiblePersonAvatar} alt={deal.responsiblePersonName} />
+                            )}
+                            <AvatarFallback className="text-[9px] font-bold bg-primary/10 text-primary">
+                              {deal.responsiblePersonName
+                                .split(" ")
+                                .map((n) => n[0])
+                                .join("")
+                                .toUpperCase()
+                                .slice(0, 2)}
+                            </AvatarFallback>
+                          </Avatar>
+                        </div>
+                      ) : (
+                        <div className="shrink-0" title="Unassigned">
+                          <div className="h-6 w-6 rounded-full border border-dashed border-muted-foreground/30 flex items-center justify-center bg-muted/20">
+                            <User className="h-3 w-3 text-muted-foreground/50" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Payment received indicator for Approved stage */}
+                    {deal.stage === "proposal_approved" && (() => {
+                      const totalValue = value;
+                      const invoicePaid = invoiceAmount;
+                      const paymentPct = totalValue > 0 ? Math.min(Math.round((invoicePaid / totalValue) * 100), 100) : 0;
+                      const paymentLabel = paymentPct >= 100 ? "Full" : paymentPct > 0 ? "Partial" : "None";
+                      return (
+                        <div className="pt-2 border-t border-border/30">
+                          <div className="flex items-center justify-between text-[10px] mb-1">
+                            <span className="text-muted-foreground flex items-center gap-1 font-semibold">
+                              <CreditCard className="h-3 w-3" />
+                              {paymentLabel} Payment
+                            </span>
+                            <span className="font-semibold text-foreground/80">{paymentPct}%</span>
+                          </div>
+                          <Progress value={paymentPct} className="h-1 bg-muted" />
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}

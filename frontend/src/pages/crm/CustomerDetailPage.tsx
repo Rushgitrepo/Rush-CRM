@@ -59,13 +59,13 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
   if (!editing && !value && value !== 0) {
     return (
       <div className="space-y-2">
-        <Label className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+        <Label className="text-sm font-medium text-foreground/80 flex items-center gap-1.5">
           {icon}
           {label}
           {required && <span className="text-red-500">*</span>}
         </Label>
-        <div className="min-h-[2.5rem] px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 flex items-center">
-          <span className="text-gray-400 italic">Not specified</span>
+        <div className="min-h-[2.5rem] px-3 py-2 border border-border rounded-lg bg-muted/30 flex items-center">
+          <span className="text-muted-foreground/60 italic">Not specified</span>
         </div>
       </div>
     );
@@ -73,7 +73,7 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
 
   return (
     <div className="space-y-2">
-      <Label className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+      <Label className="text-sm font-medium text-foreground/80 flex items-center gap-1.5">
         {icon}
         {label}
         {required && <span className="text-red-500">*</span>}
@@ -96,7 +96,7 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
           />
         )
       ) : (
-        <div className="min-h-[2.5rem] px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 flex items-center overflow-hidden">
+        <div className="min-h-[2.5rem] px-3 py-2 border border-border rounded-lg bg-muted/30 flex items-center overflow-hidden">
           {type === "tel" ? (
             <ClickToCall 
               phoneNumber={value?.toString() || ""} 
@@ -112,7 +112,7 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
               {value}
             </span>
           ) : (
-            <span className="text-gray-900 font-medium break-words w-full text-sm">{value}</span>
+            <span className="text-foreground font-medium break-words w-full text-sm">{value}</span>
           )}
         </div>
       )}
@@ -165,13 +165,13 @@ export default function CustomerDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="relative w-16 h-16">
-            <div className="absolute inset-0 rounded-full border-4 border-blue-100"></div>
-            <div className="absolute inset-0 rounded-full border-4 border-t-blue-600 animate-spin"></div>
+            <div className="absolute inset-0 rounded-full border-4 border-primary/20"></div>
+            <div className="absolute inset-0 rounded-full border-4 border-t-primary animate-spin"></div>
           </div>
-          <p className="text-slate-500 font-jakarta font-medium animate-pulse">Loading experience...</p>
+          <p className="text-muted-foreground font-medium animate-pulse">Loading experience...</p>
         </div>
       </div>
     );
@@ -179,14 +179,14 @@ export default function CustomerDetailPage() {
 
   if (!customer && !isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-primary/5 flex items-center justify-center">
-        <div className="text-center  p-8 rounded-2xl shadow-xl border border-slate-200 max-w-md">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <AlertCircle className="h-8 w-8 text-red-600" />
+      <div className="min-h-screen bg-gradient-to-br from-background to-muted/50 flex items-center justify-center">
+        <div className="text-center p-8 rounded-2xl shadow-xl border border-border max-w-md bg-card">
+          <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="h-8 w-8 text-destructive" />
           </div>
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">Customer Not Found</h2>
-          <p className="text-slate-600 mb-6">The customer you're looking for doesn't exist or may have been removed.</p>
-          <Button onClick={() => navigate('/crm/customers')} className="bg-primary hover:bg-primary/90 text-white px-6 py-2">
+          <h2 className="text-2xl font-bold text-foreground mb-2">Customer Not Found</h2>
+          <p className="text-muted-foreground mb-6">The customer you're looking for doesn't exist or may have been removed.</p>
+          <Button onClick={() => navigate('/crm/customers')} className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Portfolio
           </Button>
@@ -213,11 +213,11 @@ export default function CustomerDetailPage() {
 
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
-      case 'active': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-      case 'onboarding': return 'bg-blue-50 text-blue-700 border-blue-200';
-      case 'churned': return 'bg-red-50 text-red-700 border-red-200';
-      case 'inactive': return 'bg-slate-50 text-slate-700 border-slate-200';
-      default: return 'bg-primary/5 text-primary border-primary/20';
+      case 'active': return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20';
+      case 'onboarding': return 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20';
+      case 'churned': return 'bg-red-50 text-red-700 border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20';
+      case 'inactive': return 'bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-500/10 dark:text-slate-400 dark:border-slate-500/20';
+      default: return 'bg-primary/5 text-primary border-primary/20 dark:bg-primary/10 dark:text-primary-foreground';
     }
   };
 
@@ -239,17 +239,17 @@ export default function CustomerDetailPage() {
   return (
     <div className="min-h-screen">
       {/* Enterprise Header with Breadcrumb Navigation */}
-      <div className=" border-b border-slate-200 shadow-sm sticky top-0 z-40">
+      <div className="border-b border-border bg-card/95 backdrop-blur shadow-sm sticky top-0 z-40">
         <div className="max-w-[1400px] mx-auto px-6 py-4">
           {/* Professional Breadcrumb */}
-          <nav className="flex items-center gap-2 text-sm text-slate-500 mb-6">
-            <span className="hover:text-slate-700 cursor-pointer" onClick={() => navigate('/crm')}>CRM</span>
+          <nav className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
+            <span className="hover:text-foreground cursor-pointer" onClick={() => navigate('/crm')}>CRM</span>
             <ChevronRight className="h-4 w-4" />
-            <span className="hover:text-slate-700 cursor-pointer" onClick={() => navigate('/crm/customers')}>Customers</span>
+            <span className="hover:text-foreground cursor-pointer" onClick={() => navigate('/crm/customers')}>Customers</span>
             <ChevronRight className="h-4 w-4" />
-            <span className="text-slate-900 font-medium">{customer.name}</span>
+            <span className="text-foreground font-medium">{customer.name}</span>
           </nav>
-
+ 
           {/* Header Content */}
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div className="flex flex-col md:flex-row md:items-center gap-6">
@@ -257,7 +257,7 @@ export default function CustomerDetailPage() {
                 variant="ghost"
                 size="sm"
                 onClick={() => navigate("/crm/customers")}
-                className="gap-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 self-start md:self-auto"
+                className="gap-2 text-muted-foreground hover:text-foreground hover:bg-muted self-start md:self-auto"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back to Portfolio
@@ -265,36 +265,36 @@ export default function CustomerDetailPage() {
 
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                 <div className="relative">
-                  <Avatar className="h-14 w-14 ring-4 ring-white shadow-lg">
+                  <Avatar className="h-14 w-14 ring-4 ring-background shadow-lg">
                     <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${customer.name}`} />
                     <AvatarFallback className="bg-gradient-to-br from-primary to-purple-600 text-white font-bold text-lg">
                       {customer.name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 'C'}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 border-2 border-white rounded-full"></div>
+                  <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 border-2 border-background rounded-full"></div>
                 </div>
-
+ 
                 <div>
                   <div className="flex flex-wrap items-center gap-3 mb-1">
-                    <h1 className="text-xl md:text-2xl font-bold text-slate-900 break-words max-w-[200px] sm:max-w-none">{customer.name}</h1>
+                    <h1 className="text-xl md:text-2xl font-bold text-foreground break-words max-w-[200px] sm:max-w-none">{customer.name}</h1>
                     <Badge className={cn("gap-1 px-3 py-1 font-medium whitespace-nowrap", getStatusColor(customer.status))}>
                       {getStatusIcon(customer.status)}
                       {customer.status || 'Active Client'}
                     </Badge>
                   </div>
                   <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-                    <div className="flex items-center gap-2 text-slate-600">
+                    <div className="flex items-center gap-2 text-muted-foreground">
                       <Building2 className="h-4 w-4" />
                       <span className="font-medium">{customer.industry || 'No Industry Specified'}</span>
                     </div>
                     {customer.total_revenue && (
-                      <div className="flex items-center gap-1 text-emerald-600 font-semibold">
+                      <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold">
                         <DollarSign className="h-4 w-4" />
                         <span>${Number(customer.total_revenue).toLocaleString()} Revenue</span>
                       </div>
                     )}
                     {customer.created_at && (
-                      <div className="flex items-center gap-1 text-slate-500 whitespace-nowrap">
+                      <div className="flex items-center gap-1 text-muted-foreground whitespace-nowrap">
                         <CalendarIcon className="h-4 w-4" />
                         <span>Onboarded {format(new Date(customer.created_at), 'MMM d, yyyy')}</span>
                       </div>
@@ -311,14 +311,14 @@ export default function CustomerDetailPage() {
                   <Button
                     variant="outline"
                     onClick={() => { setEditing(false); setForm({ ...customer }); }}
-                    className="gap-2 border-slate-300 text-slate-700"
+                    className="gap-2 border-input text-muted-foreground hover:text-foreground"
                   >
                     Cancel
                   </Button>
                   <Button
                     onClick={handleSave}
                     disabled={updateCustomer.isPending}
-                    className="gap-2 bg-primary hover:bg-primary/90 text-white shadow-lg"
+                    className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg"
                   >
                     <Save className="h-4 w-4" />
                     {updateCustomer.isPending ? 'Saving...' : 'Save Changes'}
@@ -333,14 +333,14 @@ export default function CustomerDetailPage() {
                       entityType="customer" 
                       entityId={customer.id} 
                       variant="outline"
-                      className="gap-2 text-emerald-600 border-emerald-200"
+                      className="gap-2 text-emerald-600 border-emerald-200 dark:text-emerald-400 dark:border-emerald-800/30"
                     />
                   )}
                   {customer.email && (
                     <Button
                       variant="outline"
                       size="sm"
-                      className="gap-2 text-primary border-primary/20"
+                      className="gap-2 text-primary border-primary/20 dark:text-primary-foreground"
                       onClick={() => navigate("/collaboration/mail", { state: { composeTo: customer.email } })}
                     >
                       <Mail className="h-4 w-4" />
@@ -351,9 +351,9 @@ export default function CustomerDetailPage() {
                   <Button
                     variant="outline"
                     onClick={() => setEditing(true)}
-                    className="gap-2 border-slate-300"
+                    className="gap-2 border-input text-muted-foreground hover:text-foreground"
                   >
-                    <Edit3 className="h-4 w-4 mr-2 text-slate-400" />
+                    <Edit3 className="h-4 w-4 mr-2 text-muted-foreground/60" />
                     Edit Details
                   </Button>
 
@@ -362,86 +362,86 @@ export default function CustomerDetailPage() {
                       <Button 
                         variant="outline" 
                         size="icon" 
-                        className="h-9 w-9 border-slate-300 hover:border-slate-400 hover:bg-slate-50 transition-all duration-200 rounded-lg shadow-sm hover:shadow-md"
+                        className="h-9 w-9 border-input hover:bg-muted transition-all duration-200 rounded-lg shadow-sm hover:shadow-md"
                       >
-                        <MoreHorizontal className="h-4 w-4 text-slate-600" />
+                        <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
                         <span className="sr-only">More options</span>
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-72 p-2 rounded-xl shadow-xl border-slate-200 z-[100]  pointer-events-auto max-h-[450px] overflow-y-auto">
-                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Communication</DropdownMenuLabel>
+                    <DropdownMenuContent align="end" className="w-72 p-2 rounded-xl shadow-xl border-border bg-popover text-popover-foreground z-[100]  pointer-events-auto max-h-[450px] overflow-y-auto">
+                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-muted-foreground uppercase tracking-wider">Communication</DropdownMenuLabel>
                       {customer.email && (
-                        <DropdownMenuItem onSelect={() => copyToClipboard(customer.email, 'Email')} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
-                          <div className="p-2 bg-blue-50 rounded-md">
-                            <Mail className="h-4 w-4 text-blue-600" />
+                        <DropdownMenuItem onSelect={() => copyToClipboard(customer.email, 'Email')} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-muted transition-colors">
+                          <div className="p-2 bg-blue-50 dark:bg-blue-950/50 rounded-md">
+                            <Mail className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                           </div>
                           <div className="min-w-0">
-                            <p className="font-semibold text-sm text-slate-900">Copy Email Address</p>
-                            <p className="text-xs text-slate-500 truncate">{customer.email}</p>
+                            <p className="font-semibold text-sm text-foreground">Copy Email Address</p>
+                            <p className="text-xs text-muted-foreground truncate">{customer.email}</p>
                           </div>
                         </DropdownMenuItem>
                       )}
                       {customer.phone && (
-                        <DropdownMenuItem onSelect={() => copyToClipboard(customer.phone, 'Phone')} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
-                          <div className="p-2 bg-emerald-50 rounded-md">
-                            <Phone className="h-4 w-4 text-emerald-600" />
+                        <DropdownMenuItem onSelect={() => copyToClipboard(customer.phone, 'Phone')} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-muted transition-colors">
+                          <div className="p-2 bg-emerald-50 dark:bg-emerald-950/50 rounded-md">
+                            <Phone className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                           </div>
                           <div className="min-w-0">
-                            <p className="font-semibold text-sm text-slate-900">Copy Phone Number</p>
-                            <p className="text-xs text-slate-500">{customer.phone}</p>
+                            <p className="font-semibold text-sm text-foreground">Copy Phone Number</p>
+                            <p className="text-xs text-muted-foreground">{customer.phone}</p>
                           </div>
                         </DropdownMenuItem>
                       )}
 
-                      <DropdownMenuSeparator className="my-2 bg-slate-100" />
+                      <DropdownMenuSeparator className="my-2 bg-border" />
 
-                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Quick Jump</DropdownMenuLabel>
-                      <DropdownMenuItem onSelect={() => handleScrollToActivity("activity")} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
-                        <div className="p-2 bg-purple-50 rounded-md">
-                          <Activity className="h-4 w-4 text-purple-600" />
+                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-muted-foreground uppercase tracking-wider">Quick Jump</DropdownMenuLabel>
+                      <DropdownMenuItem onSelect={() => handleScrollToActivity("activity")} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-muted transition-colors">
+                        <div className="p-2 bg-purple-50 dark:bg-purple-950/50 rounded-md">
+                          <Activity className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                         </div>
-                        <p className="font-semibold text-sm text-slate-900">View Activity Timeline</p>
+                        <p className="font-semibold text-sm text-foreground">View Activity Timeline</p>
                       </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => handleScrollToActivity("activity", "booking")} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
-                        <div className="p-2 bg-orange-50 rounded-md">
+                      <DropdownMenuItem onSelect={() => handleScrollToActivity("activity", "booking")} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-muted transition-colors">
+                        <div className="p-2 bg-orange-50 dark:bg-orange-950/50 rounded-md">
                           <Calendar className="h-4 w-4 text-primary" />
                         </div>
-                        <p className="font-semibold text-sm text-slate-900">Schedule Review</p>
+                        <p className="font-semibold text-sm text-foreground">Schedule Review</p>
                       </DropdownMenuItem>
-                      <DropdownMenuItem className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
-                        <div className="p-2 bg-indigo-50 rounded-md">
-                          <MessageSquare className="h-4 w-4 text-indigo-600" />
+                      <DropdownMenuItem className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-muted transition-colors">
+                        <div className="p-2 bg-indigo-50 dark:bg-indigo-950/50 rounded-md">
+                          <MessageSquare className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                         </div>
-                        <p className="font-semibold text-sm text-slate-900">Send Message</p>
+                        <p className="font-semibold text-sm text-foreground">Send Message</p>
                       </DropdownMenuItem>
 
-                      <DropdownMenuSeparator className="my-2 bg-slate-100" />
+                      <DropdownMenuSeparator className="my-2 bg-border" />
 
-                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Reports & Data</DropdownMenuLabel>
-                      <DropdownMenuItem onSelect={handlePrint} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
-                        <div className="p-2 bg-orange-50 rounded-md">
-                          <Printer className="h-4 w-4 text-orange-600" />
+                      <DropdownMenuLabel className="px-3 pb-2 text-xs font-bold text-muted-foreground uppercase tracking-wider">Reports & Data</DropdownMenuLabel>
+                      <DropdownMenuItem onSelect={handlePrint} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-muted transition-colors">
+                        <div className="p-2 bg-orange-50 dark:bg-orange-950/50 rounded-md">
+                          <Printer className="h-4 w-4 text-orange-600 dark:text-orange-400" />
                         </div>
-                        <p className="font-semibold text-sm text-slate-900">Print Client Details</p>
+                        <p className="font-semibold text-sm text-foreground">Print Client Details</p>
                       </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={handleExport} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
-                        <div className="p-2 bg-emerald-50 rounded-md">
-                          <Download className="h-4 w-4 text-emerald-600" />
+                      <DropdownMenuItem onSelect={handleExport} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-muted transition-colors">
+                        <div className="p-2 bg-emerald-50 dark:bg-emerald-950/50 rounded-md">
+                          <Download className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                         </div>
-                        <p className="font-semibold text-sm text-slate-900">Export as JSON</p>
+                        <p className="font-semibold text-sm text-foreground">Export as JSON</p>
                       </DropdownMenuItem>
 
-                      <DropdownMenuSeparator className="my-2 bg-slate-100" />
+                      <DropdownMenuSeparator className="my-2 bg-border" />
 
-                      <DropdownMenuItem onSelect={() => setShowDeleteDialog(true)} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-red-50 group transition-colors">
-                        <div className="p-2 bg-red-50 rounded-md group-hover:bg-red-100 transition-colors">
-                          <Trash2 className="h-4 w-4 text-red-600" />
+                      <DropdownMenuItem onSelect={() => setShowDeleteDialog(true)} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-destructive/10 group transition-colors">
+                        <div className="p-2 bg-red-50 dark:bg-red-950/30 rounded-md group-hover:bg-red-100 transition-colors">
+                          <Trash2 className="h-4 w-4 text-red-600 dark:text-red-400" />
                         </div>
-                        <p className="font-semibold text-sm text-red-600">Delete Customer</p>
+                        <p className="font-semibold text-sm text-red-600 dark:text-red-400">Delete Customer</p>
                       </DropdownMenuItem>
-                      <DropdownMenuSeparator className="my-2 bg-slate-100" />
+                      <DropdownMenuSeparator className="my-2 bg-border" />
                       <DropdownMenuItem
-                        className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-orange-50 group transition-colors"
+                        className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-orange-50 dark:hover:bg-orange-950/30 group transition-colors"
                         onSelect={() => {
                           updateCustomer.mutate({ id: customer.id, status: 'unqualified' }, {
                             onSuccess: () => {
@@ -450,10 +450,10 @@ export default function CustomerDetailPage() {
                           });
                         }}
                       >
-                        <div className="p-2 bg-orange-50 rounded-md group-hover:bg-orange-100 transition-colors">
-                          <XCircle className="h-4 w-4 text-orange-600" />
+                        <div className="p-2 bg-orange-50 dark:bg-orange-950/30 rounded-md group-hover:bg-orange-100 transition-colors">
+                          <XCircle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
                         </div>
-                        <p className="font-semibold text-sm text-orange-600">Mark as Unqualified</p>
+                        <p className="font-semibold text-sm text-orange-600 dark:text-orange-400">Mark as Unqualified</p>
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -478,40 +478,40 @@ export default function CustomerDetailPage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-xs text-primary font-medium uppercase tracking-wide truncate">Total Revenue</p>
-                      <p className="text-2xl font-bold text-slate-900">${Number(customer.total_revenue || 0).toLocaleString()}</p>
+                      <p className="text-2xl font-bold text-foreground">${Number(customer.total_revenue || 0).toLocaleString()}</p>
                       <p className="text-xs text-primary truncate">Portfolio Contribution</p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200 shadow-lg">
+              <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950/20 dark:to-emerald-900/10 border-emerald-200 dark:border-emerald-800/30 shadow-lg">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-emerald-500 rounded-lg shadow-lg">
                       <Award className="h-5 w-5 text-white" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs text-emerald-600 font-medium uppercase tracking-wide truncate">Lifetime Value</p>
-                      <p className="text-2xl font-bold text-emerald-900">${Number(customer.lifetime_value || 0).toLocaleString()}</p>
-                      <p className="text-xs text-emerald-700 truncate">Strategic Account</p>
+                      <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium uppercase tracking-wide truncate">Lifetime Value</p>
+                      <p className="text-2xl font-bold text-emerald-900 dark:text-emerald-300">${Number(customer.lifetime_value || 0).toLocaleString()}</p>
+                      <p className="text-xs text-emerald-700 dark:text-emerald-400 truncate">Strategic Account</p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 shadow-lg">
+              <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/20 dark:to-purple-900/10 border-purple-200 dark:border-purple-800/30 shadow-lg">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-purple-500 rounded-lg shadow-lg">
                       <HistoryIcon className="h-5 w-5 text-white" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs text-purple-600 font-medium uppercase tracking-wide truncate">Tenure</p>
-                      <p className="text-2xl font-bold text-purple-900">
+                      <p className="text-xs text-purple-600 dark:text-purple-400 font-medium uppercase tracking-wide truncate">Tenure</p>
+                      <p className="text-2xl font-bold text-purple-900 dark:text-purple-300">
                         {customer.created_at ? Math.floor((new Date().getTime() - new Date(customer.created_at).getTime()) / (1000 * 60 * 60 * 24)) : 0}
                       </p>
-                      <p className="text-xs text-purple-700 truncate">Days as Client</p>
+                      <p className="text-xs text-purple-700 dark:text-purple-400 truncate">Days as Client</p>
                     </div>
                   </div>
                 </CardContent>
@@ -519,8 +519,8 @@ export default function CustomerDetailPage() {
             </div>
 
             {/* Content Tabs Refined - Only Overview here now */}
-            <Card className="shadow-xl border-0  overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-primary/5 to-indigo-50 border-b border-slate-200">
+            <Card className="shadow-xl border overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-primary/5 to-indigo-50 dark:to-indigo-950/10 border-b border-border">
                 <CardTitle className="flex items-center gap-3 text-xl">
                   <div className="p-2 bg-primary rounded-lg">
                     <User className="h-5 w-5 text-white" />
@@ -596,7 +596,7 @@ export default function CustomerDetailPage() {
           {/* Sidebar Area */}
           <div className="lg:col-span-5 space-y-6 sticky top-24">
             {/* Quick Actions Card */}
-            <Card className="shadow-lg border-0 bg-background/60 backdrop-blur-sm">
+            <Card className="shadow-lg border bg-background/60 backdrop-blur-sm">
               <CardHeader className="pb-3 border-b">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Zap className="h-5 w-5 text-primary" />
@@ -649,7 +649,7 @@ export default function CustomerDetailPage() {
 
 
             {/* Activity & Documents Section - Moved to Sidebar */}
-            <Card ref={activitySectionRef} className="shadow-lg border-0 overflow-hidden flex flex-col h-[650px]">
+            <Card ref={activitySectionRef} className="shadow-lg border overflow-hidden flex flex-col h-[650px]">
               <CardHeader className="pb-0 border-b bg-muted/20">
                 <div className="flex items-center justify-between pb-4">
                   <CardTitle className="text-lg flex items-center gap-2">

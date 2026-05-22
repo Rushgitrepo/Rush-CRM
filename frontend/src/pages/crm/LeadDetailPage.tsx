@@ -953,15 +953,15 @@ export default function LeadDetailPage() {
               </Button>
               <div className="text-right">
                 <div className="text-sm ">Progress</div>
-                <div className="text-lg font-bold text-white-900">
+                <div className="text-lg font-bold text-foreground">
                   {Math.round(((pipelineStages.findIndex(s => s.id === (form.stage || lead.stage)) + 1) / pipelineStages.length) * 100)}%
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-200">
-            <div className="flex gap-3 min-w-[800px] md:min-w-0">
+          <div className="overflow-x-auto px-2 pt-2.5 pb-4 scrollbar-thin scrollbar-thumb-slate-200">
+            <div className="flex gap-3 min-w-full">
               {pipelineStages.map((stage, index) => {
                 const isActive = (form.stage || lead.stage) === stage.id;
                 const isPassed = pipelineStages.findIndex(s => s.id === (form.stage || lead.stage)) > index;
@@ -971,19 +971,19 @@ export default function LeadDetailPage() {
                     key={stage.id}
                     onClick={() => handleStageChange(stage.id)}
                     className={cn(
-                      "flex-1 relative cursor-pointer transition-all duration-300 rounded-xl p-4 border-2 group",
+                      "flex-1 min-w-[145px] lg:min-w-[170px] relative cursor-pointer transition-all duration-300 rounded-xl p-3 border-2 group",
                       isActive && !isUnqualified
                         ? "bg-blue-600 border-blue-600 text-white shadow-lg transform scale-105"
                         : isActive && isUnqualified
                           ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-900/50 text-emerald-700 dark:text-emerald-400 shadow-lg"
                           : isPassed && !isUnqualified
                             ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-900/50 text-emerald-700 dark:text-emerald-400"
-                            : "   hover:bg-muted/50 transition-colors"
+                            : "hover:bg-muted/50 transition-colors"
                     )}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2.5">
                       <div className={cn(
-                        "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all",
+                        "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all shrink-0",
                         isActive && !isUnqualified
                           ? "bg-blue-600 text-white shadow-md"
                           : isActive && isUnqualified
@@ -1000,8 +1000,8 @@ export default function LeadDetailPage() {
                           index + 1
                         )}
                       </div>
-                      <div className="flex-1">
-                        <p className="font-semibold text-sm">{stage.label}</p>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm leading-snug break-words">{stage.label}</p>
                       </div>
                     </div>
                     {isActive && (

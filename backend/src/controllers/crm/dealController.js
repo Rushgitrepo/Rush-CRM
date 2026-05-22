@@ -1200,20 +1200,39 @@ const convertToCustomer = async (req, res, next) => {
 
     let contactEmail = null;
     let contactPhone = null;
+    let contactName = null;
     if (deal.contact_id) {
       try {
         const { rows: contactRows } = await db.query(
-          'SELECT email, phone FROM public.contacts WHERE id = $1',
+          'SELECT first_name, last_name, email, phone FROM public.contacts WHERE id = $1',
           [deal.contact_id]
         );
         if (contactRows[0]) {
           contactEmail = contactRows[0].email;
           contactPhone = contactRows[0].phone;
+          contactName = [contactRows[0].first_name, contactRows[0].last_name].filter(Boolean).join(' ');
         }
       } catch (contactErr) {
         console.error('Failed to fetch contact details:', contactErr);
       }
     }
+
+    let companyName = null;
+    if (deal.company_id) {
+      try {
+        const { rows: companyRows } = await db.query(
+          'SELECT name FROM public.companies WHERE id = $1',
+          [deal.company_id]
+        );
+        if (companyRows[0]) {
+          companyName = companyRows[0].name;
+        }
+      } catch (companyErr) {
+        console.error('Failed to fetch company details:', companyErr);
+      }
+    }
+
+    const customerName = contactName || companyName || deal.title || 'Customer';
 
     const { rows: customerRows } = await db.query(
       `INSERT INTO public.customers 
@@ -1224,7 +1243,7 @@ const convertToCustomer = async (req, res, next) => {
       [
         req.user.orgId,
         req.user.id,
-        deal.title || 'Customer',
+        customerName,
         contactEmail,
         contactPhone,
         'active',

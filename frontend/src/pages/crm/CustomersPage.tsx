@@ -19,10 +19,10 @@ import { useCustomDialog } from "@/contexts/DialogContext";
 
 const statusBadge = (status?: string) => {
   const normalized = (status || "").toLowerCase();
-  if (normalized === "vip") return "bg-amber-500/10 text-amber-700 border-amber-200";
-  if (normalized === "active") return "bg-emerald-500/10 text-emerald-700 border-emerald-200";
-  if (normalized === "prospect") return "bg-sky-500/10 text-sky-700 border-sky-200";
-  return "bg-slate-500/10 text-slate-700 border-slate-200";
+  if (normalized === "vip") return "bg-amber-500/10 text-amber-700 border-amber-200 dark:text-amber-400 dark:border-amber-500/20 dark:bg-amber-500/10";
+  if (normalized === "active") return "bg-emerald-500/10 text-emerald-700 border-emerald-200 dark:text-emerald-400 dark:border-emerald-500/20 dark:bg-emerald-500/10";
+  if (normalized === "prospect") return "bg-sky-500/10 text-sky-700 border-sky-200 dark:text-sky-400 dark:border-sky-500/20 dark:bg-sky-500/10";
+  return "bg-slate-500/10 text-slate-700 border-slate-200 dark:text-slate-400 dark:border-slate-500/20 dark:bg-slate-500/10";
 };
 
 export default function CustomersPage() {
@@ -314,7 +314,7 @@ export default function CustomersPage() {
         onSortChange={setSortBy}
       />
 
-      <Card className="border-0 shadow-card">
+      <Card className="shadow-card">
         <CardContent className="p-4 lg:p-6">
           {isError ? (
             <EmptyState title="Failed to load customers" description="Check your connection or try again." muted />
