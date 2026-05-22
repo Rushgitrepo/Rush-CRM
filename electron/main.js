@@ -298,6 +298,32 @@ function createTray() {
   }
 }
 
+/**
+ * Apply (or remove) the OS-level auto-launch / login item setting.
+ * This must be re-applied on every app start so the setting survives
+ * auto-updates, reinstalls, and path changes.
+ */
+function applyAutoLaunchSetting(enabled) {
+  try {
+    if (process.platform === 'win32' || process.platform === 'linux') {
+      app.setLoginItemSettings({
+        openAtLogin: enabled,
+        openAsHidden: true,
+        path: process.execPath,
+        args: ['--hidden']
+      });
+    } else if (process.platform === 'darwin') {
+      app.setLoginItemSettings({
+        openAtLogin: enabled,
+        openAsHidden: true
+      });
+    }
+    console.log(`Auto-launch ${enabled ? 'enabled' : 'disabled'} (applied to OS)`);
+  } catch (error) {
+    console.error('Failed to apply auto-launch setting:', error);
+  }
+}
+
 function setupIpcHandlers() {
   ipcMain.handle('get-app-version', () => {
     return app.getVersion();
@@ -519,30 +545,13 @@ function setupIpcHandlers() {
 
   // Auto-launch settings management
   ipcMain.handle('get-auto-launch', () => {
-    return store.get('autoLaunchEnabled', false);
+    return store.get('autoLaunchEnabled', true);
   });
 
   ipcMain.handle('set-auto-launch', (event, enabled) => {
     try {
-      // Set login item settings (auto-launch on startup)
-      if (process.platform === 'win32' || process.platform === 'linux') {
-        // For Windows and Linux
-        app.setLoginItemSettings({
-          openAtLogin: enabled,
-          openAsHidden: true, // Start minimized to tray
-          path: process.execPath,
-          args: ['--hidden']
-        });
-      } else if (process.platform === 'darwin') {
-        // For macOS
-        app.setLoginItemSettings({
-          openAtLogin: enabled,
-          openAsHidden: true
-        });
-      }
-      
+      applyAutoLaunchSetting(enabled);
       store.set('autoLaunchEnabled', enabled);
-      console.log(`Auto-launch ${enabled ? 'enabled' : 'disabled'}`);
       return { success: true, enabled };
     } catch (error) {
       console.error('Failed to set auto-launch:', error);
@@ -564,6 +573,11 @@ app.whenReady().then(async () => {
     }
 
     setupIpcHandlers();
+
+    // Re-apply auto-launch setting on every start (ensures it survives updates/reinstalls)
+    // Default is now TRUE so new users get "start with Windows" automatically.
+    const autoLaunchEnabled = store.get('autoLaunchEnabled', true);
+    applyAutoLaunchSetting(autoLaunchEnabled);
 
     // Handle command line arguments for auto-launch
     const args = process.argv.slice(1);
