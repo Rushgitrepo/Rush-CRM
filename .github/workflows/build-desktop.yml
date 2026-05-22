@@ -49,6 +49,21 @@ jobs:
           cd electron
           npm install
 
+      - name: Auto-bump desktop version for release (patch)
+        if: env.PUBLISH_FLAG == 'always'
+        shell: bash
+        run: |
+          node -e '
+            const fs = require("fs");
+            const pkgPath = "./electron/package.json";
+            const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+            const parts = pkg.version.split(".").map(Number);
+            parts[2] = (parts[2] || 0) + 1;
+            pkg.version = parts.join(".");
+            fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
+            console.log("::notice::Bumped desktop version to " + pkg.version + " for this release build");
+          '
+
       - name: Build Frontend
         run: npm run build:frontend
 
@@ -126,3 +141,16 @@ jobs:
             electron/dist/*.AppImage
             electron/dist/*.deb
           retention-days: 1
+
+      - name: Commit version bump back to repo (prevents duplicate builds)
+        if: matrix.os == 'windows-latest' && env.PUBLISH_FLAG == 'always' && success()
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add electron/package.json
+          NEW_VERSION=$(node -p "require('./electron/package.json').version")
+          git commit -m "chore(release): bump desktop to v${NEW_VERSION} [skip ci]" || true
+          git push origin HEAD:${GITHUB_REF#refs/heads/} || true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
