@@ -96,16 +96,17 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Windows Artifacts
-        if: matrix.os == 'windows-latest'
+        if: (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch') && matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
           name: rush-crm-windows
           path: |
             electron/dist/*.exe
             electron/dist/latest.yml
+          retention-days: 1
 
       - name: Upload macOS Artifacts
-        if: matrix.os == 'macos-latest'
+        if: (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch') && matrix.os == 'macos-latest'
         uses: actions/upload-artifact@v4
         with:
           name: rush-crm-macos
@@ -114,12 +115,14 @@ jobs:
             electron/dist/Rush-CRM-*.zip
             electron/dist/latest-mac.yml
             electron/dist/*.blockmap
+          retention-days: 1
 
       - name: Upload Linux Artifacts
-        if: matrix.os == 'ubuntu-latest' && success()
+        if: (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch') && matrix.os == 'ubuntu-latest' && success()
         uses: actions/upload-artifact@v4
         with:
           name: rush-crm-linux
           path: |
             electron/dist/*.AppImage
             electron/dist/*.deb
+          retention-days: 1

@@ -71,8 +71,9 @@ let notificationSettings = {
 
 /**
  * Create the main application window
+ * @param {boolean} hiddenOnStart - Whether to start the window hidden (for auto-launch)
  */
-function createWindow() {
+function createWindow(hiddenOnStart = false) {
   // Get saved window bounds or use defaults
   const windowBounds = store.get('windowBounds', {
     width: 1400,
@@ -149,7 +150,13 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     console.log('Window ready to show');
-    showMainWindow();
+    
+    if (hiddenOnStart) {
+      console.log('Starting app minimized to tray (auto-launch)...');
+      mainWindow.hide();
+    } else {
+      showMainWindow();
+    }
 
     if (isDev) {
       console.log('Development mode - DevTools available via F12');
@@ -503,6 +510,45 @@ function setupIpcHandlers() {
       mainWindow.webContents.send('call-accepted-from-overlay');
     }
   });
+
+  // Clear the app-closed flag on activate (for activate events)
+  let isAppReallyClosed = false;
+  app.on('before-quit', () => {
+    isAppReallyClosed = true;
+  });
+
+  // Auto-launch settings management
+  ipcMain.handle('get-auto-launch', () => {
+    return store.get('autoLaunchEnabled', false);
+  });
+
+  ipcMain.handle('set-auto-launch', (event, enabled) => {
+    try {
+      // Set login item settings (auto-launch on startup)
+      if (process.platform === 'win32' || process.platform === 'linux') {
+        // For Windows and Linux
+        app.setLoginItemSettings({
+          openAtLogin: enabled,
+          openAsHidden: true, // Start minimized to tray
+          path: process.execPath,
+          args: ['--hidden']
+        });
+      } else if (process.platform === 'darwin') {
+        // For macOS
+        app.setLoginItemSettings({
+          openAtLogin: enabled,
+          openAsHidden: true
+        });
+      }
+      
+      store.set('autoLaunchEnabled', enabled);
+      console.log(`Auto-launch ${enabled ? 'enabled' : 'disabled'}`);
+      return { success: true, enabled };
+    } catch (error) {
+      console.error('Failed to set auto-launch:', error);
+      return { success: false, error: error.message };
+    }
+  });
 }
 
 app.whenReady().then(async () => {
@@ -518,7 +564,12 @@ app.whenReady().then(async () => {
     }
 
     setupIpcHandlers();
-    createWindow();
+
+    // Handle command line arguments for auto-launch
+    const args = process.argv.slice(1);
+    const isHiddenLaunch = args.includes('--hidden');
+    
+    createWindow(isHiddenLaunch);
     createTray();
 
     if (!isDev) {
@@ -546,10 +597,11 @@ app.on('activate', () => {
     mainWindow.show();
     mainWindow.focus();
   } else if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
+    createWindow(false);
   }
 });
 
 app.on('before-quit', () => {
   app.isQuitting = true;
+  isAppReallyClosed = true;
 });

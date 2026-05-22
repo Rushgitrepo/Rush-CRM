@@ -43,6 +43,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sendMessageReply: (data) => ipcRenderer.invoke('send-message-reply', data),
   onMessageReplyReceived: (callback) => ipcRenderer.on('message-reply-received', callback),
 
+  // Auto-launch settings
+  getAutoLaunch: () => ipcRenderer.invoke('get-auto-launch'),
+  setAutoLaunch: (enabled) => ipcRenderer.invoke('set-auto-launch', enabled),
+
   // Platform info
   platform: process.platform,
   isElectron: true,
