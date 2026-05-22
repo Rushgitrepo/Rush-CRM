@@ -54,7 +54,7 @@ import {
   Trash2,
   GripVertical,
   X,
-  Laptop,
+  Laptop, Star
 } from "lucide-react";
 import {
   DndContext,
