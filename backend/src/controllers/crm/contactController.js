@@ -14,7 +14,7 @@ const createContactSchema = Joi.object({
   address: Joi.string().optional().allow('', null),
   messenger: Joi.string().optional().allow('', null),
   notes: Joi.string().optional().allow('', null),
-  tags: Joi.array().items(Joi.string()).optional(),
+  tags: Joi.array().items(Joi.string()).optional().allow(null, ''),
   availableToEveryone: Joi.boolean().optional(),
   includedInExport: Joi.boolean().optional(),
 });
@@ -28,7 +28,7 @@ const updateContactSchema = Joi.object({
   position: Joi.string().optional().allow(null),
   source: Joi.string().optional().allow(null),
   notes: Joi.string().optional().allow(null),
-  tags: Joi.array().items(Joi.string()).optional(),
+  tags: Joi.array().items(Joi.string()).optional().allow(null, ''),
   salutation: Joi.string().optional().allow(null),
   contactType: Joi.string().optional().allow(null),
   address: Joi.string().optional().allow(null),

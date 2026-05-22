@@ -24,7 +24,7 @@ const createSigningPartySchema = Joi.object({
   responsibleId: Joi.string().uuid().optional().allow('', null),
   observers: Joi.array().items(Joi.string().uuid()).optional(),
   notes: Joi.string().optional().allow(''),
-  tags: Joi.array().items(Joi.string()).optional(),
+  tags: Joi.array().items(Joi.string()).optional().allow(null, ''),
 });
 
 const updateSigningPartySchema = Joi.object({
@@ -50,7 +50,7 @@ const updateSigningPartySchema = Joi.object({
   responsibleId: Joi.string().uuid().optional().allow('', null),
   observers: Joi.array().items(Joi.string().uuid()).optional(),
   notes: Joi.string().optional().allow('', null),
-  tags: Joi.array().items(Joi.string()).optional(),
+  tags: Joi.array().items(Joi.string()).optional().allow(null, ''),
 }).min(1);
 
 const getAll = async (req, res, next) => {

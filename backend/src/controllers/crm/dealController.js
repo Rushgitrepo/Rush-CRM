@@ -45,7 +45,7 @@ const createDealSchema = Joi.object({
   currency: Joi.string().default('USD'),
   probability: Joi.number().integer().min(0).max(100).default(0),
   notes: Joi.string().optional().allow(null, ''),
-  tags: Joi.array().items(Joi.string()).optional(),
+  tags: Joi.array().items(Joi.string()).optional().allow(null, ''),
   expectedCloseDate: Joi.date().optional().allow(null),
   // Additional marketing and contact fields
   contactName: Joi.string().optional().allow(null, ''),
@@ -224,7 +224,7 @@ const updateDealSchema = Joi.object({
   currency: Joi.string().optional(),
   probability: Joi.number().integer().min(0).max(100).optional(),
   notes: Joi.string().optional().allow(null),
-  tags: Joi.array().items(Joi.string()).optional(),
+  tags: Joi.array().items(Joi.string()).optional().allow(null, ''),
   expectedCloseDate: Joi.date().optional().allow(null),
   assignedTo: Joi.string().uuid().optional().allow(null),
   lostReason: Joi.string().optional().allow(null),

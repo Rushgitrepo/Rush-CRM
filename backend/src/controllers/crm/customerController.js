@@ -8,7 +8,7 @@ const createCustomerSchema = Joi.object({
   status: Joi.string().allow(null, ''),
   tier: Joi.string().allow(null, ''),
   notes: Joi.string().allow(null, ''),
-  tags: Joi.array().items(Joi.string()).optional(),
+  tags: Joi.array().items(Joi.string()).optional().allow(null, ''),
   leadId: Joi.string().uuid().allow(null, ''),
   dealId: Joi.string().uuid().allow(null, ''),
   companyId: Joi.string().uuid().allow(null, ''),
