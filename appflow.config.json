@@ -6,8 +6,13 @@
       "name": "Rush CRM",
       "type": "capacitor",
       "webDir": "frontend/dist",
-      "buildCommand": "cd frontend && npm run build"
+      "buildCommand": "cd frontend && npm run build",
+      "ios": {
+        "path": "frontend/ios"
+      },
+      "android": {
+        "path": "frontend/android"
+      }
     }
-  ],
-  "capacitorConfigPath": "frontend/capacitor.config.json"
+  ]
 }
