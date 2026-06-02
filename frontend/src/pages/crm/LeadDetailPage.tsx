@@ -319,8 +319,9 @@ export default function LeadDetailPage() {
   const { dialNumber } = useSoftphone();
   const { data: leadStats } = useLeadStats();
   const selectedPipeline = form.pipeline || lead?.pipeline || "default";
+  const departmentFilter = selectedPipeline === "marketing" ? "Marketing" : (selectedPipeline === "sales" ? "Sales" : undefined);
   const { data: members = [] } = useOrganizationProfiles({ 
-    department: selectedPipeline === "marketing" ? "Marketing" : "Sales", 
+    department: departmentFilter, 
     includeSelf: true 
   });
 

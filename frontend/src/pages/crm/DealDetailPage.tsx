@@ -399,7 +399,12 @@ export default function DealDetailPage() {
   });
 
   // Fetch all team members for assignment
-  const { data: members = [] } = useOrganizationProfiles({ department: 'Sales', includeSelf: true });
+  const selectedPipeline = form.pipeline || deal?.pipeline || "default";
+  const departmentFilter = selectedPipeline === "marketing" ? "Marketing" : (selectedPipeline === "sales" ? "Sales" : undefined);
+  const { data: members = [] } = useOrganizationProfiles({ 
+    department: departmentFilter, 
+    includeSelf: true 
+  });
 
   // Combine DB stages with visual fallback data (colors/icons)
   const pipelineStages = useMemo(() => {

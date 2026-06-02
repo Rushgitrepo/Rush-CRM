@@ -320,7 +320,13 @@ export default function CreateLeadPage() {
     },
   });
 
-  const { data: members = [] } = useOrganizationProfiles({ department: 'Sales', includeSelf: true });
+  const { handleSubmit, register, setValue, watch, formState: { errors } } = form;
+  const selectedPipeline = watch("pipeline") || "default";
+  const departmentFilter = selectedPipeline === "marketing" ? "Marketing" : (selectedPipeline === "sales" ? "Sales" : undefined);
+  const { data: members = [] } = useOrganizationProfiles({ 
+    department: departmentFilter, 
+    includeSelf: true 
+  });
   const { data: dbStages = [] } = usePipelineStages();
 
   const customDbStages = dbStages
@@ -354,7 +360,6 @@ export default function CreateLeadPage() {
   }, [templates]);
 
   const isSaving = createLead.isPending;
-  const { handleSubmit, register, setValue, watch, formState: { errors } } = form;
 
   const onSubmit = (data: LeadForm) => {
     const payload = {

@@ -12,17 +12,20 @@ interface ChangeResponsibleDialogProps {
   onOpenChange: (open: boolean) => void;
   onSelect: (userId: string) => void;
   currentUserId?: string | null;
+  pipeline?: string;
 }
 
-export function ChangeResponsibleDialog({ open, onOpenChange, onSelect, currentUserId }: ChangeResponsibleDialogProps) {
+export function ChangeResponsibleDialog({ open, onOpenChange, onSelect, currentUserId, pipeline }: ChangeResponsibleDialogProps) {
   const { profile } = useAuth();
   const [search, setSearch] = useState("");
 
+  const department = pipeline === "marketing" ? "Marketing" : (pipeline === "sales" ? "Sales" : undefined);
+
   const { data: users } = useQuery({
-    queryKey: ['org-active-users', profile?.org_id, 'Sales'],
+    queryKey: ['org-active-users', profile?.org_id, department],
     queryFn: async () => {
       if (!profile?.org_id) return [];
-      const response = await usersApi.getAll({ department: 'Sales' });
+      const response = await usersApi.getAll({ department });
       return response.filter(u => u.status === 'active' || !u.status) || [];
     },
     enabled: !!profile?.org_id && open,

@@ -1199,9 +1199,9 @@ const convertToCustomer = async (req, res, next) => {
       return res.status(200).json({ message: 'Deal already converted', customerId: deal.converted_to_customer_id });
     }
 
-    let contactEmail = null;
-    let contactPhone = null;
-    let contactName = null;
+    let contactEmail = deal.contact_email || deal.email || null;
+    let contactPhone = deal.contact_phone || deal.phone || null;
+    let contactName = deal.contact_name || null;
     if (deal.contact_id) {
       try {
         const { rows: contactRows } = await db.query(
@@ -1209,19 +1209,21 @@ const convertToCustomer = async (req, res, next) => {
           [deal.contact_id]
         );
         if (contactRows[0]) {
-          contactEmail = contactRows[0].email;
-          contactPhone = contactRows[0].phone;
-          contactName = [contactRows[0].first_name, contactRows[0].last_name].filter(Boolean).join(' ');
+          contactEmail = contactRows[0].email || contactEmail;
+          contactPhone = contactRows[0].phone || contactPhone;
+          const fetchedName = [contactRows[0].first_name, contactRows[0].last_name].filter(Boolean).join(' ');
+          if (fetchedName && !deal.contact_name) contactName = fetchedName;
         }
       } catch (contactErr) {
         console.error('Failed to fetch contact details:', contactErr);
       }
     }
 
-    let companyName = null;
-    let companyEmail = null;
-    let companyPhone = null;
+    let companyName = deal.company_name || null;
+    let companyEmail = deal.company_email || null;
+    let companyPhone = deal.company_phone || null;
     let companyIndustry = null;
+    let finalCompanyId = deal.company_id;
     if (deal.company_id) {
       try {
         const { rows: companyRows } = await db.query(
@@ -1229,13 +1231,28 @@ const convertToCustomer = async (req, res, next) => {
           [deal.company_id]
         );
         if (companyRows[0]) {
-          companyName = companyRows[0].name;
-          companyEmail = companyRows[0].email;
-          companyPhone = companyRows[0].phone;
+          companyName = companyRows[0].name || companyName;
+          companyEmail = companyRows[0].email || companyEmail;
+          companyPhone = companyRows[0].phone || companyPhone;
           companyIndustry = companyRows[0].industry;
         }
       } catch (companyErr) {
         console.error('Failed to fetch company details:', companyErr);
+      }
+    }
+
+    // If there's a companyName but no companyId, create a company so it shows up in customers
+    if (companyName && !finalCompanyId) {
+      try {
+        const { rows: newCompany } = await db.query(
+          `INSERT INTO public.companies (organization_id, org_id, name, phone, email, owner_id) VALUES ($1, $1, $2, $3, $4, $5) RETURNING id`,
+          [req.user.orgId, companyName, companyPhone, companyEmail, req.user.id]
+        );
+        if (newCompany.length > 0) {
+          finalCompanyId = newCompany[0].id;
+        }
+      } catch (err) {
+        console.error('Failed to auto-create company during deal conversion:', err);
       }
     }
 
@@ -1263,7 +1280,7 @@ const convertToCustomer = async (req, res, next) => {
         deal.value || 0,
         deal.converted_from_lead_id,
         deal.id,
-        deal.company_id,
+        finalCompanyId,
         customerIndustry,
         customerNotes,
         customerTags,
