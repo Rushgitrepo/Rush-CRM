@@ -11,6 +11,7 @@
     "build:frontend": "cd frontend && npm run build",
     "build:backend": "cd backend && npm install --production",
     "build:electron": "cd electron && npm run build",
+    "build:appflow": "cd frontend && npm run build",
     "build": "npm run build:frontend && npm run build:backend && npm run build:electron",
     "build:win": "npm run build:frontend && cd electron && npm run build:win",
     "build:mac": "npm run build:frontend && cd electron && npm run build:mac",
