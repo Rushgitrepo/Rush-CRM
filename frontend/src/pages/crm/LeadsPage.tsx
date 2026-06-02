@@ -22,6 +22,7 @@ import { useCustomDialog } from "@/contexts/DialogContext";
 import { toast } from "sonner";
 import { ClickToCall } from "@/components/telephony/ClickToCall";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
+import { usePersistentState } from "@/hooks/usePersistentState";
 import { cn } from "@/lib/utils";
 
 const statusTone = (status?: string) => {
@@ -51,25 +52,25 @@ type LeadRow = {
 
 export default function LeadsPage() {
   const navigate = useNavigate();
-  const [view, setView] = useState<ViewType>("list");
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("all");
-  const [type, setType] = useState("all");
-  const [workspaceFilter, setWorkspaceFilter] = useState("all");
+  const [view, setView] = usePersistentState<ViewType>("leads_view", "list");
+  const [search, setSearch] = usePersistentState("leads_search", "");
+  const [status, setStatus] = usePersistentState("leads_status", "all");
+  const [type, setType] = usePersistentState("leads_type", "all");
+  const [workspaceFilter, setWorkspaceFilter] = usePersistentState("leads_workspace", "all");
   const { confirm } = useCustomDialog();
-  const [sortBy, setSortBy] = useState("recent");
+  const [sortBy, setSortBy] = usePersistentState("leads_sortBy", "recent");
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
   const [isAllSelectedGlobally, setIsAllSelectedGlobally] = useState(false);
   const [advancedFilters, setAdvancedFilters] = useState<any[]>([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(100);
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
-  const [priorityFilter, setPriorityFilter] = useState("all");
-  const [sourceFilter, setSourceFilter] = useState("all");
-  const [assignedToFilter, setAssignedToFilter] = useState("all");
-  const [tagsFilter, setTagsFilter] = useState("");
-  const [campaignFilter, setCampaignFilter] = useState("");
+  const [currentPage, setCurrentPage] = usePersistentState("leads_currentPage", 1);
+  const [pageSize, setPageSize] = usePersistentState("leads_pageSize", 100);
+  const [startDate, setStartDate] = usePersistentState<string>("leads_startDate", "");
+  const [endDate, setEndDate] = usePersistentState<string>("leads_endDate", "");
+  const [priorityFilter, setPriorityFilter] = usePersistentState("leads_priority", "all");
+  const [sourceFilter, setSourceFilter] = usePersistentState("leads_source", "all");
+  const [assignedToFilter, setAssignedToFilter] = usePersistentState("leads_assignedTo", "all");
+  const [tagsFilter, setTagsFilter] = usePersistentState("leads_tags", "");
+  const [campaignFilter, setCampaignFilter] = usePersistentState("leads_campaign", "");
 
   const { data: dbLeads, isLoading, isError } = useLeads({
     search,
@@ -455,8 +456,7 @@ export default function LeadsPage() {
             value: assignedToFilter,
             onChange: setAssignedToFilter,
             options: [
-              { label: "All Users", value: "all" },
-              ...(users?.map(u => ({ label: u.full_name, value: u.id })) || [])
+              ...(users?.filter(u => u.department?.toLowerCase() === 'sales').map(u => ({ label: u.full_name, value: u.id })) || [])
             ]
           },
           {

@@ -90,7 +90,7 @@ export function DataToolbar({
                 </Button>
               </PopoverTrigger>
               <PopoverContent 
-                className="w-[320px] p-4" 
+                className="w-[320px] p-4 max-h-[80vh] overflow-y-auto custom-scrollbar" 
                 align="start"
                 onPointerDownOutside={(e) => {
                   // Prevent closing when clicking on a Select content (which is in a portal)

@@ -1270,7 +1270,7 @@ export function AppSidebar({
       {/* Bottom Fixed Items - Admin Portal & Settings */}
       {!focusedModule && (
         <div className="border-t border-white/5 px-4 py-3 space-y-1">
-          {!isElectron && (
+          {!isElectron && !(typeof window !== "undefined" && (window as any).Capacitor?.isNative) && (
             <NavLink
               to="/desktop-app"
               onClick={() => isMobile && onClose?.()}

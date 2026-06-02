@@ -363,6 +363,7 @@ export default function CreateDealPage() {
       expected_close_date: data.expectedCloseDate && isValid(new Date(data.expectedCloseDate)) ? new Date(data.expectedCloseDate).toISOString() : undefined,
       next_follow_up_date: data.nextFollowUpDate && isValid(new Date(data.nextFollowUpDate)) ? new Date(data.nextFollowUpDate).toISOString() : undefined,
       assigned_to: data.assignedTo || undefined,
+      responsible_person: data.assignedTo || undefined,
       external_source_id: data.externalSourceId,
       probability: data.probability ? Number(data.probability) : undefined,
       description: data.description || null,

@@ -65,8 +65,9 @@ export default function SettingsPage() {
 }
 
 function ProfileSettings() {
-  const { profile, user, refreshProfile } = useAuth();
+  const { profile, user, refreshProfile, userRole } = useAuth();
   const { currentRole } = useOrganization();
+  const isAdmin = userRole?.role === "admin" || userRole?.role === "super_admin";
   const [saving, setSaving] = useState(false);
   const [fullName, setFullName] = useState(profile?.full_name || "");
   const [phone, setPhone] = useState((profile as any)?.phone || "");
@@ -226,7 +227,7 @@ function ProfileSettings() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="fullName">Full Name</Label>
-              <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+              <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} disabled={!isAdmin} className={!isAdmin ? "bg-muted" : ""} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -234,24 +235,26 @@ function ProfileSettings() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="phone">Phone</Label>
-              <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 (555) 000-0000" />
+              <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 (555) 000-0000" disabled={!isAdmin} className={!isAdmin ? "bg-muted" : ""} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="jobTitle">Job Title</Label>
-              <Input id="jobTitle" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} placeholder="e.g. Sales Manager" />
+              <Input id="jobTitle" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} placeholder="e.g. Sales Manager" disabled={!isAdmin} className={!isAdmin ? "bg-muted" : ""} />
             </div>
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="department">Department</Label>
-              <Input id="department" value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="e.g. Sales" />
+              <Input id="department" value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="e.g. Sales" disabled={!isAdmin} className={!isAdmin ? "bg-muted" : ""} />
             </div>
           </div>
 
-          <div className="flex justify-end">
-            <Button onClick={saveProfile} disabled={saving}>
-              <Save className="h-4 w-4 mr-2" />
-              {saving ? "Saving..." : "Save Changes"}
-            </Button>
-          </div>
+          {isAdmin && (
+            <div className="flex justify-end">
+              <Button onClick={saveProfile} disabled={saving}>
+                <Save className="h-4 w-4 mr-2" />
+                {saving ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 

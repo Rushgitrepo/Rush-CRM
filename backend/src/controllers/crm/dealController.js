@@ -94,6 +94,7 @@ const createDealSchema = Joi.object({
   lastContactedDate: Joi.date().optional().allow(null),
   nextFollowUpDate: Joi.date().optional().allow(null),
   responsiblePerson: Joi.string().uuid().optional().allow(null),
+  assignedTo: Joi.string().uuid().optional().allow(null),
   deadline: Joi.date().optional().allow(null),
   customFields: Joi.object().optional().allow(null),
 });
@@ -571,7 +572,7 @@ const create = async (req, res, next) => {
       hoursOfWork, hourlyRate, hourlyRateCurrency, proposalAmount, proposalCurrency, invoiceAmount, invoiceCurrency,
       firstMessage, lastTouch, workspaceId, sourceInfo, projectBlueprints,
       phoneType, emailType, websiteType, customerType,
-      lastContactedDate, nextFollowUpDate, responsiblePerson, deadline, customFields
+      lastContactedDate, nextFollowUpDate, responsiblePerson, assignedTo, deadline, customFields
     } = value;
 
     const result = await db.query(
@@ -586,14 +587,14 @@ const create = async (req, res, next) => {
          hours_of_work, hourly_rate, hourly_rate_currency, proposal_amount, proposal_currency, invoice_amount, invoice_currency,
          first_message, last_touch, workspace_id, source_info, project_blueprints,
          phone_type, email_type, website_type, customer_type, 
-         last_contacted_date, next_follow_up_date, responsible_person, deadline, custom_fields
+         last_contacted_date, next_follow_up_date, responsible_person, assigned_to, deadline, custom_fields
        )
        VALUES (
          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 
          $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26,
          $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38,
          $39, $40, $41, $42, $43, $44, $45, $46, $47, $48,
-         $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61
+         $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62
        )
        RETURNING *`,
       [
@@ -606,7 +607,7 @@ const create = async (req, res, next) => {
         hoursOfWork, hourlyRate, hourlyRateCurrency, proposalAmount, proposalCurrency, invoiceAmount, invoiceCurrency,
         firstMessage, lastTouch, workspaceId, sourceInfo, serializeBlueprintsField(projectBlueprints),
         phoneType, emailType, websiteType, customerType,
-        lastContactedDate, nextFollowUpDate, responsiblePerson, deadline,
+        lastContactedDate, nextFollowUpDate, responsiblePerson || assignedTo || null, assignedTo || responsiblePerson || null, deadline,
         customFields ? JSON.stringify(customFields) : '{}'
       ]
     );

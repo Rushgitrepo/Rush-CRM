@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { ClickToCall } from "@/components/telephony/ClickToCall";
 import { useDealPipelineStages } from "@/hooks/usePipelineStages";
 import { WorkspaceFilter } from "@/components/crm/leads/WorkspaceFilter";
+import { usePersistentState } from "@/hooks/usePersistentState";
 
 const WorkflowsPage = lazy(() => import("@/pages/automation/WorkflowsPage"));
 
@@ -58,23 +59,23 @@ type DealRow = {
 export default function DealsPage() {
   const navigate = useNavigate();
   const { confirm } = useCustomDialog();
-  const [view, setView] = useState<ViewType>("list");
-  const [search, setSearch] = useState("");
-  const [stage, setStage] = useState("all");
-  const [status, setStatus] = useState("all");
-  const [workspaceFilter, setWorkspaceFilter] = useState("all");
-  const [sortBy, setSortBy] = useState("recent");
+  const [view, setView] = usePersistentState<ViewType>("deals_view", "list");
+  const [search, setSearch] = usePersistentState("deals_search", "");
+  const [stage, setStage] = usePersistentState("deals_stage", "all");
+  const [status, setStatus] = usePersistentState("deals_status", "all");
+  const [workspaceFilter, setWorkspaceFilter] = usePersistentState("deals_workspace", "all");
+  const [sortBy, setSortBy] = usePersistentState("deals_sortBy", "recent");
   const [selectedDeals, setSelectedDeals] = useState<string[]>([]);
-  const [pageSize, setPageSize] = useState(100);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = usePersistentState("deals_pageSize", 100);
+  const [currentPage, setCurrentPage] = usePersistentState("deals_currentPage", 1);
   const [isAllSelectedGlobally, setIsAllSelectedGlobally] = useState(false);
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
-  const [priorityFilter, setPriorityFilter] = useState("all");
-  const [sourceFilter, setSourceFilter] = useState("all");
-  const [assignedToFilter, setAssignedToFilter] = useState("all");
-  const [tagsFilter, setTagsFilter] = useState("");
-  const [campaignFilter, setCampaignFilter] = useState("");
+  const [startDate, setStartDate] = usePersistentState<string>("deals_startDate", "");
+  const [endDate, setEndDate] = usePersistentState<string>("deals_endDate", "");
+  const [priorityFilter, setPriorityFilter] = usePersistentState("deals_priority", "all");
+  const [sourceFilter, setSourceFilter] = usePersistentState("deals_source", "all");
+  const [assignedToFilter, setAssignedToFilter] = usePersistentState("deals_assignedTo", "all");
+  const [tagsFilter, setTagsFilter] = usePersistentState("deals_tags", "");
+  const [campaignFilter, setCampaignFilter] = usePersistentState("deals_campaign", "");
 
   const { data: dbDeals, isLoading, isError } = useDeals({
     search,
@@ -466,8 +467,7 @@ export default function DealsPage() {
             value: assignedToFilter,
             onChange: setAssignedToFilter,
             options: [
-              { label: "Anyone", value: "all" },
-              ...users.map((u: any) => ({ label: u.full_name || u.email, value: u.id })),
+              ...(users?.filter((u: any) => u.department?.toLowerCase() === 'sales').map((u: any) => ({ label: u.full_name || u.email, value: u.id })) || []),
             ],
           },
           {
