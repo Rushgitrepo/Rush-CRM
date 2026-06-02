@@ -322,7 +322,7 @@ export default function CreateLeadPage() {
 
   const { handleSubmit, register, setValue, watch, formState: { errors } } = form;
   const selectedPipeline = watch("pipeline") || "default";
-  const departmentFilter = selectedPipeline === "marketing" ? "Marketing" : (selectedPipeline === "sales" ? "Sales" : undefined);
+  const departmentFilter = profile?.department === "Sales" ? "Sales" : (profile?.department === "Marketing" ? "Marketing" : undefined);
   const { data: members = [] } = useOrganizationProfiles({ 
     department: departmentFilter, 
     includeSelf: true 

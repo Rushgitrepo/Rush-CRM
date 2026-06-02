@@ -318,15 +318,16 @@ export default function LeadDetailPage() {
   const createActivity = useCreateActivity();
   const { dialNumber } = useSoftphone();
   const { data: leadStats } = useLeadStats();
+  const [editing, setEditing] = useState(() => window.location.pathname.endsWith('/edit'));
+  const [form, setForm] = useState<Record<string, unknown>>({});
+
   const selectedPipeline = form.pipeline || lead?.pipeline || "default";
-  const departmentFilter = selectedPipeline === "marketing" ? "Marketing" : (selectedPipeline === "sales" ? "Sales" : undefined);
+  const departmentFilter = profile?.department === "Sales" ? "Sales" : (profile?.department === "Marketing" ? "Marketing" : undefined);
   const { data: members = [] } = useOrganizationProfiles({ 
     department: departmentFilter, 
     includeSelf: true 
   });
 
-  const [editing, setEditing] = useState(() => window.location.pathname.endsWith('/edit'));
-  const [form, setForm] = useState<Record<string, unknown>>({});
   const [showConvertDialog, setShowConvertDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showWorkspaceModal, setShowWorkspaceModal] = useState(false);
