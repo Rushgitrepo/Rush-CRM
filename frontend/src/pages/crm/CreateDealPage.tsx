@@ -160,7 +160,7 @@ export default function CreateDealPage() {
   const createDeal = useCreateDeal();
   const { data: contacts } = useContacts();
   const { data: companies } = useCompanies();
-  const { data: members = [] } = useOrganizationProfiles({ includeSelf: true });
+  const { data: members = [] } = useOrganizationProfiles({ department: 'Sales', includeSelf: true });
   const { data: dbStages = [] } = useDealPipelineStages();
 
   const stageOptions = useMemo(() => {

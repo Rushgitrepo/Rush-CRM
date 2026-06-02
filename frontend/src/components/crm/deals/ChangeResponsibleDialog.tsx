@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, usersApi } from "@/lib/api";
 
 interface ChangeResponsibleDialogProps {
   open: boolean;
@@ -19,10 +19,10 @@ export function ChangeResponsibleDialog({ open, onOpenChange, onSelect, currentU
   const [search, setSearch] = useState("");
 
   const { data: users } = useQuery({
-    queryKey: ['org-active-users', profile?.org_id],
+    queryKey: ['org-active-users', profile?.org_id, 'Sales'],
     queryFn: async () => {
       if (!profile?.org_id) return [];
-      const response = await api.get<any[]>("/users");
+      const response = await usersApi.getAll({ department: 'Sales' });
       return response.filter(u => u.status === 'active' || !u.status) || [];
     },
     enabled: !!profile?.org_id && open,

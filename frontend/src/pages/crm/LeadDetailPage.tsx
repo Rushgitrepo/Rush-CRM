@@ -318,7 +318,7 @@ export default function LeadDetailPage() {
   const createActivity = useCreateActivity();
   const { dialNumber } = useSoftphone();
   const { data: leadStats } = useLeadStats();
-  const { data: members = [] } = useOrganizationProfiles({ includeSelf: true });
+  const { data: members = [] } = useOrganizationProfiles({ department: 'Sales', includeSelf: true });
 
   const [editing, setEditing] = useState(() => window.location.pathname.endsWith('/edit'));
   const [form, setForm] = useState<Record<string, unknown>>({});
