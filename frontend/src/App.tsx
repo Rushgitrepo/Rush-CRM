@@ -136,6 +136,7 @@ import SettingsPage from "./pages/SettingsPage";
 import UnqualifiedPage from "./pages/crm/UnqualifiedPage";
 import IncomingCallOverlay from "./pages/electron/IncomingCallOverlay";
 import MessageOverlay from "./pages/electron/MessageOverlay";
+import DesktopAppPage from "./pages/DesktopAppPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -289,6 +290,7 @@ const App = () => (
                         <Route path="/recruitment/analytics" element={<RecruitmentAnalyticsPage />} />
                         {/* Other Routes */}
                         <Route path="/settings" element={<SettingsPage />} />
+                        <Route path="/desktop-app" element={<DesktopAppPage />} />
                       </Route>
                       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                       <Route path="*" element={<NotFound />} />

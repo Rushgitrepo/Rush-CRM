@@ -1,6 +1,6 @@
 {
   "name": "rush-crm-desktop",
-  "version": "1.0.9",
+  "version": "1.0.11",
   "description": "Rush CRM Desktop Application",
   "main": "main.js",
   "author": "Jawad Abbas",
@@ -101,11 +101,15 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["universal"]
+          "arch": [
+            "universal"
+          ]
         },
         {
           "target": "zip",
-          "arch": ["universal"]
+          "arch": [
+            "universal"
+          ]
         }
       ],
       "artifactName": "Rush-CRM-${version}-${arch}.${ext}",
