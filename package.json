@@ -11,10 +11,16 @@
     "build:frontend": "cd frontend && npm run build",
     "build:backend": "cd backend && npm install --production",
     "build:electron": "cd electron && npm run build",
+    "build:appflow": "cd frontend && npm run build",
     "build": "npm run build:frontend && npm run build:backend && npm run build:electron",
     "build:win": "npm run build:frontend && cd electron && npm run build:win",
     "build:mac": "npm run build:frontend && cd electron && npm run build:mac",
     "build:linux": "npm run build:frontend && cd electron && npm run build:linux",
+    "mobile:sync": "cd frontend && npm run build && npx cap sync",
+    "mobile:android": "cd frontend && npm run build && npx cap sync && npx cap open android",
+    "mobile:ios": "cd frontend && npm run build && npx cap sync && npx cap open ios",
+    "mobile:run:android": "cd frontend && npm run build && npx cap run android",
+    "mobile:run:ios": "cd frontend && npm run build && npx cap run ios",
     "postinstall": "cd frontend && npm install && cd ../backend && npm install && cd ../electron && npm install"
   },
   "keywords": [
@@ -28,6 +34,10 @@
   "license": "MIT",
   "devDependencies": {
     "concurrently": "^8.2.2",
-    "wait-on": "^7.2.0"
+    "wait-on": "^7.2.0",
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/cli": "^6.0.0",
+    "@capacitor/ios": "^6.0.0",
+    "@capacitor/android": "^6.0.0"
   }
 }

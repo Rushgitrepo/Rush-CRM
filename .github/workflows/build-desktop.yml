@@ -1,156 +1,156 @@
-name: Build Desktop Apps
+# name: Build Desktop Apps
 
-on:
-  push:
-    branches: [main, desktop-build]
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
+# on:
+#   push:
+#     branches: [main, desktop-build]
+#   pull_request:
+#     branches: [main]
+#   workflow_dispatch:
 
-permissions:
-  contents: write
+# permissions:
+#   contents: write
 
-jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+# jobs:
+#   build:
+#     strategy:
+#       fail-fast: false
+#       matrix:
+#         os: [windows-latest, macos-latest, ubuntu-latest]
 
-    runs-on: ${{ matrix.os }}
+#     runs-on: ${{ matrix.os }}
 
-    env:
-      PUBLISH_FLAG: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'always' || 'never' }}
+#     env:
+#       PUBLISH_FLAG: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'always' || 'never' }}
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
+#       - name: Setup Node.js
+#         uses: actions/setup-node@v4
+#         with:
+#           node-version: "20"
 
-      - name: Install dependencies (Root)
-        run: npm install
+#       - name: Install dependencies (Root)
+#         run: npm install
 
-      - name: Install dependencies (Frontend)
-        run: |
-          cd frontend
-          npm install
+#       - name: Install dependencies (Frontend)
+#         run: |
+#           cd frontend
+#           npm install
 
-      - name: Install dependencies (Backend)
-        run: |
-          cd backend
-          npm install
+#       - name: Install dependencies (Backend)
+#         run: |
+#           cd backend
+#           npm install
 
-      - name: Install dependencies (Electron)
-        run: |
-          cd electron
-          npm install
+#       - name: Install dependencies (Electron)
+#         run: |
+#           cd electron
+#           npm install
 
-      - name: Auto-bump desktop version for release (patch)
-        if: env.PUBLISH_FLAG == 'always'
-        shell: bash
-        run: |
-          node -e '
-            const fs = require("fs");
-            const pkgPath = "./electron/package.json";
-            const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
-            const parts = pkg.version.split(".").map(Number);
-            parts[2] = (parts[2] || 0) + 1;
-            pkg.version = parts.join(".");
-            fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
-            console.log("::notice::Bumped desktop version to " + pkg.version + " for this release build");
-          '
+#       - name: Auto-bump desktop version for release (patch)
+#         if: env.PUBLISH_FLAG == 'always'
+#         shell: bash
+#         run: |
+#           node -e '
+#             const fs = require("fs");
+#             const pkgPath = "./electron/package.json";
+#             const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+#             const parts = pkg.version.split(".").map(Number);
+#             parts[2] = (parts[2] || 0) + 1;
+#             pkg.version = parts.join(".");
+#             fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
+#             console.log("::notice::Bumped desktop version to " + pkg.version + " for this release build");
+#           '
 
-      - name: Build Frontend
-        run: npm run build:frontend
+#       - name: Build Frontend
+#         run: npm run build:frontend
 
-      - name: Build Electron App (Windows)
-        if: matrix.os == 'windows-latest'
-        run: |
-          cd electron
-          npx electron-builder --win --publish ${{ env.PUBLISH_FLAG }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#       - name: Build Electron App (Windows)
+#         if: matrix.os == 'windows-latest'
+#         run: |
+#           cd electron
+#           npx electron-builder --win --publish ${{ env.PUBLISH_FLAG }}
+#         env:
+#           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Remove existing macOS release assets (retry-safe)
-        if: matrix.os == 'macos-latest' && env.PUBLISH_FLAG == 'always'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION=$(node -p "require('./electron/package.json').version")
-          TAG="v${VERSION}"
-          if ! gh release view "$TAG" --repo Jawa090/Rush-CRM &>/dev/null; then
-            exit 0
-          fi
-          gh release view "$TAG" --repo Jawa090/Rush-CRM --json assets --jq '.assets[].name' | while read -r name; do
-            case "$name" in
-              *.dmg|*.dmg.blockmap|*-mac.zip|*-mac.zip.blockmap|Rush-CRM-*.zip|Rush-CRM-*.zip.blockmap|"Rush CRM"*.zip|"Rush CRM"*.zip.blockmap|latest-mac.yml)
-                gh release delete-asset "$TAG" "$name" --repo Jawa090/Rush-CRM -y || true
-                ;;
-            esac
-          done
+#       - name: Remove existing macOS release assets (retry-safe)
+#         if: matrix.os == 'macos-latest' && env.PUBLISH_FLAG == 'always'
+#         env:
+#           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#         run: |
+#           VERSION=$(node -p "require('./electron/package.json').version")
+#           TAG="v${VERSION}"
+#           if ! gh release view "$TAG" --repo Jawa090/Rush-CRM &>/dev/null; then
+#             exit 0
+#           fi
+#           gh release view "$TAG" --repo Jawa090/Rush-CRM --json assets --jq '.assets[].name' | while read -r name; do
+#             case "$name" in
+#               *.dmg|*.dmg.blockmap|*-mac.zip|*-mac.zip.blockmap|Rush-CRM-*.zip|Rush-CRM-*.zip.blockmap|"Rush CRM"*.zip|"Rush CRM"*.zip.blockmap|latest-mac.yml)
+#                 gh release delete-asset "$TAG" "$name" --repo Jawa090/Rush-CRM -y || true
+#                 ;;
+#             esac
+#           done
 
-      - name: Build Electron App (macOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          cd electron
-          npx electron-builder --mac --publish ${{ env.PUBLISH_FLAG }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#       - name: Build Electron App (macOS)
+#         if: matrix.os == 'macos-latest'
+#         run: |
+#           cd electron
+#           npx electron-builder --mac --publish ${{ env.PUBLISH_FLAG }}
+#         env:
+#           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build Electron App (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          cd electron
-          npx electron-builder --linux --publish never
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#       - name: Build Electron App (Linux)
+#         if: matrix.os == 'ubuntu-latest'
+#         run: |
+#           cd electron
+#           npx electron-builder --linux --publish never
+#         continue-on-error: true
+#         env:
+#           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload Windows Artifacts
-        if: (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch') && matrix.os == 'windows-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: rush-crm-windows
-          path: |
-            electron/dist/*.exe
-            electron/dist/latest.yml
-          retention-days: 1
+#       - name: Upload Windows Artifacts
+#         if: (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch') && matrix.os == 'windows-latest'
+#         uses: actions/upload-artifact@v4
+#         with:
+#           name: rush-crm-windows
+#           path: |
+#             electron/dist/*.exe
+#             electron/dist/latest.yml
+#           retention-days: 1
 
-      - name: Upload macOS Artifacts
-        if: (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch') && matrix.os == 'macos-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: rush-crm-macos
-          path: |
-            electron/dist/Rush-CRM-*.dmg
-            electron/dist/Rush-CRM-*.zip
-            electron/dist/latest-mac.yml
-            electron/dist/*.blockmap
-          retention-days: 1
+#       - name: Upload macOS Artifacts
+#         if: (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch') && matrix.os == 'macos-latest'
+#         uses: actions/upload-artifact@v4
+#         with:
+#           name: rush-crm-macos
+#           path: |
+#             electron/dist/Rush-CRM-*.dmg
+#             electron/dist/Rush-CRM-*.zip
+#             electron/dist/latest-mac.yml
+#             electron/dist/*.blockmap
+#           retention-days: 1
 
-      - name: Upload Linux Artifacts
-        if: (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch') && matrix.os == 'ubuntu-latest' && success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: rush-crm-linux
-          path: |
-            electron/dist/*.AppImage
-            electron/dist/*.deb
-          retention-days: 1
+#       - name: Upload Linux Artifacts
+#         if: (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch') && matrix.os == 'ubuntu-latest' && success()
+#         uses: actions/upload-artifact@v4
+#         with:
+#           name: rush-crm-linux
+#           path: |
+#             electron/dist/*.AppImage
+#             electron/dist/*.deb
+#           retention-days: 1
 
-      - name: Commit version bump back to repo (prevents duplicate builds)
-        if: matrix.os == 'windows-latest' && env.PUBLISH_FLAG == 'always' && success()
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add electron/package.json
-          NEW_VERSION=$(node -p "require('./electron/package.json').version")
-          git commit -m "chore(release): bump desktop to v${NEW_VERSION} [skip ci]" || true
-          git push origin HEAD:${GITHUB_REF#refs/heads/} || true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#       - name: Commit version bump back to repo (prevents duplicate builds)
+#         if: matrix.os == 'windows-latest' && env.PUBLISH_FLAG == 'always' && success()
+#         shell: bash
+#         run: |
+#           git config user.name "github-actions[bot]"
+#           git config user.email "github-actions[bot]@users.noreply.github.com"
+#           git add electron/package.json
+#           NEW_VERSION=$(node -p "require('./electron/package.json').version")
+#           git commit -m "chore(release): bump desktop to v${NEW_VERSION} [skip ci]" || true
+#           git push origin HEAD:${GITHUB_REF#refs/heads/} || true
+#         env:
+#           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

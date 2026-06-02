@@ -1,0 +1,15 @@
+{
+  "appId": "com.rushcrm.app",
+  "appName": "Rush CRM",
+  "webDir": "frontend/dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "backgroundColor": "#ffffff",
+      "showSpinner": false
+    }
+  }
+}
