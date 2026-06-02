@@ -278,6 +278,7 @@ export function AppSidebar({
   const location = useLocation();
   const { userRole, hasPermission } = useAuth();
   const { data: workgroups = [] } = useWorkgroups();
+  const isElectron = typeof window !== "undefined" && Boolean((window as any).electronAPI?.isElectron);
   const queryClient = useQueryClient();
   const [openSections, setOpenSections] = useState<string[]>([
     "Collaboration",
@@ -1269,22 +1270,24 @@ export function AppSidebar({
       {/* Bottom Fixed Items - Admin Portal & Settings */}
       {!focusedModule && (
         <div className="border-t border-white/5 px-4 py-3 space-y-1">
-          <NavLink
-            to="/desktop-app"
-            onClick={() => isMobile && onClose?.()}
-            className={cn(
-              "flex items-center justify-between rounded-xl px-4 py-2.5 text-[13px] font-medium transition-all duration-200 mb-1",
-              isActive("/desktop-app")
-                ? "bg-primary/10 text-white"
-                : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
-            )}
-          >
-            <div className="flex items-center gap-3">
-              <Laptop className={cn("h-4 w-4", isActive("/desktop-app") ? "text-primary" : "text-slate-500")} />
-              <span>Try our new Desktop & Mobile apps</span>
-            </div>
-            <ArrowRight className="h-3.5 w-3.5 text-slate-500" />
-          </NavLink>
+          {!isElectron && (
+            <NavLink
+              to="/desktop-app"
+              onClick={() => isMobile && onClose?.()}
+              className={cn(
+                "flex items-center justify-between rounded-xl px-4 py-2.5 text-[13px] font-medium transition-all duration-200 mb-1",
+                isActive("/desktop-app")
+                  ? "bg-primary/10 text-white"
+                  : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
+              )}
+            >
+              <div className="flex items-center gap-3">
+                <Laptop className={cn("h-4 w-4", isActive("/desktop-app") ? "text-primary" : "text-slate-500")} />
+                <span>Try our new Desktop & Mobile apps</span>
+              </div>
+              <ArrowRight className="h-3.5 w-3.5 text-slate-500" />
+            </NavLink>
+          )}
 
           {filteredNavigation.bottomItems.map((item) => {
             if (item.children) {
