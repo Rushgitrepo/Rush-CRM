@@ -41,9 +41,9 @@ const getAll = async (req, res, next) => {
       params.push(role);
     }
 
-    // Department filter
+    // Department filter (case-insensitive)
     if (department && department !== 'all') {
-      conditions.push(`u.department = $${params.length + 1}`);
+      conditions.push(`LOWER(u.department) = LOWER($${params.length + 1})`);
       params.push(department);
     }
 

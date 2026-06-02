@@ -87,7 +87,7 @@ export default function LeadsPage() {
     tags: tagsFilter || undefined,
     campaign: campaignFilter || undefined,
   });
-  const { data: users = [] } = useUsers({ includeSelf: true });
+  const { data: users = [] } = useUsers({ department: 'Sales', includeSelf: true });
   const { data: pipelineStages = [] } = usePipelineStages();
   const deleteLead = useDeleteLead();
   const bulkDeleteLeads = useBulkDeleteLeads();
@@ -456,7 +456,7 @@ export default function LeadsPage() {
             value: assignedToFilter,
             onChange: setAssignedToFilter,
             options: [
-              ...(users?.filter(u => u.department?.toLowerCase() === 'sales').map(u => ({ label: u.full_name, value: u.id })) || [])
+              ...(users?.map(u => ({ label: u.full_name || u.email, value: u.id })) || [])
             ]
           },
           {

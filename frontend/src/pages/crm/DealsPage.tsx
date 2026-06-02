@@ -92,7 +92,7 @@ export default function DealsPage() {
     tags: tagsFilter || undefined,
     campaign: campaignFilter || undefined,
   });
-  const { data: users = [] } = useUsers({ includeSelf: true });
+  const { data: users = [] } = useUsers({ department: 'Sales', includeSelf: true });
   const { data: pipelineStages = [] } = useDealPipelineStages();
   const deleteDeal = useDeleteDeal();
   const bulkDeleteDeals = useBulkDeleteDeals();
@@ -467,7 +467,7 @@ export default function DealsPage() {
             value: assignedToFilter,
             onChange: setAssignedToFilter,
             options: [
-              ...(users?.filter((u: any) => u.department?.toLowerCase() === 'sales').map((u: any) => ({ label: u.full_name || u.email, value: u.id })) || []),
+              ...(users?.map((u: any) => ({ label: u.full_name || u.email, value: u.id })) || []),
             ],
           },
           {
