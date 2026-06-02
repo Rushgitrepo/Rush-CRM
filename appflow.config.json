@@ -2,7 +2,7 @@
   "name": "Rush CRM",
   "apps": [
     {
-      "appId": "com.rushcrm.app",
+      "appId": "9061fdf9",
       "name": "Rush CRM",
       "type": "capacitor",
       "webDir": "frontend/dist",
