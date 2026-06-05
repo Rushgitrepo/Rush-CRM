@@ -305,6 +305,11 @@ class GmailOAuthService {
    */
   _prepareRawEmail({ to, cc, bcc, subject, body, html }) {
     const utf8Subject = `=?utf-8?B?${Buffer.from(subject || '').toString('base64')}?=`;
+    
+    // Chunk base64 body to 76 chars per line
+    const base64Body = Buffer.from(html || body || '').toString('base64');
+    const chunkedBody = base64Body.match(/.{1,76}/g)?.join('\r\n') || '';
+
     const messageParts = [
       `To: ${to || ''}`,
       cc ? `Cc: ${cc}` : null,
@@ -312,12 +317,12 @@ class GmailOAuthService {
       `Subject: ${utf8Subject}`,
       'MIME-Version: 1.0',
       'Content-Type: text/html; charset=utf-8',
-      'Content-Transfer-Encoding: 7bit',
+      'Content-Transfer-Encoding: base64',
       '',
-      html || body || '',
+      chunkedBody,
     ].filter(part => part !== null && part !== undefined);
     
-    const message = messageParts.join('\n');
+    const message = messageParts.join('\r\n');
     return Buffer.from(message)
       .toString('base64')
       .replace(/\+/g, '-')
@@ -336,30 +341,36 @@ class GmailOAuthService {
     const utf8Subject = `=?utf-8?B?${Buffer.from(subject).toString('base64')}?=`;
     const boundary = `----=_Part_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
     
+    // Chunk base64 body to 76 chars per line
+    const base64Body = Buffer.from(html || body || '').toString('base64');
+    const chunkedBody = base64Body.match(/.{1,76}/g)?.join('\r\n') || '';
+
     let message = '';
     
     if (attachments.length > 0) {
       // Multipart message
-      message += `To: ${to}\n`;
-      if (cc) message += `Cc: ${cc}\n`;
-      if (bcc) message += `Bcc: ${bcc}\n`;
-      message += `Subject: ${utf8Subject}\n`;
-      message += `MIME-Version: 1.0\n`;
-      message += `Content-Type: multipart/mixed; boundary="${boundary}"\n\n`;
+      message += `To: ${to}\r\n`;
+      if (cc) message += `Cc: ${cc}\r\n`;
+      if (bcc) message += `Bcc: ${bcc}\r\n`;
+      message += `Subject: ${utf8Subject}\r\n`;
+      message += `MIME-Version: 1.0\r\n`;
+      message += `Content-Type: multipart/mixed; boundary="${boundary}"\r\n\r\n`;
 
       // Body part
-      message += `--${boundary}\n`;
-      message += `Content-Type: text/html; charset=utf-8\n`;
-      message += `Content-Transfer-Encoding: 7bit\n\n`;
-      message += `${html || body}\n\n`;
+      message += `--${boundary}\r\n`;
+      message += `Content-Type: text/html; charset=utf-8\r\n`;
+      message += `Content-Transfer-Encoding: base64\r\n\r\n`;
+      message += chunkedBody + `\r\n\r\n`;
 
       // Attachment parts
       for (const att of attachments) {
-        message += `--${boundary}\n`;
-        message += `Content-Type: ${att.type || 'application/octet-stream'}; name="${att.filename}"\n`;
-        message += `Content-Transfer-Encoding: base64\n`;
-        message += `Content-Disposition: attachment; filename="${att.filename}"\n\n`;
-        message += `${att.content}\n\n`;
+        // Chunk attachment base64 content
+        const chunkedAttContent = att.content.match(/.{1,76}/g)?.join('\r\n') || '';
+        message += `--${boundary}\r\n`;
+        message += `Content-Type: ${att.type || 'application/octet-stream'}; name="${att.filename}"\r\n`;
+        message += `Content-Transfer-Encoding: base64\r\n`;
+        message += `Content-Disposition: attachment; filename="${att.filename}"\r\n\r\n`;
+        message += `${chunkedAttContent}\r\n\r\n`;
       }
       
       message += `--${boundary}--`;
@@ -372,11 +383,11 @@ class GmailOAuthService {
         `Subject: ${utf8Subject}`,
         'MIME-Version: 1.0',
         'Content-Type: text/html; charset=utf-8',
-        'Content-Transfer-Encoding: 7bit',
+        'Content-Transfer-Encoding: base64',
         '',
-        html || body,
+        chunkedBody,
       ].filter(part => part !== null && part !== undefined);
-      message = messageParts.join('\n');
+      message = messageParts.join('\r\n');
     }
 
     // The body needs to be base64url encoded

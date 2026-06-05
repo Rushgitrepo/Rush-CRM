@@ -10,8 +10,15 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import ReactQuill from "react-quill";
+import ReactQuill, { Quill } from "react-quill";
 import "react-quill/dist/quill.snow.css";
+
+const SizeStyle = Quill.import('attributors/style/size');
+SizeStyle.whitelist = ['small', 'large', 'huge'];
+Quill.register(SizeStyle, true);
+
+const AlignStyle = Quill.import('attributors/style/align');
+Quill.register(AlignStyle, true);
 
 import {
   Select,

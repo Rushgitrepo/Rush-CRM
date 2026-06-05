@@ -1,7 +1,14 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import ReactQuill from "react-quill";
+import ReactQuill, { Quill } from "react-quill";
 import "react-quill/dist/quill.snow.css";
+
+const SizeStyle = Quill.import('attributors/style/size');
+SizeStyle.whitelist = ['small', 'large', 'huge'];
+Quill.register(SizeStyle, true);
+
+const AlignStyle = Quill.import('attributors/style/align');
+Quill.register(AlignStyle, true);
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
