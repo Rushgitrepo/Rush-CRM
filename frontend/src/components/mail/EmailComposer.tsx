@@ -255,6 +255,15 @@ export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardE
               onChange={(val) => setForm({ ...form, body: val })}
               className="min-h-[200px]"
               placeholder="Write your message..."
+              modules={{
+                toolbar: [
+                  [{ 'size': ['small', false, 'large', 'huge'] }],
+                  ['bold', 'italic', 'underline', 'strike'],
+                  [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                  ['link', 'image'],
+                  ['clean']
+                ],
+              }}
             />
           </div>
 
