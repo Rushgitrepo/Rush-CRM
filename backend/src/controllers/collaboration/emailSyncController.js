@@ -499,7 +499,7 @@ const getOauthUrl = async (req, res, next) => {
 
 const saveDraft = async (req, res, next) => {
   try {
-    const { mailbox_id, to, cc, bcc, subject, body, draft_id } = req.body;
+    const { mailbox_id, to, cc, bcc, subject, body, html_body, draft_id } = req.body;
 
     if (!mailbox_id) return res.status(400).json({ error: 'mailbox_id is required' });
 
@@ -518,7 +518,7 @@ const saveDraft = async (req, res, next) => {
         `UPDATE emails
             SET to_email = $1, subject = $2, body = $3, html_body = $4, snippet = $5
           WHERE id = $6 AND user_id = $7 AND folder = 'drafts'`,
-        [to || '', subject || '', body || '', body || '', (body || '').substring(0, 150), draft_id, req.user.id]
+        [to || '', subject || '', body || '', html_body || html_body || body || '', (body || '').substring(0, 150), draft_id, req.user.id]
       );
     } else {
       const messageId = `draft-${req.user.id}-${Date.now()}`;
@@ -538,9 +538,9 @@ const saveDraft = async (req, res, next) => {
     // 2. Sync to provider if possible
     try {
       if (provider === 'gmail') {
-        await gmailSyncService.saveDraft(mailbox_id, req.user.id, { to, subject, body, draft_id: localId });
+        await gmailSyncService.saveDraft(mailbox_id, req.user.id, { to, subject, body, html_body, draft_id: localId });
       } else {
-        await imapSyncService.saveDraft(mailbox_id, req.user.id, { to, subject, body });
+        await imapSyncService.saveDraft(mailbox_id, req.user.id, { to, subject, body, html_body });
       }
     } catch (syncErr) {
       console.warn('Draft sync to provider failed:', syncErr.message);

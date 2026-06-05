@@ -226,3 +226,42 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   animation: progress 2s infinite ease-in-out;
   transform-origin: left;
 }
+
+/* ReactQuill Dark Mode Overrides */
+.dark .ql-toolbar.ql-snow {
+  border-color: hsl(var(--border));
+  background-color: hsl(var(--card));
+}
+.dark .ql-container.ql-snow {
+  border-color: hsl(var(--border));
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+.dark .ql-snow .ql-stroke {
+  stroke: hsl(var(--foreground));
+}
+.dark .ql-snow .ql-fill, .dark .ql-snow .ql-stroke.ql-fill {
+  fill: hsl(var(--foreground));
+}
+.dark .ql-snow .ql-picker {
+  color: hsl(var(--foreground));
+}
+.dark .ql-snow .ql-picker-options {
+  background-color: hsl(var(--popover));
+  border-color: hsl(var(--border));
+}
+.dark .ql-snow .ql-picker-item:hover, .dark .ql-snow .ql-picker-item.ql-selected {
+  color: hsl(var(--primary));
+}
+.dark .ql-snow.ql-toolbar button:hover .ql-stroke,
+.dark .ql-snow .ql-toolbar button:hover .ql-stroke,
+.dark .ql-snow.ql-toolbar button.ql-active .ql-stroke,
+.dark .ql-snow .ql-toolbar button.ql-active .ql-stroke {
+  stroke: hsl(var(--primary));
+}
+.dark .ql-snow.ql-toolbar button:hover .ql-fill,
+.dark .ql-snow .ql-toolbar button:hover .ql-fill,
+.dark .ql-snow.ql-toolbar button.ql-active .ql-fill,
+.dark .ql-snow .ql-toolbar button.ql-active .ql-fill {
+  fill: hsl(var(--primary));
+}

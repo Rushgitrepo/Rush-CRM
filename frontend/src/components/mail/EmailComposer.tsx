@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import ReactQuill from "react-quill";
+import "react-quill/dist/quill.snow.css";
 
 import {
   Select,
@@ -101,7 +103,8 @@ export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardE
         cc: form.cc,
         bcc: form.bcc,
         subject: form.subject,
-        body: form.body,
+        body: form.body.replace(/<[^>]*>?/gm, ''), // store plain text
+        html_body: form.body,
         draft_id: draftIdRef.current ?? undefined,
       };
       const url = draftIdRef.current
@@ -147,7 +150,8 @@ export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardE
           cc: form.cc || undefined,
           bcc: form.bcc || undefined,
           subject: form.subject,
-          body: form.body,
+          body: form.body.replace(/<[^>]*>?/gm, ''),
+          html_body: form.body,
           attachments: base64Attachments,
           in_reply_to: replyTo?.message_id || undefined,
           thread_id: replyTo?.thread_id || undefined,
@@ -244,12 +248,13 @@ export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardE
             />
           </div>
 
-          <div className="space-y-1">
-            <Textarea
-              placeholder="Write your message..."
-              className="min-h-[200px] resize-y"
+          <div className="space-y-1 mb-12">
+            <ReactQuill
+              theme="snow"
               value={form.body}
-              onChange={(e) => setForm({ ...form, body: e.target.value })}
+              onChange={(val) => setForm({ ...form, body: val })}
+              className="min-h-[200px]"
+              placeholder="Write your message..."
             />
           </div>
 
