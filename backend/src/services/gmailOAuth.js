@@ -315,7 +315,7 @@ class GmailOAuthService {
       'Content-Transfer-Encoding: 7bit',
       '',
       html || body || '',
-    ].filter(Boolean);
+    ].filter(part => part !== null && part !== undefined);
     
     const message = messageParts.join('\n');
     return Buffer.from(message)
@@ -375,7 +375,7 @@ class GmailOAuthService {
         'Content-Transfer-Encoding: 7bit',
         '',
         html || body,
-      ].filter(Boolean);
+      ].filter(part => part !== null && part !== undefined);
       message = messageParts.join('\n');
     }
 
