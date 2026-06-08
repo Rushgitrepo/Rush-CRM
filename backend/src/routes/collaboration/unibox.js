@@ -18,6 +18,7 @@ router.post('/emails/sample', uniboxController.createSampleEmail);
 // Statistics and templates
 router.get('/stats', uniboxController.getStats);
 router.get('/templates', uniboxController.getTemplates);
+router.get('/campaigns', uniboxController.getCampaigns);
 
 // Permissions
 router.get('/permission', uniboxController.checkPermission);

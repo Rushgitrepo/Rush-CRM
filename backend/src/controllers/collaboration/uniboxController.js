@@ -28,7 +28,8 @@ const getEmails = async (req, res, next) => {
       search = '',
       starred = false,
       unread = false,
-      priority = 'all'
+      priority = 'all',
+      campaign_id = ''
     } = req.query;
 
     const params = [req.user.orgId];
@@ -71,6 +72,24 @@ const getEmails = async (req, res, next) => {
       paramIndex++;
     }
 
+    // Campaign filter
+    if (campaign_id === 'none') {
+      whereClause += ` AND (
+        metadata IS NULL OR
+        (
+          (metadata->'item'->>'campaign_id') IS NULL AND
+          (metadata->>'campaign_id') IS NULL
+        )
+      )`;
+    } else if (campaign_id) {
+      whereClause += ` AND (
+        (metadata->'item'->>'campaign_id' = $${paramIndex}) OR
+        (metadata->>'campaign_id' = $${paramIndex})
+      )`;
+      params.push(campaign_id);
+      paramIndex++;
+    }
+
     const limitParam = `$${paramIndex++}`;
     const offsetParam = `$${paramIndex++}`;
     params.push(limit, offset);
@@ -96,7 +115,8 @@ const getEmails = async (req, res, next) => {
         converted_to_lead_id,
         received_at,
         created_at,
-        updated_at
+        updated_at,
+        metadata
       FROM unibox_emails
       ${whereClause}
       ORDER BY 
@@ -806,6 +826,128 @@ const getEmailLeadInfo = async (req, res, next) => {
   }
 };
 
+// Get distinct campaigns from local emails metadata & fetch fresh ones from Instantly API
+const getCampaigns = async (req, res, next) => {
+  try {
+    const orgId = req.user.orgId;
+
+    // 1. Get campaign email counts from local unibox_emails
+    const countsResult = await db.query(
+      `SELECT 
+         COALESCE(metadata->'item'->>'campaign_id', metadata->>'campaign_id') AS campaign_id,
+         COUNT(*) as email_count
+       FROM unibox_emails
+       WHERE org_id = $1 AND is_archived = false
+       GROUP BY campaign_id`,
+      [orgId]
+    );
+
+    const countMap = new Map();
+    countsResult.rows.forEach(row => {
+      countMap.set(row.campaign_id || 'none', parseInt(row.email_count));
+    });
+
+    // 2. Query distinct campaign metadata we already have locally
+    const dbCampaignsResult = await db.query(
+      `SELECT DISTINCT 
+         COALESCE(metadata->'item'->>'campaign_id', metadata->>'campaign_id') AS campaign_id,
+         COALESCE(metadata->'item'->>'campaign_name', metadata->>'campaign_name') AS campaign_name
+       FROM unibox_emails
+       WHERE org_id = $1 AND (
+         (metadata->'item'->>'campaign_id') IS NOT NULL OR
+         (metadata->>'campaign_id') IS NOT NULL
+       )`,
+      [orgId]
+    );
+
+    const campaignMap = new Map();
+    dbCampaignsResult.rows.forEach(row => {
+      if (row.campaign_id) {
+        campaignMap.set(row.campaign_id, {
+          id: row.campaign_id,
+          name: row.campaign_name || `Campaign (${row.campaign_id.substring(0, 8)})`,
+          status: 'unknown',
+          source: 'local'
+        });
+      }
+    });
+
+    // 3. Retrieve campaigns list from Instantly API to supplement details
+    const integrationResult = await db.query(
+      'SELECT api_key_encrypted, is_enabled FROM instantly_integrations WHERE org_id = $1',
+      [orgId]
+    );
+    const settings = integrationResult.rows[0];
+    const apiKey = settings?.api_key_encrypted || process.env.INSTANTLY_API_KEY;
+
+    if (settings?.is_enabled !== false && apiKey) {
+      try {
+        // Try Instantly API v2 campaigns list
+        const response = await fetch('https://api.instantly.ai/api/v2/campaigns', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const apiData = await response.json();
+          const items = apiData.items || [];
+          items.forEach(c => {
+            campaignMap.set(c.id, {
+              id: c.id,
+              name: c.name,
+              status: c.status === 1 ? 'active' : 'paused',
+              source: 'instantly_v2'
+            });
+          });
+        } else {
+          // Fallback to Instantly API v1
+          const responseV1 = await fetch(`https://api.instantly.ai/api/v1/campaign/list?api_key=${apiKey}`);
+          if (responseV1.ok) {
+            const apiDataV1 = await responseV1.json();
+            if (Array.isArray(apiDataV1)) {
+              apiDataV1.forEach(c => {
+                campaignMap.set(c.id, {
+                  id: c.id,
+                  name: c.name,
+                  status: 'active',
+                  source: 'instantly_v1'
+                });
+              });
+            }
+          }
+        }
+      } catch (apiErr) {
+        console.error('[Unibox Controller] Failed to fetch campaigns from Instantly:', apiErr.message);
+      }
+    }
+
+    // Combine everything with count
+    const campaigns = Array.from(campaignMap.values()).map(c => ({
+      ...c,
+      email_count: countMap.get(c.id) || 0
+    }));
+
+    // Add a virtual "No Campaign" entry if there are emails without campaign
+    const noCampaignCount = countMap.get('none') || 0;
+    if (noCampaignCount > 0) {
+      campaigns.push({
+        id: 'none',
+        name: 'No Campaign',
+        status: 'active',
+        source: 'local',
+        email_count: noCampaignCount
+      });
+    }
+
+    res.json({ campaigns });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getEmails,
   updateEmailStatus,
@@ -821,4 +963,5 @@ module.exports = {
   revokePermission,
   createSampleEmail,
   getEmailLeadInfo,
+  getCampaigns,
 };

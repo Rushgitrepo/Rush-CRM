@@ -30,6 +30,7 @@ export interface UniboxEmail {
   received_at: string;
   created_at: string;
   updated_at: string;
+  metadata?: any;
 }
 
 export interface UniboxStats {
@@ -66,6 +67,7 @@ export function useUniboxEmails(filters: {
   priority?: string;
   page?: number;
   limit?: number;
+  campaign_id?: string;
 } = {}) {
   const queryClient = useQueryClient();
 
@@ -97,6 +99,7 @@ export function useUniboxEmails(filters: {
       if (filters.starred) params.starred = 'true';
       if (filters.unread) params.unread = 'true';
       if (filters.priority && filters.priority !== 'all') params.priority = filters.priority;
+      if (filters.campaign_id) params.campaign_id = filters.campaign_id;
       
       // Pagination parameters
       const limit = filters.limit || 50;
@@ -405,5 +408,24 @@ export function useUniboxLeadInfo(emailId: string | null) {
     },
     enabled: !!emailId,
     staleTime: 5000,
+  });
+}
+
+export interface UniboxCampaign {
+  id: string;
+  name: string;
+  status: string;
+  source: string;
+  email_count: number;
+}
+
+export function useUniboxCampaigns() {
+  return useQuery({
+    queryKey: ["unibox-campaigns"],
+    queryFn: async () => {
+      const data = await api.get<{ campaigns: UniboxCampaign[] }>("/unibox/campaigns");
+      return data?.campaigns || [];
+    },
+    staleTime: 30000,
   });
 }

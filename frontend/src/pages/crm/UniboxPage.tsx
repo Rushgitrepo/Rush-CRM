@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useUniboxEmails, useUniboxStats, UNIBOX_STATUSES, type UniboxEmail, useUniboxLeadInfo } from "@/hooks/useUniboxEmails";
+import { useUniboxEmails, useUniboxStats, UNIBOX_STATUSES, type UniboxEmail, useUniboxLeadInfo, useUniboxCampaigns } from "@/hooks/useUniboxEmails";
 import { useUniboxPermission } from "@/hooks/useUniboxPermission";
 import { toast } from "sonner";
 import { ConvertToLeadDialog } from "@/components/unibox/ConvertToLeadDialog";
@@ -80,11 +80,14 @@ export default function UniboxPage() {
   const [convertDialogOpen, setConvertDialogOpen] = useState(false);
   const [showLeadInfo, setShowLeadInfo] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string>("");
   const ITEMS_PER_PAGE = 50;
 
   const { data: leadInfoResponse, isLoading: leadInfoLoading } = useUniboxLeadInfo(selectedEmail?.id || null);
   const matchedLead = leadInfoResponse?.lead;
   const instantlyData = leadInfoResponse?.instantly;
+
+  const { data: campaigns = [], isLoading: campaignsLoading } = useUniboxCampaigns();
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -97,7 +100,8 @@ export default function UniboxPage() {
     starred: showStarredOnly,
     unread: showUnreadOnly,
     page: currentPage,
-    limit: ITEMS_PER_PAGE
+    limit: ITEMS_PER_PAGE,
+    campaign_id: selectedCampaignId
   });
 
   const {
@@ -242,81 +246,152 @@ export default function UniboxPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-12 gap-4 h-[calc(100vh-16rem)]">
-        <Card className="col-span-3 p-3 flex flex-col">
-          <h3 className="text-sm font-semibold text-foreground mb-3">Search & Filters</h3>
-          <div className="relative mb-4">
+      {/* Horizontal Search, Status, and Toggles Filter Bar */}
+      <div className="flex flex-col md:flex-row gap-3 items-center justify-between bg-card/60 backdrop-blur p-3 rounded-lg border border-border/50 shadow-sm mb-3">
+        {/* Search Input and Starred/Unread toggles */}
+        <div className="flex items-center gap-3 w-full md:w-auto flex-wrap md:flex-nowrap">
+          <div className="relative w-full md:w-72 shrink-0">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search emails..."
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
-              className="pl-10"
+              className="pl-9 h-9 bg-background/50 border-border/50 focus-visible:ring-primary"
             />
           </div>
-          <div className="space-y-2 mb-4">
+          <Button
+            variant={showUnreadOnly ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              setShowUnreadOnly(!showUnreadOnly);
+              setCurrentPage(1);
+            }}
+            className="h-9 gap-1.5 px-3"
+          >
+            <EyeOff className="h-4 w-4" />
+            <span>Unread Only</span>
+          </Button>
+          <Button
+            variant={showStarredOnly ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              setShowStarredOnly(!showStarredOnly);
+              setCurrentPage(1);
+            }}
+            className="h-9 gap-1.5 px-3"
+          >
+            <Star className="h-4 w-4" />
+            <span>Starred Only</span>
+          </Button>
+        </div>
+
+        {/* Status Pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto py-1 md:py-0 scrollbar-none">
+          <Button
+            variant={statusFilter === "All" ? "default" : "outline"}
+            size="sm"
+            onClick={() => handleFilterChange("All")}
+            className="h-8 text-xs px-3 rounded-full flex items-center gap-1.5"
+          >
+            <Inbox className="h-3.5 w-3.5" />
+            All
+          </Button>
+          {UNIBOX_STATUSES.map((status) => (
             <Button
-              variant={showUnreadOnly ? "default" : "ghost"}
+              key={status}
+              variant={statusFilter === status ? "default" : "outline"}
               size="sm"
-              onClick={() => {
-                setShowUnreadOnly(!showUnreadOnly);
-                setCurrentPage(1);
-              }}
-              className="w-full justify-start gap-2"
-            >
-              <EyeOff className="h-4 w-4" />
-              Unread Only
-            </Button>
-            <Button
-              variant={showStarredOnly ? "default" : "ghost"}
-              size="sm"
-              onClick={() => {
-                setShowStarredOnly(!showStarredOnly);
-                setCurrentPage(1);
-              }}
-              className="w-full justify-start gap-2"
-            >
-              <Star className="h-4 w-4" />
-              Starred Only
-            </Button>
-          </div>
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground mb-2">Status</p>
-            <button
-              onClick={() => handleFilterChange("All")}
+              onClick={() => handleFilterChange(status)}
               className={cn(
-                "w-full text-left px-3 py-2 rounded-md text-sm transition-colors",
-                statusFilter === "All"
-                  ? "bg-primary text-primary-foreground"
+                "h-8 text-xs px-3 rounded-full whitespace-nowrap",
+                statusFilter === status
+                  ? ""
                   : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               )}
             >
-              <div className="flex items-center gap-2">
-                <Inbox className="h-4 w-4" />
-                All
-              </div>
+              {status}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      {/* Horizontal Campaigns Filter Bar */}
+      <div className="bg-card/40 backdrop-blur p-3 rounded-lg border border-border/40 shadow-sm mb-4 space-y-1.5">
+        <div className="flex items-center justify-between px-1">
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
+            Instantly Campaigns
+          </span>
+          {selectedCampaignId && (
+            <button
+              onClick={() => setSelectedCampaignId("")}
+              className="text-[10px] text-primary hover:underline font-medium"
+            >
+              Clear Filter
             </button>
-            {UNIBOX_STATUSES.map((status) => (
-              <button
-                key={status}
-                onClick={() => handleFilterChange(status)}
+          )}
+        </div>
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5 scrollbar-thin scrollbar-thumb-muted">
+          <Button
+            variant={selectedCampaignId === "" ? "secondary" : "outline"}
+            size="sm"
+            onClick={() => {
+              setSelectedCampaignId("");
+              setCurrentPage(1);
+            }}
+            className="h-7 text-xs px-3 rounded-full whitespace-nowrap"
+          >
+            All Campaigns
+          </Button>
+          {campaignsLoading ? (
+            <div className="flex gap-2">
+              <Skeleton className="h-7 w-24 rounded-full" />
+              <Skeleton className="h-7 w-28 rounded-full" />
+              <Skeleton className="h-7 w-20 rounded-full" />
+            </div>
+          ) : campaigns.length === 0 ? (
+            <span className="text-xs text-muted-foreground px-1">No campaigns found</span>
+          ) : (
+            campaigns.map((camp) => (
+              <Button
+                key={camp.id}
+                variant={selectedCampaignId === camp.id ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setSelectedCampaignId(camp.id);
+                  setCurrentPage(1);
+                }}
                 className={cn(
-                  "w-full text-left px-3 py-2 rounded-md text-sm transition-colors",
-                  statusFilter === status
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  "h-7 text-xs px-3 rounded-full whitespace-nowrap gap-1.5",
+                  selectedCampaignId === camp.id
+                    ? "bg-primary text-primary-foreground shadow"
+                    : "text-muted-foreground bg-background/30 hover:bg-accent"
                 )}
               >
-                {status}
-              </button>
-            ))}
-          </div>
-        </Card>
+                <span className="truncate max-w-[200px]" title={camp.name}>
+                  {camp.name}
+                </span>
+                {camp.email_count > 0 && (
+                  <span className={cn(
+                    "text-[9px] px-1.5 py-0.2 rounded-full font-semibold shrink-0",
+                    selectedCampaignId === camp.id
+                      ? "bg-primary-foreground/20 text-primary-foreground"
+                      : "bg-muted text-muted-foreground"
+                  )}>
+                    {camp.email_count}
+                  </span>
+                )}
+              </Button>
+            ))
+          )}
+        </div>
+      </div>
 
-        <Card className="col-span-4 flex flex-col overflow-hidden">
-          <div className="p-3 border-b border-border">
+      {/* Main Mailbox Workspace: Emails on left (col-span-4), Detail on right (col-span-8) */}
+      <div className="grid grid-cols-12 gap-4 h-[calc(100vh-23rem)] min-h-[550px]">
+        <Card className="col-span-12 lg:col-span-4 flex flex-col overflow-hidden shadow-sm">
+          <div className="p-3 border-b border-border bg-muted/10">
             <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <Mail className="h-4 w-4" />
+              <Mail className="h-4 w-4 text-primary" />
               Emails ({total || 0})
             </h3>
           </div>
@@ -334,63 +409,75 @@ export default function UniboxPage() {
               </div>
             ) : (
               <div className="divide-y divide-border">
-                {emails.map((email) => (
-                  <button
-                    key={email.id}
-                    onClick={() => {
-                      setSelectedEmail(email);
-                      if (!email.is_read) {
-                        markAsRead.mutate({ emailId: email.id, is_read: true });
-                      }
-                    }}
-                    className={cn(
-                      "w-full text-left p-3 hover:bg-accent/50 transition-colors relative",
-                      selectedEmail?.id === email.id && "bg-accent",
-                      !email.is_read && "bg-blue-50/50 dark:bg-blue-950/20"
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 mb-1">
+                {emails.map((email) => {
+                  const campId = email.metadata?.item?.campaign_id || email.metadata?.campaign_id;
+                  const campaign = campaigns.find(c => c.id === campId);
+                  const campName = campaign?.name || email.metadata?.item?.campaign_name || email.metadata?.campaign_name || email.metadata?.campaign || '';
+                  return (
+                    <button
+                      key={email.id}
+                      onClick={() => {
+                        setSelectedEmail(email);
+                        if (!email.is_read) {
+                          markAsRead.mutate({ emailId: email.id, is_read: true });
+                        }
+                      }}
+                      className={cn(
+                        "w-full text-left p-3 hover:bg-accent/50 transition-colors relative border-l-2 border-transparent",
+                        selectedEmail?.id === email.id && "bg-accent border-l-primary",
+                        !email.is_read && "bg-blue-50/50 dark:bg-blue-950/20"
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className={cn(
+                              "text-sm truncate",
+                              !email.is_read ? "font-semibold text-foreground" : "font-medium text-foreground"
+                            )}>
+                              {email.sender_name || email.sender_email}
+                            </p>
+                            {email.is_starred && (
+                              <Star className="h-3 w-3 text-yellow-500 fill-current" />
+                            )}
+                            {!email.is_read && (
+                              <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse" />
+                            )}
+                          </div>
                           <p className={cn(
                             "text-sm truncate",
-                            !email.is_read ? "font-semibold text-foreground" : "font-medium text-foreground"
+                            !email.is_read ? "font-medium text-foreground" : "text-muted-foreground"
                           )}>
-                            {email.sender_name || email.sender_email}
+                            {email.subject || "(No subject)"}
                           </p>
-                          {email.is_starred && (
-                            <Star className="h-3 w-3 text-yellow-500 fill-current" />
-                          )}
-                          {!email.is_read && (
-                            <div className="w-2 h-2 bg-blue-600 rounded-full" />
-                          )}
+                          <p className="text-xs text-muted-foreground/80 truncate mt-0.5">
+                            {(email.body_text || email.body || "").substring(0, 80)}
+                          </p>
+                          <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                            {campName && (
+                              <span className="text-[10px] font-medium bg-primary/5 text-primary border border-primary/10 px-1.5 py-0.5 rounded truncate max-w-[160px]" title={`Campaign: ${campName}`}>
+                                {campName}
+                              </span>
+                            )}
+                            {email.priority && email.priority !== 'normal' && (
+                              <Badge className={cn("text-[10px] px-1.5 py-0", PRIORITY_COLORS[email.priority] || "")}>
+                                {email.priority.toUpperCase()}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
-                        <p className={cn(
-                          "text-sm truncate",
-                          !email.is_read ? "font-medium text-foreground" : "text-foreground"
-                        )}>
-                          {email.subject || "(No subject)"}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate mt-0.5">
-                          {(email.body_text || email.body || "").substring(0, 80)}
-                        </p>
-                        {email.priority && email.priority !== 'normal' && (
-                          <Badge className={cn("text-[10px] px-1.5 py-0 mt-1", PRIORITY_COLORS[email.priority] || "")}>
-                            {email.priority.toUpperCase()}
+                        <div className="flex flex-col items-end gap-1.5 shrink-0">
+                          <span className="text-[10px] text-muted-foreground/85">
+                            {format(new Date(email.received_at), "MMM d")}
+                          </span>
+                          <Badge className={cn("text-[9px] px-1.5 py-0 font-medium", STATUS_COLORS[email.status] || "")}>
+                            {email.status}
                           </Badge>
-                        )}
+                        </div>
                       </div>
-                      <div className="flex flex-col items-end gap-1 shrink-0">
-                        <span className="text-xs text-muted-foreground">
-                          {format(new Date(email.received_at), "MMM d")}
-                        </span>
-                        <Badge className={cn("text-[10px] px-1.5 py-0", STATUS_COLORS[email.status] || "")}>
-                          {email.status}
-                        </Badge>
-                      </div>
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </ScrollArea>
@@ -420,7 +507,7 @@ export default function UniboxPage() {
           )}
         </Card>
 
-        <Card className="col-span-5 flex flex-col overflow-hidden">
+        <Card className="col-span-12 lg:col-span-8 flex flex-col overflow-hidden shadow-sm">
           {selectedEmail ? (
             <>
               <div className="p-4 border-b border-border space-y-3">
@@ -661,14 +748,18 @@ export default function UniboxPage() {
                     </h5>
                     
                     {/* Campaign */}
-                    {instantlyData?.campaign && (
-                      <div className="flex flex-col pb-2 border-b border-border/50">
-                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Campaign</span>
-                        <span className="text-xs text-foreground font-semibold truncate">
-                          {instantlyData.campaign}
-                        </span>
-                      </div>
-                    )}
+                    {instantlyData?.campaign && (() => {
+                      const campaignInfo = campaigns.find(c => c.id === instantlyData.campaign);
+                      const displayCampaignName = campaignInfo?.name || instantlyData.campaign;
+                      return (
+                        <div className="flex flex-col pb-2 border-b border-border/50">
+                          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Campaign</span>
+                          <span className="text-xs text-foreground font-semibold truncate" title={displayCampaignName}>
+                            {displayCampaignName}
+                          </span>
+                        </div>
+                      );
+                    })()}
 
                     {/* Email */}
                     <div className="flex flex-col pb-2 border-b border-border/50">
@@ -693,7 +784,7 @@ export default function UniboxPage() {
                       <div className="flex flex-col pb-2 border-b border-border/50">
                         <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Rating</span>
                         <span className="text-xs text-foreground font-medium">
-                          ⭐️ {instantlyData.rating}
+                          {instantlyData.rating} / 5
                         </span>
                       </div>
                     )}
