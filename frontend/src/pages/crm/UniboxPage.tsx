@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { useUniboxEmails, useUniboxStats, UNIBOX_STATUSES, type UniboxEmail, useUniboxLeadInfo, useUniboxCampaigns } from "@/hooks/useUniboxEmails";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
+import { useUniboxEmails, useUniboxStats, UNIBOX_STATUSES, type UniboxEmail, useUniboxLeadInfo, useUniboxCampaigns, useUniboxEmail } from "@/hooks/useUniboxEmails";
 import { useUniboxPermission } from "@/hooks/useUniboxPermission";
 import { toast } from "sonner";
 import { ConvertToLeadDialog } from "@/components/unibox/ConvertToLeadDialog";
@@ -46,6 +47,7 @@ import {
   Copy,
   ExternalLink,
   Info,
+  FolderKanban,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -72,20 +74,58 @@ const PRIORITY_COLORS: Record<string, string> = {
 
 export default function UniboxPage() {
   const { hasPermission, isOwner, isLoading: permLoading } = useUniboxPermission();
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showStarredOnly, setShowStarredOnly] = useState(false);
-  const [showUnreadOnly, setShowUnreadOnly] = useState(false);
-  const [selectedEmail, setSelectedEmail] = useState<UniboxEmail | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const statusFilter = searchParams.get("status") || "All";
+  const selectedCampaignId = searchParams.get("campaign_id") || "";
+  const selectedEmailId = searchParams.get("email_id") || null;
+  const currentPage = parseInt(searchParams.get("page") || "1", 10);
+  const showStarredOnly = searchParams.get("starred") === "true";
+  const showUnreadOnly = searchParams.get("unread") === "true";
+
+  // Local state for the search input value to avoid typing lag
+  const [searchVal, setSearchVal] = useState(searchParams.get("search") || "");
+  const searchQuery = searchParams.get("search") || "";
+
   const [convertDialogOpen, setConvertDialogOpen] = useState(false);
   const [showLeadInfo, setShowLeadInfo] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [selectedCampaignId, setSelectedCampaignId] = useState<string>("");
   const ITEMS_PER_PAGE = 50;
 
-  const { data: leadInfoResponse, isLoading: leadInfoLoading } = useUniboxLeadInfo(selectedEmail?.id || null);
-  const matchedLead = leadInfoResponse?.lead;
-  const instantlyData = leadInfoResponse?.instantly;
+  // Sync searchVal with URL search params (e.g. on navigation)
+  useEffect(() => {
+    setSearchVal(searchParams.get("search") || "");
+  }, [searchParams]);
+
+  // Helper to update search params
+  const updateParams = (newParams: Record<string, string | boolean | number | null>) => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        Object.entries(newParams).forEach(([key, value]) => {
+          if (value === null || value === "" || value === false) {
+            next.delete(key);
+          } else {
+            next.set(key, value.toString());
+          }
+        });
+        return next;
+      },
+      { replace: true }
+    );
+  };
+
+  // Debounce search input updates to URL params
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const currentSearch = searchParams.get("search") || "";
+      if (searchVal !== currentSearch) {
+        updateParams({ search: searchVal || null, page: 1 });
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchVal, searchParams]);
+
+  const { data: fetchedEmail, isLoading: emailFetchLoading } = useUniboxEmail(selectedEmailId);
 
   const { data: campaigns = [], isLoading: campaignsLoading } = useUniboxCampaigns();
 
@@ -117,15 +157,19 @@ export default function UniboxPage() {
     syncInstantly
   } = uniboxData;
 
+  const selectedEmail = emails.find((e) => e.id.toString() === selectedEmailId) || fetchedEmail || null;
+
+  const { data: leadInfoResponse, isLoading: leadInfoLoading } = useUniboxLeadInfo(selectedEmail?.id || null);
+  const matchedLead = leadInfoResponse?.lead;
+  const instantlyData = leadInfoResponse?.instantly;
+
   // Reset page when filters change
   const handleFilterChange = (newFilter: string) => {
-    setStatusFilter(newFilter);
-    setCurrentPage(1);
+    updateParams({ status: newFilter, page: 1 });
   };
 
   const handleSearchChange = (query: string) => {
-    setSearchQuery(query);
-    setCurrentPage(1);
+    setSearchVal(query);
   };
 
   const { data: stats } = useUniboxStats();
@@ -164,8 +208,27 @@ export default function UniboxPage() {
     if (!selectedEmail) return;
     await convertToLead.mutateAsync({ emailId: selectedEmail.id, leadData: data });
     setConvertDialogOpen(false);
-    setSelectedEmail(null);
+    updateParams({ email_id: null });
   };
+
+  // Grouping emails by campaign for campaign-wise section display
+  const getCampaignName = (campId: string) => {
+    if (campId === "none") return "No Campaign";
+    const campaign = campaigns.find(c => c.id === campId);
+    return campaign?.name || `Campaign (${campId.substring(0, 8)})`;
+  };
+
+  const presentCampaignIds = Array.from(new Set(emails.map(email => {
+    return email.metadata?.item?.campaign_id || email.metadata?.campaign_id || 'none';
+  })));
+
+  const groupedEmails = presentCampaignIds.reduce((acc, campId) => {
+    acc[campId] = emails.filter(email => {
+      const emailCampId = email.metadata?.item?.campaign_id || email.metadata?.campaign_id || 'none';
+      return emailCampId === campId;
+    });
+    return acc;
+  }, {} as Record<string, UniboxEmail[]>);
 
   const mailboxContent = (
     <>
@@ -254,7 +317,7 @@ export default function UniboxPage() {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search emails..."
-              value={searchQuery}
+              value={searchVal}
               onChange={(e) => handleSearchChange(e.target.value)}
               className="pl-9 h-9 bg-background/50 border-border/50 focus-visible:ring-primary"
             />
@@ -263,8 +326,7 @@ export default function UniboxPage() {
             variant={showUnreadOnly ? "default" : "outline"}
             size="sm"
             onClick={() => {
-              setShowUnreadOnly(!showUnreadOnly);
-              setCurrentPage(1);
+              updateParams({ unread: !showUnreadOnly, page: 1 });
             }}
             className="h-9 gap-1.5 px-3"
           >
@@ -275,8 +337,7 @@ export default function UniboxPage() {
             variant={showStarredOnly ? "default" : "outline"}
             size="sm"
             onClick={() => {
-              setShowStarredOnly(!showStarredOnly);
-              setCurrentPage(1);
+              updateParams({ starred: !showStarredOnly, page: 1 });
             }}
             className="h-9 gap-1.5 px-3"
           >
@@ -323,7 +384,7 @@ export default function UniboxPage() {
           </span>
           {selectedCampaignId && (
             <button
-              onClick={() => setSelectedCampaignId("")}
+              onClick={() => updateParams({ campaign_id: null, page: 1 })}
               className="text-[10px] text-primary hover:underline font-medium"
             >
               Clear Filter
@@ -335,8 +396,7 @@ export default function UniboxPage() {
             variant={selectedCampaignId === "" ? "secondary" : "outline"}
             size="sm"
             onClick={() => {
-              setSelectedCampaignId("");
-              setCurrentPage(1);
+              updateParams({ campaign_id: null, page: 1 });
             }}
             className="h-7 text-xs px-3 rounded-full whitespace-nowrap"
           >
@@ -357,8 +417,7 @@ export default function UniboxPage() {
                 variant={selectedCampaignId === camp.id ? "default" : "outline"}
                 size="sm"
                 onClick={() => {
-                  setSelectedCampaignId(camp.id);
-                  setCurrentPage(1);
+                  updateParams({ campaign_id: camp.id, page: 1 });
                 }}
                 className={cn(
                   "h-7 text-xs px-3 rounded-full whitespace-nowrap gap-1.5",
@@ -408,74 +467,85 @@ export default function UniboxPage() {
                 <p className="text-sm">No emails found</p>
               </div>
             ) : (
-              <div className="divide-y divide-border">
-                {emails.map((email) => {
-                  const campId = email.metadata?.item?.campaign_id || email.metadata?.campaign_id;
-                  const campaign = campaigns.find(c => c.id === campId);
-                  const campName = campaign?.name || email.metadata?.item?.campaign_name || email.metadata?.campaign_name || email.metadata?.campaign || '';
+              <div className="flex flex-col select-none">
+                {presentCampaignIds.map((campId) => {
+                  const campName = getCampaignName(campId);
+                  const campEmails = groupedEmails[campId] || [];
                   return (
-                    <button
-                      key={email.id}
-                      onClick={() => {
-                        setSelectedEmail(email);
-                        if (!email.is_read) {
-                          markAsRead.mutate({ emailId: email.id, is_read: true });
-                        }
-                      }}
-                      className={cn(
-                        "w-full text-left p-3 hover:bg-accent/50 transition-colors relative border-l-2 border-transparent",
-                        selectedEmail?.id === email.id && "bg-accent border-l-primary",
-                        !email.is_read && "bg-blue-50/50 dark:bg-blue-950/20"
-                      )}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <p className={cn(
-                              "text-sm truncate",
-                              !email.is_read ? "font-semibold text-foreground" : "font-medium text-foreground"
-                            )}>
-                              {email.sender_name || email.sender_email}
-                            </p>
-                            {email.is_starred && (
-                              <Star className="h-3 w-3 text-yellow-500 fill-current" />
-                            )}
-                            {!email.is_read && (
-                              <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse" />
-                            )}
-                          </div>
-                          <p className={cn(
-                            "text-sm truncate",
-                            !email.is_read ? "font-medium text-foreground" : "text-muted-foreground"
-                          )}>
-                            {email.subject || "(No subject)"}
-                          </p>
-                          <p className="text-xs text-muted-foreground/80 truncate mt-0.5">
-                            {(email.body_text || email.body || "").substring(0, 80)}
-                          </p>
-                          <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                            {campName && (
-                              <span className="text-[10px] font-medium bg-primary/5 text-primary border border-primary/10 px-1.5 py-0.5 rounded truncate max-w-[160px]" title={`Campaign: ${campName}`}>
-                                {campName}
-                              </span>
-                            )}
-                            {email.priority && email.priority !== 'normal' && (
-                              <Badge className={cn("text-[10px] px-1.5 py-0", PRIORITY_COLORS[email.priority] || "")}>
-                                {email.priority.toUpperCase()}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-end gap-1.5 shrink-0">
-                          <span className="text-[10px] text-muted-foreground/85">
-                            {format(new Date(email.received_at), "MMM d")}
-                          </span>
-                          <Badge className={cn("text-[9px] px-1.5 py-0 font-medium", STATUS_COLORS[email.status] || "")}>
-                            {email.status}
-                          </Badge>
-                        </div>
+                    <div key={campId} className="flex flex-col">
+                      <div className="sticky top-0 z-10 bg-muted/95 backdrop-blur px-3 py-1.5 text-[11px] font-semibold text-muted-foreground flex items-center justify-between border-y border-border/40">
+                        <span className="flex items-center gap-1.5 truncate">
+                          <FolderKanban className="h-3.5 w-3.5 text-primary/70" />
+                          <span className="truncate" title={campName}>{campName}</span>
+                        </span>
+                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-background/50 border-border/50 text-muted-foreground font-medium">
+                          {campEmails.length}
+                        </Badge>
                       </div>
-                    </button>
+                      <div className="divide-y divide-border/40">
+                        {campEmails.map((email) => {
+                          return (
+                            <button
+                              key={email.id}
+                              onClick={() => {
+                                updateParams({ email_id: email.id.toString() });
+                                if (!email.is_read) {
+                                  markAsRead.mutate({ emailId: email.id, is_read: true });
+                                }
+                              }}
+                              className={cn(
+                                "w-full text-left p-3 hover:bg-accent/50 transition-colors relative border-l-2 border-transparent",
+                                selectedEmail?.id === email.id && "bg-accent border-l-primary",
+                                !email.is_read && "bg-blue-50/50 dark:bg-blue-950/20"
+                              )}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <p className={cn(
+                                      "text-sm truncate",
+                                      !email.is_read ? "font-semibold text-foreground" : "font-medium text-foreground"
+                                    )}>
+                                      {email.sender_name || email.sender_email}
+                                    </p>
+                                    {email.is_starred && (
+                                      <Star className="h-3 w-3 text-yellow-500 fill-current" />
+                                    )}
+                                    {!email.is_read && (
+                                      <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse" />
+                                    )}
+                                  </div>
+                                  <p className={cn(
+                                    "text-sm truncate",
+                                    !email.is_read ? "font-medium text-foreground" : "text-muted-foreground"
+                                  )}>
+                                    {email.subject || "(No subject)"}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground/80 truncate mt-0.5">
+                                    {(email.body_text || email.body || "").substring(0, 80)}
+                                  </p>
+                                  <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                                    {email.priority && email.priority !== 'normal' && (
+                                      <Badge className={cn("text-[10px] px-1.5 py-0", PRIORITY_COLORS[email.priority] || "")}>
+                                        {email.priority.toUpperCase()}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex flex-col items-end gap-1.5 shrink-0">
+                                  <span className="text-[10px] text-muted-foreground/85">
+                                    {format(new Date(email.received_at), "MMM d")}
+                                  </span>
+                                  <Badge className={cn("text-[9px] px-1.5 py-0 font-medium", STATUS_COLORS[email.status] || "")}>
+                                    {email.status}
+                                  </Badge>
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   );
                 })}
               </div>
@@ -487,7 +557,7 @@ export default function UniboxPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                onClick={() => updateParams({ page: Math.max(1, currentPage - 1) })}
                 disabled={currentPage === 1 || isLoading}
               >
                 Previous
@@ -498,7 +568,7 @@ export default function UniboxPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                onClick={() => updateParams({ page: Math.min(totalPages, currentPage + 1) })}
                 disabled={currentPage === totalPages || isLoading}
               >
                 Next
@@ -508,7 +578,13 @@ export default function UniboxPage() {
         </Card>
 
         <Card className="col-span-12 lg:col-span-8 flex flex-col overflow-hidden shadow-sm">
-          {selectedEmail ? (
+          {selectedEmailId && emailFetchLoading && !selectedEmail ? (
+            <div className="p-8 space-y-4 flex-1 flex flex-col justify-center items-center">
+              <Skeleton className="h-8 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-[200px] w-full" />
+            </div>
+          ) : selectedEmail ? (
             <>
               <div className="p-4 border-b border-border space-y-3">
                 <div className="flex items-start justify-between gap-3">
@@ -630,21 +706,34 @@ export default function UniboxPage() {
                     </Button>
                   )}
                   {selectedEmail.converted_to_lead_id && (
-                    <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
-                      ✓ Converted to Lead
+                    <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 flex items-center gap-1.5 font-medium">
+                      <CheckCircle className="h-3.5 w-3.5" />
+                      Converted to Lead
                     </Badge>
                   )}
                 </div>
               </div>
 
               <ScrollArea className="flex-1 p-4">
+                <style dangerouslySetInnerHTML={{ __html: `
+                  .email-body-container *:not(a):not(a *) {
+                    color: inherit !important;
+                  }
+                  .email-body-container a {
+                    color: hsl(var(--primary)) !important;
+                    text-decoration: underline;
+                  }
+                  .email-body-container *:not(img) {
+                    background-color: transparent !important;
+                  }
+                `}} />
                 {selectedEmail.body_html ? (
                   <div
-                    className="prose prose-sm max-w-none dark:prose-invert"
+                    className="prose prose-sm max-w-none dark:prose-invert email-body-container text-foreground"
                     dangerouslySetInnerHTML={{ __html: selectedEmail.body_html }}
                   />
                 ) : selectedEmail.body_text ? (
-                  <pre className="text-sm whitespace-pre-wrap font-sans">
+                  <pre className="text-sm whitespace-pre-wrap font-sans email-body-container text-foreground">
                     {selectedEmail.body_text}
                   </pre>
                 ) : (

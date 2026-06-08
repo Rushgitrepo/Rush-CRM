@@ -192,6 +192,7 @@ export function useUniboxEmails(filters: {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["unibox-emails"] });
       queryClient.invalidateQueries({ queryKey: ["unibox-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["unibox-email"] });
       toast.success('Status updated');
     },
     onError: (err: Error, variables, context: any) => {
@@ -224,6 +225,7 @@ export function useUniboxEmails(filters: {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["unibox-emails"] });
+      queryClient.invalidateQueries({ queryKey: ["unibox-email"] });
       toast.success('Email starred status updated');
     },
     onError: (err: Error, variables, context: any) => {
@@ -257,6 +259,7 @@ export function useUniboxEmails(filters: {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["unibox-emails"] });
       queryClient.invalidateQueries({ queryKey: ["unibox-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["unibox-email"] });
     },
     onError: (err: Error, variables, context: any) => {
       if (context?.previousData) {
@@ -288,6 +291,7 @@ export function useUniboxEmails(filters: {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["unibox-emails"] });
+      queryClient.invalidateQueries({ queryKey: ["unibox-email"] });
       toast.success('Email archived status updated');
     },
     onError: (err: Error, variables, context: any) => {
@@ -320,6 +324,7 @@ export function useUniboxEmails(filters: {
       queryClient.invalidateQueries({ queryKey: ["unibox-emails"] });
       queryClient.invalidateQueries({ queryKey: ["leads"] });
       queryClient.invalidateQueries({ queryKey: ["unibox-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["unibox-email"] });
       toast.success("Lead created successfully");
     },
     onError: (err: Error) => toast.error(err.message),
@@ -408,6 +413,19 @@ export function useUniboxLeadInfo(emailId: string | null) {
     },
     enabled: !!emailId,
     staleTime: 5000,
+  });
+}
+
+export function useUniboxEmail(emailId: string | null) {
+  return useQuery({
+    queryKey: ["unibox-email", emailId],
+    queryFn: async () => {
+      if (!emailId) return null;
+      const data = await api.get<{ email: UniboxEmail }>(`/unibox/emails/${emailId}`);
+      return data?.email || null;
+    },
+    enabled: !!emailId,
+    staleTime: 10000,
   });
 }
 

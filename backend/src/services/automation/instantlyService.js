@@ -316,6 +316,38 @@ class InstantlyService {
     const autoAddLeads = settings.auto_add_leads === true;
 
     try {
+      // Pre-fetch campaign names to resolve IDs to names automatically
+      const campaignMap = new Map();
+      try {
+        console.log('[Instantly Service] Pre-fetching campaign names for resolution...');
+        const campRes = await fetch(`${this.baseUrl}/campaigns`, {
+          method: 'GET',
+          headers: { 'Authorization': `Bearer ${apiKey}`, 'Accept': 'application/json' }
+        });
+        if (campRes.ok) {
+          const apiData = await campRes.json();
+          const items = apiData.items || [];
+          items.forEach(c => {
+            if (c.id && c.name) campaignMap.set(c.id, c.name);
+          });
+          console.log(`[Instantly Service] Pre-fetched ${campaignMap.size} campaigns from Instantly v2`);
+        } else {
+          // Try v1 fallback
+          const campResV1 = await fetch(`https://api.instantly.ai/api/v1/campaign/list?api_key=${apiKey}`);
+          if (campResV1.ok) {
+            const apiDataV1 = await campResV1.json();
+            if (Array.isArray(apiDataV1)) {
+              apiDataV1.forEach(c => {
+                if (c.id && c.name) campaignMap.set(c.id, c.name);
+              });
+              console.log(`[Instantly Service] Pre-fetched ${campaignMap.size} campaigns from Instantly v1 fallback`);
+            }
+          }
+        }
+      } catch (cErr) {
+        console.error('[Instantly Service] Failed to pre-fetch campaigns list:', cErr.message);
+      }
+
       // ── Try /emails API first (returns actual subject + body content) ──
       // Falls back to /leads/list if API key lacks emails:read scope
       let allItems = [];
@@ -344,8 +376,6 @@ class InstantlyService {
       if (useEmailsApi) {
         // ── EMAILS API: Returns subject, body.text, body.html ──
         console.log('[Instantly Service] ✅ Using /emails API (full content)');
-        // We already got the test response, use its data
-        const testData = await testResponse.json().catch(() => null);
         // Don't use test data, start fresh pagination
         startingAfterId = null;
         hasMore = true;
@@ -452,7 +482,7 @@ class InstantlyService {
           bodyHtml = (item.body && item.body.html) || '';
           receivedAt = new Date(item.timestamp_email || item.timestamp_created || Date.now());
           
-          // Try to get lead details from item (following fix_leads.js logic)
+          // Try to get lead details from item
           const leadObj = item.lead && typeof item.lead === 'object' ? item.lead : {};
           const payloadObj = leadObj.payload || item.payload || {};
 
@@ -525,7 +555,6 @@ class InstantlyService {
               }
             } catch (err) {
               // Silent fail for enrichment, we already have the email
-              // console.log(`[Instantly Service] Enrichment failed for ${leadEmail}`);
             }
           }
 
@@ -544,6 +573,22 @@ class InstantlyService {
           });
         }
 
+        // Resolve campaign metadata
+        const campaignId = item.campaign_id || (item.lead && item.lead.campaign_id);
+        const campaignName = campaignId ? campaignMap.get(campaignId) : null;
+        
+        const metaUpdate = {
+          campaign_id: campaignId || null,
+          campaign_name: campaignName || null
+        };
+
+        const metaNew = {
+          source: useEmailsApi ? 'emails_api' : 'leads_api',
+          campaign_id: campaignId || null,
+          campaign_name: campaignName || null,
+          item
+        };
+
         // Dedup + backfill logic
         if (existingExternalIds.has(externalId)) {
           if (useEmailsApi && subject && bodyText) {
@@ -553,9 +598,10 @@ class InstantlyService {
                  SET subject = CASE WHEN subject IS NULL OR subject = '' OR subject LIKE 'Lead:%' THEN $1 ELSE subject END,
                      body_text = CASE WHEN body_text IS NULL OR body_text = '' THEN $2 ELSE body_text END,
                      body_html = CASE WHEN body_html IS NULL OR body_html = '' THEN $3 ELSE body_html END,
+                     metadata = COALESCE(metadata, '{}'::jsonb) || $5::jsonb,
                      updated_at = NOW()
-                 WHERE external_id = $4 AND org_id = $5 AND (body_text IS NULL OR body_text = '')`,
-                [subject, bodyText, bodyHtml, externalId, orgId]
+                 WHERE external_id = $4 AND org_id = $6`,
+                [subject, bodyText, bodyHtml, externalId, JSON.stringify(metaUpdate), orgId]
               );
               updateCount++;
             } catch (err) { /* silent */ }
@@ -573,9 +619,10 @@ class InstantlyService {
                      body_text = CASE WHEN body_text IS NULL OR body_text = '' THEN $2 ELSE body_text END,
                      body_html = CASE WHEN body_html IS NULL OR body_html = '' THEN $3 ELSE body_html END,
                      external_id = COALESCE(NULLIF(external_id, ''), $4),
+                     metadata = COALESCE(metadata, '{}'::jsonb) || $5::jsonb,
                      updated_at = NOW()
-                 WHERE sender_email = $5 AND org_id = $6 AND (body_text IS NULL OR body_text = '')`,
-                [subject, bodyText, bodyHtml, externalId, leadEmail, orgId]
+                 WHERE sender_email = $6 AND org_id = $7`,
+                [subject, bodyText, bodyHtml, externalId, JSON.stringify(metaUpdate), leadEmail, orgId]
               );
               if (updateResult.rowCount > 0) updateCount++;
             } catch (err) { /* silent */ }
@@ -595,7 +642,7 @@ class InstantlyService {
               orgId, externalId, leadEmail, senderName, subject, bodyText, bodyHtml,
               'Interested', 'Normal', receivedAt,
               useEmailsApi ? (item.is_unread === 1) : false,
-              JSON.stringify({ source: useEmailsApi ? 'emails_api' : 'leads_api', item })
+              JSON.stringify(metaNew)
             ]
           );
           existingExternalIds.add(externalId);

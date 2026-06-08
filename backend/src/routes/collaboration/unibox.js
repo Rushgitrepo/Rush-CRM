@@ -7,6 +7,7 @@ router.use(auth, requireOrg);
 
 // Email management
 router.get('/emails', uniboxController.getEmails);
+router.get('/emails/:id', uniboxController.getEmail);
 router.patch('/emails/:id/status', uniboxController.updateEmailStatus);
 router.patch('/emails/:id/starred', uniboxController.toggleStarred);
 router.patch('/emails/:id/read', uniboxController.markAsRead);
