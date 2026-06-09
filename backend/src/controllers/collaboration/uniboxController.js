@@ -915,13 +915,9 @@ const getCampaigns = async (req, res, next) => {
             headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' }
           });
 
-          // if (!response.ok) break;
-          if (!response.ok) {
-            const errBody = await response.json().catch(() => ({}));
-            console.log('[getCampaigns] v2 error:', response.status, JSON.stringify(errBody));
-            break;
-          }
-
+          if (!response.ok) break;
+          
+        
 
           v2Success = true;
           const apiData = await response.json();
@@ -942,9 +938,6 @@ const getCampaigns = async (req, res, next) => {
             startingAfter = apiData.next_starting_after;
           }
         }
-
-        console.log('[getCampaigns] v2Success:', v2Success);
-        console.log('[getCampaigns] campaignMap after v2:', JSON.stringify(Array.from(campaignMap.entries()).slice(0, 3)));
 
         if (!v2Success) {
           // Fallback to Instantly API v1
