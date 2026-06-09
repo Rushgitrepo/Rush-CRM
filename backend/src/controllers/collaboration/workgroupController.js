@@ -1059,9 +1059,15 @@ const getWorkgroupPosts = async (req, res, next) => {
 const createWorkgroupPost = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { content, channel_id, parent_id, content_type } = req.body;
+    const { content, channel_id, parent_id, content_type, files, mentions } = req.body;
+    const attachments = Array.isArray(files) ? files : [];
+    const messageMentions = Array.isArray(mentions) ? mentions : [];
 
-    if (!content || !content.trim()) {
+    const isCallType = content_type === 'call';
+    const hasAttachments = attachments.length > 0;
+    const trimmedContent = (content || '').trim();
+
+    if (!hasAttachments && !isCallType && !trimmedContent) {
       return res.status(400).json({ error: 'Message content is required' });
     }
 
@@ -1115,17 +1121,12 @@ const createWorkgroupPost = async (req, res, next) => {
       }
     }
 
-
-    const { files, mentions } = req.body;
-    const attachments = Array.isArray(files) ? files : [];
-    const messageMentions = Array.isArray(mentions) ? mentions : [];
-
     let finalContentType = content_type || 'text';
 
     // Auto-detect call logs if sent as text (e.g. from mobile)
-    if (finalContentType === 'text' && content.trim().startsWith('{')) {
+    if (finalContentType === 'text' && trimmedContent.startsWith('{')) {
       try {
-        const parsed = JSON.parse(content);
+        const parsed = JSON.parse(trimmedContent);
         if (parsed && (parsed.type === 'video' || parsed.type === 'voice' || parsed.type === 'call') && parsed.status) {
           finalContentType = 'call';
         }
@@ -1148,7 +1149,7 @@ const createWorkgroupPost = async (req, res, next) => {
       channel_id || null,
       req.user.id,
       parent_id || null,
-      content.trim(),
+      trimmedContent,
       finalContentType,
       JSON.stringify(attachments),
       messageMentions

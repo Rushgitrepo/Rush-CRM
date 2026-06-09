@@ -24,6 +24,20 @@ class InstantlyService {
     this.baseUrl = 'https://api.instantly.ai/api/v2';
   }
 
+
+  async getCampaignName(apiKey, campaignId) {
+    try {
+      const res = await fetch(`${this.baseUrl}/campaigns/${campaignId}`, {
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Accept': 'application/json' }
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.name || null;
+    } catch {
+      return null;
+    }
+  }
+
   /**
    * Get integration settings for an organization
    */
@@ -122,7 +136,7 @@ class InstantlyService {
   async _ensureLeadExists(orgId, leadData) {
     try {
       const { email, first_name, last_name, company, phone, source = 'Instantly' } = leadData;
-      
+
       // If we are missing critical info, try to enrich from Instantly API
       let enrichedFirstName = first_name;
       let enrichedLastName = last_name;
@@ -167,8 +181,8 @@ class InstantlyService {
 
       // Remove standard mapped fields from custom fields so they don't pollute the custom_fields JSON
       const standardKeysToRemove = [
-        'firstName', 'first_name', 'lastName', 'last_name', 'name', 
-        'companyName', 'company_name', 'company', 
+        'firstName', 'first_name', 'lastName', 'last_name', 'name',
+        'companyName', 'company_name', 'company',
         'phone', 'Myphone', 'phoneNumber',
         'website', 'location', 'Location', 'address', 'email'
       ];
@@ -249,7 +263,7 @@ class InstantlyService {
       } else {
         // Update existing lead if info is missing, and merge custom_fields
         const existingLead = existing.rows[0];
-        
+
         // Fetch existing custom fields to merge them
         const customFieldsCheck = await db.query('SELECT custom_fields FROM leads WHERE id = $1', [existingLead.id]);
         const existingCustomFields = customFieldsCheck.rows[0]?.custom_fields || {};
@@ -481,7 +495,7 @@ class InstantlyService {
           bodyText = (item.body && item.body.text) || item.content_preview || '';
           bodyHtml = (item.body && item.body.html) || '';
           receivedAt = new Date(item.timestamp_email || item.timestamp_created || Date.now());
-          
+
           // Try to get lead details from item
           const leadObj = item.lead && typeof item.lead === 'object' ? item.lead : {};
           const payloadObj = leadObj.payload || item.payload || {};
@@ -513,7 +527,7 @@ class InstantlyService {
           lastName = item.last_name;
           companyName = item.company_name;
           phoneNumber = item.phone;
-          
+
           senderName = [firstName, lastName].filter(Boolean).join(' ') || item.lead_name || companyName || 'Unknown Sender';
           subject = `${senderName} — ${companyName || 'Interested Lead'}`;
           bodyText = [
@@ -541,11 +555,11 @@ class InstantlyService {
               const leadRes = await fetch(enrichUrl.toString(), {
                 headers: { 'Authorization': `Bearer ${apiKey}` }
               });
-              
+
               if (leadRes.ok) {
                 const leadResData = await leadRes.json();
                 const leadData = leadResData && (Array.isArray(leadResData) ? leadResData[0] : leadResData);
-                
+
                 if (leadData) {
                   firstName = leadData.first_name || leadData.firstName || firstName;
                   lastName = leadData.last_name || leadData.lastName || lastName;
@@ -575,8 +589,12 @@ class InstantlyService {
 
         // Resolve campaign metadata
         const campaignId = item.campaign_id || (item.lead && item.lead.campaign_id);
-        const campaignName = campaignId ? campaignMap.get(campaignId) : null;
-        
+        // WITH THIS:
+        let campaignName = campaignId ? campaignMap.get(campaignId) : null;
+        if (!campaignName && campaignId) {
+          campaignName = await this.getCampaignName(apiKey, campaignId);
+          if (campaignName) campaignMap.set(campaignId, campaignName);
+        }
         const metaUpdate = {
           campaign_id: campaignId || null,
           campaign_name: campaignName || null
