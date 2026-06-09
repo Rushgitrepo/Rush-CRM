@@ -392,8 +392,8 @@ const convertToLead = async (req, res, next) => {
 
     // Remove standard mapped fields from custom fields so they don't pollute the custom_fields JSON
     const standardKeysToRemove = [
-      'firstName', 'first_name', 'lastName', 'last_name', 'name', 
-      'companyName', 'company_name', 'company', 
+      'firstName', 'first_name', 'lastName', 'last_name', 'name',
+      'companyName', 'company_name', 'company',
       'phone', 'Myphone', 'phoneNumber',
       'website', 'location', 'Location', 'address', 'email'
     ];
@@ -746,7 +746,7 @@ const getEmailLeadInfo = async (req, res, next) => {
           const apiData = await response.json();
           if (apiData.items && apiData.items.length > 0) {
             const instLead = apiData.items[0];
-            
+
             // Found the real Instantly lead! Update metadata cache in DB
             updatedItem = { ...updatedItem, ...instLead };
             updatedPayload = { ...updatedPayload, ...(instLead.payload || {}) };
@@ -772,8 +772,8 @@ const getEmailLeadInfo = async (req, res, next) => {
 
               // Remove standard mapped fields from custom fields so they don't pollute the custom_fields JSON
               const standardKeysToRemove = [
-                'firstName', 'first_name', 'lastName', 'last_name', 'name', 
-                'companyName', 'company_name', 'company', 
+                'firstName', 'first_name', 'lastName', 'last_name', 'name',
+                'companyName', 'company_name', 'company',
                 'phone', 'Myphone', 'phoneNumber',
                 'website', 'location', 'Location', 'address', 'email'
               ];
@@ -902,17 +902,31 @@ const getCampaigns = async (req, res, next) => {
     if (settings?.is_enabled !== false && apiKey) {
       try {
         // Try Instantly API v2 campaigns list
-        const response = await fetch('https://api.instantly.ai/api/v2/campaigns', {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json'
-          }
-        });
+        let hasMore = true;
+        let startingAfter = null;
+        let v2Success = false;
 
-        if (response.ok) {
+        while (hasMore) {
+          const params = new URLSearchParams({ limit: '100' });
+          if (startingAfter) params.set('starting_after', startingAfter);
+
+          const response = await fetch(`https://api.instantly.ai/api/v2/campaigns?${params}`, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' }
+          });
+
+          // if (!response.ok) break;
+          if (!response.ok) {
+            const errBody = await response.json().catch(() => ({}));
+            console.log('[getCampaigns] v2 error:', response.status, JSON.stringify(errBody));
+            break;
+          }
+
+
+          v2Success = true;
           const apiData = await response.json();
           const items = apiData.items || [];
+
           items.forEach(c => {
             campaignMap.set(c.id, {
               id: c.id,
@@ -921,7 +935,18 @@ const getCampaigns = async (req, res, next) => {
               source: 'instantly_v2'
             });
           });
-        } else {
+
+          if (items.length < 100 || !apiData.next_starting_after) {
+            hasMore = false;
+          } else {
+            startingAfter = apiData.next_starting_after;
+          }
+        }
+
+        console.log('[getCampaigns] v2Success:', v2Success);
+        console.log('[getCampaigns] campaignMap after v2:', JSON.stringify(Array.from(campaignMap.entries()).slice(0, 3)));
+
+        if (!v2Success) {
           // Fallback to Instantly API v1
           const responseV1 = await fetch(`https://api.instantly.ai/api/v1/campaign/list?api_key=${apiKey}`);
           if (responseV1.ok) {
@@ -938,6 +963,7 @@ const getCampaigns = async (req, res, next) => {
             }
           }
         }
+
       } catch (apiErr) {
         console.error('[Unibox Controller] Failed to fetch campaigns from Instantly:', apiErr.message);
       }
@@ -961,10 +987,36 @@ const getCampaigns = async (req, res, next) => {
       });
     }
 
+    // Backfill campaign_name into metadata for emails that have campaign_id but no campaign_name
+    const missingNameRows = await db.query(
+      `SELECT id, metadata FROM unibox_emails
+   WHERE org_id = $1
+   AND COALESCE(metadata->'item'->>'campaign_name', metadata->>'campaign_name') IS NULL
+   AND COALESCE(metadata->'item'->>'campaign_id', metadata->>'campaign_id') IS NOT NULL
+   LIMIT 500`,
+      [orgId]
+    );
+
+    for (const row of missingNameRows.rows) {
+      const meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : (row.metadata || {});
+      const campId = meta?.item?.campaign_id || meta?.campaign_id;
+      const resolvedName = campId ? campaignMap.get(campId)?.name : null;
+      if (resolvedName) {
+        if (meta.item?.campaign_id) meta.item.campaign_name = resolvedName;
+        if (meta.campaign_id) meta.campaign_name = resolvedName;
+        await db.query(
+          'UPDATE unibox_emails SET metadata = $1 WHERE id = $2',
+          [JSON.stringify(meta), row.id]
+        );
+      }
+    }
+
+
     res.json({ campaigns });
   } catch (err) {
     next(err);
   }
+
 };
 
 module.exports = {
