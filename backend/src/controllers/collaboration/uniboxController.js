@@ -813,6 +813,7 @@ const getEmailLeadInfo = async (req, res, next) => {
 
     const extracted = {
       campaign: updatedMetadata.campaign_name || updatedItem.campaign_name || updatedMetadata.campaign || updatedItem.campaign_id || '',
+      campaign_id: updatedItem.campaign_id || (typeof updatedMetadata.campaign === 'string' && updatedMetadata.campaign.length > 20 ? updatedMetadata.campaign : '') || '',
       rating: updatedPayload.Rating || updatedPayload.rating || '',
       profile: updatedPayload.Profile || updatedPayload.profile || '',
       facebook: updatedPayload.Facebook || updatedPayload.facebook || '',
@@ -822,6 +823,18 @@ const getEmailLeadInfo = async (req, res, next) => {
       companyName: lead?.company_name || lead?.company || updatedItem.company_name || updatedItem.company || updatedMetadata.company || '',
       payload: updatedPayload
     };
+    // Resolve campaign ID to name
+    if (extracted.campaign && extracted.campaign.includes('-') && apiKey) {
+      try {
+        const campRes = await fetch(`https://api.instantly.ai/api/v2/campaigns/${extracted.campaign}`, {
+          headers: { 'Authorization': `Bearer ${apiKey}` }
+        });
+        if (campRes.ok) {
+          const campData = await campRes.json();
+          if (campData.name) extracted.campaign = campData.name;
+        }
+      } catch { }
+    }
 
     res.json({
       lead: lead ? {
@@ -916,8 +929,8 @@ const getCampaigns = async (req, res, next) => {
           });
 
           if (!response.ok) break;
-          
-        
+
+
 
           v2Success = true;
           const apiData = await response.json();

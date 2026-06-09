@@ -837,9 +837,8 @@ export default function UniboxPage() {
                     </h5>
                     
                     {/* Campaign */}
-                    {instantlyData?.campaign && (() => {
-                      const campaignInfo = campaigns.find(c => c.id === instantlyData.campaign);
-                      const displayCampaignName = campaignInfo?.name || instantlyData.campaign;
+                    {(instantlyData?.campaign_id || instantlyData?.campaign) && (() => {
+                      const displayCampaignName = getCampaignName(instantlyData?.campaign_id || instantlyData?.campaign);
                       return (
                         <div className="flex flex-col pb-2 border-b border-border/50">
                           <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Campaign</span>

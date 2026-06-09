@@ -376,9 +376,20 @@ export default function LeadImportPage() {
       {step === 'mapping' && detectedFields && (
         <div className="bg-card rounded-lg shadow border p-6">
           <h2 className="text-xl font-semibold mb-4 text-foreground">Map Your Fields</h2>
-          <p className="text-muted-foreground mb-6">
+          <p className="text-muted-foreground mb-4">
             Match your file columns to CRM fields. We've suggested mappings based on column names.
           </p>
+
+          {entityType === 'lead' && (
+            <div className="mb-6 p-4 bg-primary/5 rounded-lg border border-primary/20 text-sm text-foreground">
+              <span className="font-semibold flex items-center gap-2 mb-1">
+                Auto-Assigning Stages
+              </span>
+              <span className="text-muted-foreground">
+                To automatically assign leads to a specific stage, make sure the stage names in your file <span className="font-medium text-foreground">exactly match</span> the stage names currently in your CRM (case-insensitive).
+              </span>
+            </div>
+          )}
 
           <div className="mb-6">
             <label className="block text-sm font-medium text-foreground mb-2">
