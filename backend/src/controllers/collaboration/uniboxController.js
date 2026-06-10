@@ -1,5 +1,100 @@
 const db = require('../../config/database');
 
+const CAMPAIGN_ID_SQL = `COALESCE(metadata->'item'->>'campaign_id', metadata->>'campaign_id', 'none')`;
+
+const getUniboxAccessLevel = async (userId, orgId) => {
+  const result = await db.query(
+    'SELECT role, has_unibox_access FROM users WHERE id = $1 AND org_id = $2',
+    [userId, orgId]
+  );
+  const user = result.rows[0];
+  if (!user) return { isOwner: false, hasFullAccess: false };
+  const isOwner = user.role === 'super_admin';
+  const hasFullAccess = isOwner || user.has_unibox_access === true;
+  return { isOwner, hasFullAccess };
+};
+
+const isUniboxOwner = async (userId, orgId) => {
+  const { isOwner } = await getUniboxAccessLevel(userId, orgId);
+  return isOwner;
+};
+
+const assertUniboxOwner = async (userId, orgId) => {
+  const owner = await isUniboxOwner(userId, orgId);
+  if (!owner) {
+    const err = new Error('Only the lead user can manage unibox folders');
+    err.status = 403;
+    throw err;
+  }
+  return true;
+};
+
+const getAllowedCampaignIds = async (userId, orgId) => {
+  const { hasFullAccess } = await getUniboxAccessLevel(userId, orgId);
+  if (hasFullAccess) return null;
+
+  const foldersResult = await db.query(
+    `SELECT DISTINCT f.id, f.is_default
+     FROM unibox_campaign_folders f
+     INNER JOIN unibox_campaign_folder_assignments a ON a.folder_id = f.id
+     WHERE f.org_id = $1 AND a.user_id = $2`,
+    [orgId, userId]
+  );
+
+  if (foldersResult.rows.length === 0) return [];
+
+  const campaignIds = new Set();
+
+  for (const folder of foldersResult.rows) {
+    if (folder.is_default) {
+      const unassignedResult = await db.query(
+        `SELECT DISTINCT ${CAMPAIGN_ID_SQL} AS campaign_id
+         FROM unibox_emails
+         WHERE org_id = $1 AND is_archived = false
+         AND ${CAMPAIGN_ID_SQL} NOT IN (
+           SELECT campaign_id FROM unibox_campaign_folder_items WHERE org_id = $1
+         )`,
+        [orgId]
+      );
+      unassignedResult.rows.forEach((row) => campaignIds.add(row.campaign_id));
+    } else {
+      const itemsResult = await db.query(
+        'SELECT campaign_id FROM unibox_campaign_folder_items WHERE folder_id = $1',
+        [folder.id]
+      );
+      itemsResult.rows.forEach((row) => campaignIds.add(row.campaign_id));
+    }
+  }
+
+  return Array.from(campaignIds);
+};
+
+const appendCampaignAccessFilter = (allowedCampaignIds, params, paramIndex) => {
+  if (allowedCampaignIds === null) {
+    return { clause: '', paramIndex };
+  }
+  if (allowedCampaignIds.length === 0) {
+    return { clause: ' AND 1=0', paramIndex };
+  }
+  const clause = ` AND ${CAMPAIGN_ID_SQL} = ANY($${paramIndex})`;
+  params.push(allowedCampaignIds);
+  return { clause, paramIndex: paramIndex + 1 };
+};
+
+const assertEmailAccess = async (emailId, userId, orgId) => {
+  const { hasFullAccess } = await getUniboxAccessLevel(userId, orgId);
+  if (hasFullAccess) return true;
+
+  const emailResult = await db.query(
+    `SELECT ${CAMPAIGN_ID_SQL} AS campaign_id FROM unibox_emails WHERE id = $1 AND org_id = $2`,
+    [emailId, orgId]
+  );
+  if (emailResult.rows.length === 0) return false;
+
+  const allowedCampaignIds = await getAllowedCampaignIds(userId, orgId);
+  return allowedCampaignIds.includes(emailResult.rows[0].campaign_id);
+};
+
 // Designation signature parser from bottom of email body text
 const extractDesignationFromEmail = (bodyText) => {
   if (!bodyText) return null;
@@ -90,6 +185,11 @@ const getEmails = async (req, res, next) => {
       paramIndex++;
     }
 
+    const allowedCampaignIds = await getAllowedCampaignIds(req.user.id, req.user.orgId);
+    const accessFilter = appendCampaignAccessFilter(allowedCampaignIds, params, paramIndex);
+    whereClause += accessFilter.clause;
+    paramIndex = accessFilter.paramIndex;
+
     const limitParam = `$${paramIndex++}`;
     const offsetParam = `$${paramIndex++}`;
     params.push(limit, offset);
@@ -160,6 +260,12 @@ const getEmail = async (req, res, next) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Email not found' });
     }
+
+    const hasAccess = await assertEmailAccess(id, req.user.id, orgId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'You do not have access to this email' });
+    }
+
     res.json({ email: result.rows[0] });
   } catch (err) {
     next(err);
@@ -175,6 +281,11 @@ const updateEmailStatus = async (req, res, next) => {
 
     if (!status) {
       return res.status(400).json({ error: 'Status is required' });
+    }
+
+    const hasAccess = await assertEmailAccess(id, req.user.id, req.user.orgId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'You do not have access to this email' });
     }
 
     const fields = ['status = $1', 'updated_at = now()'];
@@ -215,6 +326,11 @@ const toggleStarred = async (req, res, next) => {
     const { id } = req.params;
     const { is_starred } = req.body;
 
+    const hasAccess = await assertEmailAccess(id, req.user.id, req.user.orgId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'You do not have access to this email' });
+    }
+
     const result = await db.query(
       `UPDATE unibox_emails SET is_starred = $1, updated_at = now()
        WHERE id = $2 AND org_id = $3 RETURNING *`,
@@ -236,6 +352,11 @@ const markAsRead = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { is_read } = req.body;
+
+    const hasAccess = await assertEmailAccess(id, req.user.id, req.user.orgId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'You do not have access to this email' });
+    }
 
     const result = await db.query(
       `UPDATE unibox_emails SET is_read = $1, updated_at = now()
@@ -259,6 +380,11 @@ const toggleArchive = async (req, res, next) => {
     const { id } = req.params;
     const { is_archived } = req.body;
 
+    const hasAccess = await assertEmailAccess(id, req.user.id, req.user.orgId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'You do not have access to this email' });
+    }
+
     const result = await db.query(
       `UPDATE unibox_emails SET is_archived = $1, updated_at = now()
        WHERE id = $2 AND org_id = $3 RETURNING *`,
@@ -278,6 +404,13 @@ const toggleArchive = async (req, res, next) => {
 // Get email statistics
 const getStats = async (req, res, next) => {
   try {
+    const params = [req.user.orgId];
+    let whereClause = 'WHERE org_id = $1 AND is_archived = false';
+
+    const allowedCampaignIds = await getAllowedCampaignIds(req.user.id, req.user.orgId);
+    const accessFilter = appendCampaignAccessFilter(allowedCampaignIds, params, 2);
+    whereClause += accessFilter.clause;
+
     const statsQuery = `
       SELECT 
         COUNT(*) as total,
@@ -289,10 +422,10 @@ const getStats = async (req, res, next) => {
         COUNT(*) FILTER (WHERE status = 'Converted') as converted,
         COUNT(*) FILTER (WHERE converted_to_lead_id IS NOT NULL) as converted_to_leads
       FROM unibox_emails 
-      WHERE org_id = $1 AND is_archived = false
+      ${whereClause}
     `;
 
-    const result = await db.query(statsQuery, [req.user.orgId]);
+    const result = await db.query(statsQuery, params);
     res.json(result.rows[0]);
   } catch (err) {
     next(err);
@@ -333,6 +466,11 @@ const convertToLead = async (req, res, next) => {
 
     if (emailResult.rows.length === 0) {
       return res.status(404).json({ error: 'Email record not found' });
+    }
+
+    const hasAccess = await assertEmailAccess(id, req.user.id, req.user.orgId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'You do not have access to this email' });
     }
 
     const email = emailResult.rows[0];
@@ -434,6 +572,10 @@ const convertToLead = async (req, res, next) => {
       );
     }
 
+    // Extract campaign data from email metadata
+    const campaignId = item.campaign_id || metadata.campaign_id || metadata.campaign || '';
+    const campaignName = item.campaign_name || metadata.campaign_name || '';
+
     // Clean reply prefixes (RE:, FW:, etc.) from lead title
     const cleanLeadTitle = (title || email.subject || 'Lead from Unibox')
       .replace(/^((re|fw|fwd)\s*:\s*)+/i, '')
@@ -444,8 +586,8 @@ const convertToLead = async (req, res, next) => {
       `INSERT INTO leads (
         org_id, title, name, first_name, last_name, email, phone, company, company_name, 
         company_phone, company_email, designation, website, address, source, status, stage, 
-        interaction_notes, description, custom_fields, created_by, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8, $7, $6, $9, $10, $11, $12, $13, $14, $15, $15, $16, $17, $18, NOW()) 
+        interaction_notes, description, custom_fields, campaign_id, campaign_name, created_by, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8, $7, $6, $9, $10, $11, $12, $13, $14, $15, $15, $16, $17, $18, $19, $20, NOW()) 
       RETURNING *`,
       [
         req.user.orgId,
@@ -464,6 +606,8 @@ const convertToLead = async (req, res, next) => {
         stageKey,
         formattedNotes,
         JSON.stringify(mergedPayload),
+        campaignId || null,
+        campaignName || null,
         req.user.id,
         createdDate
       ]
@@ -507,13 +651,33 @@ const checkPermission = async (req, res, next) => {
 
     const user = userResult.rows[0];
     const isSuperAdmin = user.role === 'super_admin';
-    const hasAccess = isSuperAdmin || user.has_unibox_access || false;
+    const hasFullAccess = isSuperAdmin || user.has_unibox_access === true;
 
-    console.log('Permission check result:', { isSuperAdmin, hasAccess, role: user.role, has_unibox_access: user.has_unibox_access });
+    const assignedFoldersResult = await db.query(
+      `SELECT COUNT(DISTINCT folder_id)::int AS count
+       FROM unibox_campaign_folder_assignments
+       WHERE org_id = $1 AND user_id = $2`,
+      [req.user.orgId, req.user.id]
+    );
+
+    const assignedFolderCount = assignedFoldersResult.rows[0]?.count || 0;
+    const hasFolderOnlyAccess = !hasFullAccess && assignedFolderCount > 0;
+    const hasPermission = hasFullAccess || hasFolderOnlyAccess;
+
+    console.log('Permission check result:', {
+      isSuperAdmin,
+      hasFullAccess,
+      hasFolderOnlyAccess,
+      role: user.role,
+      has_unibox_access: user.has_unibox_access,
+    });
 
     const result = {
-      hasPermission: hasAccess,
-      isOwner: isSuperAdmin
+      hasPermission,
+      isOwner: isSuperAdmin,
+      hasFullAccess,
+      isRestricted: hasFolderOnlyAccess,
+      assignedFolderCount,
     };
 
     console.log('Sending response:', result);
@@ -673,6 +837,11 @@ const getEmailLeadInfo = async (req, res, next) => {
 
     if (emailResult.rows.length === 0) {
       return res.status(404).json({ error: 'Email record not found' });
+    }
+
+    const hasAccess = await assertEmailAccess(id, req.user.id, req.user.orgId);
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'You do not have access to this email' });
     }
 
     const email = emailResult.rows[0];
@@ -1018,11 +1187,331 @@ const getCampaigns = async (req, res, next) => {
     }
 
 
-    res.json({ campaigns });
+    let filteredCampaigns = campaigns;
+    const allowedCampaignIds = await getAllowedCampaignIds(req.user.id, orgId);
+    if (allowedCampaignIds !== null) {
+      const allowedSet = new Set(allowedCampaignIds);
+      filteredCampaigns = campaigns.filter((c) => allowedSet.has(c.id));
+    }
+
+    res.json({ campaigns: filteredCampaigns });
   } catch (err) {
     next(err);
   }
 
+};
+
+// Ensure the default "Others" folder exists for an org
+const ensureDefaultFolder = async (orgId) => {
+  const existing = await db.query(
+    'SELECT id FROM unibox_campaign_folders WHERE org_id = $1 AND is_default = true LIMIT 1',
+    [orgId]
+  );
+  if (existing.rows.length > 0) return existing.rows[0].id;
+
+  const result = await db.query(
+    `INSERT INTO unibox_campaign_folders (org_id, name, is_default, sort_order)
+     VALUES ($1, 'Others', true, 0)
+     RETURNING id`,
+    [orgId]
+  );
+  return result.rows[0].id;
+};
+
+// Get campaign folders with assigned campaigns
+const getCampaignFolders = async (req, res, next) => {
+  try {
+    const orgId = req.user.orgId;
+    const userId = req.user.id;
+    await ensureDefaultFolder(orgId);
+
+    const { hasFullAccess } = await getUniboxAccessLevel(userId, orgId);
+    const folderParams = [orgId];
+    let folderWhere = 'WHERE f.org_id = $1';
+    if (!hasFullAccess) {
+      folderWhere += ` AND EXISTS (
+        SELECT 1 FROM unibox_campaign_folder_assignments a
+        WHERE a.folder_id = f.id AND a.user_id = $2
+      )`;
+      folderParams.push(userId);
+    }
+
+    const foldersResult = await db.query(
+      `SELECT f.id, f.name, f.is_default, f.sort_order, f.created_at, f.updated_at
+       FROM unibox_campaign_folders f
+       ${folderWhere}
+       ORDER BY f.is_default ASC, f.sort_order ASC, f.name ASC`,
+      folderParams
+    );
+
+    const itemsResult = await db.query(
+      `SELECT folder_id, campaign_id, sort_order
+       FROM unibox_campaign_folder_items
+       WHERE org_id = $1
+       ORDER BY sort_order ASC`,
+      [orgId]
+    );
+
+    const assignmentsResult = await db.query(
+      `SELECT a.folder_id, u.id AS user_id, u.full_name, u.email
+       FROM unibox_campaign_folder_assignments a
+       INNER JOIN users u ON u.id = a.user_id
+       WHERE a.org_id = $1
+       ORDER BY u.full_name ASC`,
+      [orgId]
+    );
+
+    const itemsByFolder = new Map();
+    itemsResult.rows.forEach((row) => {
+      if (!itemsByFolder.has(row.folder_id)) itemsByFolder.set(row.folder_id, []);
+      itemsByFolder.get(row.folder_id).push({
+        campaign_id: row.campaign_id,
+        sort_order: row.sort_order,
+      });
+    });
+
+    const usersByFolder = new Map();
+    assignmentsResult.rows.forEach((row) => {
+      if (!usersByFolder.has(row.folder_id)) usersByFolder.set(row.folder_id, []);
+      usersByFolder.get(row.folder_id).push({
+        id: row.user_id,
+        full_name: row.full_name,
+        email: row.email,
+      });
+    });
+
+    const folders = foldersResult.rows.map((folder) => ({
+      ...folder,
+      campaigns: itemsByFolder.get(folder.id) || [],
+      assigned_users: usersByFolder.get(folder.id) || [],
+    }));
+
+    res.json({ folders });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Create a custom campaign folder
+const createCampaignFolder = async (req, res, next) => {
+  try {
+    await assertUniboxOwner(req.user.id, req.user.orgId);
+    const orgId = req.user.orgId;
+    const { name } = req.body;
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({ error: 'Folder name is required' });
+    }
+
+    const maxOrder = await db.query(
+      'SELECT COALESCE(MAX(sort_order), 0) + 1 AS next_order FROM unibox_campaign_folders WHERE org_id = $1 AND is_default = false',
+      [orgId]
+    );
+
+    const result = await db.query(
+      `INSERT INTO unibox_campaign_folders (org_id, name, is_default, sort_order)
+       VALUES ($1, $2, false, $3)
+       RETURNING id, name, is_default, sort_order, created_at, updated_at`,
+      [orgId, String(name).trim(), maxOrder.rows[0].next_order]
+    );
+
+    res.status(201).json({ folder: { ...result.rows[0], campaigns: [] } });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Rename a campaign folder
+const updateCampaignFolder = async (req, res, next) => {
+  try {
+    await assertUniboxOwner(req.user.id, req.user.orgId);
+    const orgId = req.user.orgId;
+    const { id } = req.params;
+    const { name } = req.body;
+
+    const folder = await db.query(
+      'SELECT id, is_default FROM unibox_campaign_folders WHERE id = $1 AND org_id = $2',
+      [id, orgId]
+    );
+    if (folder.rows.length === 0) {
+      return res.status(404).json({ error: 'Folder not found' });
+    }
+    if (folder.rows[0].is_default) {
+      return res.status(400).json({ error: 'Cannot rename the default folder' });
+    }
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({ error: 'Folder name is required' });
+    }
+
+    const result = await db.query(
+      `UPDATE unibox_campaign_folders
+       SET name = $1, updated_at = NOW()
+       WHERE id = $2 AND org_id = $3
+       RETURNING id, name, is_default, sort_order, created_at, updated_at`,
+      [String(name).trim(), id, orgId]
+    );
+
+    res.json({ folder: result.rows[0] });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Delete a custom campaign folder (moves campaigns to Others)
+const deleteCampaignFolder = async (req, res, next) => {
+  try {
+    await assertUniboxOwner(req.user.id, req.user.orgId);
+    const orgId = req.user.orgId;
+    const { id } = req.params;
+
+    const folder = await db.query(
+      'SELECT id, is_default FROM unibox_campaign_folders WHERE id = $1 AND org_id = $2',
+      [id, orgId]
+    );
+    if (folder.rows.length === 0) {
+      return res.status(404).json({ error: 'Folder not found' });
+    }
+    if (folder.rows[0].is_default) {
+      return res.status(400).json({ error: 'Cannot delete the default folder' });
+    }
+
+    await db.query(
+      'DELETE FROM unibox_campaign_folders WHERE id = $1 AND org_id = $2',
+      [id, orgId]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Assign a campaign to a folder (drag-and-drop)
+const assignCampaignToFolder = async (req, res, next) => {
+  try {
+    await assertUniboxOwner(req.user.id, req.user.orgId);
+    const orgId = req.user.orgId;
+    const { campaign_id, folder_id } = req.body;
+
+    if (!campaign_id || !folder_id) {
+      return res.status(400).json({ error: 'campaign_id and folder_id are required' });
+    }
+
+    const folder = await db.query(
+      'SELECT id FROM unibox_campaign_folders WHERE id = $1 AND org_id = $2',
+      [folder_id, orgId]
+    );
+    if (folder.rows.length === 0) {
+      return res.status(404).json({ error: 'Folder not found' });
+    }
+
+    const maxOrder = await db.query(
+      'SELECT COALESCE(MAX(sort_order), 0) + 1 AS next_order FROM unibox_campaign_folder_items WHERE folder_id = $1',
+      [folder_id]
+    );
+
+    await db.query(
+      `INSERT INTO unibox_campaign_folder_items (org_id, folder_id, campaign_id, sort_order)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (org_id, campaign_id)
+       DO UPDATE SET folder_id = EXCLUDED.folder_id, sort_order = EXCLUDED.sort_order`,
+      [orgId, folder_id, campaign_id, maxOrder.rows[0].next_order]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Assign folder to one or more team members (lead user only)
+const assignUserToFolder = async (req, res, next) => {
+  try {
+    await assertUniboxOwner(req.user.id, req.user.orgId);
+    const orgId = req.user.orgId;
+    const { id } = req.params;
+    const { assigned_user_ids } = req.body;
+
+    if (!Array.isArray(assigned_user_ids)) {
+      return res.status(400).json({ error: 'assigned_user_ids must be an array' });
+    }
+
+    const folder = await db.query(
+      'SELECT id FROM unibox_campaign_folders WHERE id = $1 AND org_id = $2',
+      [id, orgId]
+    );
+    if (folder.rows.length === 0) {
+      return res.status(404).json({ error: 'Folder not found' });
+    }
+
+    const uniqueUserIds = [...new Set(assigned_user_ids.filter(Boolean))];
+
+    if (uniqueUserIds.length > 0) {
+      const userCheck = await db.query(
+        'SELECT id FROM users WHERE org_id = $1 AND id = ANY($2)',
+        [orgId, uniqueUserIds]
+      );
+      if (userCheck.rows.length !== uniqueUserIds.length) {
+        return res.status(404).json({ error: 'One or more users not found in your organization' });
+      }
+    }
+
+    await db.query('BEGIN');
+    try {
+      await db.query(
+        'DELETE FROM unibox_campaign_folder_assignments WHERE folder_id = $1 AND org_id = $2',
+        [id, orgId]
+      );
+
+      for (const userId of uniqueUserIds) {
+        await db.query(
+          `INSERT INTO unibox_campaign_folder_assignments (org_id, folder_id, user_id)
+           VALUES ($1, $2, $3)`,
+          [orgId, id, userId]
+        );
+      }
+
+      await db.query(
+        'UPDATE unibox_campaign_folders SET updated_at = NOW() WHERE id = $1',
+        [id]
+      );
+
+      await db.query('COMMIT');
+    } catch (txErr) {
+      await db.query('ROLLBACK');
+      throw txErr;
+    }
+
+    const folderResult = await db.query(
+      `SELECT id, name, is_default, sort_order, created_at, updated_at
+       FROM unibox_campaign_folders WHERE id = $1`,
+      [id]
+    );
+
+    const assignedUsersResult = await db.query(
+      `SELECT u.id, u.full_name, u.email
+       FROM unibox_campaign_folder_assignments a
+       INNER JOIN users u ON u.id = a.user_id
+       WHERE a.folder_id = $1
+       ORDER BY u.full_name ASC`,
+      [id]
+    );
+
+    res.json({
+      folder: {
+        ...folderResult.rows[0],
+        assigned_users: assignedUsersResult.rows.map((u) => ({
+          id: u.id,
+          full_name: u.full_name,
+          email: u.email,
+        })),
+      },
+    });
+  } catch (err) {
+    if (err.status === 403) {
+      return res.status(403).json({ error: err.message });
+    }
+    next(err);
+  }
 };
 
 module.exports = {
@@ -1042,4 +1531,10 @@ module.exports = {
   createSampleEmail,
   getEmailLeadInfo,
   getCampaigns,
+  getCampaignFolders,
+  createCampaignFolder,
+  updateCampaignFolder,
+  deleteCampaignFolder,
+  assignCampaignToFolder,
+  assignUserToFolder,
 };

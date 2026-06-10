@@ -109,6 +109,8 @@ const createLeadSchema = Joi.object({
   responsiblePerson: Joi.string().optional().allow(null, ''),
   pipeline: Joi.string().optional().allow(null, ''),
   externalSourceId: Joi.string().optional().allow(null, ''),
+  campaignId: Joi.string().uuid().optional().allow(null, ''),
+  campaignName: Joi.string().optional().allow(null, ''),
   createdAt: Joi.alternatives().try(Joi.date(), Joi.string().isoDate()).optional().allow(null, ''),
   customFields: Joi.object().optional().allow(null),
 });
@@ -190,6 +192,8 @@ const normalizeLeadInput = (body = {}) => {
     responsiblePerson: getVal('responsiblePerson', 'responsible_person'),
     pipeline: getVal('pipeline', 'pipeline'),
     externalSourceId: getVal('externalSourceId', 'external_source_id'),
+    campaignId: getUuid('campaignId', 'campaign_id'),
+    campaignName: getVal('campaignName', 'campaign_name'),
     createdAt: getDate('createdAt', 'created_at'),
     customFields: getVal('customFields', 'custom_fields'),
   };
@@ -236,6 +240,8 @@ const updateLeadSchema = Joi.object({
   responsiblePerson: Joi.string().optional().allow(null, ''),
   pipeline: Joi.string().optional().allow(null, ''),
   externalSourceId: Joi.string().optional().allow(null, ''),
+  campaignId: Joi.string().uuid().optional().allow(null, ''),
+  campaignName: Joi.string().optional().allow(null, ''),
   createdAt: Joi.alternatives().try(Joi.date(), Joi.string().isoDate()).optional().allow(null, ''),
   customFields: Joi.object().optional().allow(null),
 }).min(1);
@@ -590,7 +596,7 @@ const create = async (req, res, next) => {
       website, websiteType, address, companyName, companyPhone,
       companyEmail, companySize, agentName, decisionMaker, serviceInterested,
       interactionNotes, firstMessage, lastTouch, lastContactedDate, nextFollowUpDate,
-      sourceInfo, responsiblePerson, createdAt, customFields
+      sourceInfo, responsiblePerson, campaignId, campaignName, createdAt, customFields
     } = value;
 
     const workspaceId = req.body.workspaceId || null;
@@ -613,15 +619,16 @@ const create = async (req, res, next) => {
           value, currency, priority, notes, tags, expected_close_date, contact_id, company_id,
           designation, phone, phone_type, email, email_type, website, website_type, address, company_name, company_phone,
           company_email, company_size, agent_name, decision_maker, service_interested,
-          interaction_notes, first_message, last_touch, last_contacted_date, next_follow_up_date, responsible_person, pipeline, external_source_id, custom_fields, created_at)
+          interaction_notes, first_message, last_touch, last_contacted_date, next_follow_up_date, responsible_person, pipeline, external_source_id, campaign_id, campaign_name, custom_fields, created_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
-                 $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44)
+                 $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46)
          RETURNING *`,
         [req.user.orgId, req.user.id, workspaceId, assignedTo || null, title, name, stage, status, source, serializeJsonField(sourceInfo), customerType || null,
           leadValue, currency, priority, notes, tags, expectedCloseDate, contactId, companyId,
           designation, phone, phoneType || null, email, emailType || null, website, websiteType || null, address, companyName, companyPhone,
           companyEmail, companySize, agentName, decisionMaker, serviceInterested,
           interactionNotes, firstMessage, lastTouch, lastContactedDate || null, nextFollowUpDate || null, responsiblePerson || null, value.pipeline, value.externalSourceId,
+        campaignId || null, campaignName || null,
         customFields ? JSON.stringify(customFields) : '{}', createdAt || new Date().toISOString()]
       );
     } catch (err) {
@@ -749,6 +756,8 @@ const update = async (req, res, next) => {
       responsiblePerson: 'responsible_person',
       pipeline: 'pipeline',
       externalSourceId: 'external_source_id',
+      campaignId: 'campaign_id',
+      campaignName: 'campaign_name',
       createdAt: 'created_at',
       customFields: 'custom_fields'
     };
@@ -1147,13 +1156,13 @@ const convertToDeal = async (req, res, next) => {
          decision_maker, service_interested, interaction_notes, 
          first_message, last_touch, workspace_id, source_info, 
          phone_type, email_type, website_type, customer_type, 
-         last_contacted_date, next_follow_up_date, assigned_to, custom_fields
+         last_contacted_date, next_follow_up_date, assigned_to, campaign_id, campaign_name, custom_fields
        )
        VALUES (
          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
          $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26,
          $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38,
-         $39, $40, $41, $42, $43
+         $39, $40, $41, $42, $43, $44, $45
        )
        RETURNING *`,
       [
@@ -1199,6 +1208,8 @@ const convertToDeal = async (req, res, next) => {
         lead.last_contacted_date,
         lead.next_follow_up_date,
         validateUuid(lead.responsible_person || lead.assigned_to),
+        lead.campaign_id,
+        lead.campaign_name,
         JSON.stringify(lead.custom_fields || {})
       ]
     );

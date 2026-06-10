@@ -233,8 +233,8 @@ export function UniboxPermissionsManager() {
 
       <div className="mt-4 p-3 bg-muted/50 rounded-lg">
         <p className="text-xs text-muted-foreground">
-          <strong>Note:</strong> Only super admins can manage Unibox access. Users with access can view and manage all Unibox emails,
-          convert them to leads, and update their status.
+          <strong>Note:</strong> Users granted access here see the complete Unibox. For folder-only access (specific campaigns),
+          do not grant access here — instead assign users to folders from the Unibox sidebar. Only the lead user (super admin) can manage folders.
         </p>
       </div>
     </Card>

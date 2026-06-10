@@ -135,7 +135,7 @@ class InstantlyService {
    */
   async _ensureLeadExists(orgId, leadData) {
     try {
-      const { email, first_name, last_name, company, phone, source = 'Instantly' } = leadData;
+      const { email, first_name, last_name, company, phone, source = 'Instantly', campaign_id, campaign_name } = leadData;
 
       // If we are missing critical info, try to enrich from Instantly API
       let enrichedFirstName = first_name;
@@ -238,8 +238,8 @@ class InstantlyService {
           `INSERT INTO leads (
             org_id, organization_id, title, name, first_name, last_name, email, phone, company, company_name, 
             company_phone, company_email, designation, website, address, source, status, stage, 
-            interaction_notes, description, custom_fields, created_at, updated_at
-          ) VALUES ($1, $1, $2, $3, $4, $5, $6, $7, $8, $8, $7, $6, $9, $10, $11, $12, $13, $14, $15, $15, $16, $17, now())`,
+            interaction_notes, description, custom_fields, campaign_id, campaign_name, created_at, updated_at
+          ) VALUES ($1, $1, $2, $3, $4, $5, $6, $7, $8, $8, $7, $6, $9, $10, $11, $12, $13, $14, $15, $15, $16, $17, $18, $19, now())`,
           [
             orgId,
             cleanLeadTitle,
@@ -257,6 +257,8 @@ class InstantlyService {
             stageKey,
             interactionNotes,
             JSON.stringify(customFields),
+            campaign_id || null,
+            campaign_name || null,
             createdDate
           ]
         );
@@ -572,6 +574,9 @@ class InstantlyService {
             }
           }
 
+          const resolvedCampaignId = item.campaign_id || (item.lead && item.lead.campaign_id);
+          const resolvedCampaignName = resolvedCampaignId ? campaignMap.get(resolvedCampaignId) : null;
+
           await this._ensureLeadExists(orgId, {
             email: leadEmail,
             first_name: firstName,
@@ -583,7 +588,9 @@ class InstantlyService {
             payload: (item.lead && item.lead.payload) || item.payload || {},
             subject: subject,
             body_text: bodyText,
-            received_at: receivedAt
+            received_at: receivedAt,
+            campaign_id: resolvedCampaignId || null,
+            campaign_name: resolvedCampaignName || null
           });
         }
 
@@ -762,6 +769,9 @@ class InstantlyService {
       const comp = payload.company_name || payload.lead_company_name || payload.company || leadObj.company_name || payloadObj.companyName;
       const ph = payload.phone || payload.lead_phone || leadObj.phone || payloadObj.phone;
 
+      const webhookCampaignId = payload.campaign_id || null;
+      const webhookCampaignName = payload.campaign_name || payload.campaign || null;
+
       await this._ensureLeadExists(orgId, {
         email: leadEmail,
         first_name: fName,
@@ -773,7 +783,9 @@ class InstantlyService {
         payload: payloadObj,
         subject: payload.subject || `Webhook Event: ${eventType}`,
         body_text: payload.reply_body || payload.body_text || payload.body || '',
-        received_at: new Date(payload.timestamp || Date.now())
+        received_at: new Date(payload.timestamp || Date.now()),
+        campaign_id: webhookCampaignId,
+        campaign_name: webhookCampaignName
       });
     }
 

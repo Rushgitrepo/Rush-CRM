@@ -447,3 +447,127 @@ export function useUniboxCampaigns() {
     staleTime: 30000,
   });
 }
+
+export interface UniboxCampaignFolderItem {
+  campaign_id: string;
+  sort_order: number;
+}
+
+export interface UniboxFolderAssignedUser {
+  id: string;
+  full_name: string;
+  email: string;
+}
+
+export interface UniboxCampaignFolder {
+  id: string;
+  name: string;
+  is_default: boolean;
+  sort_order: number;
+  assigned_users: UniboxFolderAssignedUser[];
+  campaigns: UniboxCampaignFolderItem[];
+}
+
+export function useUniboxCampaignFolders() {
+  const queryClient = useQueryClient();
+
+  const foldersQuery = useQuery({
+    queryKey: ["unibox-campaign-folders"],
+    queryFn: async () => {
+      const data = await api.get<{ folders: UniboxCampaignFolder[] }>("/unibox/campaign-folders");
+      return data?.folders || [];
+    },
+    staleTime: 30000,
+  });
+
+  const createFolder = useMutation({
+    mutationFn: async (name: string) => {
+      return api.post<{ folder: UniboxCampaignFolder }>("/unibox/campaign-folders", { name });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["unibox-campaign-folders"] });
+      toast.success("Folder created");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const renameFolder = useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      return api.patch<{ folder: UniboxCampaignFolder }>(`/unibox/campaign-folders/${id}`, { name });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["unibox-campaign-folders"] });
+      toast.success("Folder renamed");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const deleteFolder = useMutation({
+    mutationFn: async (id: string) => {
+      return api.delete(`/unibox/campaign-folders/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["unibox-campaign-folders"] });
+      toast.success("Folder deleted");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const assignUsersToFolder = useMutation({
+    mutationFn: async ({ folderId, assigned_user_ids }: { folderId: string; assigned_user_ids: string[] }) => {
+      return api.patch<{ folder: UniboxCampaignFolder }>(`/unibox/campaign-folders/${folderId}/assign-user`, {
+        assigned_user_ids,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["unibox-campaign-folders"] });
+      toast.success("Folder assignment updated");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const assignCampaign = useMutation({
+    mutationFn: async ({ campaign_id, folder_id }: { campaign_id: string; folder_id: string }) => {
+      return api.post("/unibox/campaign-folders/assign", { campaign_id, folder_id });
+    },
+    onMutate: async ({ campaign_id, folder_id }) => {
+      await queryClient.cancelQueries({ queryKey: ["unibox-campaign-folders"] });
+      const previous = queryClient.getQueryData<UniboxCampaignFolder[]>(["unibox-campaign-folders"]);
+
+      queryClient.setQueryData<UniboxCampaignFolder[]>(["unibox-campaign-folders"], (old) => {
+        if (!old) return old;
+        return old.map((folder) => {
+          const withoutCampaign = folder.campaigns.filter((c) => c.campaign_id !== campaign_id);
+          if (folder.id === folder_id) {
+            return {
+              ...folder,
+              campaigns: [...withoutCampaign, { campaign_id, sort_order: folder.campaigns.length }],
+            };
+          }
+          return { ...folder, campaigns: withoutCampaign };
+        });
+      });
+
+      return { previous };
+    },
+    onError: (err: Error, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["unibox-campaign-folders"], context.previous);
+      }
+      toast.error(err.message);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["unibox-campaign-folders"] });
+    },
+  });
+
+  return {
+    folders: foldersQuery.data || [],
+    isLoading: foldersQuery.isLoading,
+    createFolder,
+    renameFolder,
+    deleteFolder,
+    assignCampaign,
+    assignUsersToFolder,
+  };
+}

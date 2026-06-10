@@ -54,6 +54,8 @@ type DealRow = {
   expectedCloseDate?: string;
   deadline?: string;
   invoiceAmount?: number;
+  campaignName?: string;
+  campaignId?: string;
 };
 
 export default function DealsPage() {
@@ -194,6 +196,8 @@ export default function DealsPage() {
         projectType: d.project_type || d.projectType,
         responsiblePersonName: d.responsible_person_name || d.responsiblePersonName,
         responsiblePersonAvatar: d.responsible_person_avatar || d.responsiblePersonAvatar,
+        campaignName: d.campaign_name || d.campaignName || d.campaign || "",
+        campaignId: d.campaign_id || d.campaignId || "",
         priority: d.priority || "medium",
         probability: d.probability !== undefined ? Number(d.probability) : 0,
         expectedCloseDate: d.expected_close_date || d.expectedCloseDate,
@@ -278,6 +282,20 @@ export default function DealsPage() {
       align: "right",
       sortable: true,
       render: (deal) => <span className="font-semibold">{deal.value ? `$${Number(deal.value).toLocaleString()}` : "—"}</span>,
+    },
+    {
+      key: "campaignName",
+      header: "Campaign",
+      sortable: true,
+      render: (deal) => (
+        deal.campaignName ? (
+          <span className="text-sm text-muted-foreground truncate max-w-[160px] block" title={deal.campaignName}>
+            {deal.campaignName}
+          </span>
+        ) : (
+          <span className="text-sm text-muted-foreground">—</span>
+        )
+      ),
     },
     {
       key: "stage",

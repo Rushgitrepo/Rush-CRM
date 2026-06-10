@@ -96,6 +96,8 @@ const createDealSchema = Joi.object({
   responsiblePerson: Joi.string().uuid().optional().allow(null),
   assignedTo: Joi.string().uuid().optional().allow(null),
   deadline: Joi.date().optional().allow(null),
+  campaignId: Joi.string().uuid().optional().allow(null, ''),
+  campaignName: Joi.string().optional().allow(null, ''),
   customFields: Joi.object().optional().allow(null),
 });
 
@@ -189,6 +191,8 @@ const normalizeDealInput = (body = {}) => {
     nextFollowUpDate: getDate('nextFollowUpDate', 'next_follow_up_date'),
     responsiblePerson: getUuid('responsiblePerson', 'responsible_person'),
     createdAt: getDate('createdAt', 'created_at'),
+    campaignId: getUuid('campaignId', 'campaign_id'),
+    campaignName: getVal('campaignName', 'campaign_name'),
     customFields: getVal('customFields', 'custom_fields'),
   };
 };
@@ -277,6 +281,8 @@ const updateDealSchema = Joi.object({
   nextFollowUpDate: Joi.date().optional().allow(null),
   responsiblePerson: Joi.string().uuid().optional().allow(null),
   deadline: Joi.date().optional().allow(null),
+  campaignId: Joi.string().uuid().optional().allow(null, ''),
+  campaignName: Joi.string().optional().allow(null, ''),
   createdAt: Joi.date().optional().allow(null),
   customFields: Joi.object().optional().allow(null),
 }).min(1);
@@ -572,7 +578,7 @@ const create = async (req, res, next) => {
       hoursOfWork, hourlyRate, hourlyRateCurrency, proposalAmount, proposalCurrency, invoiceAmount, invoiceCurrency,
       firstMessage, lastTouch, workspaceId, sourceInfo, projectBlueprints,
       phoneType, emailType, websiteType, customerType,
-      lastContactedDate, nextFollowUpDate, responsiblePerson, assignedTo, deadline, customFields
+      lastContactedDate, nextFollowUpDate, responsiblePerson, assignedTo, deadline, campaignId, campaignName, customFields
     } = value;
 
     const result = await db.query(
@@ -587,14 +593,15 @@ const create = async (req, res, next) => {
          hours_of_work, hourly_rate, hourly_rate_currency, proposal_amount, proposal_currency, invoice_amount, invoice_currency,
          first_message, last_touch, workspace_id, source_info, project_blueprints,
          phone_type, email_type, website_type, customer_type, 
-         last_contacted_date, next_follow_up_date, responsible_person, assigned_to, deadline, custom_fields
+         last_contacted_date, next_follow_up_date, responsible_person, assigned_to, deadline,
+         campaign_id, campaign_name, custom_fields
        )
        VALUES (
          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 
          $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26,
          $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38,
          $39, $40, $41, $42, $43, $44, $45, $46, $47, $48,
-         $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62
+         $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62, $63, $64
        )
        RETURNING *`,
       [
@@ -608,6 +615,7 @@ const create = async (req, res, next) => {
         firstMessage, lastTouch, workspaceId, sourceInfo, serializeBlueprintsField(projectBlueprints),
         phoneType, emailType, websiteType, customerType,
         lastContactedDate, nextFollowUpDate, responsiblePerson || assignedTo || null, assignedTo || responsiblePerson || null, deadline,
+        campaignId || null, campaignName || null,
         customFields ? JSON.stringify(customFields) : '{}'
       ]
     );

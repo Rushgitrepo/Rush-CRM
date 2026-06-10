@@ -20,6 +20,12 @@ router.post('/emails/sample', uniboxController.createSampleEmail);
 router.get('/stats', uniboxController.getStats);
 router.get('/templates', uniboxController.getTemplates);
 router.get('/campaigns', uniboxController.getCampaigns);
+router.get('/campaign-folders', uniboxController.getCampaignFolders);
+router.post('/campaign-folders', uniboxController.createCampaignFolder);
+router.post('/campaign-folders/assign', uniboxController.assignCampaignToFolder);
+router.patch('/campaign-folders/:id/assign-user', uniboxController.assignUserToFolder);
+router.patch('/campaign-folders/:id', uniboxController.updateCampaignFolder);
+router.delete('/campaign-folders/:id', uniboxController.deleteCampaignFolder);
 
 // Permissions
 router.get('/permission', uniboxController.checkPermission);
