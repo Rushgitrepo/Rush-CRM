@@ -25,6 +25,7 @@ import {
   Check,
   X,
   User,
+  Search,
 } from "lucide-react";
 import {
   useUniboxCampaigns,
@@ -41,6 +42,19 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 
 const CAMPAIGN_PREFIX = "campaign:";
 const FOLDER_PREFIX = "folder:";
+const EXPANDED_STORAGE_KEY = "unibox_campaign_expanded_folders";
+
+function loadExpandedFromStorage(): Set<string> {
+  try {
+    const raw = localStorage.getItem(EXPANDED_STORAGE_KEY);
+    if (raw) return new Set(JSON.parse(raw));
+  } catch {}
+  return new Set();
+}
+
+function saveExpandedToStorage(folderIds: Set<string>) {
+  localStorage.setItem(EXPANDED_STORAGE_KEY, JSON.stringify(Array.from(folderIds)));
+}
 
 interface OrgUser {
   id: string;
@@ -368,12 +382,13 @@ export function UniboxCampaignSidebar({
     staleTime: 60000,
   });
 
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => loadExpandedFromStorage());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [newFolderName, setNewFolderName] = useState("");
   const [showNewFolder, setShowNewFolder] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const selectedCampaignId = useMemo(() => {
     const params = new URLSearchParams(location.search);
@@ -410,6 +425,7 @@ export function UniboxCampaignSidebar({
       const next = new Set(prev);
       if (next.has(folderId)) next.delete(folderId);
       else next.add(folderId);
+      saveExpandedToStorage(next);
       return next;
     });
   };
@@ -494,22 +510,74 @@ export function UniboxCampaignSidebar({
   const isLoading = campaignsLoading || foldersLoading;
   const allFolders = [...customFolders, ...(defaultFolder ? [defaultFolder] : [])];
 
+  const isSearching = searchQuery.trim().length > 0;
+
+  const filteredFolders = useMemo(() => {
+    if (!isSearching) return allFolders;
+    const q = searchQuery.toLowerCase().trim();
+    return allFolders.filter((folder) => {
+      if (folder.name.toLowerCase().includes(q)) return true;
+      const campaigns = getCampaignsForFolder(folder);
+      return campaigns.some((camp) => camp.name.toLowerCase().includes(q));
+    });
+  }, [allFolders, isSearching, searchQuery, getCampaignsForFolder]);
+
+  const getFilteredCampaignsForFolder = useCallback(
+    (folder: UniboxCampaignFolder) => {
+      const campaigns = getCampaignsForFolder(folder);
+      if (!isSearching) return campaigns;
+      const q = searchQuery.toLowerCase().trim();
+      return campaigns.filter((camp) => camp.name.toLowerCase().includes(q));
+    },
+    [getCampaignsForFolder, isSearching, searchQuery],
+  );
+
+  const [hasInitializedState, setHasInitializedState] = useState(false);
+
+  // On first load of folders, restore saved state or expand all
   useEffect(() => {
-    if (allFolders.length > 0) {
-      setExpandedFolders((prev) => {
-        if (prev.size > 0) return prev;
-        return new Set(allFolders.map((f) => f.id));
-      });
+    if (allFolders.length > 0 && !hasInitializedState) {
+      setHasInitializedState(true);
+      const validFolderIds = new Set(allFolders.map((f) => f.id));
+      const saved = loadExpandedFromStorage();
+      // Filter out any saved IDs that no longer exist (e.g., folder was deleted)
+      const validSaved = new Set(Array.from(saved).filter((id) => validFolderIds.has(id)));
+      if (validSaved.size > 0) {
+        setExpandedFolders(validSaved);
+      } else {
+        // No saved state — expand all folders by default
+        setExpandedFolders(validFolderIds);
+      }
     }
-  }, [allFolders.length]);
+  }, [allFolders.length, hasInitializedState]);
+
+  // Auto-expand folders when searching (temporary, not saved to localStorage)
+  useEffect(() => {
+    if (isSearching && filteredFolders.length > 0) {
+      setExpandedFolders(new Set(filteredFolders.map((f) => f.id)));
+    }
+  }, [isSearching, filteredFolders]);
+
+  // Restore saved state when search is cleared
+  useEffect(() => {
+    if (!isSearching && hasInitializedState) {
+      const saved = loadExpandedFromStorage();
+      if (saved.size > 0) {
+        setExpandedFolders(saved);
+      } else {
+        setExpandedFolders(new Set(allFolders.map((f) => f.id)));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSearching]);
 
   const folderList = (
     <div className="space-y-2">
-      {allFolders.map((folder) => (
+      {filteredFolders.map((folder) => (
         <DroppableFolder
           key={folder.id}
           folder={folder}
-          campaigns={getCampaignsForFolder(folder)}
+          campaigns={getFilteredCampaignsForFolder(folder)}
           isExpanded={expandedFolders.has(folder.id)}
           onToggle={() => toggleFolder(folder.id)}
           editingId={editingId}
@@ -531,6 +599,30 @@ export function UniboxCampaignSidebar({
 
   return (
     <div className="space-y-2">
+      {/* Search input */}
+      <div className="relative">
+        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-500 pointer-events-none" />
+        <input
+          type="text"
+          placeholder="Search campaigns or folders..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full h-7 rounded-md border border-white/10 bg-white/5 pl-6 pr-2 text-[11px] text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all"
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setSearchQuery("");
+          }}
+        />
+        {searchQuery && (
+          <button
+            type="button"
+            onClick={() => setSearchQuery("")}
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-slate-500 hover:text-slate-300 transition-colors"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+
       <div className="flex items-center justify-between pl-1">
         <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">Campaigns</span>
         {isOwner && (
@@ -570,6 +662,10 @@ export function UniboxCampaignSidebar({
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
+      )}
+
+      {isSearching && filteredFolders.length === 0 && (
+        <p className="text-[11px] text-slate-600 italic pl-3">No results found</p>
       )}
 
       {isLoading ? (
