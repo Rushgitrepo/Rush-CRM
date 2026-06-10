@@ -298,7 +298,7 @@ const update = async (req, res, next) => {
     const updatedTask = result.rows[0];
 
     const cleanAssignedTo = assignedTo === '' ? null : assignedTo;
-    if (cleanAssignedTo && cleanAssignedTo !== req.user.id) {
+    if (cleanAssignedTo && cleanAssignedTo !== req.user.id && cleanAssignedTo !== existingTask.assigned_to) {
       notificationService.notify(
         req.user.orgId,
         cleanAssignedTo,
