@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 export interface Notification {
   id: string;
   type: string;
-  category: 'crm' | 'projects' | 'hrms' | 'recruitment' | 'system';
+  category: 'crm' | 'tasks' | 'hrms' | 'recruitment' | 'collaboration' | 'system' | 'general';
   title: string;
   message: string;
   action_url?: string;
@@ -39,10 +39,11 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       setIsLoading(true);
       const res = await api.get('/notifications?limit=50');
-      setNotifications(res.data.data || []);
-      
+      const data = (res as any).data;
+      setNotifications(data.data || []);
+
       // Calculate unread
-      const unread = res.data.data?.filter((n: Notification) => !n.is_read).length || 0;
+      const unread = data.data?.filter((n: Notification) => !n.is_read).length || 0;
       setUnreadCount(unread);
     } catch (err) {
       console.error('Failed to fetch notifications:', err);

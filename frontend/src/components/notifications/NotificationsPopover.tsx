@@ -16,9 +16,12 @@ import { useNavigate } from 'react-router-dom';
 
 const CATEGORY_ICONS = {
   crm: <Inbox className="h-4 w-4 text-blue-500" />,
+  tasks: <CheckCircle className="h-4 w-4 text-green-500" />,
   projects: <CheckCircle className="h-4 w-4 text-green-500" />,
   hrms: <Info className="h-4 w-4 text-purple-500" />,
   recruitment: <Info className="h-4 w-4 text-orange-500" />,
+  collaboration: <Info className="h-4 w-4 text-indigo-500" />,
+  general: <Bell className="h-4 w-4 text-gray-500" />,
   system: <AlertTriangle className="h-4 w-4 text-yellow-500" />,
 };
 
@@ -46,8 +49,8 @@ export function NotificationsPopover() {
         <Button variant="ghost" size="icon" className="relative group overflow-visible">
           <Bell className="h-5 w-5 transition-transform group-hover:scale-110" />
           {unreadCount > 0 && (
-            <Badge 
-              variant="destructive" 
+            <Badge
+              variant="destructive"
               className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-[10px] animate-in zoom-in duration-300"
             >
               {unreadCount > 9 ? '9+' : unreadCount}
@@ -65,9 +68,9 @@ export function NotificationsPopover() {
               </Badge>
             )}
           </h4>
-          <Button 
-            variant="ghost" 
-            size="sm" 
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={markAllAsRead}
             disabled={unreadCount === 0}
             className="text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
@@ -91,10 +94,10 @@ export function NotificationsPopover() {
               ) : (
                 <div className="divide-y">
                   {notifications.map((n) => (
-                    <NotificationItem 
-                      key={n.id} 
-                      notification={n} 
-                      onClick={() => handleNotificationClick(n)} 
+                    <NotificationItem
+                      key={n.id}
+                      notification={n}
+                      onClick={() => handleNotificationClick(n)}
                       icon={getIcon(n.type, n.category)}
                     />
                   ))}
@@ -107,9 +110,9 @@ export function NotificationsPopover() {
               ) : (
                 <div className="divide-y">
                   {notifications.filter(n => !n.is_read).map((n) => (
-                    <NotificationItem 
-                      key={n.id} 
-                      notification={n} 
+                    <NotificationItem
+                      key={n.id}
+                      notification={n}
                       onClick={() => handleNotificationClick(n)}
                       icon={getIcon(n.type, n.category)}
                     />
@@ -132,7 +135,7 @@ export function NotificationsPopover() {
 
 function NotificationItem({ notification: n, onClick, icon }: { notification: any, onClick: () => void, icon: React.ReactNode }) {
   return (
-    <div 
+    <div
       className={cn(
         "p-4 flex gap-3 cursor-pointer transition-all hover:bg-accent/50 group relative overflow-hidden",
         !n.is_read && "bg-primary/5 border-l-4 border-l-primary shadow-sm"

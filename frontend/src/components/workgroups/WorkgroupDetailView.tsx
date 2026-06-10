@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 import { createPortal } from "react-dom";
 import {
   DropdownMenu,
@@ -63,6 +64,8 @@ import {
   Copy,
   Forward,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   X,
   MessageCircle,
   Shield,
@@ -72,6 +75,11 @@ import {
   ArrowDownLeft,
   MapPin,
   Clock,
+  FileIcon,
+  FileText,
+  FileSpreadsheet,
+  FileArchive,
+  Music,
 } from "lucide-react";
 import {
   useWorkgroup,
@@ -402,6 +410,11 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isSendingFile, setIsSendingFile] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [pendingFilePreviewIndex, setPendingFilePreviewIndex] = useState(0);
+  const [lightboxImages, setLightboxImages] = useState<{ url: string; downloadUrl?: string; name: string }[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [showLightbox, setShowLightbox] = useState(false);
   const dragCounterRef = useRef(0);
 
   const flatPosts = useMemo(() => {
@@ -578,16 +591,50 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
 
   // Flatten posts for WhatsApp-style stream
 
-  const forwardTargetWorkgroups = useMemo(
-    () =>
-      allWorkgroups.filter(
-        (wg: any) =>
-          wg?.id !== workgroupId &&
-          wg?.is_member &&
-          wg?.name?.toLowerCase().includes(forwardSearch.toLowerCase()),
-      ),
-    [allWorkgroups, workgroupId, forwardSearch],
-  );
+  const forwardTargetWorkgroups = useMemo(() => {
+    const query = forwardSearch.toLowerCase().trim();
+
+    // 1. Existing Chats (Groups and DMs)
+    const existingChats = allWorkgroups
+      .filter((wg: any) => wg.id !== workgroupId && wg.is_member)
+      .map((wg: any) => ({
+        id: wg.id,
+        name: wg.display_name || wg.name,
+        type: "chat",
+        isDirect: Boolean(wg.settings?.is_direct_chat),
+        peerId: wg.direct_peer_user_id || null,
+        avatar_url: wg.avatar_url || wg.direct_peer_avatar_url,
+        avatar_color: wg.avatar_color
+      }));
+
+    // 2. Organization Users (for potential new DMs)
+    // Filter out user themselves and users who already have a DM in existingChats
+    const existingPeerIds = new Set(
+      existingChats.filter(c => c.isDirect).map(c => c.peerId)
+    );
+
+    const potentialUsers = orgUsers
+      .filter(u => u.id !== user?.id && !existingPeerIds.has(u.id))
+      .map(u => ({
+        id: `user-${u.id}`, // Temporary ID for non-existent chat
+        name: u.full_name || u.email,
+        type: "user",
+        isDirect: true,
+        peerId: u.id,
+        avatar_url: u.avatar_url,
+        avatar_color: "bg-slate-500"
+      }));
+
+    const combined = query
+      ? [...existingChats, ...potentialUsers]
+      : existingChats;
+
+    if (!query) return combined.slice(0, 50);
+
+    return combined.filter(c =>
+      c.name.toLowerCase().includes(query)
+    ).sort((a, b) => a.name.localeCompare(b.name));
+  }, [allWorkgroups, orgUsers, user?.id, workgroupId, forwardSearch]);
 
   const selectedForwardPosts = useMemo(() => {
     const selectedSet = new Set(selectedForwardPostIds);
@@ -736,60 +783,109 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   const canStartConversation = members.length > 1;
   const memberUserIds = new Set(members.map((m) => m.user_id));
   const availableUsers = orgUsers.filter((u) => !memberUserIds.has(u.id));
-  const handlePost = () => {
-    if (!newPost.trim() || !canStartConversation) return;
-    let mentionsToSend = selectedMentions
-      .filter((m) => newPost.includes(`@${m.label}`))
-      .map((m) => m.id);
+  const handlePost = async () => {
+    if ((!newPost.trim() && pendingFiles.length === 0) || !canStartConversation)
+      return;
 
-    // Expand "all" mention to actual member UUIDs
-    if (mentionsToSend.includes("all")) {
-      const allMemberIds = members
-        .map((m) => m.user_id)
-        .filter((id) => id !== user?.id);
-      mentionsToSend = Array.from(
-        new Set([...mentionsToSend, ...allMemberIds]),
-      ).filter((id) => id !== "all");
-    }
+    setIsSendingFile(true);
+    try {
+      const isAllImages =
+        pendingFiles.length > 1 &&
+        pendingFiles.every((f) => f.type.startsWith("image/"));
 
-    if (replyTo) {
-      // Send as reply
-      createPost.mutate(
-        {
+      // Case 1: Multiple items (Mixed or Non-Images) -> Send EACH item as separate post
+      if (pendingFiles.length > 1 && !isAllImages) {
+        for (const file of pendingFiles) {
+          const uploaded = await workgroupsApi.uploadFile(workgroupId, file);
+          await createPost.mutateAsync({
+            workgroupId,
+            content: "",
+            files: [
+              {
+                id: uploaded.id,
+                original_name: uploaded.original_name,
+                file_type: uploaded.file_type,
+                file_size: uploaded.file_size,
+                download_url: `/api/workgroups/${workgroupId}/files/${uploaded.id}/download`,
+              },
+            ],
+          });
+        }
+      }
+      // Case 2: One file OR Multiple Images -> Send in ONE single post
+      else if (pendingFiles.length > 0) {
+        const uploadedFiles: any[] = [];
+        for (const file of pendingFiles) {
+          const uploaded = await workgroupsApi.uploadFile(workgroupId, file);
+          uploadedFiles.push({
+            id: uploaded.id,
+            original_name: uploaded.original_name,
+            file_type: uploaded.file_type,
+            file_size: uploaded.file_size,
+            download_url: `/api/workgroups/${workgroupId}/files/${uploaded.id}/download`,
+          });
+        }
+
+        let mentionsToSend = selectedMentions
+          .filter((m) => newPost.includes(`@${m.label}`))
+          .map((m) => m.id);
+
+        if (mentionsToSend.includes("all")) {
+          const allMemberIds = members
+            .map((m) => m.user_id)
+            .filter((id) => id !== user?.id);
+          mentionsToSend = Array.from(
+            new Set([...mentionsToSend, ...allMemberIds]),
+          ).filter((id) => id !== "all");
+        }
+
+        await createPost.mutateAsync({
+          workgroupId,
+          content: isAllImages ? "" : newPost, // No caption allowed for multi-images as per user
+          parentId: replyTo || undefined,
+          mentions: mentionsToSend,
+          files: uploadedFiles,
+        });
+      }
+      // Case 3: Text only
+      else {
+        let mentionsToSend = selectedMentions
+          .filter((m) => newPost.includes(`@${m.label}`))
+          .map((m) => m.id);
+
+        if (mentionsToSend.includes("all")) {
+          const allMemberIds = members
+            .map((m) => m.user_id)
+            .filter((id) => id !== user?.id);
+          mentionsToSend = Array.from(
+            new Set([...mentionsToSend, ...allMemberIds]),
+          ).filter((id) => id !== "all");
+        }
+
+        await createPost.mutateAsync({
           workgroupId,
           content: newPost,
-          parentId: replyTo,
+          parentId: replyTo || undefined,
           mentions: mentionsToSend,
-        },
-        {
-          onSuccess: () => {
-            setNewPost("");
-            setReplyTo(null);
-            setSelectedMentions([]);
-            setShowMentionSuggestions(false);
-            // Reset textarea height
-            if (messageInputRef.current) {
-              messageInputRef.current.style.height = 'auto';
-            }
-          },
-        },
-      );
-    } else {
-      // Send as normal message
-      createPost.mutate(
-        { workgroupId, content: newPost, mentions: mentionsToSend },
-        {
-          onSuccess: () => {
-            setNewPost("");
-            setSelectedMentions([]);
-            setShowMentionSuggestions(false);
-            // Reset textarea height
-            if (messageInputRef.current) {
-              messageInputRef.current.style.height = 'auto';
-            }
-          },
-        },
-      );
+        });
+      }
+
+      // Reset states
+      setNewPost("");
+      setPendingFiles([]);
+      setReplyTo(null);
+      setSelectedMentions([]);
+      setShowMentionSuggestions(false);
+      if (messageInputRef.current) {
+        messageInputRef.current.style.height = "auto";
+      }
+      if (attachmentInputRef.current) {
+        attachmentInputRef.current.value = "";
+      }
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to send message");
+    } finally {
+      setIsSendingFile(false);
     }
   };
 
@@ -989,21 +1085,39 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
         user?.full_name?.trim() ||
         (user as any)?.name?.trim() ||
         "User";
-      for (const targetWorkgroupId of selectedForwardWorkgroupIds) {
+      for (let targetWorkgroupId of selectedForwardWorkgroupIds) {
+        // If it's a new user DM (prefixed with user-), we need to open the chat first
+        if (targetWorkgroupId.startsWith("user-")) {
+          const peerId = targetWorkgroupId.replace("user-", "");
+          try {
+            const newChat = await workgroupsApi.openDirectChat(peerId);
+            if (!newChat?.id) {
+              console.error("Failed to open direct chat for", peerId);
+              continue;
+            }
+            targetWorkgroupId = newChat.id;
+            // Also invalidate workgroups to show the new chat in sidebar later
+            queryClient.invalidateQueries({ queryKey: ["workgroups"] });
+          } catch (err) {
+            console.error("Error opening direct chat while forwarding:", err);
+            continue;
+          }
+        }
+
         for (const post of selectedForwardPosts) {
-          const hasImage = (post.attachments || []).some(a => a.file_type?.startsWith('image/'));
           const cleanedContent = (post.content || "")
             .replace(/\[Forwarded from [^\]]+\]\s*/gi, "")
             .replace(/^📎 .*/, "");
-          
+
           const attachmentsToSend = (post.attachments || []).map(att => ({
             id: att.id,
             original_name: att.original_name,
             file_type: att.file_type,
             file_size: att.file_size,
             download_url: att.download_url,
-            workgroup_id: att.workgroup_id || post.workgroup_id // Prefer existing source ID
+            workgroup_id: att.workgroup_id || post.workgroup_id
           }));
+
           await workgroupsApi.createPost(targetWorkgroupId, {
             content: `[Forwarded from ${post.author_name || "Unknown"}]${cleanedContent ? `\n${cleanedContent}` : ""}`,
             files: attachmentsToSend
@@ -1158,49 +1272,13 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
     setShowInputEmojiPicker(false);
   };
 
-  const handleAttachFromComposer = async (
+  const handleAttachFromComposer = (
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
-    const file = event.target.files?.[0];
-    if (!file || !canStartConversation) return;
-    await sendFile(file);
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0 || !canStartConversation) return;
+    setPendingFiles((prev) => [...prev, ...files]);
     if (attachmentInputRef.current) attachmentInputRef.current.value = "";
-  };
-
-  const sendFile = async (file: File) => {
-    if (!canStartConversation) return;
-    setIsSendingFile(true);
-    try {
-      const uploadedFile = await workgroupsApi.uploadFile(workgroupId, file);
-      await createPost.mutateAsync({
-        workgroupId,
-        content: newPost.trim() || (file.type.startsWith('image/') ? "" : `📎 ${uploadedFile.original_name}`),
-        parentId: replyTo || undefined,
-        mentions: selectedMentions
-          .filter((m) => (newPost.trim() || "").includes(`@${m.label}`))
-          .map((m) => m.id),
-        files: [
-          {
-            id: uploadedFile.id,
-            original_name: uploadedFile.original_name,
-            file_type: uploadedFile.file_type,
-            file_size: uploadedFile.file_size,
-            download_url: `/api/workgroups/${workgroupId}/files/${uploadedFile.id}/download`,
-          },
-        ],
-      });
-      setNewPost("");
-      setReplyTo(null);
-      setSelectedMentions([]);
-      setShowMentionSuggestions(false);
-      toast.success("File sent successfully");
-    } catch (error: any) {
-      toast.error(
-        error?.response?.data?.error || error?.message || "Failed to send file",
-      );
-    } finally {
-      setIsSendingFile(false);
-    }
   };
 
   const handleDragEnter = (e: React.DragEvent) => {
@@ -1219,15 +1297,17 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
     e.preventDefault();
   };
 
-  const handleDrop = async (e: React.DragEvent) => {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     dragCounterRef.current = 0;
     setIsDragging(false);
     const files = Array.from(e.dataTransfer.files);
     if (!files.length || !canStartConversation) return;
-    for (const file of files) {
-      await sendFile(file);
-    }
+    setPendingFiles((prev) => [...prev, ...files]);
+  };
+
+  const removePendingFile = (index: number) => {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const findMessageById = (id: string) => {
@@ -1750,38 +1830,38 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
         <div className="p-4 flex-1 min-h-0 flex flex-col">
           <div className="sticky top-0 z-10 bg-card pb-2">
             <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-              {isDirectChat
-                ? "Chat participants"
-                : `Members (${members.length})`}
-            </h3>
-            {canAddMembers && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setShowAddMember(true)}
-                className="h-8 w-8 p-0 hover:bg-blue-50 hover:text-blue-600"
-                title="Add Member"
-              >
-                <UserPlus className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-
-          {/* Add Member Quick Button */}
-          {canAddMembers && (
-            <div className="mb-3">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setShowAddMember(true)}
-                className="w-full gap-2 border-dashed border-blue-300 text-primary hover:text-white hover:bg-primary"
-              >
-                <UserPlus className="h-4 w-4" />
-                Add Team Member
-              </Button>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                {isDirectChat
+                  ? "Chat participants"
+                  : `Members (${members.length})`}
+              </h3>
+              {canAddMembers && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setShowAddMember(true)}
+                  className="h-8 w-8 p-0 hover:bg-blue-50 hover:text-blue-600"
+                  title="Add Member"
+                >
+                  <UserPlus className="h-4 w-4" />
+                </Button>
+              )}
             </div>
-          )}
+
+            {/* Add Member Quick Button */}
+            {canAddMembers && (
+              <div className="mb-3">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowAddMember(true)}
+                  className="w-full gap-2 border-dashed border-blue-300 text-primary hover:text-white hover:bg-primary"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Add Team Member
+                </Button>
+              </div>
+            )}
           </div>
 
           <div
@@ -1825,27 +1905,29 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                       </span>
                     )}
                     <span
-                      className={`text-xs font-medium ml-1 ${member.is_online
-                        ? "text-primary"
-                        : "text-red-500 dark:text-red-400"
+                      className={`text-xs font-bold ${member.is_online
+                        ? "text-primary text-[10px]"
+                        : "text-red-500 dark:text-red-400 text-[10px]"
                         }`}
                     >
                       {member.is_online ? "Online" : "Offline"}
                     </span>
                   </div>
-                  {!isDirectChat && !member.is_online && (
-                    <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">
-                      {member.last_seen_at ? (
-                        <>
-                          Last seen{" "}
-                          {formatDistanceToNow(new Date(member.last_seen_at), {
-                            addSuffix: true,
-                          })}
-                        </>
-                      ) : (
-                        <>Last seen recently</>
-                      )}
-                    </p>
+                  {!member.is_online && (
+                    <div className="mt-0.5">
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-tight font-medium">
+                        {member.last_seen_at ? (
+                          <>
+                            Last seen{" "}
+                            {formatDistanceToNow(new Date(member.last_seen_at), {
+                              addSuffix: true,
+                            })}
+                          </>
+                        ) : (
+                          <>Last seen recently</>
+                        )}
+                      </p>
+                    </div>
                   )}
                 </div>
                 {!isDirectChat &&
@@ -2168,6 +2250,11 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                                   isDirectChat={isDirectChat}
                                   currentUserId={user?.id}
                                   memberDirectory={members}
+                                  onImageClick={(images, idx) => {
+                                    setLightboxImages(images);
+                                    setLightboxIndex(idx);
+                                    setShowLightbox(true);
+                                  }}
                                   postAuthorRole={
                                     members.find(
                                       (m) => m.user_id === post.user_id,
@@ -2257,6 +2344,15 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                       </>
                     )}
 
+                    {isSendingFile && (
+                      <div className="flex justify-end p-2 opacity-70 animate-pulse">
+                        <div className="bg-primary/20 rounded-2xl rounded-tr-sm px-4 py-3 flex items-center gap-3 border border-primary/30">
+                          <div className="h-5 w-5 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                          <span className="text-[11px] font-semibold text-primary">Uploading and sending file...</span>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Scroll to Bottom Button */}
                     {showScrollBottom && (
                       <button
@@ -2298,34 +2394,34 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                             {replyTo && (
                               <div className="flex animate-in slide-in-from-bottom-2 duration-200">
                                 <div className="flex-1 flex gap-3 p-2 bg-muted/50 rounded-lg border-l-4 border-primary shadow-sm">
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-[11px] font-bold text-primary uppercase tracking-tight">
-                                        Replying to{" "}
-                                        {findMessageById(replyTo)?.author_name}
-                                      </p>
-                                      <p className="text-xs text-gray-500 dark:text-gray-300 truncate mt-0.5">
-                                        {(() => {
-                                          const msg = findMessageById(replyTo);
-                                          const isImage = msg?.attachments?.some(a => a.file_type?.startsWith('image/'));
-                                          if (isImage && (msg?.content || "").startsWith("📎 ")) return "Photo";
-                                          return msg?.content;
-                                        })()}
-                                      </p>
-                                    </div>
-                                    {(() => {
-                                      const msg = findMessageById(replyTo);
-                                      const imageAttachment = msg?.attachments?.find(a => a.file_type?.startsWith('image/'));
-                                      if (!imageAttachment) return null;
-                                      return (
-                                        <div className="h-10 w-10 shrink-0 rounded overflow-hidden">
-                                          <img 
-                                            src={getAuthedFileUrl(imageAttachment.id, "view")} 
-                                            className="h-full w-full object-cover"
-                                            alt="thumbnail"
-                                          />
-                                        </div>
-                                      );
-                                    })()}
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-[11px] font-bold text-primary uppercase tracking-tight">
+                                      Replying to{" "}
+                                      {findMessageById(replyTo)?.author_name}
+                                    </p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-300 truncate mt-0.5">
+                                      {(() => {
+                                        const msg = findMessageById(replyTo);
+                                        const isImage = msg?.attachments?.some(a => a.file_type?.startsWith('image/'));
+                                        if (isImage && (msg?.content || "").startsWith("📎 ")) return "Photo";
+                                        return msg?.content;
+                                      })()}
+                                    </p>
+                                  </div>
+                                  {(() => {
+                                    const msg = findMessageById(replyTo);
+                                    const imageAttachment = msg?.attachments?.find(a => a.file_type?.startsWith('image/'));
+                                    if (!imageAttachment) return null;
+                                    return (
+                                      <div className="h-10 w-10 shrink-0 rounded overflow-hidden">
+                                        <img
+                                          src={getAuthedFileUrl(imageAttachment.id, "view")}
+                                          className="h-full w-full object-cover"
+                                          alt="thumbnail"
+                                        />
+                                      </div>
+                                    );
+                                  })()}
                                   <button
                                     onClick={() => setReplyTo(null)}
                                     className="h-6 w-6 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
@@ -2338,10 +2434,58 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                               </div>
                             )}
 
+                            {/* Pending Files Preview (WhatsApp style) */}
+                            {pendingFiles.length > 0 && (
+                              <div className="flex flex-wrap gap-2 p-2 bg-muted/30 rounded-xl border border-dashed border-border animate-in slide-in-from-bottom-2 duration-200">
+                                {pendingFiles.map((file, idx) => {
+                                  const isImage = file.type.startsWith("image/");
+                                  return (
+                                    <div
+                                      key={idx}
+                                      className="relative group/pending h-20 w-20 bg-card rounded-lg border border-border overflow-hidden shadow-sm"
+                                    >
+                                      {isImage ? (
+                                        <img
+                                          src={URL.createObjectURL(file)}
+                                          className="h-full w-full object-cover"
+                                          alt="preview"
+                                        />
+                                      ) : (
+                                        <div className="h-full w-full flex flex-col items-center justify-center p-1 text-center bg-muted/20">
+                                          <FileIcon className="h-6 w-6 text-gray-400" />
+                                          <span className="text-[9px] font-medium truncate w-full mt-1 px-1 text-gray-500">
+                                            {file.name}
+                                          </span>
+                                        </div>
+                                      )}
+                                      <button
+                                        onClick={() => removePendingFile(idx)}
+                                        className="absolute top-1 right-1 h-5 w-5 bg-red-500 rounded-full flex items-center justify-center shadow-md opacity-0 group-hover/pending:opacity-100 transition-opacity"
+                                      >
+                                        <X className="h-3 w-3 text-white" />
+                                      </button>
+                                    </div>
+                                  );
+                                })}
+                                <button
+                                  onClick={() =>
+                                    attachmentInputRef.current?.click()
+                                  }
+                                  className="h-20 w-20 flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg text-gray-400 hover:text-primary hover:border-primary transition-all bg-card/50"
+                                >
+                                  <Plus className="h-6 w-6" />
+                                  <span className="text-[9px] font-bold uppercase mt-1">
+                                    Add More
+                                  </span>
+                                </button>
+                              </div>
+                            )}
+
                             <div className="flex items-center gap-2">
                               <input
                                 ref={attachmentInputRef}
                                 type="file"
+                                multiple
                                 className="hidden"
                                 onChange={handleAttachFromComposer}
                               />
@@ -2362,11 +2506,13 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                                   placeholder={
                                     !canSendMessages
                                       ? "This chat has been locked by an administrator"
-                                      : replyTo
-                                        ? "Type a reply..."
-                                        : "Type a message..."
+                                      : pendingFiles.length > 1
+                                        ? "Captions disabled for multiple files"
+                                        : replyTo
+                                          ? "Type a reply..."
+                                          : "Type a message..."
                                   }
-                                  disabled={!canSendMessages}
+                                  disabled={!canSendMessages || pendingFiles.length > 1}
                                   rows={1}
                                   className="w-full pl-4 pr-32 bg-muted border-none rounded-2xl min-h-[44px] max-h-[160px] focus-visible:ring-1 focus-visible:ring-primary shadow-inner resize-none overflow-y-auto py-2.5 leading-6 scrollbar-none"
                                   style={{ height: 'auto' }}
@@ -2460,10 +2606,10 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                                     onClick={handlePost}
                                     disabled={
                                       !canSendMessages ||
-                                      !newPost.trim() ||
+                                      (!newPost.trim() && pendingFiles.length === 0) ||
                                       createPost.isPending
                                     }
-                                    className={`h-8 w-8 flex items-center justify-center rounded-full transition-all ${newPost.trim()
+                                    className={`h-8 w-8 flex items-center justify-center rounded-full transition-all ${(newPost.trim() || pendingFiles.length > 0)
                                       ? "bg-blue-600 text-white shadow-md hover:scale-105 active:scale-95"
                                       : "bg-muted text-muted-foreground pointer-events-none"
                                       }`}
@@ -2969,12 +3115,15 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                           toggleForwardTarget(target.id, Boolean(value))
                         }
                       />
+                      <Avatar className="h-8 w-8 shrink-0">
+                        <AvatarImage src={getAvatarUrl(target.avatar_url)} />
+                        <AvatarFallback className={cn(target.avatar_color, "text-white text-[10px]")}>
+                          {target.name.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
                       <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">
+                        <p className="text-sm font-semibold truncate text-foreground">
                           {target.name}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {target.member_count || 0} members
                         </p>
                       </div>
                     </label>
@@ -3686,12 +3835,101 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <CreateEventDialog 
-        open={showEventDialog} 
-        onOpenChange={setShowEventDialog} 
+      <CreateEventDialog
+        open={showEventDialog}
+        onOpenChange={setShowEventDialog}
         onSuccess={onEventCreated}
       />
-    </div >
+
+      {/* Lightbox / Image Viewer */}
+      {showLightbox && lightboxImages.length > 0 && (
+        <div className="fixed inset-0 z-[9999] bg-black/95 flex flex-col animate-in fade-in duration-200">
+          {/* Header */}
+          <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 bg-gradient-to-b from-black/60 to-transparent">
+            <div className="flex items-center gap-3">
+              <span className="text-white font-medium text-sm truncate max-w-[200px]">
+                {lightboxImages[lightboxIndex].name}
+              </span>
+              <span className="text-white/50 text-xs">
+                {lightboxIndex + 1} / {lightboxImages.length}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {lightboxImages[lightboxIndex].downloadUrl && (
+                <button
+                  onClick={() => handleDownload(lightboxImages[lightboxIndex].downloadUrl!, lightboxImages[lightboxIndex].name)}
+                  className="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
+                  title="Download"
+                >
+                  <Download className="h-5 w-5" />
+                </button>
+              )}
+              <button
+                onClick={() => setShowLightbox(false)}
+                className="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex-1 relative flex items-center justify-center p-4">
+            {lightboxImages.length > 1 && (
+              <>
+                <button
+                  onClick={() =>
+                    setLightboxIndex((prev) =>
+                      prev === 0 ? lightboxImages.length - 1 : prev - 1,
+                    )
+                  }
+                  className="absolute left-4 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all hover:scale-110 active:scale-95 z-50"
+                >
+                  <ChevronLeft className="h-8 w-8" />
+                </button>
+                <button
+                  onClick={() =>
+                    setLightboxIndex((prev) =>
+                      prev === lightboxImages.length - 1 ? 0 : prev + 1,
+                    )
+                  }
+                  className="absolute right-4 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all hover:scale-110 active:scale-95 z-50"
+                >
+                  <ChevronRight className="h-8 w-8" />
+                </button>
+              </>
+            )}
+
+            <div className="max-w-5xl max-h-[80vh] flex items-center justify-center">
+              <img
+                src={lightboxImages[lightboxIndex].url}
+                className="max-w-full max-h-full object-contain shadow-2xl rounded-sm transition-all duration-300"
+                alt={lightboxImages[lightboxIndex].name}
+              />
+            </div>
+          </div>
+
+          {/* Thumbnail strip */}
+          {lightboxImages.length > 1 && (
+            <div className="h-24 bg-black/40 backdrop-blur-sm p-4 flex items-center justify-center gap-2 overflow-x-auto">
+              {lightboxImages.map((img, idx) => (
+                <div
+                  key={idx}
+                  onClick={() => setLightboxIndex(idx)}
+                  className={cn(
+                    "h-16 w-16 rounded-md overflow-hidden cursor-pointer transition-all border-2 shrink-0",
+                    lightboxIndex === idx
+                      ? "border-primary scale-110 shadow-lg"
+                      : "border-transparent opacity-50 hover:opacity-100",
+                  )}
+                >
+                  <img src={img.url} className="h-full w-full object-cover" />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 // ─── Quick Emojis ────────────────────────────────────────────────────────────────────
@@ -3748,6 +3986,35 @@ function getMemberColor(userId: string) {
   return MEMBER_BUBBLE_COLORS[Math.abs(hash) % MEMBER_BUBBLE_COLORS.length];
 }
 
+const isImageAttachment = (fileType = "") => fileType.startsWith("image/");
+const formatFileSize = (size = 0) => {
+  if (size === 0) return "0 B";
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const getFileIcon = (fileName: string, fileType: string) => {
+  const ext = fileName.split(".").pop()?.toLowerCase();
+  if (fileType.startsWith("image/"))
+    return <Camera className="h-5 w-5 text-purple-500 shrink-0" />;
+  if (fileType.startsWith("video/"))
+    return <Video className="h-5 w-5 text-amber-500 shrink-0" />;
+  if (fileType.startsWith("audio/"))
+    return <Music className="h-5 w-5 text-indigo-500 shrink-0" />;
+
+  if (ext === "pdf")
+    return <FileText className="h-5 w-5 text-red-500 shrink-0" />;
+  if (["doc", "docx"].includes(ext!))
+    return <FileText className="h-5 w-5 text-blue-500 shrink-0" />;
+  if (["xls", "xlsx", "csv"].includes(ext!))
+    return <FileSpreadsheet className="h-5 w-5 text-emerald-500 shrink-0" />;
+  if (["zip", "rar", "7z"].includes(ext!))
+    return <FileArchive className="h-5 w-5 text-orange-500 shrink-0" />;
+
+  return <FileIcon className="h-5 w-5 text-gray-500 shrink-0" />;
+};
+
 interface PostCardProps {
   post: WorkgroupPost;
   allPosts: WorkgroupPost[];
@@ -3782,6 +4049,7 @@ interface PostCardProps {
   canSendMessages?: boolean;
   isBroadcast?: boolean;
   isDirectChat?: boolean;
+  onImageClick?: (images: { url: string; downloadUrl?: string; name: string }[], index: number) => void;
 }
 
 function PostCard({
@@ -3814,6 +4082,7 @@ function PostCard({
   canSendMessages = true,
   isBroadcast = false,
   isDirectChat = false,
+  onImageClick,
 }: PostCardProps) {
   const navigate = useNavigate();
   if ((post.content || "").startsWith("[SYSTEM] ")) {
@@ -3830,7 +4099,7 @@ function PostCard({
 
   let isCallLog = post.content_type === "call";
   let callData: any = {};
-  
+
   // Auto-detect call log JSON if it wasn't marked correctly (historical data or mobile)
   if (!isCallLog && (post.content || "").trim().startsWith('{')) {
     try {
@@ -3863,7 +4132,7 @@ function PostCard({
       const titleMatch = content.match(/\*\*Title:\*\* (.*)/);
       const timeMatch = content.match(/\*\*Time:\*\* (.*)/);
       const locationMatch = content.match(/\*\*Location:\*\* (.*)/);
-      
+
       eventData = {
         title: titleMatch ? titleMatch[1] : "Meeting",
         time: timeMatch ? timeMatch[1] : "",
@@ -4133,8 +4402,7 @@ function PostCard({
     : "";
 
   const attachments = Array.isArray(post.attachments) ? post.attachments : [];
-  const isImageAttachment = (fileType = "") => fileType.startsWith("image/");
-  const formatFileSize = (size = 0) => `${(size / 1024 / 1024).toFixed(2)} MB`;
+
   const getAuthedFileUrlForPost = (
     fileId: string,
     mode: "view" | "download" = "download",
@@ -4144,6 +4412,37 @@ function PostCard({
     const effectiveWorkgroupId = sourceWorkgroupId || workgroupId;
     const baseUrl = `${API_BASE_URL}/workgroups/${effectiveWorkgroupId}/files/${fileId}/${mode}`;
     return token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl;
+  };
+
+  const handleDownload = async (url: string, fileName: string) => {
+    try {
+      // If showSaveFilePicker is available (Chrome/Edge/etc), use it to let user pick location
+      if ("showSaveFilePicker" in window) {
+        toast.info("Preparing download...");
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const handle = await (window as any).showSaveFilePicker({
+          suggestedName: fileName,
+        });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        toast.success("File saved successfully");
+      } else {
+        // Fallback for other browsers
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    } catch (err: any) {
+      if (err.name !== "AbortError") {
+        toast.error("Failed to save file");
+        console.error("Download error:", err);
+      }
+    }
   };
 
   return (
@@ -4377,8 +4676,8 @@ function PostCard({
                     if (!imageAttachment) return null;
                     return (
                       <div className="h-8 w-8 shrink-0 rounded overflow-hidden">
-                        <img 
-                          src={getAuthedFileUrlForPost(imageAttachment.id, "view")} 
+                        <img
+                          src={getAuthedFileUrlForPost(imageAttachment.id, "view")}
                           className="h-full w-full object-cover"
                           alt="thumbnail"
                         />
@@ -4482,7 +4781,7 @@ function PostCard({
                     </p>
                   </div>
                 </div>
-                
+
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-2 text-[11px] text-gray-600 dark:text-gray-300">
                     <Clock className="h-3.5 w-3.5 text-blue-500" />
@@ -4494,9 +4793,9 @@ function PostCard({
                   </div>
                 </div>
 
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   className="w-full h-8 text-[11px] font-bold border-blue-200 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 gap-2"
                   onClick={() => navigate('/collaboration/calendar')}
                 >
@@ -4521,7 +4820,7 @@ function PostCard({
                       const isLong = lines.length > 10;
                       const hasMore = visibleLinesCount < lines.length;
                       const displayedContent = !isLong ? content : lines.slice(0, visibleLinesCount).join("\n");
-                      
+
                       return (
                         <>
                           {renderMessageWithMentions(displayedContent)}
@@ -4551,94 +4850,214 @@ function PostCard({
 
             {!isDeletedMessage && attachments.length > 0 && (
               <div className="mt-2 space-y-2">
-                {attachments.map((attachment: any, idx: number) => {
-                  const downloadUrl = attachment.id
-                    ? getAuthedFileUrlForPost(attachment.id, "download", attachment.workgroup_id)
-                    : attachment.download_url || "#";
-                  const previewUrl = attachment.id
-                    ? getAuthedFileUrlForPost(attachment.id, "view", attachment.workgroup_id)
-                    : attachment.download_url || "#";
-                  return (
-                    <div
-                      key={attachment.id || `${post.id}-attachment-${idx}`}
-                      className="rounded-lg border border-black/10 bg-black/5 p-2"
-                    >
-                      {/* Image Preview with Download */}
-                      {isImageAttachment(attachment.file_type) ? (
-                        <div className="space-y-2">
-                          <img
-                            src={previewUrl}
-                            alt={attachment.original_name || "attachment"}
-                            className="w-full h-auto max-h-[500px] object-contain rounded-md cursor-pointer"
-                            onClick={() => window.open(previewUrl, "_blank")}
-                          />
-                          <div className="flex justify-end">
-                            <a
-                              href={downloadUrl}
-                              download={attachment.original_name}
-                              className="inline-flex items-center gap-1.5 text-[10px] font-bold text-primary hover:underline bg-white/50 dark:bg-black/20 p-1 px-2 rounded-md transition-colors"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <Download className="h-3 w-3" />
-                              Download Photo
-                            </a>
-                          </div>
-                        </div>
-                      ) : (
+                {/* Image Grid Handler */}
+                {(() => {
+                  const imageFiles = attachments.filter((a) =>
+                    isImageAttachment(a.file_type),
+                  );
+                  if (imageFiles.length === 0) return null;
+
+                  const handleImageClick = (idx: number) => {
+                    const mapped = imageFiles.map((a) => ({
+                      url: a.id
+                        ? getAuthedFileUrlForPost(a.id, "view", a.workgroup_id)
+                        : a.download_url,
+                      downloadUrl: a.id
+                        ? getAuthedFileUrlForPost(a.id, "download", a.workgroup_id)
+                        : a.download_url,
+                      name: a.original_name,
+                    }));
+                    if (onImageClick) {
+                      onImageClick(mapped, idx);
+                    }
+                  };
+
+                  const MAX_VISIBLE = 3;
+                  const visibleImages = imageFiles.slice(0, MAX_VISIBLE);
+                  const extraCount = imageFiles.length - MAX_VISIBLE;
+
+                  // Single image
+                  if (imageFiles.length === 1) {
+                    const a = imageFiles[0];
+                    const previewUrl = a.id
+                      ? getAuthedFileUrlForPost(a.id, "view", a.workgroup_id)
+                      : a.download_url;
+                    const downloadUrl = a.id
+                      ? getAuthedFileUrlForPost(a.id, "download", a.workgroup_id)
+                      : a.download_url;
+                    return (
+                      <div className="rounded-xl overflow-hidden border border-black/10 dark:border-white/10 max-w-[280px] cursor-pointer group relative">
+                        <img
+                          src={previewUrl}
+                          className="w-full max-h-[200px] object-cover"
+                          onClick={() => handleImageClick(0)}
+                        />
                         <button
                           type="button"
-                          onClick={() => window.open(previewUrl, "_blank")}
-                          className="w-full text-left text-sm font-medium hover:underline"
+                          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 hover:bg-black/70 text-white rounded-full p-1.5"
+                          onClick={(e) => { e.stopPropagation(); handleDownload(downloadUrl, a.original_name); }}
+                          title="Download"
                         >
-                          {attachment.original_name || "Attachment"}
+                          <Download className="h-3.5 w-3.5" />
                         </button>
-                      )}
-                      {!isImageAttachment(attachment.file_type) && (
-                        <div className="mt-2 flex items-center justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="text-xs font-medium truncate">
+                      </div>
+                    );
+                  }
+
+                  // 2 images: side by side
+                  if (imageFiles.length === 2) {
+                    return (
+                      <div className="max-w-[300px]">
+                        <div className="grid grid-cols-2 gap-0.5 rounded-xl overflow-hidden border border-black/10 dark:border-white/10">
+                          {imageFiles.map((img, i) => {
+                            const url = img.id ? getAuthedFileUrlForPost(img.id, "view", img.workgroup_id) : img.download_url;
+                            return (
+                              <div key={i} className="relative h-[140px] cursor-pointer group overflow-hidden" onClick={() => handleImageClick(i)}>
+                                <img src={url} className="w-full h-full object-cover hover:scale-105 transition-transform duration-300" />
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <button
+                          className="mt-1 w-full flex items-center justify-center gap-1.5 py-1.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100/50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors border border-emerald-200/50 dark:border-emerald-800/50"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            imageFiles.forEach((a) => {
+                              const url = a.id ? getAuthedFileUrlForPost(a.id, "download", a.workgroup_id) : a.download_url;
+                              handleDownload(url, a.original_name);
+                            });
+                          }}
+                        >
+                          <Download className="h-3 w-3" />
+                          Download All ({imageFiles.length})
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  // 3+ images: first big, 2 small on right + see more overlay
+                  return (
+                    <div className="max-w-[300px]">
+                      <div className="grid grid-cols-2 gap-0.5 rounded-xl overflow-hidden border border-black/10 dark:border-white/10">
+                        {/* First image — full height left */}
+                        <div
+                          className="relative row-span-2 h-[200px] cursor-pointer group overflow-hidden"
+                          onClick={() => handleImageClick(0)}
+                        >
+                          <img
+                            src={imageFiles[0].id ? getAuthedFileUrlForPost(imageFiles[0].id, "view", imageFiles[0].workgroup_id) : imageFiles[0].download_url}
+                            className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                          />
+                        </div>
+                        {/* Second image — top right */}
+                        <div
+                          className="relative h-[99px] cursor-pointer group overflow-hidden"
+                          onClick={() => handleImageClick(1)}
+                        >
+                          <img
+                            src={imageFiles[1].id ? getAuthedFileUrlForPost(imageFiles[1].id, "view", imageFiles[1].workgroup_id) : imageFiles[1].download_url}
+                            className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                          />
+                        </div>
+                        {/* Third image — bottom right, with see more overlay */}
+                        <div
+                          className="relative h-[99px] cursor-pointer group overflow-hidden"
+                          onClick={() => handleImageClick(2)}
+                        >
+                          <img
+                            src={imageFiles[2].id ? getAuthedFileUrlForPost(imageFiles[2].id, "view", imageFiles[2].workgroup_id) : imageFiles[2].download_url}
+                            className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                          />
+                          {extraCount > 0 && (
+                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                              <span className="text-white font-bold text-xl">+{extraCount}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        className="mt-1 w-full flex items-center justify-center gap-1.5 py-1.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100/50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors border border-emerald-200/50 dark:border-emerald-800/50"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          imageFiles.forEach((a) => {
+                            const url = a.id ? getAuthedFileUrlForPost(a.id, "download", a.workgroup_id) : a.download_url;
+                            handleDownload(url, a.original_name);
+                          });
+                        }}
+                      >
+                        <Download className="h-3 w-3" />
+                        Download All ({imageFiles.length})
+                      </button>
+                    </div>
+                  );
+                })()}
+
+                {/* Non-Image Files */}
+                {attachments
+                  .filter((a) => !isImageAttachment(a.file_type))
+                  .map((attachment: any, idx: number) => {
+                    const downloadUrl = attachment.id
+                      ? getAuthedFileUrlForPost(
+                        attachment.id,
+                        "download",
+                        attachment.workgroup_id,
+                      )
+                      : attachment.download_url || "#";
+                    const previewUrl = attachment.id
+                      ? getAuthedFileUrlForPost(
+                        attachment.id,
+                        "view",
+                        attachment.workgroup_id,
+                      )
+                      : attachment.download_url || "#";
+
+                    const fileExt = (attachment.original_name || "")
+                      .split(".")
+                      .pop()
+                      ?.toUpperCase();
+
+                    return (
+                      <div
+                        key={attachment.id || `${post.id}-file-${idx}`}
+                        className="max-w-[320px] rounded-xl border border-emerald-200/50 dark:border-emerald-800/50 bg-emerald-100/50 dark:bg-emerald-950/20 overflow-hidden shadow-sm"
+                      >
+                        <div className="flex items-start gap-4 p-4">
+                          <div className="h-12 w-12 flex items-center justify-center bg-white dark:bg-black/40 rounded-xl shadow-sm shrink-0 border border-emerald-100 dark:border-emerald-900/50">
+                            {getFileIcon(
+                              attachment.original_name || "",
+                              attachment.file_type || "",
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1 py-0.5">
+                            <p className="text-[13px] font-bold truncate text-foreground leading-tight mb-1">
                               {attachment.original_name || "Attachment"}
                             </p>
-                            <p className="text-[11px] text-gray-500">
+                            <p className="text-[11px] text-gray-500 font-bold uppercase tracking-wider">
+                              {fileExt} •{" "}
                               {formatFileSize(attachment.file_size || 0)}
                             </p>
                           </div>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7"
-                              >
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                onClick={() => window.open(previewUrl, "_blank")}
-                              >
-                                Open
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => {
-                                  const link = document.createElement("a");
-                                  link.href = downloadUrl;
-                                  link.download =
-                                    attachment.original_name || "attachment";
-                                  link.click();
-                                }}
-                              >
-                                Download
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
+                        <div className="flex border-t border-emerald-200/50 dark:border-emerald-800/50">
+                          <button
+                            className="flex-1 py-2.5 text-[12px] font-bold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200/30 dark:hover:bg-emerald-800/30 transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDownload(
+                                downloadUrl,
+                                attachment.original_name,
+                              );
+                            }}
+                          >
+                            Save as...
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
-            )}
+            )
+            }
 
             {/* Time + read status */}
             <div className="flex items-center gap-1 justify-end mt-1 -mr-1">
@@ -4801,7 +5220,7 @@ function PostCard({
 
       {/* Seen By tracking - Restricted to Author within Broadcasts only */}
       {isAuthor && isBroadcast && post.seen_by && post.seen_by.length > 0 && (
-        <div 
+        <div
           className={`flex items-center gap-1.5 mt-1 px-1 mb-2 cursor-pointer hover:opacity-80 transition-opacity ${isAuthor ? "justify-end mr-9" : "justify-start ml-9"}`}
           onClick={() => setShowSeenByDialog(true)}
         >

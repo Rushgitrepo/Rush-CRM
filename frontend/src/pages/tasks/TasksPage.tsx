@@ -578,12 +578,12 @@ export default function TasksPage() {
                       </Badge>
                     )}
                   </h1>
-                </div>
-                <p className="text-sm ml-12 text-muted-foreground">
+                <p className="text-sm  text-muted-foreground">
                   {view === "projects" && !selectedProject
                     ? `${projects.length} ${projects.length === 1 ? "project" : "projects"}`
                     : `${filteredTasks.length} ${filteredTasks.length === 1 ? "task" : "tasks"}`}
                 </p>
+                </div>
               </div>
 
               {/* Top-right: Projects button */}
