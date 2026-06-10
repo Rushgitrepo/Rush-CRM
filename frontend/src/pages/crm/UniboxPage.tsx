@@ -995,7 +995,7 @@ export default function UniboxPage() {
                 className="gap-2"
               >
                 <TrendingUp className={cn("h-4 w-4", syncInstantly.isPending && "animate-spin")} />
-                {syncInstantly.isPending ? "Syncing..." : "Sync Instantly"}
+                {syncInstantly.isPending ? "Backfilling..." : "Backfill Sync"}
               </Button>
               <TabsList>
                 <TabsTrigger value="mailbox">Mailbox</TabsTrigger>
@@ -1039,7 +1039,7 @@ export default function UniboxPage() {
                 className="gap-2"
               >
                 <TrendingUp className={cn("h-4 w-4", syncInstantly.isPending && "animate-spin")} />
-                {syncInstantly.isPending ? "Syncing..." : "Sync Instantly"}
+                {syncInstantly.isPending ? "Backfilling..." : "Backfill Sync"}
               </Button>
             </div>
           </div>

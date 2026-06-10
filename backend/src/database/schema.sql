@@ -8999,6 +8999,7 @@ CREATE TABLE IF NOT EXISTS instantly_integrations (
   api_key_encrypted text,
   webhook_secret text,
   webhook_url text,
+  registered_webhook_ids jsonb DEFAULT '[]'::jsonb,
   is_enabled boolean DEFAULT false,
   status text DEFAULT 'disconnected', -- 'connected', 'disconnected', 'error'
   last_sync_at timestamp with time zone,

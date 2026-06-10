@@ -19,15 +19,18 @@ const isUniboxOwner = async (userId, orgId) => {
   return isOwner;
 };
 
-const assertUniboxOwner = async (userId, orgId) => {
-  const owner = await isUniboxOwner(userId, orgId);
-  if (!owner) {
-    const err = new Error('Only the lead user can manage unibox folders');
+const assertCanManageFolders = async (userId, orgId) => {
+  const { hasFullAccess } = await getUniboxAccessLevel(userId, orgId);
+  if (!hasFullAccess) {
+    const err = new Error('You do not have permission to manage unibox folders');
     err.status = 403;
     throw err;
   }
   return true;
 };
+
+/** @deprecated use assertCanManageFolders — kept as alias */
+const assertUniboxOwner = assertCanManageFolders;
 
 const getAllowedCampaignIds = async (userId, orgId) => {
   const { hasFullAccess } = await getUniboxAccessLevel(userId, orgId);
@@ -676,6 +679,7 @@ const checkPermission = async (req, res, next) => {
       hasPermission,
       isOwner: isSuperAdmin,
       hasFullAccess,
+      canManageFolders: hasFullAccess,
       isRestricted: hasFolderOnlyAccess,
       assignedFolderCount,
     };

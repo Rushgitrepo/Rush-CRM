@@ -213,7 +213,7 @@ export default function InstantlyIntegrationPanel() {
             Instantly.ai — Unibox Integration
           </CardTitle>
           <CardDescription>
-            Connect your Instantly.ai account to auto-create leads from Unibox email events
+            Connect Instantly.ai for real-time Unibox delivery via webhooks — no manual sync needed
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -225,9 +225,9 @@ export default function InstantlyIntegrationPanel() {
                 <span className="font-medium text-foreground">Connection Status</span>
                 <p className="text-sm text-muted-foreground">
                   {isConnected
-                    ? integration?.is_global 
+                    ? integration?.is_global
                       ? "The connection is managed by the system administrator"
-                      : "Your Instantly.ai account is connected and receiving webhook events"
+                      : "New emails arrive automatically via Instantly webhooks"
                     : "Connect your Instantly.ai account to get started"}
                 </p>
               </div>
@@ -346,7 +346,7 @@ export default function InstantlyIntegrationPanel() {
               Webhook Configuration
             </CardTitle>
             <CardDescription>
-              Configure this webhook URL in your Instantly.ai dashboard under Unibox settings
+              Webhooks are registered automatically when you connect. New replies appear in Unibox in real time.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -368,7 +368,7 @@ export default function InstantlyIntegrationPanel() {
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Paste this URL in Instantly.ai → Settings → Webhooks
+                Registered automatically via API. Use Sync Now only to backfill older emails.
               </p>
             </div>
 

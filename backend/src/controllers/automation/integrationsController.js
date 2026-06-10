@@ -61,16 +61,24 @@ const instantly = async (req, res, next) => {
 
     if (action === 'health') {
       const settings = await instantlyService.getSettings(orgId);
+      if (settings?.api_key_encrypted && settings?.is_enabled) {
+        try {
+          await instantlyService.ensureWebhooksRegistered(orgId);
+        } catch (whErr) {
+          console.warn('[IntegrationsController] Webhook auto-register skipped:', whErr.message);
+        }
+      }
+      const refreshed = await instantlyService.getSettings(orgId);
       const health = await instantlyService.getHealth(orgId);
       const recentEvents = await instantlyService.getRecentEvents(orgId);
-      
-      return res.json({ 
-        integration: settings ? {
-          ...settings,
-          status: settings.api_key_encrypted ? 'connected' : 'disconnected'
+
+      return res.json({
+        integration: refreshed ? {
+          ...refreshed,
+          status: refreshed.api_key_encrypted ? 'connected' : 'disconnected',
         } : null,
         health: health,
-        recent_events: recentEvents
+        recent_events: recentEvents,
       });
     }
 
@@ -79,7 +87,22 @@ const instantly = async (req, res, next) => {
         return res.status(400).json({ error: 'API Key is required' });
       }
       const settings = await instantlyService.saveSettings(orgId, { api_key, is_enabled: true });
-      return res.json({ message: 'Instantly connected successfully', settings });
+      let webhookResult = null;
+      try {
+        webhookResult = await instantlyService.registerWebhooks(orgId);
+      } catch (whErr) {
+        console.error('[IntegrationsController] Webhook registration failed:', whErr.message);
+      }
+      return res.json({
+        message: webhookResult?.message || 'Instantly connected successfully',
+        settings,
+        webhooks: webhookResult?.registered || [],
+      });
+    }
+
+    if (action === 'register-webhooks') {
+      const result = await instantlyService.registerWebhooks(orgId);
+      return res.json(result);
     }
 
     if (action === 'disconnect') {

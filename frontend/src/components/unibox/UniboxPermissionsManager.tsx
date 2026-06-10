@@ -233,8 +233,9 @@ export function UniboxPermissionsManager() {
 
       <div className="mt-4 p-3 bg-muted/50 rounded-lg">
         <p className="text-xs text-muted-foreground">
-          <strong>Note:</strong> Users granted access here see the complete Unibox. For folder-only access (specific campaigns),
-          do not grant access here — instead assign users to folders from the Unibox sidebar. Only the lead user (super admin) can manage folders.
+          <strong>Note:</strong> Users granted access here see the complete Unibox and can manage campaign folders.
+          For folder-only access (specific campaigns), do not grant access here — instead assign users to folders from the Unibox sidebar.
+          Only the lead user (super admin) can manage who has Unibox access.
         </p>
       </div>
     </Card>

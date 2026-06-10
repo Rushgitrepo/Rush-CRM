@@ -19,9 +19,49 @@ const extractDesignationFromEmail = (bodyText) => {
   return null;
 };
 
+const UNIBOX_WEBHOOK_EVENTS = [
+  'reply_received',
+  'auto_reply_received',
+  'lead_interested',
+  'lead_meeting_booked',
+  'lead_not_interested',
+  'lead_out_of_office',
+  'lead_wrong_person',
+  'lead_closed',
+  'lead_neutral',
+];
+
+const EVENT_TO_UNIBOX_STATUS = {
+  lead_interested: 'Interested',
+  lead_meeting_booked: 'Meeting Booked',
+  lead_not_interested: 'Not Interested',
+  lead_out_of_office: 'Out of Office',
+  lead_wrong_person: 'Wrong Person',
+  lead_closed: 'Closed',
+  lead_neutral: 'Lead',
+};
+
 class InstantlyService {
   constructor() {
     this.baseUrl = 'https://api.instantly.ai/api/v2';
+  }
+
+  _getWebhookUrl(orgId) {
+    const appUrl = process.env.APP_URL || process.env.API_URL || 'http://localhost:4000';
+    return `${appUrl.replace(/\/$/, '')}/api/webhooks/instantly/${orgId}`;
+  }
+
+  async _apiRequest(apiKey, path, options = {}) {
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        ...(options.headers || {}),
+      },
+    });
+    return response;
   }
 
 
@@ -66,18 +106,130 @@ class InstantlyService {
       settings.is_global = true;
     }
 
-    if (settings && !settings.webhook_url) {
-      const appUrl = process.env.APP_URL || 'http://localhost:4000';
-      settings.webhook_url = `${appUrl}/api/webhooks/instantly/${orgId}`;
-
-      // Update it in background
-      db.query(
-        'UPDATE instantly_integrations SET webhook_url = $1 WHERE org_id = $2',
-        [settings.webhook_url, orgId]
-      ).catch(err => console.error('Failed to update webhook URL:', err));
+    if (settings) {
+      const webhookUrl = this._getWebhookUrl(orgId);
+      if (!settings.webhook_url || settings.webhook_url !== webhookUrl) {
+        settings.webhook_url = webhookUrl;
+        db.query(
+          'UPDATE instantly_integrations SET webhook_url = $1 WHERE org_id = $2',
+          [webhookUrl, orgId]
+        ).catch(err => console.error('Failed to update webhook URL:', err));
+      }
     }
 
     return settings;
+  }
+
+  /**
+   * Register Instantly webhooks for real-time Unibox delivery
+   */
+  async registerWebhooks(orgId) {
+    const settings = await this.getSettings(orgId);
+    if (!settings?.api_key_encrypted) {
+      throw new Error('Instantly API key not configured');
+    }
+    if (!settings.is_enabled) {
+      return { registered: [], message: 'Integration disabled — webhooks not registered' };
+    }
+
+    const apiKey = settings.api_key_encrypted;
+    const webhookUrl = settings.webhook_url || this._getWebhookUrl(orgId);
+    const registered = [];
+
+    let existingWebhooks = [];
+    try {
+      const listRes = await this._apiRequest(apiKey, '/webhooks?limit=100');
+      if (listRes.ok) {
+        const listData = await listRes.json();
+        existingWebhooks = listData.items || [];
+      }
+    } catch (err) {
+      console.warn('[Instantly Service] Could not list webhooks:', err.message);
+    }
+
+    const ourWebhooks = existingWebhooks.filter((w) => w.target_hook_url === webhookUrl);
+
+    for (const eventType of UNIBOX_WEBHOOK_EVENTS) {
+      const active = ourWebhooks.find((w) => w.event_type === eventType && w.status === 1);
+      if (active) {
+        registered.push({ id: active.id, event_type: eventType });
+        continue;
+      }
+
+      const stale = ourWebhooks.find((w) => w.event_type === eventType);
+      if (stale?.id) {
+        await this._apiRequest(apiKey, `/webhooks/${stale.id}`, { method: 'DELETE' }).catch(() => {});
+      }
+
+      const createRes = await this._apiRequest(apiKey, '/webhooks', {
+        method: 'POST',
+        body: JSON.stringify({
+          target_hook_url: webhookUrl,
+          event_type: eventType,
+          name: `Rush CRM Unibox — ${eventType}`,
+        }),
+      });
+
+      if (createRes.ok) {
+        const created = await createRes.json();
+        registered.push({ id: created.id, event_type: eventType });
+        console.log(`[Instantly Service] Registered webhook: ${eventType} → ${webhookUrl}`);
+      } else {
+        const errText = await createRes.text();
+        console.warn(`[Instantly Service] Failed to register ${eventType} webhook:`, errText);
+      }
+    }
+
+    await db.query(
+      `INSERT INTO instantly_integrations (org_id, webhook_url, registered_webhook_ids, updated_at)
+       VALUES ($1, $2, $3, now())
+       ON CONFLICT (org_id) DO UPDATE SET
+         webhook_url = EXCLUDED.webhook_url,
+         registered_webhook_ids = EXCLUDED.registered_webhook_ids,
+         updated_at = now()`,
+      [orgId, webhookUrl, JSON.stringify(registered)]
+    );
+
+    return {
+      registered,
+      webhook_url: webhookUrl,
+      message: registered.length > 0
+        ? `Registered ${registered.length} webhook(s) for real-time Unibox delivery`
+        : 'No webhooks registered — ensure your API key has webhooks:create scope',
+    };
+  }
+
+  /**
+   * Remove Instantly webhooks on disconnect
+   */
+  async unregisterWebhooks(orgId) {
+    const settings = await this.getSettings(orgId);
+    if (!settings?.api_key_encrypted) return;
+
+    const apiKey = settings.api_key_encrypted;
+    const stored = settings.registered_webhook_ids || [];
+    const ids = Array.isArray(stored) ? stored : [];
+
+    for (const entry of ids) {
+      if (!entry?.id) continue;
+      await this._apiRequest(apiKey, `/webhooks/${entry.id}`, { method: 'DELETE' }).catch(() => {});
+    }
+
+    await db.query(
+      'UPDATE instantly_integrations SET registered_webhook_ids = $1, updated_at = now() WHERE org_id = $2',
+      [JSON.stringify([]), orgId]
+    );
+  }
+
+  async ensureWebhooksRegistered(orgId) {
+    const settings = await this.getSettings(orgId);
+    if (!settings?.is_enabled || !settings?.api_key_encrypted) return null;
+
+    const stored = settings.registered_webhook_ids;
+    const registered = Array.isArray(stored) ? stored : (typeof stored === 'string' ? JSON.parse(stored || '[]') : []);
+    if (registered.length >= UNIBOX_WEBHOOK_EVENTS.length) return { already_registered: true };
+
+    return this.registerWebhooks(orgId);
   }
 
   /**
@@ -127,7 +279,17 @@ class InstantlyService {
       RETURNING *
     `;
     const result = await db.query(query, [orgId, api_key, is_enabled, auto_add_leads]);
-    return result.rows[0];
+    const saved = result.rows[0];
+
+    if (is_enabled !== false && api_key) {
+      try {
+        await this.registerWebhooks(orgId);
+      } catch (whErr) {
+        console.error('[Instantly Service] Webhook registration failed:', whErr.message);
+      }
+    }
+
+    return saved;
   }
 
   /**
@@ -311,6 +473,11 @@ class InstantlyService {
    * Disconnect integration
    */
   async disconnect(orgId) {
+    try {
+      await this.unregisterWebhooks(orgId);
+    } catch (err) {
+      console.warn('[Instantly Service] Webhook cleanup failed:', err.message);
+    }
     await db.query(
       "UPDATE instantly_integrations SET is_enabled = false, status = 'disconnected', updated_at = now() WHERE org_id = $1",
       [orgId]
@@ -701,146 +868,248 @@ class InstantlyService {
     }
   }
 
+  _parseWebhookPayload(payload, eventType) {
+    const leadObj = payload.lead && typeof payload.lead === 'object' ? payload.lead : {};
+    const payloadObj = leadObj.payload || payload.payload || {};
+
+    const leadEmail =
+      payload.lead_email ||
+      payload.email ||
+      payload.from_email ||
+      payload.sender ||
+      leadObj.email ||
+      null;
+
+    const firstName = payload.lead_first_name || payload.first_name || leadObj.first_name || payloadObj.firstName;
+    const lastName = payload.lead_last_name || payload.last_name || leadObj.last_name || payloadObj.lastName;
+    const senderName =
+      payload.lead_name ||
+      payload.from_name ||
+      [firstName, lastName].filter(Boolean).join(' ') ||
+      (leadEmail ? leadEmail.split('@')[0] : 'Unknown Sender');
+
+    const bodyRaw =
+      payload.reply_text ||
+      payload.reply_body ||
+      payload.email_text ||
+      payload.body_text ||
+      payload.body ||
+      payload.reply_text_snippet ||
+      '';
+
+    const isHtml = /<[a-z][\s\S]*>/i.test(bodyRaw);
+    const bodyHtml = payload.reply_html || payload.email_html || payload.body_html || (isHtml ? bodyRaw : '');
+    const bodyText = isHtml ? (payload.reply_text || payload.email_text || '') : bodyRaw;
+
+    const subject =
+      payload.reply_subject ||
+      payload.email_subject ||
+      payload.subject ||
+      (eventType === 'reply_received' ? `Reply from ${senderName}` : `Update from ${senderName}`);
+
+    const campaignId = payload.campaign || payload.campaign_id || leadObj.campaign_id || null;
+    const campaignName = payload.campaign_name || payload.campaign || null;
+    const externalId = (payload.email_id || payload.id || payload.lead_id || `inst-wh-${Date.now()}`).toString();
+    const receivedAt = new Date(payload.timestamp || payload.timestamp_email || Date.now());
+
+    let status = EVENT_TO_UNIBOX_STATUS[eventType] || 'Lead';
+    if (eventType === 'auto_reply_received') status = 'Out of Office';
+    if (eventType === 'reply_received' && !EVENT_TO_UNIBOX_STATUS[eventType]) status = 'Lead';
+
+    return {
+      leadEmail,
+      senderName,
+      firstName,
+      lastName,
+      company: payload.company_name || payload.lead_company_name || payload.company || leadObj.company_name || payloadObj.companyName,
+      phone: payload.phone || payload.lead_phone || leadObj.phone || payloadObj.phone,
+      website: leadObj.website || payloadObj.website || null,
+      location: leadObj.location || payloadObj.location || payloadObj.Location || null,
+      payloadObj,
+      subject,
+      bodyText,
+      bodyHtml,
+      campaignId,
+      campaignName,
+      externalId,
+      receivedAt,
+      status,
+    };
+  }
+
+  async _upsertUniboxFromWebhook(orgId, parsed, eventType, rawPayload) {
+    const metadata = {
+      source: 'instantly_webhook',
+      event_type: eventType,
+      campaign_id: parsed.campaignId,
+      campaign_name: parsed.campaignName,
+      item: rawPayload,
+    };
+
+    const existingByExternal = await db.query(
+      'SELECT id FROM unibox_emails WHERE external_id = $1 AND org_id = $2',
+      [parsed.externalId, orgId]
+    );
+
+    if (existingByExternal.rows.length > 0) {
+      const result = await db.query(
+        `UPDATE unibox_emails SET
+          status = $1,
+          subject = COALESCE(NULLIF($2, ''), subject),
+          body_text = COALESCE(NULLIF($3, ''), body_text),
+          body_html = COALESCE(NULLIF($4, ''), body_html),
+          sender_name = COALESCE(NULLIF($5, ''), sender_name),
+          metadata = COALESCE(metadata, '{}'::jsonb) || $6::jsonb,
+          updated_at = now()
+         WHERE id = $7
+         RETURNING *`,
+        [
+          parsed.status,
+          parsed.subject,
+          parsed.bodyText,
+          parsed.bodyHtml,
+          parsed.senderName,
+          JSON.stringify({ campaign_id: parsed.campaignId, campaign_name: parsed.campaignName }),
+          existingByExternal.rows[0].id,
+        ]
+      );
+      return { action: 'updated', email: result.rows[0] };
+    }
+
+    const isReplyEvent = eventType === 'reply_received' || eventType === 'auto_reply_received';
+
+    if (!isReplyEvent) {
+      const existingBySender = await db.query(
+        `SELECT id FROM unibox_emails
+         WHERE sender_email = $1 AND org_id = $2
+         ORDER BY received_at DESC LIMIT 1`,
+        [parsed.leadEmail, orgId]
+      );
+      if (existingBySender.rows.length > 0) {
+        const result = await db.query(
+          `UPDATE unibox_emails SET status = $1, updated_at = now() WHERE id = $2 RETURNING *`,
+          [parsed.status, existingBySender.rows[0].id]
+        );
+        return { action: 'status_updated', email: result.rows[0] };
+      }
+    }
+
+    const result = await db.query(
+      `INSERT INTO unibox_emails (
+        org_id, external_id, sender_email, sender_name, subject, body_text, body_html,
+        status, priority, received_at, is_read, metadata
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING *`,
+      [
+        orgId,
+        parsed.externalId,
+        parsed.leadEmail,
+        parsed.senderName,
+        parsed.subject,
+        parsed.bodyText,
+        parsed.bodyHtml,
+        parsed.status,
+        'Normal',
+        parsed.receivedAt,
+        false,
+        JSON.stringify(metadata),
+      ]
+    );
+
+    if (result.rows[0]) {
+      realtimeService.emitUniboxEmailCreated(orgId, result.rows[0]);
+    }
+    return { action: 'created', email: result.rows[0] };
+  }
+
   /**
    * Process incoming webhook event from Instantly.ai
    */
   async handleWebhook(orgId, payload) {
-    console.log(`[Instantly Webhook] Raw payload:`, JSON.stringify(payload, null, 2));
+    const eventType = payload.event_type || payload.event || 'unknown';
+    console.log(`[Instantly Webhook] Event: ${eventType} for org ${orgId}`);
 
-    const eventType = payload.event_type || 'unknown';
+    const parsed = this._parseWebhookPayload(payload, eventType);
 
-    // Log the event for audit trail
-    await db.query(
+    const eventLog = await db.query(
       `INSERT INTO instantly_unibox_events (
         org_id, event_type, payload, sender_email, sender_name, subject, body_text, processed
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, false)`,
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, false)
+      RETURNING id`,
       [
         orgId,
         eventType,
         JSON.stringify(payload),
-        payload.lead_email || payload.email_account || null,
-        payload.lead_name || null,
-        payload.campaign_name || payload.subject || null,
-        payload.body_text || payload.body || null
+        parsed.leadEmail,
+        parsed.senderName,
+        parsed.subject,
+        parsed.bodyText,
       ]
     );
+    const eventLogId = eventLog.rows[0]?.id;
 
-    // Only process events where the lead is marked as interested
-    const isInterested = eventType === 'lead_interested';
-    const isStatusChange = eventType === 'lead_status_changed';
-    const isMarked = eventType === 'lead_marked';
+    const isReply = eventType === 'reply_received' || eventType === 'auto_reply_received';
+    const isLeadStatus = Boolean(EVENT_TO_UNIBOX_STATUS[eventType]);
+    const isLegacyInterested =
+      eventType === 'lead_status_changed' &&
+      String(payload.new_status || payload.lead_status || payload.status || '').toLowerCase() === 'interested';
 
-    let processedAsInterested = false;
+    if (!isReply && !isLeadStatus && !isLegacyInterested) {
+      console.log(`[Instantly Webhook] Ignoring unhandled event: ${eventType}`);
+      await this._updateWebhookHealth(orgId, false);
+      return;
+    }
 
-    if (isInterested) {
-      processedAsInterested = true;
-      console.log(`[Instantly Webhook] ✅ Lead interested event received for: ${payload.lead_email}`);
-    } else if (isStatusChange || isMarked) {
-      const newStatus = (payload.new_status || payload.lead_status || payload.status || payload.mark || '').toLowerCase();
-      if (newStatus === 'interested') {
-        processedAsInterested = true;
-        console.log(`[Instantly Webhook] ✅ Status change to interested for: ${payload.lead_email || payload.email}`);
+    if (!parsed.leadEmail) {
+      console.error('[Instantly Webhook] No lead email in payload');
+      await this._updateWebhookHealth(orgId, false);
+      if (eventLogId) {
+        await db.query(
+          'UPDATE instantly_unibox_events SET error_message = $1 WHERE id = $2',
+          ['Missing lead email', eventLogId]
+        );
       }
-    }
-
-    if (!processedAsInterested) {
-      console.log(`[Instantly Webhook] Ignoring event type: ${eventType}`);
-      await this._updateWebhookHealth(orgId, false);
       return;
     }
 
-    // Extract lead details
-    const leadEmail = payload.lead_email || payload.email || payload.from_email || payload.sender;
-    if (!leadEmail) {
-      console.error('[Instantly Webhook] No lead email found in payload — cannot process');
-      await this._updateWebhookHealth(orgId, false);
-      return;
-    }
-
-    // Auto-add to leads table if enabled
     const settings = await this.getSettings(orgId);
-    if (settings && settings.auto_add_leads) {
-      // Robustly extract lead details from webhook payload (matching fix_leads.js logic)
-      const leadObj = payload.lead && typeof payload.lead === 'object' ? payload.lead : {};
-      const payloadObj = leadObj.payload || payload.payload || {};
+    if (!settings?.is_enabled) {
+      console.log('[Instantly Webhook] Integration disabled for org — skipping');
+      return;
+    }
 
-      const fName = payload.lead_first_name || payload.first_name || leadObj.first_name || payloadObj.firstName;
-      const lName = payload.lead_last_name || payload.last_name || leadObj.last_name || payloadObj.lastName;
-      const comp = payload.company_name || payload.lead_company_name || payload.company || leadObj.company_name || payloadObj.companyName;
-      const ph = payload.phone || payload.lead_phone || leadObj.phone || payloadObj.phone;
-
-      const webhookCampaignId = payload.campaign_id || null;
-      const webhookCampaignName = payload.campaign_name || payload.campaign || null;
-
+    if (settings.auto_add_leads && (isReply || isLeadStatus || isLegacyInterested)) {
       await this._ensureLeadExists(orgId, {
-        email: leadEmail,
-        first_name: fName,
-        last_name: lName,
-        company: comp,
-        phone: ph,
-        website: leadObj.website || payloadObj.website || null,
-        location: leadObj.location || payloadObj.location || payloadObj.Location || payloadObj.address || payloadObj.Address || null,
-        payload: payloadObj,
-        subject: payload.subject || `Webhook Event: ${eventType}`,
-        body_text: payload.reply_body || payload.body_text || payload.body || '',
-        received_at: new Date(payload.timestamp || Date.now()),
-        campaign_id: webhookCampaignId,
-        campaign_name: webhookCampaignName
+        email: parsed.leadEmail,
+        first_name: parsed.firstName,
+        last_name: parsed.lastName,
+        company: parsed.company,
+        phone: parsed.phone,
+        website: parsed.website,
+        location: parsed.location,
+        payload: parsed.payloadObj,
+        subject: parsed.subject,
+        body_text: parsed.bodyText,
+        received_at: parsed.receivedAt,
+        campaign_id: parsed.campaignId,
+        campaign_name: parsed.campaignName,
       });
     }
 
-    const externalId = (payload.id || payload.lead_id || `inst-wh-${Date.now()}`).toString();
-
-    // Check if we already have this lead in unibox
-    const existing = await db.query(
-      'SELECT id FROM unibox_emails WHERE (external_id = $1 OR sender_email = $2) AND org_id = $3',
-      [externalId, leadEmail, orgId]
-    );
-
-    if (existing.rows.length > 0) {
-      // Update existing record to 'Interested'
-      await db.query(
-        "UPDATE unibox_emails SET status = 'Interested', updated_at = now() WHERE id = $1",
-        [existing.rows[0].id]
-      );
-      console.log(`[Instantly Webhook] Updated existing lead to Interested: ${leadEmail}`);
-    } else {
-      // Create new record in unibox_emails
-      const senderName = payload.lead_name || payload.from_name || leadEmail.split('@')[0] || 'Unknown Sender';
-      const bodyRaw = payload.reply_body || payload.body_text || payload.body || '';
-      const isHtml = /<[a-z][\s\S]*>/i.test(bodyRaw);
-      const bodyHtml = payload.reply_html || payload.body_html || (isHtml ? bodyRaw : '');
-      const bodyText = !isHtml ? bodyRaw : (payload.reply_text || payload.body_text || '');
-
-      const result = await db.query(
-        `INSERT INTO unibox_emails (
-          org_id, external_id, sender_email, sender_name, subject, body_text, body_html,
-          status, priority, received_at, is_read, metadata
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-        RETURNING *`,
-        [
-          orgId,
-          externalId,
-          leadEmail,
-          senderName,
-          payload.subject || `Interested lead from ${payload.campaign_name || 'campaign'}`,
-          bodyText,
-          bodyHtml,
-          'Interested',
-          'Normal',
-          new Date(payload.timestamp || Date.now()),
-          false,
-          JSON.stringify(payload)
-        ]
-      );
-
-      if (result.rows[0]) {
-        realtimeService.emitUniboxEmailCreated(orgId, result.rows[0]);
-        console.log(`[Instantly Webhook] ✅ Created new Interested lead: ${leadEmail}`);
-      }
+    if (isLegacyInterested) {
+      parsed.status = 'Interested';
     }
 
-    // Update health stats
+    const upsertResult = await this._upsertUniboxFromWebhook(orgId, parsed, eventType, payload);
+    console.log(`[Instantly Webhook] ${upsertResult.action} for ${parsed.leadEmail}`);
+
+    if (eventLogId) {
+      await db.query(
+        'UPDATE instantly_unibox_events SET processed = true, processed_at = now() WHERE id = $1',
+        [eventLogId]
+      );
+    }
+
     await this._updateWebhookHealth(orgId, true);
   }
 

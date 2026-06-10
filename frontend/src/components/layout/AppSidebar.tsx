@@ -280,7 +280,7 @@ export function AppSidebar({
   const location = useLocation();
   const { userRole, hasPermission } = useAuth();
   const { data: workgroups = [] } = useWorkgroups();
-  const { isOwner: isUniboxOwner, hasFullAccess: hasFullUniboxAccess } = useUniboxPermission();
+  const { isOwner: isUniboxOwner, hasFullAccess: hasFullUniboxAccess, canManageFolders: canManageUniboxFolders } = useUniboxPermission();
   const isElectron = typeof window !== "undefined" && Boolean((window as any).electronAPI?.isElectron);
   const queryClient = useQueryClient();
   const [openSections, setOpenSections] = useState<string[]>([
@@ -1070,7 +1070,7 @@ export function AppSidebar({
 
               <UniboxCampaignSidebar
                 onMobileClose={isMobile ? onClose : undefined}
-                isOwner={isUniboxOwner}
+                isOwner={canManageUniboxFolders}
                 hasFullAccess={hasFullUniboxAccess}
               />
             </div>
