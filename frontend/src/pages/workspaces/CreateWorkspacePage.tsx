@@ -115,7 +115,7 @@ export default function CreateWorkspacePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       {/* Header */}
-      <div className="bg-white border-b border-slate-200 shadow-sm">
+      <div className=" border-b border-slate-200 shadow-sm">
         <div className="max-w-5xl mx-auto px-6 py-6">
           <Button
             variant="ghost"
@@ -198,7 +198,7 @@ export default function CreateWorkspacePage() {
                     className={`p-6 border-2 rounded-xl text-left transition-all hover:shadow-lg ${
                       formData.type === type.value
                         ? `${type.borderColor} ${type.bgColor} shadow-lg ring-2 ring-offset-2 ring-${type.value}-500`
-                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                        : 'border-gray-200 hover:border-gray-300 '
                     }`}
                   >
                     <div className="flex items-start gap-4">
@@ -243,7 +243,7 @@ export default function CreateWorkspacePage() {
                     className={`w-full p-6 border-2 rounded-xl text-left transition-all hover:shadow-lg ${
                       formData.visibility === option.value
                         ? 'border-blue-500 bg-blue-50 shadow-lg ring-2 ring-blue-500 ring-offset-2'
-                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                        : 'border-gray-200 hover:border-gray-300 '
                     }`}
                   >
                     <div className="flex items-center gap-4">

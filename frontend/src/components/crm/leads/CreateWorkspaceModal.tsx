@@ -104,11 +104,11 @@ export function CreateWorkspaceModal({ onClose, onSuccess }: CreateWorkspaceModa
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-[9999] overflow-y-auto">
       <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full my-8 relative z-[10000]">
+        <div className=" rounded-2xl shadow-2xl max-w-2xl w-full my-8 relative z-[10000]">
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-5 flex items-center justify-between rounded-t-2xl">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-white bg-opacity-20 rounded-lg">
+            <div className="p-2  bg-opacity-20 rounded-lg">
               <Plus className="h-6 w-6 text-white" />
             </div>
             <div>
@@ -118,7 +118,7 @@ export function CreateWorkspaceModal({ onClose, onSuccess }: CreateWorkspaceModa
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-all"
+            className="p-2 hover: hover:bg-opacity-20 rounded-lg transition-all"
           >
             <X className="h-5 w-5 text-white" />
           </button>
