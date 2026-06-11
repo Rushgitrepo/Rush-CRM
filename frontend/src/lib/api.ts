@@ -3,7 +3,7 @@ import Cookies from 'js-cookie';
 // FORCE hosted backend for ALL production builds
 const isDevelopment = import.meta.env.DEV;
 
-export const API_BASE_URL = isDevelopment 
+export const API_BASE_URL = isDevelopment
   ? "http://localhost:4000/api"  // Development only
   : "https://rms.rushcorporation.com/api";  // Production (browser + desktop)
 
@@ -198,11 +198,11 @@ export const emailApi = {
 };
 
 export const leadsApi = {
-  getAll: (params?: { 
-    page?: number; 
-    limit?: number; 
-    stage?: string; 
-    status?: string; 
+  getAll: (params?: {
+    page?: number;
+    limit?: number;
+    stage?: string;
+    status?: string;
     search?: string;
     priority?: string;
     source?: string;
@@ -222,16 +222,18 @@ export const leadsApi = {
   getStats: () => api.get<any>('/leads/stats'),
   convertToDeal: (id: string) => api.post<any>(`/leads/${id}/convert-to-deal`, {}),
   importLeads: (leads: any[]) => api.post<any>('/leads/import', { leads }),
-  bulkDelete: (payload: { ids?: string[]; all?: boolean; filters?: any } | string[]) => 
+  bulkDelete: (payload: { ids?: string[]; all?: boolean; filters?: any } | string[]) =>
     api.post<{ message: string; deletedCount: number }>('/leads/bulk-delete', Array.isArray(payload) ? { ids: payload } : payload),
+  bulkAssign: (ids: string[], assigned_to: string) =>
+    api.post<{ message: string; updatedCount: number; assignedTo: any }>('/leads/bulk-assign', { ids, assigned_to }),
 };
 
 export const dealsApi = {
-  getAll: (params?: { 
-    page?: number; 
-    limit?: number; 
-    stage?: string; 
-    status?: string; 
+  getAll: (params?: {
+    page?: number;
+    limit?: number;
+    stage?: string;
+    status?: string;
     search?: string;
     priority?: string;
     source?: string;
@@ -254,7 +256,7 @@ export const dealsApi = {
   removeSigningParty: (id: string, contactId: string) => api.delete(`/deals/${id}/signing-parties/${contactId}`),
   convertToCustomer: (id: string) => api.post<any>(`/deals/${id}/convert-to-customer`, {}),
   delete: (id: string) => api.delete(`/deals/${id}`),
-  bulkDelete: (payload: { ids?: string[]; all?: boolean; filters?: any } | string[]) => 
+  bulkDelete: (payload: { ids?: string[]; all?: boolean; filters?: any } | string[]) =>
     api.post<{ message: string; deletedCount: number }>('/deals/bulk-delete', Array.isArray(payload) ? { ids: payload } : payload),
   getStats: () => api.get<any>('/deals/stats'),
 };

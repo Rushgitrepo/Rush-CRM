@@ -33,6 +33,7 @@ import { sanitizePayload } from "@/utils/crm/sanitize";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
 import { WorkspaceShareModal } from "@/components/crm/leads/WorkspaceShareModal";
+import { MemberSearchSelect } from "@/components/tasks/MemberSearchSelect";
 import { DeleteConfirmationDialog } from "@/components/crm/DeleteConfirmationDialog";
 import { useInteractionHistory, useCreateActivity } from "@/hooks/useCrmInteractions";
 import { useOrganizationProfiles } from "@/hooks/useTenantQuery";
@@ -1191,30 +1192,12 @@ export default function LeadDetailPage() {
                               )}
                             </label>
                             {editing ? (
-                              <Select
-                                value={(form.assigned_to as string) || "unassigned"}
-                                onValueChange={(v) => set("assigned_to", v === "unassigned" ? null : v)}
-                              >
-                                <SelectTrigger className="bg-background border-border">
-                                  <SelectValue placeholder="Select owner..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="unassigned">Unassigned</SelectItem>
-                                  {members.map((m) => (
-                                    <SelectItem key={m.id} value={m.id}>
-                                      <div className="flex items-center gap-2">
-                                        <Avatar className="h-5 w-5">
-                                          <AvatarImage src={(m as any).avatar_url || undefined} alt={m.full_name} />
-                                          <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
-                                            {m.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                                          </AvatarFallback>
-                                        </Avatar>
-                                        {m.full_name}
-                                      </div>
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <MemberSearchSelect
+                                members={members}
+                                value={(form.assigned_to as string) || ""}
+                                onChange={(v) => set("assigned_to", v || null)}
+                                placeholder="Select owner..."
+                              />
                             ) : (
                               <div className="h-10 px-3 py-2 border rounded-lg bg-muted/40 flex items-center gap-2">
                                 {form.assigned_to ? (

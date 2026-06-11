@@ -417,6 +417,45 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   const [showLightbox, setShowLightbox] = useState(false);
   const dragCounterRef = useRef(0);
 
+  // Shared download handler — showSaveFilePicker must be called BEFORE any async fetch
+  const handleDownload = async (url: string, fileName: string) => {
+    try {
+      if ("showSaveFilePicker" in window) {
+        let handle: any;
+        try {
+          handle = await (window as any).showSaveFilePicker({ suggestedName: fileName });
+        } catch (pickerErr: any) {
+          if (pickerErr.name === "AbortError") return;
+          throw pickerErr;
+        }
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+      } else {
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    } catch (err: any) {
+      if (err.name !== "AbortError") {
+        try {
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = fileName;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        } catch { }
+        console.error("Download error:", err);
+      }
+    }
+  };
+
   const flatPosts = useMemo(() => {
     const all: WorkgroupPost[] = [];
     const currentUserId = user?.id;
@@ -4416,20 +4455,29 @@ function PostCard({
 
   const handleDownload = async (url: string, fileName: string) => {
     try {
-      // If showSaveFilePicker is available (Chrome/Edge/etc), use it to let user pick location
+      // If showSaveFilePicker is available (Chrome/Edge/etc), use it to let user pick location.
+      // IMPORTANT: showSaveFilePicker must be called synchronously inside the user gesture handler.
+      // We open the picker first (still in the click event), then fetch the blob afterwards.
       if ("showSaveFilePicker" in window) {
-        toast.info("Preparing download...");
+        let handle: any;
+        try {
+          handle = await (window as any).showSaveFilePicker({
+            suggestedName: fileName,
+          });
+        } catch (pickerErr: any) {
+          // User cancelled the picker — not an error
+          if (pickerErr.name === "AbortError") return;
+          throw pickerErr;
+        }
+        toast.info("Downloading...");
         const response = await fetch(url);
         const blob = await response.blob();
-        const handle = await (window as any).showSaveFilePicker({
-          suggestedName: fileName,
-        });
         const writable = await handle.createWritable();
         await writable.write(blob);
         await writable.close();
         toast.success("File saved successfully");
       } else {
-        // Fallback for other browsers
+        // Fallback for browsers without File System Access API
         const link = document.createElement("a");
         link.href = url;
         link.download = fileName;
@@ -4439,7 +4487,17 @@ function PostCard({
       }
     } catch (err: any) {
       if (err.name !== "AbortError") {
-        toast.error("Failed to save file");
+        // If File System API fails for any reason, fall back to anchor download
+        try {
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = fileName;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        } catch {
+          toast.error("Failed to save file");
+        }
         console.error("Download error:", err);
       }
     }
