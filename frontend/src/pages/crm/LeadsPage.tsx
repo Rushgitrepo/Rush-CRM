@@ -552,24 +552,12 @@ export default function LeadsPage() {
               ...(users?.map(u => ({ label: u.full_name || u.email, value: u.id })) || [])
             ]
           },
-          {
-            label: "Workspace",
-            type: "custom",
-            value: workspaceFilter,
-            onChange: setWorkspaceFilter,
-            render: () => (
-              <WorkspaceFilter
-                value={workspaceFilter}
-                onChange={setWorkspaceFilter}
-              />
-            )
-          },
-          {
-            label: "Campaign",
-            type: "input",
-            value: campaignFilter,
-            onChange: setCampaignFilter
-          },
+          // {
+          //   label: "Campaign",
+          //   type: "input",
+          //   value: campaignFilter,
+          //   onChange: setCampaignFilter
+          // },
           {
             label: "Tags",
             type: "input",

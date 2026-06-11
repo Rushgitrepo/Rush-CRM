@@ -113,6 +113,8 @@ const createLeadSchema = Joi.object({
   campaignName: Joi.string().optional().allow(null, ''),
   createdAt: Joi.alternatives().try(Joi.date(), Joi.string().isoDate()).optional().allow(null, ''),
   customFields: Joi.object().optional().allow(null),
+  contactPerson: Joi.string().optional().allow(null, ''),
+  industry: Joi.string().optional().allow(null, ''),
 });
 
 const normalizeLeadInput = (body = {}) => {
@@ -196,6 +198,8 @@ const normalizeLeadInput = (body = {}) => {
     campaignName: getVal('campaignName', 'campaign_name'),
     createdAt: getDate('createdAt', 'created_at'),
     customFields: getVal('customFields', 'custom_fields'),
+    contactPerson: getVal('contactPerson', 'contact_person'),
+    industry: getVal('industry', 'industry'),
   };
 };
 
@@ -244,6 +248,9 @@ const updateLeadSchema = Joi.object({
   campaignName: Joi.string().optional().allow(null, ''),
   createdAt: Joi.alternatives().try(Joi.date(), Joi.string().isoDate()).optional().allow(null, ''),
   customFields: Joi.object().optional().allow(null),
+  contactPerson: Joi.string().optional().allow(null, ''),
+  contact_person: Joi.string().optional().allow(null, ''),
+  industry: Joi.string().optional().allow(null, ''),
 }).min(1);
 
 const getAll = async (req, res, next) => {
@@ -781,7 +788,10 @@ const update = async (req, res, next) => {
       campaignId: 'campaign_id',
       campaignName: 'campaign_name',
       createdAt: 'created_at',
-      customFields: 'custom_fields'
+      customFields: 'custom_fields',
+      contactPerson: 'contact_person',
+      contact_person: 'contact_person',
+      industry: 'industry',
     };
 
     const hasStage = value.stage !== undefined;
