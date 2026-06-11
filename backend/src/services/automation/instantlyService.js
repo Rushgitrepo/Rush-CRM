@@ -104,6 +104,11 @@ class InstantlyService {
       // Use global key if local one is missing
       settings.api_key_encrypted = globalApiKey;
       settings.is_global = true;
+    } else if (settings && globalApiKey && !settings.is_enabled) {
+      // DB record exists but is disabled — still allow using .env global key
+      settings.api_key_encrypted = settings.api_key_encrypted || globalApiKey;
+      settings.is_global = true;
+      // Note: we do NOT force is_enabled=true here — syncEmails handles the is_global check
     }
 
     if (settings) {
@@ -298,6 +303,7 @@ class InstantlyService {
   async _ensureLeadExists(orgId, leadData) {
     try {
       const { email, first_name, last_name, company, phone, source = 'Instantly', campaign_id, campaign_name } = leadData;
+      const triggeredByUserId = leadData.created_by || null;
 
       // If we are missing critical info, try to enrich from Instantly API
       let enrichedFirstName = first_name;
@@ -387,7 +393,20 @@ class InstantlyService {
         [email, orgId]
       );
 
-      const fullName = [enrichedFirstName, enrichedLastName].filter(Boolean).join(' ') || email.split('@')[0];
+      const fullName = [enrichedFirstName, enrichedLastName].filter(Boolean).join(' ').trim()
+        || (leadData.sender_name && leadData.sender_name !== leadData.email ? leadData.sender_name : null)
+        || email.split('@')[0];
+      if (enrichedFirstName || enrichedLastName) {
+        const builtName = [enrichedFirstName, enrichedLastName].filter(Boolean).join(' ').trim();
+        if (builtName) {
+          db.query(
+            `UPDATE unibox_emails SET sender_name = $1, updated_at = now()
+             WHERE sender_email = $2 AND org_id = $3
+             AND (sender_name IS NULL OR sender_name = '' OR sender_name = sender_email)`,
+            [builtName, email, orgId]
+          ).catch(() => {});
+        }
+      }
 
       // Clean reply prefixes (RE:, FW:, etc.) from lead title
       const cleanLeadTitle = (leadData.subject || 'Lead from Instantly')
@@ -398,10 +417,10 @@ class InstantlyService {
         console.log(`[Instantly Service] Auto-adding new lead: ${email}`);
         await db.query(
           `INSERT INTO leads (
-            org_id, organization_id, title, name, first_name, last_name, email, phone, company, company_name, 
+            org_id, organization_id, user_id, created_by, title, name, first_name, last_name, email, phone, company, company_name, 
             company_phone, company_email, designation, website, address, source, status, stage, 
             interaction_notes, description, custom_fields, campaign_id, campaign_name, created_at, updated_at
-          ) VALUES ($1, $1, $2, $3, $4, $5, $6, $7, $8, $8, $7, $6, $9, $10, $11, $12, $13, $14, $15, $15, $16, $17, $18, $19, now())`,
+          ) VALUES ($1, $1, $20, $20, $2, $3, $4, $5, $6, $7, $8, $8, $7, $6, $9, $10, $11, $12, $13, $14, $15, $15, $16, $17, $18, $19, now())`,
           [
             orgId,
             cleanLeadTitle,
@@ -421,7 +440,8 @@ class InstantlyService {
             JSON.stringify(customFields),
             campaign_id || null,
             campaign_name || null,
-            createdDate
+            createdDate,
+            triggeredByUserId || null,  // $20 — user_id & created_by
           ]
         );
       } else {
@@ -488,9 +508,14 @@ class InstantlyService {
    * Sync Unibox emails from Instantly
    * Note: Instantly V2 API for emails might have different pagination etc.
    */
-  async syncEmails(orgId) {
+  async syncEmails(orgId, triggeredByUserId = null) {
     const settings = await this.getSettings(orgId);
-    if (!settings || !settings.api_key_encrypted || !settings.is_enabled) {
+    if (!settings || !settings.api_key_encrypted) {
+      throw new Error('Instantly integration not configured or enabled');
+    }
+
+    // Allow sync if: explicitly enabled, OR using global .env key (is_global flag)
+    if (!settings.is_enabled && !settings.is_global) {
       throw new Error('Instantly integration not configured or enabled');
     }
 
@@ -659,7 +684,6 @@ class InstantlyService {
           // /emails API fields
           leadEmail = item.lead || item.from_address_email || 'unknown@example.com';
           externalId = (item.id || `inst-${Date.now()}-${Math.random()}`).toString();
-          senderName = item.from_address_email || leadEmail;
           subject = item.subject || '(No subject)';
           bodyText = (item.body && item.body.text) || item.content_preview || '';
           bodyHtml = (item.body && item.body.html) || '';
@@ -688,6 +712,12 @@ class InstantlyService {
             firstName = parts[0];
             lastName = parts.slice(1).join(' ');
           }
+
+          // Build senderName AFTER extracting first/last name
+          senderName = [firstName, lastName].filter(Boolean).join(' ').trim()
+            || item.from_address_name
+            || item.from_address_email
+            || leadEmail;
         } else {
           // /leads/list API fields (NO email content available)
           leadEmail = item.email || item.lead_email || 'unknown@example.com';
@@ -757,7 +787,9 @@ class InstantlyService {
             body_text: bodyText,
             received_at: receivedAt,
             campaign_id: resolvedCampaignId || null,
-            campaign_name: resolvedCampaignName || null
+            campaign_name: resolvedCampaignName || null,
+            created_by: triggeredByUserId || null,
+            sender_name: senderName || null,
           });
         }
 
@@ -1093,6 +1125,7 @@ class InstantlyService {
         received_at: parsed.receivedAt,
         campaign_id: parsed.campaignId,
         campaign_name: parsed.campaignName,
+        sender_name: parsed.senderName,
       });
     }
 

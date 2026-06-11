@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWorkgroups, useDeleteWorkgroup } from "@/hooks/useWorkgroups";
 import { UniboxCampaignSidebar } from "@/components/unibox/UniboxCampaignSidebar";
@@ -279,6 +279,7 @@ export function AppSidebar({
   onClose?: () => void;
 }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const { userRole, hasPermission } = useAuth();
   const { data: workgroups = [] } = useWorkgroups();
   const { isOwner: isUniboxOwner, hasFullAccess: hasFullUniboxAccess, canManageFolders: canManageUniboxFolders } = useUniboxPermission();
@@ -657,10 +658,10 @@ export function AppSidebar({
               {child.title}
               {totalWorkgroupUnread + totalBroadcastUnread + totalDMUnread >
                 0 && (
-                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-bold text-white">
-                  {totalWorkgroupUnread + totalBroadcastUnread + totalDMUnread}
-                </span>
-              )}
+                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-bold text-white">
+                    {totalWorkgroupUnread + totalBroadcastUnread + totalDMUnread}
+                  </span>
+                )}
             </span>
           </NavLink>
 
@@ -717,8 +718,8 @@ export function AppSidebar({
                               src={
                                 getAvatarUrl(
                                   dm.avatar_url ||
-                                    dm.direct_peer_avatar_url ||
-                                    dm.avatar,
+                                  dm.direct_peer_avatar_url ||
+                                  dm.avatar,
                                 ) || undefined
                               }
                             />
@@ -1027,7 +1028,14 @@ export function AppSidebar({
           <button
             onClick={(e) => {
               e.preventDefault();
+              const isCurrentlyExpanded = expandedSubItems.includes("Unibox");
               toggleSubItem("Unibox");
+              // Navigate to All Emails when expanding, or when already on unibox with campaign selected
+              if (!isCurrentlyExpanded || location.search.includes("campaign_id")) {
+                if (hasFullUniboxAccess) {
+                  navigate("/crm/unibox");
+                }
+              }
             }}
             className={cn(
               "flex w-full items-center justify-between rounded-xl py-2 pl-9 pr-3 text-[13px] transition-all duration-200",

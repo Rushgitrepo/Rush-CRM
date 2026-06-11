@@ -50,6 +50,8 @@ type LeadRow = {
   responsiblePersonAvatar?: string;
   campaignName?: string;
   campaignId?: string;
+  createdByName?: string;
+  createdByAvatar?: string;
 };
 
 export default function LeadsPage() {
@@ -128,6 +130,8 @@ export default function LeadsPage() {
         responsiblePersonAvatar: l.responsible_person_avatar,
         campaignName: l.campaign_name || l.campaignName || l.campaign || "",
         campaignId: l.campaign_id || l.campaignId || "",
+        createdByName: l.createdByName || l.created_by_name || null,
+        createdByAvatar: l.createdByAvatar || l.created_by_avatar || null,
       };
     });
   }, [dbLeads]);
@@ -162,9 +166,9 @@ export default function LeadsPage() {
     }).then((confirmed) => {
       if (confirmed) {
         bulkDeleteLeads.mutate(
-          isAllSelectedGlobally 
+          isAllSelectedGlobally
             ? { all: true, filters: { search, status, type, workspaceId: workspaceFilter } }
-            : selectedLeads, 
+            : selectedLeads,
           {
             onSuccess: () => {
               setSelectedLeads([]);
@@ -219,8 +223,8 @@ export default function LeadsPage() {
           <p className="text-xs text-muted-foreground flex items-center gap-2">
             <Mail className="h-3 w-3" />
             {lead.email ? (
-              <span 
-                className="hover:text-primary hover:underline transition-colors cursor-pointer" 
+              <span
+                className="hover:text-primary hover:underline transition-colors cursor-pointer"
                 onClick={(e) => {
                   e.stopPropagation();
                   navigate("/collaboration/mail", { state: { composeTo: lead.email } });
@@ -326,6 +330,30 @@ export default function LeadsPage() {
         <span className="text-sm text-muted-foreground">
           {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString() : "—"}
         </span>
+      ),
+    },
+    {
+      key: "createdByName",
+      header: "Created By",
+      render: (lead) => (
+        <div className="flex items-center gap-2">
+          {lead.createdByName ? (
+            <>
+              <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden border border-border/50 shrink-0">
+                {lead.createdByAvatar ? (
+                  <img src={lead.createdByAvatar} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <span className="text-[10px] font-bold text-primary">
+                    {lead.createdByName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
+                  </span>
+                )}
+              </div>
+              <span className="text-xs font-medium truncate max-w-[100px]">{lead.createdByName}</span>
+            </>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+        </div>
       ),
     },
     {

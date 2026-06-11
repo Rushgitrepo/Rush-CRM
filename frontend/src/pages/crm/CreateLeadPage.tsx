@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useForm } from "react-hook-form";
@@ -322,11 +322,27 @@ export default function CreateLeadPage() {
 
   const { handleSubmit, register, setValue, watch, formState: { errors } } = form;
   const selectedPipeline = watch("pipeline") || "default";
-  const departmentFilter = profile?.department === "Sales" ? "Sales" : (profile?.department === "Marketing" ? "Marketing" : undefined);
-  const { data: members = [] } = useOrganizationProfiles({ 
-    department: departmentFilter, 
-    includeSelf: true 
+
+  // Filter Assigned To members based on selected pipeline
+  const assignedToDepartment = selectedPipeline === "marketing"
+    ? "Marketing"
+    : selectedPipeline === "sales"
+      ? "Sales"
+      : undefined; // standard = both (no filter)
+
+  const { data: members = [] } = useOrganizationProfiles({
+    department: assignedToDepartment,
+    includeSelf: true
   });
+
+  // Reset assignedTo when pipeline changes so stale selection is cleared
+  const prevPipelineRef = useRef(selectedPipeline);
+  useEffect(() => {
+    if (prevPipelineRef.current !== selectedPipeline) {
+      prevPipelineRef.current = selectedPipeline;
+      setValue("assignedTo", null);
+    }
+  }, [selectedPipeline, setValue]);
   const { data: dbStages = [] } = usePipelineStages();
 
   const customDbStages = dbStages
@@ -401,8 +417,8 @@ export default function CreateLeadPage() {
       tags: data.tags ? data.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
       customFields: customFields.reduce((acc, field) => {
         if (field.key.trim()) {
-          acc[field.key.trim()] = { 
-            value: field.value, 
+          acc[field.key.trim()] = {
+            value: field.value,
             type: field.type || 'string',
             sectionId: field.sectionId || 'custom-fields',
             afterFieldId: field.afterFieldId
@@ -416,7 +432,7 @@ export default function CreateLeadPage() {
       onSuccess: () => {
         // Save these field definitions as templates for future leads
         saveTemplates.mutate({ entityType: 'lead', templates: customFields });
-        
+
         toast.success("Lead created successfully", { description: data.title });
         navigate("/crm/leads");
       },
@@ -438,15 +454,15 @@ export default function CreateLeadPage() {
   const renderDroppedFields = (sectionId: string, isTop = false, afterFieldId?: string) => {
     const sectionFields = customFields.filter(f => {
       if (f.sectionId !== sectionId) return false;
-      
+
       if (afterFieldId) {
         return f.afterFieldId === afterFieldId;
       }
-      
+
       if (isTop) {
         return f.afterFieldId === `${sectionId}-top`;
       }
-      
+
       return !f.afterFieldId;
     });
 
@@ -459,24 +475,24 @@ export default function CreateLeadPage() {
             <DraggableFieldItem key={field.id} fieldKey={field.id}>
               <div className="group relative">
                 <div className="flex items-center justify-between mb-1.5">
-                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{field.key}</Label>
-                    <DraggableFieldItem fieldKey={field.id} isHandle>
-                      <div className="p-1 cursor-grab active:cursor-grabbing text-primary hover:text-primary-foreground hover:bg-primary rounded transition-all opacity-0 group-hover:opacity-100">
-                        <GripVertical className="h-3 w-3" />
-                      </div>
-                    </DraggableFieldItem>
-                  </div>
-                  <CustomFieldInput
-                    field={field}
-                    editing={true}
-                    updateField={(id, updates) => {
-                      setCustomFields(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
-                    }}
-                    entityType="lead"
-                  />
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{field.key}</Label>
+                  <DraggableFieldItem fieldKey={field.id} isHandle>
+                    <div className="p-1 cursor-grab active:cursor-grabbing text-primary hover:text-primary-foreground hover:bg-primary rounded transition-all opacity-0 group-hover:opacity-100">
+                      <GripVertical className="h-3 w-3" />
+                    </div>
+                  </DraggableFieldItem>
                 </div>
-              </DraggableFieldItem>
-            ))}
+                <CustomFieldInput
+                  field={field}
+                  editing={true}
+                  updateField={(id, updates) => {
+                    setCustomFields(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
+                  }}
+                  entityType="lead"
+                />
+              </div>
+            </DraggableFieldItem>
+          ))}
         </SortableContext>
       </>
     );
@@ -527,7 +543,7 @@ export default function CreateLeadPage() {
                 </DroppableSection>
 
                 <DroppableSection id="lead-company-details" editing={true}>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
                     <DroppableField id="fixed-lead-company-details-pipeline" editing={true}>
                       <div className="space-y-2">
                         <Label className="text-sm font-medium text-foreground flex items-center gap-2">
@@ -570,7 +586,12 @@ export default function CreateLeadPage() {
                       <div className="space-y-2">
                         <Label className="text-sm font-medium text-foreground flex items-center gap-2">
                           <Users className="h-4 w-4" />
-                          Lead owner
+                          Assigned To
+                          {assignedToDepartment && (
+                            <span className="text-[10px] font-normal text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                              {assignedToDepartment} only
+                            </span>
+                          )}
                         </Label>
                         <Select value={watch("assignedTo") || "unassigned"} onValueChange={v => setValue("assignedTo", v === "unassigned" ? null : v)}>
                           <SelectTrigger className={cn("h-10", errors.assignedTo && "border-destructive")}>
@@ -582,6 +603,7 @@ export default function CreateLeadPage() {
                               <SelectItem key={m.id} value={m.id}>
                                 <div className="flex items-center gap-2">
                                   <Avatar className="h-5 w-5">
+                                    <AvatarImage src={m.avatar_url || undefined} alt={m.full_name} />
                                     <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
                                       {m.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
                                     </AvatarFallback>
@@ -770,7 +792,7 @@ export default function CreateLeadPage() {
                   />
                 </CardHeader>
                 <CardContent className="space-y-5 p-6">
-                   <div className="grid gap-5 md:grid-cols-2">
+                  <div className="grid gap-5 md:grid-cols-2">
                     <DroppableField id="fixed-qualification-opportunity-serviceInterested" editing={true}>
                       <div className="space-y-2">
                         <Label className="text-sm font-medium text-foreground flex items-center gap-2">
@@ -870,14 +892,14 @@ export default function CreateLeadPage() {
                   />
                 </CardHeader>
                 <CardContent className="space-y-5 p-6">
-                   <div className="grid gap-5 md:grid-cols-2">
+                  <div className="grid gap-5 md:grid-cols-2">
                     <DroppableField id="fixed-source-section-createdAt" editing={true}>
                       <div className="space-y-2">
                         <Label className="text-sm font-medium text-foreground">Created on</Label>
-                        <Input 
-                          type="date" 
-                          {...register("createdAt")} 
-                          className="h-10" 
+                        <Input
+                          type="date"
+                          {...register("createdAt")}
+                          className="h-10"
                         />
                       </div>
                     </DroppableField>

@@ -48,7 +48,7 @@ function loadExpandedFromStorage(): Set<string> {
   try {
     const raw = localStorage.getItem(EXPANDED_STORAGE_KEY);
     if (raw) return new Set(JSON.parse(raw));
-  } catch {}
+  } catch { }
   return new Set();
 }
 
@@ -502,9 +502,9 @@ export function UniboxCampaignSidebar({
 
   const activeCampaign = activeDragId
     ? (() => {
-        const parsed = parseDragId(activeDragId);
-        return parsed?.type === "campaign" ? campaignMap.get(parsed.id) : null;
-      })()
+      const parsed = parseDragId(activeDragId);
+      return parsed?.type === "campaign" ? campaignMap.get(parsed.id) : null;
+    })()
     : null;
 
   const isLoading = campaignsLoading || foldersLoading;
@@ -534,7 +534,7 @@ export function UniboxCampaignSidebar({
 
   const [hasInitializedState, setHasInitializedState] = useState(false);
 
-  // On first load of folders, restore saved state or expand all
+  // On first load of folders, restore saved state (default: all collapsed)
   useEffect(() => {
     if (allFolders.length > 0 && !hasInitializedState) {
       setHasInitializedState(true);
@@ -542,12 +542,8 @@ export function UniboxCampaignSidebar({
       const saved = loadExpandedFromStorage();
       // Filter out any saved IDs that no longer exist (e.g., folder was deleted)
       const validSaved = new Set(Array.from(saved).filter((id) => validFolderIds.has(id)));
-      if (validSaved.size > 0) {
-        setExpandedFolders(validSaved);
-      } else {
-        // No saved state — expand all folders by default
-        setExpandedFolders(validFolderIds);
-      }
+      // Use saved state if available, otherwise start with all folders collapsed
+      setExpandedFolders(validSaved);
     }
   }, [allFolders.length, hasInitializedState]);
 
@@ -562,11 +558,8 @@ export function UniboxCampaignSidebar({
   useEffect(() => {
     if (!isSearching && hasInitializedState) {
       const saved = loadExpandedFromStorage();
-      if (saved.size > 0) {
-        setExpandedFolders(saved);
-      } else {
-        setExpandedFolders(new Set(allFolders.map((f) => f.id)));
-      }
+      // Use saved state; if nothing saved, keep all collapsed
+      setExpandedFolders(saved);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSearching]);

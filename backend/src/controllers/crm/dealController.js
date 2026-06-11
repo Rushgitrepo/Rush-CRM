@@ -1,4 +1,4 @@
-const db = require('../../config/database');
+﻿const db = require('../../config/database');
 const Joi = require('joi');
 const { fireWorkflows } = require('../../services/workflowEngine');
 
@@ -323,7 +323,7 @@ const getAll = async (req, res, next) => {
     let paramIndex = 2;
 
     if (!isAdmin) {
-      query += ` AND (d.assigned_to = $${paramIndex} OR d.owner_id = $${paramIndex} OR d.responsible_person = $${paramIndex} OR d.user_id = $${paramIndex})`;
+      query += ` AND (d.assigned_to = $${paramIndex} OR d.owner_id = $${paramIndex} OR d.responsible_person = $${paramIndex} OR d.user_id = $${paramIndex} OR d.created_by = $${paramIndex})`;
       params.push(req.user.id);
       paramIndex++;
     }
@@ -415,7 +415,7 @@ const getAll = async (req, res, next) => {
     let countIdx = 2;
 
     if (!isAdmin) {
-      countQuery += ` AND (d.assigned_to = $${countIdx} OR d.owner_id = $${countIdx} OR d.responsible_person = $${countIdx} OR d.user_id = $${countIdx})`;
+      countQuery += ` AND (d.assigned_to = $${countIdx} OR d.owner_id = $${countIdx} OR d.responsible_person = $${countIdx} OR d.user_id = $${countIdx} OR d.created_by = $${countIdx})`;
       countParams.push(req.user.id);
       countIdx++;
     }
@@ -584,7 +584,7 @@ const create = async (req, res, next) => {
     const result = await db.query(
       `INSERT INTO public.deals 
        (
-         org_id, user_id, title, contact_id, company_id, stage, status, 
+         org_id, user_id, created_by, title, contact_id, company_id, stage, status, 
          value, currency, probability, notes, tags, expected_close_date, 
          contact_name, company_name, phone, email, priority, source, description,
          designation, website, address, company_phone, company_email, company_size,
@@ -597,7 +597,7 @@ const create = async (req, res, next) => {
          campaign_id, campaign_name, custom_fields
        )
        VALUES (
-         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 
+         $1, $2, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 
          $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26,
          $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38,
          $39, $40, $41, $42, $43, $44, $45, $46, $47, $48,

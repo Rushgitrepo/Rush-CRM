@@ -121,7 +121,7 @@ const instantly = async (req, res, next) => {
     }
 
     if (action === 'sync') {
-      const result = await instantlyService.syncEmails(orgId);
+      const result = await instantlyService.syncEmails(orgId, req.user.id);
       return res.json({ message: 'Sync completed', ...result });
     }
 
