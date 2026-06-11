@@ -1,14 +1,17 @@
 import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Sparkles, Mail, Phone, Building2, Filter, Download, Upload, MoreHorizontal, Edit, Trash2, Eye, Globe, XCircle, CheckCircle } from "lucide-react";
-import { useLeads, useDeleteLead, useBulkDeleteLeads, useUsers } from "@/hooks/useCrmData";
+import { Plus, Sparkles, Mail, Phone, Building2, Filter, Download, Upload, MoreHorizontal, Edit, Trash2, Eye, Globe, XCircle, CheckCircle, UserCheck } from "lucide-react";
+import { useLeads, useDeleteLead, useBulkDeleteLeads, useBulkAssignLeads, useUsers } from "@/hooks/useCrmData";
 import { useUpdateLead } from "@/hooks/useCrmMutations";
+import { useOrganizationProfiles } from "@/hooks/useTenantQuery";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { MemberSearchSelect } from "@/components/tasks/MemberSearchSelect";
 import { LeadsKanbanView } from "@/components/crm/leads/LeadsKanbanView";
 import { LeadsActivitiesView } from "@/components/crm/leads/LeadsActivitiesView";
 import { LeadsCalendarView } from "@/components/crm/leads/LeadsCalendarView";
@@ -92,10 +95,14 @@ export default function LeadsPage() {
     campaign: campaignFilter || undefined,
   });
   const { data: users = [] } = useUsers({ department: 'Sales', includeSelf: true });
+  const { data: allMembers = [] } = useOrganizationProfiles({ includeSelf: true });
   const { data: pipelineStages = [] } = usePipelineStages();
   const deleteLead = useDeleteLead();
   const bulkDeleteLeads = useBulkDeleteLeads();
+  const bulkAssignLeads = useBulkAssignLeads();
   const updateLead = useUpdateLead();
+  const [assignPickerOpen, setAssignPickerOpen] = useState(false);
+  const [bulkAssignUserId, setBulkAssignUserId] = useState("");
 
   const leads: LeadRow[] = useMemo(() => {
     // Handle different response formats from the API
@@ -178,6 +185,21 @@ export default function LeadsPage() {
         );
       }
     });
+  };
+
+  const handleBulkAssign = (userId: string) => {
+    if (!userId || selectedLeads.length === 0) return;
+    bulkAssignLeads.mutate(
+      { ids: selectedLeads, assigned_to: userId },
+      {
+        onSuccess: () => {
+          setSelectedLeads([]);
+          setIsAllSelectedGlobally(false);
+          setAssignPickerOpen(false);
+          setBulkAssignUserId("");
+        },
+      }
+    );
   };
 
   const handleBulkExport = () => {
@@ -417,7 +439,32 @@ export default function LeadsPage() {
         actions={
           <div className="flex gap-2">
             {(selectedLeads.length > 0 || isAllSelectedGlobally) && (
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center">
+                {/* Assign button — only when specific leads are selected (not global) */}
+                {selectedLeads.length > 0 && !isAllSelectedGlobally && (
+                  <Popover open={assignPickerOpen} onOpenChange={setAssignPickerOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="gap-2">
+                        <UserCheck className="h-4 w-4" />
+                        Assigned To ({selectedLeads.length})
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-72 p-3" align="start">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                        Assign {selectedLeads.length} lead{selectedLeads.length > 1 ? "s" : ""} to
+                      </p>
+                      <MemberSearchSelect
+                        members={allMembers}
+                        value={bulkAssignUserId}
+                        onChange={(id) => {
+                          setBulkAssignUserId(id);
+                          if (id) handleBulkAssign(id);
+                        }}
+                        placeholder="Select a user..."
+                      />
+                    </PopoverContent>
+                  </Popover>
+                )}
                 <Button variant="outline" size="sm" onClick={handleBulkExport}>
                   <Download className="h-4 w-4 mr-2" />
                   Export ({isAllSelectedGlobally ? (dbLeads as any)?.pagination?.total : selectedLeads.length})

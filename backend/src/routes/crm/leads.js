@@ -18,5 +18,6 @@ router.put('/:id', leadController.update);
 router.patch('/:id/stage', leadController.updateStage);
 router.delete('/:id', leadController.remove);
 router.post('/bulk-delete', leadController.bulkRemove);
+router.post('/bulk-assign', leadController.bulkAssign);
 
 module.exports = router;

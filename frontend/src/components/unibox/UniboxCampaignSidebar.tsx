@@ -39,6 +39,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const CAMPAIGN_PREFIX = "campaign:";
 const FOLDER_PREFIX = "folder:";
@@ -86,12 +87,18 @@ function FolderUserAssigner({
   onAssignUsers: (folderId: string, userIds: string[]) => void;
 }) {
   const assignedIds = new Set(folder.assigned_users?.map((u) => u.id) || []);
+  const [search, setSearch] = useState("");
+
   const label =
     folder.assigned_users?.length === 0
       ? "Assign users"
       : folder.assigned_users!.length <= 2
         ? folder.assigned_users!.map((u) => u.full_name).join(", ")
         : `${folder.assigned_users!.slice(0, 2).map((u) => u.full_name).join(", ")} +${folder.assigned_users!.length - 2}`;
+
+  const filtered = orgUsers.filter((u) =>
+    u.full_name.toLowerCase().includes(search.toLowerCase())
+  );
 
   const toggleUser = (userId: string, checked: boolean) => {
     const next = new Set(assignedIds);
@@ -102,7 +109,7 @@ function FolderUserAssigner({
 
   return (
     <div className="ml-6 pl-1 pr-1">
-      <Popover>
+      <Popover onOpenChange={(o) => { if (!o) setSearch(""); }}>
         <PopoverTrigger asChild>
           <button
             type="button"
@@ -112,23 +119,41 @@ function FolderUserAssigner({
             <span className="truncate">{label}</span>
           </button>
         </PopoverTrigger>
-        <PopoverContent className="w-52 p-2" align="start" side="right">
-          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-2">
+        <PopoverContent className="w-56 p-0" align="start" side="right">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-3 pt-2 pb-1">
             Assign to users
           </p>
-          <div className="max-h-48 overflow-y-auto space-y-1">
-            {orgUsers.length === 0 ? (
-              <p className="text-xs text-muted-foreground px-1 py-2">No team members</p>
+          {/* Search */}
+          <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border">
+            <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <input
+              type="text"
+              placeholder="Search by name..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="flex-1 text-xs bg-transparent outline-none placeholder:text-muted-foreground/60"
+              autoFocus
+            />
+          </div>
+          <div className="max-h-52 overflow-y-auto py-1">
+            {filtered.length === 0 ? (
+              <p className="text-xs text-muted-foreground px-3 py-2">No members found</p>
             ) : (
-              orgUsers.map((user) => (
+              filtered.map((user) => (
                 <label
                   key={user.id}
-                  className="flex items-center gap-2 rounded-md px-1 py-1.5 hover:bg-accent cursor-pointer"
+                  className="flex items-center gap-2 rounded-md px-3 py-1.5 hover:bg-accent cursor-pointer"
                 >
                   <Checkbox
                     checked={assignedIds.has(user.id)}
                     onCheckedChange={(checked) => toggleUser(user.id, checked === true)}
                   />
+                  <Avatar className="h-5 w-5 shrink-0">
+                    <AvatarImage src={(user as any).avatar_url || undefined} alt={user.full_name} />
+                    <AvatarFallback className="text-[9px] bg-primary/20 text-primary font-bold">
+                      {user.full_name.split(/\s+/).map((w) => w[0]).join("").toUpperCase().slice(0, 2)}
+                    </AvatarFallback>
+                  </Avatar>
                   <span className="text-xs truncate">{user.full_name}</span>
                 </label>
               ))
