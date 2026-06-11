@@ -58,6 +58,7 @@ import { ProjectDialog } from "@/components/tasks/ProjectDialog";
 import { CommandMenu } from "@/components/tasks/CommandMenu";
 import { ProjectListView } from "@/components/tasks/ProjectListView";
 import { ProjectTasksView } from "@/components/tasks/ProjectTasksView";
+import { TaskDetailPanel } from "@/components/tasks/TaskDetailPanel";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRealtime } from "@/hooks/useRealtime";
 
@@ -76,9 +77,9 @@ export default function TasksPage() {
   const queryClient = useQueryClient();
   const { on, off } = useRealtime();
 
-  // Helper to get initial state from LocalStorage or URL or Default
+  // Helper to get initial state from URL first (for deep-links), then LocalStorage, then Default
   const getInitial = (key: string, defaultValue: string | null) => {
-    return localStorage.getItem(`tasks_${key}`) || searchParams.get(key) || defaultValue;
+    return searchParams.get(key) || localStorage.getItem(`tasks_${key}`) || defaultValue;
   };
 
   // Primary State
@@ -163,6 +164,26 @@ export default function TasksPage() {
   const updateTask = useUpdateTask();
   const createProject = useCreateProject();
   const updateProject = useUpdateProject();
+
+  // Detail panel state (for notification deep-links via ?taskId=)
+  const [detailTask, setDetailTask] = useState<Task | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  // Open task detail panel when ?taskId= is in URL (e.g. from notification click)
+  useEffect(() => {
+    const taskId = searchParams.get("taskId");
+    if (taskId && allTasks.length > 0) {
+      const found = allTasks.find((t) => t.id === taskId);
+      if (found) {
+        setDetailTask(found);
+        setDetailOpen(true);
+        // Remove taskId from URL after opening
+        const p = new URLSearchParams(window.location.search);
+        p.delete("taskId");
+        setSearchParams(p, { replace: true });
+      }
+    }
+  }, [searchParams, allTasks]);
 
   // Real-time sync — tasks aur projects bina refresh ke update hon
   useEffect(() => {
@@ -578,11 +599,11 @@ export default function TasksPage() {
                       </Badge>
                     )}
                   </h1>
-                <p className="text-sm  text-muted-foreground">
-                  {view === "projects" && !selectedProject
-                    ? `${projects.length} ${projects.length === 1 ? "project" : "projects"}`
-                    : `${filteredTasks.length} ${filteredTasks.length === 1 ? "task" : "tasks"}`}
-                </p>
+                  <p className="text-sm  text-muted-foreground">
+                    {view === "projects" && !selectedProject
+                      ? `${projects.length} ${projects.length === 1 ? "project" : "projects"}`
+                      : `${filteredTasks.length} ${filteredTasks.length === 1 ? "task" : "tasks"}`}
+                  </p>
                 </div>
               </div>
 
@@ -970,6 +991,18 @@ export default function TasksPage() {
         onCreateProject={() => setShowProjectDialog(true)}
         onChangeView={setView}
         onChangeFilter={setFilterView}
+      />
+
+      {/* Task Detail Panel — opened via notification deep-link (?taskId=) */}
+      <TaskDetailPanel
+        task={detailTask}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        onEdit={(task) => {
+          setDetailOpen(false);
+          setEditingTask(task);
+          setShowTaskDialog(true);
+        }}
       />
     </div>
   );

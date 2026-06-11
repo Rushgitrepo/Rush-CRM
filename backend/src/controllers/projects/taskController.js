@@ -162,13 +162,16 @@ const create = async (req, res, next) => {
     const task = result.rows[0];
 
     if (task.assigned_to && task.assigned_to !== req.user.id) {
+      const taskUrl = task.project_id
+        ? `/tasks?view=list&filter=all&tab=projects&subview=cards&project=${task.project_id}&taskId=${task.id}`
+        : `/tasks?view=list&filter=all&tab=all&subview=cards&taskId=${task.id}`;
       notificationService.notify(
         req.user.orgId,
         task.assigned_to,
         'task_assigned',
         'New Task Assigned',
         `${req.user.full_name || req.user.email} assigned you the task "${task.title}"`,
-        `/projects/tasks`,
+        taskUrl,
         req.user.id,
         { taskId: task.id, taskTitle: task.title, projectId: task.project_id }
       );
@@ -299,15 +302,18 @@ const update = async (req, res, next) => {
 
     const cleanAssignedTo = assignedTo === '' ? null : assignedTo;
     if (cleanAssignedTo && cleanAssignedTo !== req.user.id && cleanAssignedTo !== existingTask.assigned_to) {
+      const taskUrl = updatedTask.project_id
+        ? `/tasks?view=list&filter=all&tab=projects&subview=cards&project=${updatedTask.project_id}&taskId=${updatedTask.id}`
+        : `/tasks?view=list&filter=all&tab=all&subview=cards&taskId=${updatedTask.id}`;
       notificationService.notify(
         req.user.orgId,
         cleanAssignedTo,
         'task_assigned',
         'Task Assigned to You',
         `${req.user.full_name || req.user.email} assigned you the task "${updatedTask.title}"`,
-        `/projects/tasks`,
+        taskUrl,
         req.user.id,
-        { taskId: updatedTask.id, taskTitle: updatedTask.title }
+        { taskId: updatedTask.id, taskTitle: updatedTask.title, projectId: updatedTask.project_id }
       );
     }
 
@@ -346,13 +352,16 @@ const updateStatus = async (req, res, next) => {
     const doneTask = result.rows[0];
 
     if (status === 'completed' && doneTask.created_by && doneTask.created_by !== req.user.id) {
+      const completedTaskUrl = doneTask.project_id
+        ? `/tasks?view=list&filter=all&tab=projects&subview=cards&project=${doneTask.project_id}&taskId=${doneTask.id}`
+        : `/tasks?view=list&filter=all&tab=all&subview=cards&taskId=${doneTask.id}`;
       notificationService.notify(
         req.user.orgId,
         doneTask.created_by,
         'task_completed',
         'Task Completed',
         `${req.user.full_name || req.user.email} completed the task "${doneTask.title}"`,
-        `/projects/tasks`,
+        completedTaskUrl,
         req.user.id,
         { taskId: doneTask.id, taskTitle: doneTask.title }
       );

@@ -1,4 +1,5 @@
 const db = require('../../config/database');
+const notificationService = require('../../services/notificationService');
 
 const CAMPAIGN_ID_SQL = `COALESCE(metadata->'item'->>'campaign_id', metadata->>'campaign_id', 'none')`;
 
@@ -1440,12 +1441,13 @@ const assignUserToFolder = async (req, res, next) => {
     }
 
     const folder = await db.query(
-      'SELECT id FROM unibox_campaign_folders WHERE id = $1 AND org_id = $2',
+      'SELECT id, name FROM unibox_campaign_folders WHERE id = $1 AND org_id = $2',
       [id, orgId]
     );
     if (folder.rows.length === 0) {
       return res.status(404).json({ error: 'Folder not found' });
     }
+    const folderName = folder.rows[0].name;
 
     const uniqueUserIds = [...new Set(assigned_user_ids.filter(Boolean))];
 
@@ -1458,6 +1460,13 @@ const assignUserToFolder = async (req, res, next) => {
         return res.status(404).json({ error: 'One or more users not found in your organization' });
       }
     }
+
+    // Get previously assigned users to determine newly assigned ones
+    const previouslyAssigned = await db.query(
+      'SELECT user_id FROM unibox_campaign_folder_assignments WHERE folder_id = $1 AND org_id = $2',
+      [id, orgId]
+    );
+    const previousUserIds = new Set(previouslyAssigned.rows.map((r) => r.user_id));
 
     await db.query('BEGIN');
     try {
@@ -1483,6 +1492,24 @@ const assignUserToFolder = async (req, res, next) => {
     } catch (txErr) {
       await db.query('ROLLBACK');
       throw txErr;
+    }
+
+    // Notify newly assigned users (skip users who were already assigned)
+    const newlyAssignedIds = uniqueUserIds.filter((uid) => !previousUserIds.has(uid));
+    if (newlyAssignedIds.length > 0) {
+      const actionUrl = `/crm/unibox`;
+      for (const userId of newlyAssignedIds) {
+        notificationService.notify(
+          orgId,
+          userId,
+          'general',
+          'Campaign Folder Assigned',
+          `You have been assigned to the campaign folder "${folderName}"`,
+          actionUrl,
+          req.user.id,
+          { folderId: id, folderName }
+        );
+      }
     }
 
     const folderResult = await db.query(

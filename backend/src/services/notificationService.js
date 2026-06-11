@@ -84,8 +84,7 @@ const notify = async (orgId, targetUserId, type, title, message, actionUrl = nul
 
       const notification = result.rows[0];
 
-      // Emit real-time socket event to the target user
-      realtimeService.emitToUser(userId, 'notification:new', {
+      const notificationPayload = {
         id: notification.id,
         type: notification.type,
         category: notification.category,
@@ -95,7 +94,12 @@ const notify = async (orgId, targetUserId, type, title, message, actionUrl = nul
         metadata: notification.metadata,
         is_read: false,
         created_at: notification.created_at,
-      });
+      };
+
+      // Emit real-time socket event directly to the user's room
+      if (realtimeService.io) {
+        realtimeService.io.to(`user:${userId}`).emit('notification:new', notificationPayload);
+      }
 
       // Send Push Notification via FCM
       fcmService.sendPushNotification(userId, notification.title, notification.message, {
@@ -103,7 +107,6 @@ const notify = async (orgId, targetUserId, type, title, message, actionUrl = nul
         type: String(notification.type),
         category: String(notification.category),
         action_url: notification.action_url || '/',
-
       });
     }
   } catch (err) {

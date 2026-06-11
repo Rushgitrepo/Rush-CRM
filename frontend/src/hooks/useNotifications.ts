@@ -6,13 +6,16 @@ import { useNotificationsContext } from '@/contexts/NotificationsContext';
  */
 export function useNotifications() {
   const context = useNotificationsContext();
-  
+
   return {
     notifications: context.notifications,
     unreadCount: context.unreadCount,
     isLoading: context.isLoading,
     markAsRead: context.markAsRead,
     markAllAsRead: context.markAllAsRead,
-    refresh: context.fetchNotifications
+    refresh: context.fetchNotifications,
+    deleteNotification: context.deleteNotification,
+    deleteAllNotifications: context.deleteAllNotifications,
+    deleteSelectedNotifications: context.deleteSelectedNotifications,
   };
 }

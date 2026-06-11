@@ -23,6 +23,9 @@ interface NotificationsContextType {
   markAsRead: (id: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
   fetchNotifications: () => Promise<void>;
+  deleteNotification: (id: string) => Promise<void>;
+  deleteAllNotifications: () => Promise<void>;
+  deleteSelectedNotifications: (ids: string[]) => Promise<void>;
 }
 
 const NotificationsContext = createContext<NotificationsContextType | undefined>(undefined);
@@ -38,13 +41,11 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
     if (!user) return;
     try {
       setIsLoading(true);
-      const res = await api.get('/notifications?limit=50');
-      const data = (res as any).data;
-      setNotifications(data.data || []);
-
-      // Calculate unread
-      const unread = data.data?.filter((n: Notification) => !n.is_read).length || 0;
-      setUnreadCount(unread);
+      // GET /api/notifications returns { data: [...], pagination: {...} }
+      const res = await api.get<{ data: Notification[]; pagination: any }>('/notifications?limit=50');
+      const list: Notification[] = (res as any).data || [];
+      setNotifications(list);
+      setUnreadCount(list.filter((n) => !n.is_read).length);
     } catch (err) {
       console.error('Failed to fetch notifications:', err);
     } finally {
@@ -61,7 +62,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [user, fetchNotifications]);
 
-  // Real-time listener
+  // Real-time: add new notification to list + show toast
   useEffect(() => {
     if (!socket) return;
 
@@ -69,26 +70,23 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       setNotifications((prev) => [notification, ...prev]);
       setUnreadCount((prev) => prev + 1);
 
-      // Show Sonner toast
+      // Toast — dismissing does NOT remove from bell
       toast(notification.title, {
         description: notification.message,
-        action: notification.action_url ? {
-          label: 'View',
-          onClick: () => window.location.href = notification.action_url!
-        } : undefined,
+        duration: 6000,
       });
     };
 
     socket.on('notification:new', handleNewNotification);
-
     return () => {
       socket.off('notification:new', handleNewNotification);
     };
   }, [socket]);
 
+  // PUT /api/notifications/:id/read
   const markAsRead = async (id: string) => {
     try {
-      await api.patch(`/notifications/${id}/read`);
+      await api.put(`/notifications/${id}/read`);
       setNotifications((prev) =>
         prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
       );
@@ -98,9 +96,10 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  // PUT /api/notifications/read-all
   const markAllAsRead = async () => {
     try {
-      await api.post('/notifications/mark-all-read');
+      await api.put('/notifications/read-all');
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
       setUnreadCount(0);
     } catch (err) {
@@ -108,16 +107,46 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  // DELETE /api/notifications/:id
+  const deleteNotification = async (id: string) => {
+    try {
+      await api.delete(`/notifications/${id}`);
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+      setUnreadCount((prev) => {
+        const wasUnread = notifications.find((n) => n.id === id && !n.is_read);
+        return wasUnread ? Math.max(0, prev - 1) : prev;
+      });
+    } catch (err) {
+      console.error('Failed to delete notification:', err);
+    }
+  };
+
+  // DELETE selected notifications (client-side bulk using individual deletes)
+  const deleteSelectedNotifications = async (ids: string[]) => {
+    try {
+      await Promise.all(ids.map((id) => api.delete(`/notifications/${id}`)));
+      const unreadDeleted = notifications.filter((n) => ids.includes(n.id) && !n.is_read).length;
+      setNotifications((prev) => prev.filter((n) => !ids.includes(n.id)));
+      setUnreadCount((prev) => Math.max(0, prev - unreadDeleted));
+    } catch (err) {
+      console.error('Failed to delete notifications:', err);
+    }
+  };
+
+  // DELETE /api/notifications (delete all)
+  const deleteAllNotifications = async () => {
+    try {
+      await api.delete('/notifications');
+      setNotifications([]);
+      setUnreadCount(0);
+    } catch (err) {
+      console.error('Failed to delete all notifications:', err);
+    }
+  };
+
   return (
     <NotificationsContext.Provider
-      value={{
-        notifications,
-        unreadCount,
-        isLoading,
-        markAsRead,
-        markAllAsRead,
-        fetchNotifications,
-      }}
+      value={{ notifications, unreadCount, isLoading, markAsRead, markAllAsRead, fetchNotifications, deleteNotification, deleteAllNotifications, deleteSelectedNotifications }}
     >
       {children}
     </NotificationsContext.Provider>

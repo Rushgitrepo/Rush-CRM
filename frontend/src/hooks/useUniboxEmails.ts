@@ -100,7 +100,7 @@ export function useUniboxEmails(filters: {
       if (filters.unread) params.unread = 'true';
       if (filters.priority && filters.priority !== 'all') params.priority = filters.priority;
       if (filters.campaign_id) params.campaign_id = filters.campaign_id;
-      
+
       // Pagination parameters
       const limit = filters.limit || 50;
       const page = filters.page || 1;
