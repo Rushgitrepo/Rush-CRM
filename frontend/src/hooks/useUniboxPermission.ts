@@ -16,12 +16,12 @@ export function useUniboxPermission() {
         console.log('Response type:', typeof response);
         
         // The API client returns the data directly, not wrapped in .data
-        const result = response || { hasPermission: false, isOwner: false };
+        const result = response || { hasPermission: false, isOwner: false, hasFullAccess: false, canManageFolders: false, isRestricted: false, assignedFolderCount: 0 };
         console.log('Final result:', result);
         return result;
       } catch (error) {
         console.error('Unibox permission check failed:', error);
-        return { hasPermission: false, isOwner: false };
+        return { hasPermission: false, isOwner: false, hasFullAccess: false, canManageFolders: false, isRestricted: false, assignedFolderCount: 0 };
       }
     },
     enabled: !!user,
@@ -34,6 +34,10 @@ export function useUniboxPermission() {
   return { 
     hasPermission: data?.hasPermission ?? false, 
     isOwner: data?.isOwner ?? false,
+    hasFullAccess: data?.hasFullAccess ?? false,
+    canManageFolders: data?.canManageFolders ?? data?.hasFullAccess ?? false,
+    isRestricted: data?.isRestricted ?? false,
+    assignedFolderCount: data?.assignedFolderCount ?? 0,
     isLoading 
   };
 }

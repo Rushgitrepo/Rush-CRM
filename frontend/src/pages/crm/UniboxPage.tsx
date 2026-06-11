@@ -73,7 +73,7 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 
 export default function UniboxPage() {
-  const { hasPermission, isOwner, isLoading: permLoading } = useUniboxPermission();
+  const { hasPermission, isOwner, isRestricted, assignedFolderCount, isLoading: permLoading } = useUniboxPermission();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const statusFilter = searchParams.get("status") || "All";
@@ -127,7 +127,7 @@ export default function UniboxPage() {
 
   const { data: fetchedEmail, isLoading: emailFetchLoading } = useUniboxEmail(selectedEmailId);
 
-  const { data: campaigns = [], isLoading: campaignsLoading } = useUniboxCampaigns();
+  const { data: campaigns = [] } = useUniboxCampaigns();
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -191,6 +191,19 @@ export default function UniboxPage() {
         <h2 className="text-2xl font-bold text-foreground">Access Denied</h2>
         <p className="text-muted-foreground max-w-md">
           You don't have permission to access the Unibox Mailbox. Contact your administrator to request access.
+        </p>
+      </div>
+    );
+  }
+
+  if (isRestricted && assignedFolderCount === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] gap-4 text-center">
+        <FolderKanban className="h-16 w-16 text-muted-foreground" />
+        <h2 className="text-2xl font-bold text-foreground">No Folders Assigned</h2>
+        <p className="text-muted-foreground max-w-md">
+          You have Unibox access, but no campaign folders have been assigned to you yet.
+          Contact your lead user to assign folders from the Unibox sidebar.
         </p>
       </div>
     );
@@ -373,75 +386,6 @@ export default function UniboxPage() {
               {status}
             </Button>
           ))}
-        </div>
-      </div>
-
-      {/* Horizontal Campaigns Filter Bar */}
-      <div className="bg-card/40 backdrop-blur p-3 rounded-lg border border-border/40 shadow-sm mb-4 space-y-1.5">
-        <div className="flex items-center justify-between px-1">
-          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
-            Instantly Campaigns
-          </span>
-          {selectedCampaignId && (
-            <button
-              onClick={() => updateParams({ campaign_id: null, page: 1 })}
-              className="text-[10px] text-primary hover:underline font-medium"
-            >
-              Clear Filter
-            </button>
-          )}
-        </div>
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5 scrollbar-thin scrollbar-thumb-muted">
-          <Button
-            variant={selectedCampaignId === "" ? "secondary" : "outline"}
-            size="sm"
-            onClick={() => {
-              updateParams({ campaign_id: null, page: 1 });
-            }}
-            className="h-7 text-xs px-3 rounded-full whitespace-nowrap"
-          >
-            All Campaigns
-          </Button>
-          {campaignsLoading ? (
-            <div className="flex gap-2">
-              <Skeleton className="h-7 w-24 rounded-full" />
-              <Skeleton className="h-7 w-28 rounded-full" />
-              <Skeleton className="h-7 w-20 rounded-full" />
-            </div>
-          ) : campaigns.length === 0 ? (
-            <span className="text-xs text-muted-foreground px-1">No campaigns found</span>
-          ) : (
-            campaigns.map((camp) => (
-              <Button
-                key={camp.id}
-                variant={selectedCampaignId === camp.id ? "default" : "outline"}
-                size="sm"
-                onClick={() => {
-                  updateParams({ campaign_id: camp.id, page: 1 });
-                }}
-                className={cn(
-                  "h-7 text-xs px-3 rounded-full whitespace-nowrap gap-1.5",
-                  selectedCampaignId === camp.id
-                    ? "bg-primary text-primary-foreground shadow"
-                    : "text-muted-foreground bg-background/30 hover:bg-accent"
-                )}
-              >
-                <span className="truncate max-w-[200px]" title={camp.name}>
-                  {camp.name}
-                </span>
-                {camp.email_count > 0 && (
-                  <span className={cn(
-                    "text-[9px] px-1.5 py-0.2 rounded-full font-semibold shrink-0",
-                    selectedCampaignId === camp.id
-                      ? "bg-primary-foreground/20 text-primary-foreground"
-                      : "bg-muted text-muted-foreground"
-                  )}>
-                    {camp.email_count}
-                  </span>
-                )}
-              </Button>
-            ))
-          )}
         </div>
       </div>
 
@@ -1051,7 +995,7 @@ export default function UniboxPage() {
                 className="gap-2"
               >
                 <TrendingUp className={cn("h-4 w-4", syncInstantly.isPending && "animate-spin")} />
-                {syncInstantly.isPending ? "Syncing..." : "Sync Instantly"}
+                {syncInstantly.isPending ? "Backfilling..." : "Backfill Sync"}
               </Button>
               <TabsList>
                 <TabsTrigger value="mailbox">Mailbox</TabsTrigger>
@@ -1095,7 +1039,7 @@ export default function UniboxPage() {
                 className="gap-2"
               >
                 <TrendingUp className={cn("h-4 w-4", syncInstantly.isPending && "animate-spin")} />
-                {syncInstantly.isPending ? "Syncing..." : "Sync Instantly"}
+                {syncInstantly.isPending ? "Backfilling..." : "Backfill Sync"}
               </Button>
             </div>
           </div>

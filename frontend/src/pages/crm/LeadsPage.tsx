@@ -48,6 +48,8 @@ type LeadRow = {
   createdAt: string;
   responsiblePersonName?: string;
   responsiblePersonAvatar?: string;
+  campaignName?: string;
+  campaignId?: string;
 };
 
 export default function LeadsPage() {
@@ -124,6 +126,8 @@ export default function LeadsPage() {
         createdAt: l.created_at,
         responsiblePersonName: l.responsible_person_name,
         responsiblePersonAvatar: l.responsible_person_avatar,
+        campaignName: l.campaign_name || l.campaignName || l.campaign || "",
+        campaignId: l.campaign_id || l.campaignId || "",
       };
     });
   }, [dbLeads]);
@@ -246,6 +250,20 @@ export default function LeadsPage() {
       header: "Source",
       sortable: true,
       render: (lead) => <span className="text-sm text-muted-foreground">{lead.source || "—"}</span>,
+    },
+    {
+      key: "campaignName",
+      header: "Campaign",
+      sortable: true,
+      render: (lead) => (
+        lead.campaignName ? (
+          <span className="text-sm text-muted-foreground truncate max-w-[160px] block" title={lead.campaignName}>
+            {lead.campaignName}
+          </span>
+        ) : (
+          <span className="text-sm text-muted-foreground">—</span>
+        )
+      ),
     },
     {
       key: "value",

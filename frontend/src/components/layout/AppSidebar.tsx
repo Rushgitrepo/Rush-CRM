@@ -2,6 +2,8 @@ import { useState, useMemo, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWorkgroups, useDeleteWorkgroup } from "@/hooks/useWorkgroups";
+import { UniboxCampaignSidebar } from "@/components/unibox/UniboxCampaignSidebar";
+import { useUniboxPermission } from "@/hooks/useUniboxPermission";
 import { api } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRealtime } from "@/hooks/useRealtime";
@@ -279,9 +281,8 @@ export function AppSidebar({
   const location = useLocation();
   const { userRole, hasPermission } = useAuth();
   const { data: workgroups = [] } = useWorkgroups();
-  const isElectron =
-    typeof window !== "undefined" &&
-    Boolean((window as any).electronAPI?.isElectron);
+  const { isOwner: isUniboxOwner, hasFullAccess: hasFullUniboxAccess, canManageFolders: canManageUniboxFolders } = useUniboxPermission();
+  const isElectron = typeof window !== "undefined" && Boolean((window as any).electronAPI?.isElectron);
   const queryClient = useQueryClient();
   const [openSections, setOpenSections] = useState<string[]>([
     "Collaboration",
@@ -372,6 +373,16 @@ export function AppSidebar({
       offRealtime("workgroup_post:new", handleWorkgroupUpdated);
     };
   }, [onRealtime, offRealtime, queryClient]);
+
+  // Auto-expand Unibox when navigating to the Unibox page
+  useEffect(() => {
+    if (location.pathname.startsWith("/crm/unibox")) {
+      setExpandedSubItems((prev) => {
+        if (!prev.includes("Unibox")) return [...prev, "Unibox"];
+        return prev;
+      });
+    }
+  }, [location.pathname]);
 
   const isAdmin =
     userRole?.role === "super_admin" || userRole?.role === "admin";
@@ -1003,6 +1014,73 @@ export function AppSidebar({
               </div>
             )}
           </div>
+        </div>
+      );
+    }
+
+    // ── Unibox campaigns in sidebar ──
+    if (child.title === "Unibox" && parentTitle === "CRM") {
+      const isUniboxExpanded = expandedSubItems.includes("Unibox");
+
+      return (
+        <div key={child.href} className="group/submenu">
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              toggleSubItem("Unibox");
+            }}
+            className={cn(
+              "flex w-full items-center justify-between rounded-xl py-2 pl-9 pr-3 text-[13px] transition-all duration-200",
+              location.pathname.startsWith("/crm/unibox")
+                ? "bg-primary/10 text-white font-medium"
+                : "text-slate-400 hover:text-white hover:bg-white/[0.03]",
+            )}
+          >
+            <div className="flex items-center gap-3">
+              {child.icon && (
+                <child.icon
+                  className={cn(
+                    "h-4 w-4",
+                    location.pathname.startsWith("/crm/unibox")
+                      ? "text-primary"
+                      : "text-slate-500",
+                  )}
+                />
+              )}
+              <span>Unibox</span>
+            </div>
+            <ChevronRight
+              className={cn(
+                "h-3 w-3 transition-transform duration-300 text-slate-600",
+                isUniboxExpanded && "rotate-90 text-white",
+              )}
+            />
+          </button>
+
+          {isUniboxExpanded && (
+            <div className="ml-6 mt-1.5 space-y-1.5 border-l border-white/5 pl-4 animate-in slide-in-from-left-2 duration-300">
+              {hasFullUniboxAccess && (
+                <NavLink
+                  to="/crm/unibox"
+                  onClick={() => isMobile && onClose?.()}
+                  className={cn(
+                    "flex items-center rounded-lg py-1.5 pl-3 pr-2 text-[12px] transition-all",
+                    location.pathname === "/crm/unibox" && !location.search.includes("campaign_id")
+                      ? "text-primary font-bold"
+                      : "text-slate-500 hover:text-slate-300",
+                  )}
+                >
+                  All Emails
+                </NavLink>
+              )}
+
+              <UniboxCampaignSidebar
+                onMobileClose={isMobile ? onClose : undefined}
+                isOwner={canManageUniboxFolders}
+                hasFullAccess={hasFullUniboxAccess}
+              />
+            </div>
+          )}
         </div>
       );
     }

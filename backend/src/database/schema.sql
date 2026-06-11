@@ -697,6 +697,7 @@ CREATE TABLE IF NOT EXISTS deals (
     created_by uuid,
     pipeline character varying(100),
     campaign_id uuid,
+    campaign_name varchar(255),
     utm_source character varying(100),
     utm_medium character varying(100),
     utm_campaign character varying(100),
@@ -1366,6 +1367,7 @@ CREATE TABLE IF NOT EXISTS leads (
     workspace_id uuid,
     deal_id uuid,
     campaign_id uuid,
+    campaign_name varchar(255),
     utm_source character varying(100),
     utm_medium character varying(100),
     utm_campaign character varying(100),
@@ -2722,6 +2724,51 @@ CREATE TABLE IF NOT EXISTS unibox_emails (
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     body text
+);
+
+
+
+--
+-- Name: unibox_campaign_folders; Type: TABLE; Schema: public
+--
+
+CREATE TABLE IF NOT EXISTS unibox_campaign_folders (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    name character varying(255) NOT NULL,
+    is_default boolean DEFAULT false,
+    sort_order integer DEFAULT 0,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
+);
+
+
+
+--
+-- Name: unibox_campaign_folder_assignments; Type: TABLE; Schema: public
+--
+
+CREATE TABLE IF NOT EXISTS unibox_campaign_folder_assignments (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    folder_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now()
+);
+
+
+
+--
+-- Name: unibox_campaign_folder_items; Type: TABLE; Schema: public
+--
+
+CREATE TABLE IF NOT EXISTS unibox_campaign_folder_items (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    folder_id uuid NOT NULL,
+    campaign_id character varying(255) NOT NULL,
+    sort_order integer DEFAULT 0,
+    created_at timestamp with time zone DEFAULT now()
 );
 
 
@@ -8952,6 +8999,7 @@ CREATE TABLE IF NOT EXISTS instantly_integrations (
   api_key_encrypted text,
   webhook_secret text,
   webhook_url text,
+  registered_webhook_ids jsonb DEFAULT '[]'::jsonb,
   is_enabled boolean DEFAULT false,
   status text DEFAULT 'disconnected', -- 'connected', 'disconnected', 'error'
   last_sync_at timestamp with time zone,
@@ -9108,3 +9156,5 @@ CREATE TABLE IF NOT EXISTS public.crm_custom_field_templates (
 -- =====================================================
 -- END OF ADVANCED RECRUITMENT FEATURES
 -- =====================================================
+
+
