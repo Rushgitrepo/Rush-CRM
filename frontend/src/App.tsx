@@ -103,7 +103,6 @@ import WorkflowsPage from "./pages/automation/WorkflowsPage";
 import IntegrationsPage from "./pages/automation/IntegrationsPage";
 import WebhooksPage from "./pages/automation/WebhooksPage";
 // Projects
-import ProjectDetailPage from "./pages/projects/ProjectDetailPage";
 import ProjectReportPage from "./pages/projects/ProjectReportPage";
 // Marketing
 import MarketingDashboardPage from "./pages/marketing/MarketingDashboardPage";
@@ -261,8 +260,6 @@ const App = () => (
                         <Route path="/tasks" element={<TasksPage />} />
                         <Route path="/tasks/:id" element={<IssueDetailPage />} />
                         <Route path="/automation/workflows" element={<WorkflowsPage />} />
-                        {/* Projects — /projects redirects to /tasks, detail page stays */}
-                        <Route path="/projects/:id" element={<ProjectDetailPage />} />
                         {/* Marketing */}
                         <Route path="/marketing" element={<MarketingDashboardPage />} />
                         <Route path="/marketing/campaigns" element={<CampaignsPage />} />

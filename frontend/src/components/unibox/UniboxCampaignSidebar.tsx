@@ -376,8 +376,15 @@ export function UniboxCampaignSidebar({
   } = useUniboxCampaignFolders();
 
   const { data: orgUsers = [] } = useQuery<OrgUser[]>({
-    queryKey: ["organization-users"],
-    queryFn: async () => api.get("/members"),
+    queryKey: ["organization-users-campaigns"],
+    queryFn: async () => {
+      const allUsers: OrgUser[] = await api.get("/members?limit=1000");
+      // Only show Sales and Marketing department users for campaign assignment
+      return allUsers.filter((u: any) => {
+        const dept = (u.department || "").toLowerCase();
+        return dept.includes("sales") || dept.includes("marketing");
+      });
+    },
     enabled: isOwner,
     staleTime: 60000,
   });
