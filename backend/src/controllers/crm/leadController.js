@@ -1,4 +1,4 @@
-const db = require('../../config/database');
+﻿const db = require('../../config/database');
 const Joi = require('joi');
 const { fireWorkflows } = require('../../services/workflowEngine');
 const notificationService = require('../../services/notificationService');
@@ -261,6 +261,7 @@ const getAll = async (req, res, next) => {
       priority,
       source,
       assignedTo,
+      createdBy,
       tags,
       campaign
     } = req.query;
@@ -272,12 +273,15 @@ const getAll = async (req, res, next) => {
              co.name as linked_company_name, co.email as linked_company_email, co.phone as linked_company_phone,
              w.name as workspace_name,
              u.full_name as responsible_person_name,
-             u.avatar_url as responsible_person_avatar
+             u.avatar_url as responsible_person_avatar,
+             uc.full_name as created_by_name,
+             uc.avatar_url as created_by_avatar
       FROM public.leads l
       LEFT JOIN public.contacts c ON c.id = l.contact_id
       LEFT JOIN public.companies co ON co.id = l.company_id
       LEFT JOIN public.workgroups w ON w.id = l.workspace_id
       LEFT JOIN public.users u ON u.id = l.assigned_to
+      LEFT JOIN public.users uc ON uc.id = COALESCE(l.created_by, l.user_id)
       WHERE l.org_id = $1
     `;
     const params = [req.user.orgId];
@@ -374,6 +378,12 @@ const getAll = async (req, res, next) => {
       paramIndex++;
     }
 
+    if (createdBy) {
+      query += ` AND COALESCE(l.created_by, l.user_id) = $${paramIndex}`;
+      params.push(createdBy);
+      paramIndex++;
+    }
+
     if (tags) {
       const tagList = Array.isArray(tags) ? tags : tags.split(',').map(t => t.trim());
       query += ` AND l.tags @> $${paramIndex}`;
@@ -388,20 +398,30 @@ const getAll = async (req, res, next) => {
     }
 
     if (search) {
-      query += ` AND (
-        l.title ILIKE $${paramIndex} OR 
-        l.name ILIKE $${paramIndex} OR 
-        l.email ILIKE $${paramIndex} OR 
-        l.phone ILIKE $${paramIndex} OR
-        l.company_name ILIKE $${paramIndex} OR
-        l.notes ILIKE $${paramIndex} OR
-        l.source ILIKE $${paramIndex} OR
-        l.designation ILIKE $${paramIndex} OR
-        l.address ILIKE $${paramIndex} OR
-        co.name ILIKE $${paramIndex}
-      )`;
-      params.push(`%${search}%`);
-      paramIndex++;
+      // Date search: if input looks like a date, match by created_at date
+      const dateSearch = search.trim();
+      const isDateLike = /^\d{4}(-\d{2})?(-\d{2})?$/.test(dateSearch) || /^\d{1,2}[\/\-]\d{1,2}([\/\-]\d{2,4})?$/.test(dateSearch);
+      if (isDateLike) {
+        query += ` AND l.created_at::date = $${paramIndex}::date`;
+        params.push(dateSearch);
+        paramIndex++;
+      } else {
+        query += ` AND (
+          l.title ILIKE $${paramIndex} OR
+          l.name ILIKE $${paramIndex} OR
+          l.email ILIKE $${paramIndex} OR
+          l.phone ILIKE $${paramIndex} OR
+          l.company_name ILIKE $${paramIndex} OR
+          l.notes ILIKE $${paramIndex} OR
+          l.source ILIKE $${paramIndex} OR
+          l.designation ILIKE $${paramIndex} OR
+          l.address ILIKE $${paramIndex} OR
+          co.name ILIKE $${paramIndex} OR
+          uc.full_name ILIKE $${paramIndex}
+        )`;
+        params.push(`%${search}%`);
+        paramIndex++;
+      }
     }
 
     query += ` ORDER BY l.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
@@ -509,6 +529,8 @@ const getAll = async (req, res, next) => {
         updatedAt: lead.updated_at,
         converted_to_deal_id: lead.converted_to_deal_id,
         converted_at: lead.converted_at,
+        createdByName: lead.created_by_name || null,
+        createdByAvatar: lead.created_by_avatar || null,
       })),
       pagination: {
         total: parseInt(countResult.rows[0].count),
@@ -615,12 +637,12 @@ const create = async (req, res, next) => {
     try {
       result = await db.query(
         `INSERT INTO public.leads 
-         (org_id, user_id, workspace_id, assigned_to, title, name, stage, status, source, source_info, customer_type,
+         (org_id, user_id, created_by, workspace_id, assigned_to, title, name, stage, status, source, source_info, customer_type,
           value, currency, priority, notes, tags, expected_close_date, contact_id, company_id,
           designation, phone, phone_type, email, email_type, website, website_type, address, company_name, company_phone,
           company_email, company_size, agent_name, decision_maker, service_interested,
           interaction_notes, first_message, last_touch, last_contacted_date, next_follow_up_date, responsible_person, pipeline, external_source_id, campaign_id, campaign_name, custom_fields, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
+         VALUES ($1, $2, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
                  $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46)
          RETURNING *`,
         [req.user.orgId, req.user.id, workspaceId, assignedTo || null, title, name, stage, status, source, serializeJsonField(sourceInfo), customerType || null,
@@ -1148,7 +1170,7 @@ const convertToDeal = async (req, res, next) => {
     const { rows: dealRows } = await db.query(
       `INSERT INTO public.deals 
        (
-         org_id, user_id, title, contact_id, company_id, stage, status, 
+         org_id, user_id, created_by, title, contact_id, company_id, stage, status, 
          value, currency, probability, notes, tags, expected_close_date, 
          lead_id, contact_name, company_name, phone, email, 
          priority, source, description, designation, website, address, 
@@ -1159,7 +1181,7 @@ const convertToDeal = async (req, res, next) => {
          last_contacted_date, next_follow_up_date, assigned_to, campaign_id, campaign_name, custom_fields
        )
        VALUES (
-         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+         $1, $2, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
          $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26,
          $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38,
          $39, $40, $41, $42, $43, $44, $45

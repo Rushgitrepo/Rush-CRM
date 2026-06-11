@@ -469,11 +469,20 @@ export default function DirectChatPage() {
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
+                      <div className="flex flex-col">
                         <p
-                          className={`text-[11px] font-medium ${isActive ? "text-white/80" : isOnline ? "text-primary" : "text-red-500"} flex items-center gap-1`}
+                          className={`text-[11px] font-bold ${isActive ? "text-white/80" : isOnline ? "text-primary" : "text-red-500"}`}
                         >
                           {isOnline ? "Online" : "Offline"}
                         </p>
+                        {!isOnline && (
+                          <p className={`text-[10px] ${isActive ? "text-white/60" : "text-muted-foreground"} truncate leading-tight`}>
+                            {chat.last_seen_at
+                              ? `Last seen ${formatDistanceToNow(new Date(chat.last_seen_at), { addSuffix: true })}`
+                              : "Last seen recently"}
+                          </p>
+                        )}
+                      </div>
                       </div>
                     </div>
 

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWorkgroups, useDeleteWorkgroup } from "@/hooks/useWorkgroups";
 import { UniboxCampaignSidebar } from "@/components/unibox/UniboxCampaignSidebar";
@@ -56,7 +56,8 @@ import {
   Trash2,
   GripVertical,
   X,
-  Laptop, Star
+  Laptop,
+  Star,
 } from "lucide-react";
 import {
   DndContext,
@@ -278,6 +279,7 @@ export function AppSidebar({
   onClose?: () => void;
 }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const { userRole, hasPermission } = useAuth();
   const { data: workgroups = [] } = useWorkgroups();
   const { isOwner: isUniboxOwner, hasFullAccess: hasFullUniboxAccess, canManageFolders: canManageUniboxFolders } = useUniboxPermission();
@@ -539,6 +541,11 @@ export function AppSidebar({
           0,
         ),
     [workgroups],
+  );
+
+  const totalCollaborationUnread = useMemo(
+    () => totalWorkgroupUnread + totalBroadcastUnread + totalDMUnread,
+    [totalWorkgroupUnread, totalBroadcastUnread, totalDMUnread],
   );
 
   const toggleCollaborationSection = (title: string) => {
@@ -1021,7 +1028,14 @@ export function AppSidebar({
           <button
             onClick={(e) => {
               e.preventDefault();
+              const isCurrentlyExpanded = expandedSubItems.includes("Unibox");
               toggleSubItem("Unibox");
+              // Navigate to All Emails when expanding, or when already on unibox with campaign selected
+              if (!isCurrentlyExpanded || location.search.includes("campaign_id")) {
+                if (hasFullUniboxAccess) {
+                  navigate("/crm/unibox");
+                }
+              }
             }}
             className={cn(
               "flex w-full items-center justify-between rounded-xl py-2 pl-9 pr-3 text-[13px] transition-all duration-200",
@@ -1313,11 +1327,19 @@ export function AppSidebar({
                     return (
                       <div key={item.title} className="space-y-1.5">
                         {/* Module Header */}
-                        <div className="flex items-center gap-3 px-4 py-2 text-primary">
-                          <item.icon className="h-5 w-5" />
-                          <span className="text-sm font-bold uppercase tracking-wider">
-                            {item.title}
-                          </span>
+                        <div className="flex items-center justify-between px-4 py-2 text-primary">
+                          <div className="flex items-center gap-3">
+                            <item.icon className="h-5 w-5" />
+                            <span className="text-sm font-bold uppercase tracking-wider">
+                              {item.title}
+                            </span>
+                          </div>
+                          {item.title === "Collaboration" &&
+                            totalCollaborationUnread > 0 && (
+                              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-bold text-white shadow-lg shadow-red-600/20">
+                                {totalCollaborationUnread}
+                              </span>
+                            )}
                         </div>
                         {/* Sub-modules */}
                         {item.children.map((child) =>
@@ -1339,6 +1361,13 @@ export function AppSidebar({
                       renderSubItem={renderSubItem}
                       isMobile={isMobile}
                       onClose={onClose}
+                      badge={
+                        item.title === "Collaboration"
+                          ? totalCollaborationUnread > 0
+                            ? totalCollaborationUnread.toString()
+                            : undefined
+                          : item.badge
+                      }
                     />
                   );
                 })}
@@ -1350,24 +1379,35 @@ export function AppSidebar({
       {/* Bottom Fixed Items - Admin Portal & Settings */}
       {!focusedModule && (
         <div className="border-t border-white/5 px-4 py-3 space-y-1">
-          {!isElectron && !(typeof window !== "undefined" && (window as any).Capacitor?.isNative) && (
-            <NavLink
-              to="/desktop-app"
-              onClick={() => isMobile && onClose?.()}
-              className={cn(
-                "flex items-center justify-between rounded-xl px-4 py-2.5 text-[13px] font-medium transition-all duration-200 mb-1",
-                isActive("/desktop-app")
-                  ? "bg-primary/10 text-white"
-                  : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
-              )}
-            >
-              <div className="flex items-center gap-3">
-                <Laptop className={cn("h-4 w-4", isActive("/desktop-app") ? "text-primary" : "text-slate-500")} />
-                <span>Try our new Desktop & Mobile apps</span>
-              </div>
-              <ArrowRight className="h-3.5 w-3.5 text-slate-500" />
-            </NavLink>
-          )}
+          {!isElectron &&
+            !(
+              typeof window !== "undefined" &&
+              (window as any).Capacitor?.isNative
+            ) && (
+              <NavLink
+                to="/desktop-app"
+                onClick={() => isMobile && onClose?.()}
+                className={cn(
+                  "flex items-center justify-between rounded-xl px-4 py-2.5 text-[13px] font-medium transition-all duration-200 mb-1",
+                  isActive("/desktop-app")
+                    ? "bg-primary/10 text-white"
+                    : "text-slate-400 hover:text-white hover:bg-white/[0.03]",
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <Laptop
+                    className={cn(
+                      "h-4 w-4",
+                      isActive("/desktop-app")
+                        ? "text-primary"
+                        : "text-slate-500",
+                    )}
+                  />
+                  <span>Try our new Desktop & Mobile apps</span>
+                </div>
+                <ArrowRight className="h-3.5 w-3.5 text-slate-500" />
+              </NavLink>
+            )}
 
           {filteredNavigation.bottomItems.map((item) => {
             if (item.children) {
@@ -1479,6 +1519,7 @@ function SortableNavItem({
   renderSubItem,
   isMobile,
   onClose,
+  badge,
 }: {
   item: NavItem;
   isActive: (href: string) => boolean;
@@ -1488,6 +1529,7 @@ function SortableNavItem({
   renderSubItem: (child: NavSubItem, parentTitle?: string) => React.ReactNode;
   isMobile?: boolean;
   onClose?: () => void;
+  badge?: string;
 }) {
   const {
     attributes,
@@ -1532,14 +1574,21 @@ function SortableNavItem({
                 : "text-slate-400 hover:text-white hover:bg-white/[0.03]",
             )}
           >
-            <div className="flex items-center gap-3">
-              <item.icon
-                className={cn(
-                  "h-4 w-4",
-                  sectionActive ? "text-primary" : "text-slate-500",
-                )}
-              />
-              <span>{item.title}</span>
+            <div className="flex flex-1 items-center justify-between mr-2">
+              <div className="flex items-center gap-3">
+                <item.icon
+                  className={cn(
+                    "h-4 w-4",
+                    sectionActive ? "text-primary" : "text-slate-500",
+                  )}
+                />
+                <span>{item.title}</span>
+              </div>
+              {badge && (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-bold text-white shadow-lg shadow-red-600/20">
+                  {badge}
+                </span>
+              )}
             </div>
             <ChevronRight className="h-3.5 w-3.5" />
           </button>

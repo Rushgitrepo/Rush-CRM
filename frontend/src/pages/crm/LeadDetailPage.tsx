@@ -190,7 +190,7 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
               className="font-medium break-words w-full text-left"
             />
           ) : type === "email" ? (
-            <span 
+            <span
               className="text-primary hover:underline font-medium break-words w-full cursor-pointer"
               onClick={() => navigate("/collaboration/mail", { state: { composeTo: value } })}
             >
@@ -321,12 +321,28 @@ export default function LeadDetailPage() {
   const [editing, setEditing] = useState(() => window.location.pathname.endsWith('/edit'));
   const [form, setForm] = useState<Record<string, unknown>>({});
 
-  const selectedPipeline = form.pipeline || lead?.pipeline || "default";
-  const departmentFilter = profile?.department === "Sales" ? "Sales" : (profile?.department === "Marketing" ? "Marketing" : undefined);
-  const { data: members = [] } = useOrganizationProfiles({ 
-    department: departmentFilter, 
-    includeSelf: true 
+  const selectedPipeline = (form.pipeline as string) || lead?.pipeline || "default";
+
+  // Filter Assigned To members based on selected pipeline — same as CreateLeadPage
+  const assignedToDepartment = selectedPipeline === "marketing"
+    ? "Marketing"
+    : selectedPipeline === "sales"
+      ? "Sales"
+      : undefined; // standard = both (no filter)
+
+  const { data: members = [] } = useOrganizationProfiles({
+    department: assignedToDepartment,
+    includeSelf: true
   });
+
+  // Reset assignedTo when pipeline changes so stale selection is cleared
+  const prevPipelineRef = useRef(selectedPipeline);
+  useEffect(() => {
+    if (prevPipelineRef.current !== selectedPipeline && editing) {
+      prevPipelineRef.current = selectedPipeline;
+      set("assignedTo", null);
+    }
+  }, [selectedPipeline, editing]);
 
   const [showConvertDialog, setShowConvertDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -461,8 +477,8 @@ export default function LeadDetailPage() {
     });
 
     const customFieldsObj = customFields.reduce((acc, field) => {
-      if (field.key.trim()) acc[field.key.trim()] = { 
-        value: field.value, 
+      if (field.key.trim()) acc[field.key.trim()] = {
+        value: field.value,
         type: field.type || 'string',
         sectionId: field.sectionId,
         afterFieldId: field.afterFieldId
@@ -518,7 +534,7 @@ export default function LeadDetailPage() {
   const handleStageChange = (newStage: string) => {
     // Optimistic update
     setForm(prev => ({ ...prev, stage: newStage }));
-    
+
     if (!editing) {
       updateLeadStage.mutate({ id: lead.id, stage: newStage }, {
         onSuccess: (updatedLead) => {
@@ -526,7 +542,7 @@ export default function LeadDetailPage() {
           if (updatedLead) {
             setForm(prev => ({ ...prev, stage: updatedLead.stage, status: updatedLead.status }));
           }
-          
+
           const stageName = pipelineStages.find(s => s.id === newStage)?.label || newStage;
           createActivity.mutate({
             entityType: 'lead',
@@ -558,16 +574,16 @@ export default function LeadDetailPage() {
   const renderDroppedFields = (sectionId: string, isTop = false, afterFieldId?: string) => {
     const sectionFields = customFields.filter(f => {
       if (f.sectionId !== sectionId) return false;
-      
+
       if (afterFieldId) {
         return f.afterFieldId === afterFieldId;
       }
-      
+
       if (isTop) {
         // Match fields explicitly anchored to top OR legacy fields with no anchor if they are at the start of the section
         return f.afterFieldId === `${sectionId}-top`;
       }
-      
+
       // Bottom catch-all: fields with no anchor
       return !f.afterFieldId;
     });
@@ -712,12 +728,12 @@ export default function LeadDetailPage() {
                             variant="default"
                             size="sm"
                             className="h-8 gap-1.5 bg-primary hover:bg-primary/90 text-white text-xs shadow-sm transition-all hover:scale-105 active:scale-95"
-                            onClick={() => navigate("/collaboration/mail", { 
-                              state: { 
+                            onClick={() => navigate("/collaboration/mail", {
+                              state: {
                                 composeTo: lead.email,
                                 entityType: 'lead',
                                 entityId: id
-                              } 
+                              }
                             })}
                           >
                             <Mail className="h-3.5 w-3.5" />
@@ -1163,32 +1179,20 @@ export default function LeadDetailPage() {
                         </DroppableField>
                         {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-stage")}
 
-                        <DroppableField id="fixed-lead-company-details-customer_type" editing={editing}>
-                          <div className="space-y-2">
-                            <Label className="text-sm font-medium text-foreground">Customer Type</Label>
-                            <Select value={(form.customer_type as string) || ""} onValueChange={(v) => set("customer_type", v)} disabled={!editing}>
-                              <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
-                                <SelectValue placeholder="not selected" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {customerTypeOptions.map(opt => (
-                                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </DroppableField>
-                        {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-customer_type")}
-
                         <DroppableField id="fixed-lead-company-details-assigned_to" editing={editing}>
                           <div className="space-y-2">
                             <label className="text-sm font-medium text-foreground flex items-center gap-2">
                               <Users className="h-4 w-4" />
-                              Lead owner
+                              Assigned To
+                              {editing && assignedToDepartment && (
+                                <span className="text-[10px] font-normal text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                                  {assignedToDepartment} only
+                                </span>
+                              )}
                             </label>
                             {editing ? (
                               <Select
-                                value={form.assigned_to || "unassigned"}
+                                value={(form.assigned_to as string) || "unassigned"}
                                 onValueChange={(v) => set("assigned_to", v === "unassigned" ? null : v)}
                               >
                                 <SelectTrigger className="bg-background border-border">
@@ -1200,6 +1204,7 @@ export default function LeadDetailPage() {
                                     <SelectItem key={m.id} value={m.id}>
                                       <div className="flex items-center gap-2">
                                         <Avatar className="h-5 w-5">
+                                          <AvatarImage src={(m as any).avatar_url || undefined} alt={m.full_name} />
                                           <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
                                             {m.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
                                           </AvatarFallback>
@@ -1215,6 +1220,7 @@ export default function LeadDetailPage() {
                                 {form.assigned_to ? (
                                   <>
                                     <Avatar className="h-6 w-6">
+                                      <AvatarImage src={(members.find(m => m.id === form.assigned_to) as any)?.avatar_url || undefined} />
                                       <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
                                         {members.find(m => m.id === form.assigned_to)?.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
                                       </AvatarFallback>
@@ -1231,6 +1237,23 @@ export default function LeadDetailPage() {
                           </div>
                         </DroppableField>
                         {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-assigned_to")}
+
+                        <DroppableField id="fixed-lead-company-details-customer_type" editing={editing}>
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium text-foreground">Customer Type</Label>
+                            <Select value={(form.customer_type as string) || ""} onValueChange={(v) => set("customer_type", v)} disabled={!editing}>
+                              <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
+                                <SelectValue placeholder="not selected" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {customerTypeOptions.map(opt => (
+                                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </DroppableField>
+                        {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-customer_type")}
 
                         <DroppableField id="fixed-lead-company-details-createdAt" editing={editing}>
                           <Field
@@ -1280,7 +1303,7 @@ export default function LeadDetailPage() {
                           />
                         </DroppableField>
                         {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-company_name")}
-                        
+
                         <DroppableField id="fixed-lead-company-details-industry" editing={editing}>
                           <Field
                             label="Industry"
@@ -1359,7 +1382,7 @@ export default function LeadDetailPage() {
                               ) : (
                                 <div className="h-10 px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-center flex-1 overflow-hidden">
                                   {(form.email as string) ? (
-                                    <span 
+                                    <span
                                       className="text-primary hover:underline font-medium break-words w-full cursor-pointer"
                                       onClick={() => navigate("/collaboration/mail", { state: { composeTo: form.email } })}
                                     >
@@ -1473,7 +1496,7 @@ export default function LeadDetailPage() {
                         {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-company_email")}
                       </div>
                     </DroppableSection>
-                    
+
                     <DroppableSection id="lead-company-details" editing={editing} className="mt-6">
                       {renderDroppedFields("lead-company-details")}
                     </DroppableSection>
@@ -1539,7 +1562,7 @@ export default function LeadDetailPage() {
                         </div>
                       </div>
                     </DroppableSection>
-                    
+
                     <DroppableSection id="activity-tracking" editing={editing} className="mt-6">
                       {renderDroppedFields("activity-tracking")}
                     </DroppableSection>
@@ -1906,12 +1929,12 @@ export default function LeadDetailPage() {
                           {defaultPipelineStages.some(f => f.id === s.id) && <Badge variant="secondary" className="text-[10px] py-0 h-4">Default</Badge>}
                         </div>
                       </div>
-                      
+
                       <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary"
                         onClick={() => { setEditingStageId(s.dbId); setEditingStageName(s.label); }}>
                         <Edit3 className="h-3.5 w-3.5" />
                       </Button>
-                      
+
                       <Button size="icon" variant="ghost" className={cn("h-7 w-7", s.is_active ? "text-muted-foreground hover:text-orange-500" : "text-orange-500 hover:text-orange-700")}
                         onClick={() => updateStage.mutate({ id: s.dbId, is_active: !s.is_active })}
                         title={s.is_active ? "Hide Stage" : "Show Stage"}>
@@ -2054,7 +2077,7 @@ export default function LeadDetailPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <DeleteConfirmationDialog 
+      <DeleteConfirmationDialog
         open={!!stageToDelete}
         onOpenChange={(open) => !open && setStageToDelete(null)}
         onConfirm={() => {
@@ -2069,7 +2092,7 @@ export default function LeadDetailPage() {
         description="Are you sure you want to delete this stage? This will permanently remove it from the pipeline configuration."
       />
 
-      <DeleteConfirmationDialog 
+      <DeleteConfirmationDialog
         open={showDeleteDialog}
         onOpenChange={setShowDeleteDialog}
         onConfirm={() => {

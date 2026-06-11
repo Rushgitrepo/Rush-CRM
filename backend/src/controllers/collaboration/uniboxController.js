@@ -645,7 +645,7 @@ const checkPermission = async (req, res, next) => {
       [req.user.id, req.user.orgId]
     );
 
-    console.log('Database result:', userResult.rows);
+    // console.log('Database result:', userResult.rows);
 
     if (userResult.rows.length === 0) {
       console.log('No user found in database');
@@ -667,13 +667,13 @@ const checkPermission = async (req, res, next) => {
     const hasFolderOnlyAccess = !hasFullAccess && assignedFolderCount > 0;
     const hasPermission = hasFullAccess || hasFolderOnlyAccess;
 
-    console.log('Permission check result:', {
-      isSuperAdmin,
-      hasFullAccess,
-      hasFolderOnlyAccess,
-      role: user.role,
-      has_unibox_access: user.has_unibox_access,
-    });
+    // console.log('Permission check result:', {
+    //   isSuperAdmin,
+    //   hasFullAccess,
+    //   hasFolderOnlyAccess,
+    //   role: user.role,
+    //   has_unibox_access: user.has_unibox_access,
+    // });
 
     const result = {
       hasPermission,
@@ -684,7 +684,7 @@ const checkPermission = async (req, res, next) => {
       assignedFolderCount,
     };
 
-    console.log('Sending response:', result);
+    // console.log('Sending response:', result);
     res.json(result);
   } catch (err) {
     console.error('Unibox permission check error:', err);
