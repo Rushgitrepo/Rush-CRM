@@ -961,6 +961,14 @@ export default function CreateLeadPage() {
                     </DroppableField>
                     {renderDroppedFields("source-section", false, "fixed-source-section-tags")}
 
+                    <DroppableField id="fixed-source-section-campaignName" editing={true}>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-foreground">Campaign Name</Label>
+                        <Input placeholder="e.g. Summer Promo 2026" {...register("campaignName")} className="h-10" />
+                      </div>
+                    </DroppableField>
+                    {renderDroppedFields("source-section", false, "fixed-source-section-campaignName")}
+
                     <div className="md:col-span-2 space-y-2">
                       <DroppableField id="fixed-source-section-notes" editing={true}>
                         <Label className="text-sm font-medium text-foreground">Additional Notes</Label>
