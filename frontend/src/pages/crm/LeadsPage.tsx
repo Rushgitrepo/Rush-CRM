@@ -426,7 +426,6 @@ export default function LeadsPage() {
       ),
     },
   ];
-
   return (
     <div className="space-y-6">
       <PageHeader
