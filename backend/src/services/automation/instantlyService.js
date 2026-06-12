@@ -163,7 +163,7 @@ class InstantlyService {
 
       const stale = ourWebhooks.find((w) => w.event_type === eventType);
       if (stale?.id) {
-        await this._apiRequest(apiKey, `/webhooks/${stale.id}`, { method: 'DELETE' }).catch(() => {});
+        await this._apiRequest(apiKey, `/webhooks/${stale.id}`, { method: 'DELETE' }).catch(() => { });
       }
 
       const createRes = await this._apiRequest(apiKey, '/webhooks', {
@@ -180,8 +180,33 @@ class InstantlyService {
         registered.push({ id: created.id, event_type: eventType });
         console.log(`[Instantly Service] Registered webhook: ${eventType} → ${webhookUrl}`);
       } else {
-        const errText = await createRes.text();
-        console.warn(`[Instantly Service] Failed to register ${eventType} webhook:`, errText);
+        const errBody = await createRes.text();
+        // 401 with "webhooks:create" scope missing — bail immediately and
+        // persist a sentinel so ensureWebhooksRegistered stops retrying.
+        if (createRes.status === 401 && errBody.includes('webhooks:create')) {
+          console.warn(
+            '[Instantly Service] ⚠️  API key lacks webhooks:create scope — auto-registration skipped.\n' +
+            '  Webhooks already registered in Instantly UI will continue to work normally.\n' +
+            '  To enable auto-registration, add the "webhooks:create" scope to your Instantly API key.'
+          );
+          const sentinelPayload = [...registered, { scope_limited: true }];
+          await db.query(
+            `INSERT INTO instantly_integrations (org_id, webhook_url, registered_webhook_ids, updated_at)
+             VALUES ($1, $2, $3, now())
+             ON CONFLICT (org_id) DO UPDATE SET
+               webhook_url = EXCLUDED.webhook_url,
+               registered_webhook_ids = EXCLUDED.registered_webhook_ids,
+               updated_at = now()`,
+            [orgId, webhookUrl, JSON.stringify(sentinelPayload)]
+          );
+          return {
+            registered,
+            webhook_url: webhookUrl,
+            scope_limited: true,
+            message: 'API key lacks webhooks:create scope — add it in Instantly to enable auto-registration. Manually registered webhooks still work.',
+          };
+        }
+        console.warn(`[Instantly Service] Failed to register ${eventType} webhook:`, errBody);
       }
     }
 
@@ -217,7 +242,7 @@ class InstantlyService {
 
     for (const entry of ids) {
       if (!entry?.id) continue;
-      await this._apiRequest(apiKey, `/webhooks/${entry.id}`, { method: 'DELETE' }).catch(() => {});
+      await this._apiRequest(apiKey, `/webhooks/${entry.id}`, { method: 'DELETE' }).catch(() => { });
     }
 
     await db.query(
@@ -232,6 +257,12 @@ class InstantlyService {
 
     const stored = settings.registered_webhook_ids;
     const registered = Array.isArray(stored) ? stored : (typeof stored === 'string' ? JSON.parse(stored || '[]') : []);
+
+    // If a previous attempt flagged scope_limited, don't keep hammering the API.
+    if (registered.some((r) => r?.scope_limited === true)) {
+      return { scope_limited: true, message: 'Skipping webhook auto-registration — API key lacks webhooks:create scope.' };
+    }
+
     if (registered.length >= UNIBOX_WEBHOOK_EVENTS.length) return { already_registered: true };
 
     return this.registerWebhooks(orgId);
@@ -404,7 +435,7 @@ class InstantlyService {
              WHERE sender_email = $2 AND org_id = $3
              AND (sender_name IS NULL OR sender_name = '' OR sender_name = sender_email)`,
             [builtName, email, orgId]
-          ).catch(() => {});
+          ).catch(() => { });
         }
       }
 
