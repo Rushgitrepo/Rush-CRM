@@ -28,6 +28,7 @@ interface InteractionPanelProps {
   activeTab?: string;
   onTabChange?: (tab: string) => void;
   defaultPhone?: string | null;
+  onComposeEmail?: () => void;
 }
 
 const tabs = [
@@ -40,7 +41,7 @@ const tabs = [
   // { id: "task", label: "Task", icon: CheckSquare },
 ];
 
-export function InteractionPanel({ entityType, entityId, activeTab: externalTab, onTabChange, defaultPhone }: InteractionPanelProps) {
+export function InteractionPanel({ entityType, entityId, activeTab: externalTab, onTabChange, defaultPhone, onComposeEmail }: InteractionPanelProps) {
   const [internalTab, setInternalTab] = useState("activity");
   const activeTab = externalTab || internalTab;
   const setActiveTab = onTabChange || setInternalTab;
@@ -66,7 +67,7 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
 
   const handleSubmitComment = () => {
     if (!commentText.trim()) return;
-    
+
     if (activeTab === "activity") {
       // Create activity
       createActivity.mutate({
@@ -171,12 +172,12 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
   const filteredTimeline = activeTab === "activity"
     ? activityTimeline.filter(a => a.activityType !== 'call_log' && a.activityType !== 'call')
     : activeTab === "comment"
-    ? commentTimeline
-    : activeTab === "email"
-    ? activityTimeline.filter(a => a.activityType === 'email_sent' || a.activityType === 'email_received')
-    : (activeTab === "call_note" || activeTab === "calls")
-    ? activityTimeline.filter(a => a.activityType === 'call_log' || a.activityType === 'call')
-    : [];
+      ? commentTimeline
+      : activeTab === "email"
+        ? activityTimeline.filter(a => a.activityType === 'email_sent' || a.activityType === 'email_received')
+        : (activeTab === "call_note" || activeTab === "calls")
+          ? activityTimeline.filter(a => a.activityType === 'call_log' || a.activityType === 'call')
+          : [];
 
   return (
     <div className="bg-card rounded-lg border flex flex-col h-full">
@@ -211,13 +212,13 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
             <div className="flex-1 space-y-3">
               {activeTab === "sms" && (
                 <div className="flex items-center gap-2">
-                   <Input 
-                     placeholder="Recipient phone number..." 
-                     value={recipientPhone}
-                     onChange={(e) => setRecipientPhone(e.target.value)}
-                     className="h-8 text-xs max-w-[200px] bg-background"
-                   />
-                   <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight px-2 py-0.5 bg-muted rounded border">RC Official API</span>
+                  <Input
+                    placeholder="Recipient phone number..."
+                    value={recipientPhone}
+                    onChange={(e) => setRecipientPhone(e.target.value)}
+                    className="h-8 text-xs max-w-[200px] bg-background"
+                  />
+                  <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight px-2 py-0.5 bg-muted rounded border">RC Official API</span>
                 </div>
               )}
 
@@ -229,8 +230,8 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
                       <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Call Date & Time</Label>
                     </div>
                     <div className="relative group">
-                      <Input 
-                        type="datetime-local" 
+                      <Input
+                        type="datetime-local"
                         value={callDate}
                         onChange={(e) => setCallDate(e.target.value)}
                         className="h-9 text-sm bg-background border-primary/20 focus-visible:ring-primary/30 transition-all hover:border-primary/40 pl-3"
@@ -242,8 +243,8 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
                       <Pencil className="h-3 w-3 text-primary" />
                       <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Subject / Purpose</Label>
                     </div>
-                    <Input 
-                      placeholder="e.g., Follow-up, Discovery, Demo..." 
+                    <Input
+                      placeholder="e.g., Follow-up, Discovery, Demo..."
                       value={callTitle}
                       onChange={(e) => setCallTitle(e.target.value)}
                       className="h-9 text-sm bg-background border-primary/20 focus-visible:ring-primary/30 transition-all hover:border-primary/40"
@@ -255,8 +256,8 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
               {activeTab === "email" && (
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
-                    <Input 
-                      placeholder="To: recipient@example.com (optional)" 
+                    <Input
+                      placeholder="To: recipient@example.com (optional)"
                       value={recipientEmail}
                       onChange={(e) => setRecipientEmail(e.target.value)}
                       className="h-8 text-xs flex-1 bg-background"
@@ -264,8 +265,8 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
                     />
                     <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight px-2 py-0.5 bg-muted rounded border">Email Log</span>
                   </div>
-                  <Input 
-                    placeholder="Email subject..." 
+                  <Input
+                    placeholder="Email subject..."
                     value={emailSubject}
                     onChange={(e) => setEmailSubject(e.target.value)}
                     className="h-8 text-xs bg-background"
@@ -278,11 +279,11 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
                 {activeTab === "email" && <Label className="text-[10px] uppercase font-bold text-muted-foreground">Email Body (optional)</Label>}
                 <Textarea
                   placeholder={
-                    activeTab === "sms" ? "Write SMS message..." : 
-                    activeTab === "activity" ? "Add an activity note..." : 
-                    activeTab === "call_note" ? "Type detailed call summary here..." :
-                    activeTab === "email" ? "Pre-fill email content (optional)..." :
-                    "Add a comment..."
+                    activeTab === "sms" ? "Write SMS message..." :
+                      activeTab === "activity" ? "Add an activity note..." :
+                        activeTab === "call_note" ? "Type detailed call summary here..." :
+                          activeTab === "email" ? "Pre-fill email content (optional)..." :
+                            "Add a comment..."
                   }
                   value={activeTab === "email" ? emailBody : commentText}
                   onChange={(e) => activeTab === "email" ? setEmailBody(e.target.value) : setCommentText(e.target.value)}
@@ -298,30 +299,43 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
                 />
               </div>
 
-              <div className="flex justify-end pt-1">
-                <Button
-                  size="sm"
-                  onClick={
-                    activeTab === "sms" ? handleSendSms : 
-                    activeTab === "call_note" ? handleSubmitCallNote : 
-                    activeTab === "email" ? handleSendEmail :
-                    handleSubmitComment
-                  }
-                  disabled={
-                    activeTab === "email" 
-                      ? (!recipientEmail.trim())
-                      : (!commentText.trim() || createComment.isPending || createActivity.isPending || isSending || (activeTab === "sms" && !activeProvider))
-                  }
-                  className="gap-2 px-4 font-semibold shadow-sm"
-                >
-                  {activeTab === "call_note" ? <PhoneCall className="h-3.5 w-3.5" /> : 
-                   activeTab === "email" ? <Mail className="h-3.5 w-3.5" /> :
-                   <Send className="h-3.5 w-3.5" />}
-                  {activeTab === "sms" ? (isSending ? "Sending..." : "Send SMS") : 
-                   activeTab === "call_note" ? "Save Call Note" : 
-                   activeTab === "email" ? "Add Email Log" :
-                   "Post"}
-                </Button>
+              <div className="flex justify-between items-center pt-1 gap-2">
+                {activeTab === "email" && onComposeEmail && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={onComposeEmail}
+                    className="gap-1.5 text-xs"
+                  >
+                    <Mail className="h-3.5 w-3.5" />
+                    Compose &amp; Send
+                  </Button>
+                )}
+                <div className={activeTab === "email" && onComposeEmail ? "" : "ml-auto"}>
+                  <Button
+                    size="sm"
+                    onClick={
+                      activeTab === "sms" ? handleSendSms :
+                        activeTab === "call_note" ? handleSubmitCallNote :
+                          activeTab === "email" ? handleSendEmail :
+                            handleSubmitComment
+                    }
+                    disabled={
+                      activeTab === "email"
+                        ? (!recipientEmail.trim())
+                        : (!commentText.trim() || createComment.isPending || createActivity.isPending || isSending || (activeTab === "sms" && !activeProvider))
+                    }
+                    className="gap-2 px-4 font-semibold shadow-sm"
+                  >
+                    {activeTab === "call_note" ? <PhoneCall className="h-3.5 w-3.5" /> :
+                      activeTab === "email" ? <Mail className="h-3.5 w-3.5" /> :
+                        <Send className="h-3.5 w-3.5" />}
+                    {activeTab === "sms" ? (isSending ? "Sending..." : "Send SMS") :
+                      activeTab === "call_note" ? "Save Call Note" :
+                        activeTab === "email" ? "Add Email Log" :
+                          "Post"}
+                  </Button>
+                </div>
               </div>
               {activeTab === "sms" && !activeProvider && (
                 <p className="text-[10px] text-amber-600 mt-1 flex items-center gap-1">
@@ -368,9 +382,9 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
                   )}>
                     {item.type === 'activity' ? (
                       item.activityType === 'call_log' ? <PhoneCall className="h-3 w-3" /> :
-                      item.activityType === 'sms' ? <Send className="h-3 w-3" /> :
-                      item.activityType === 'email_sent' || item.activityType === 'email_received' ? <Mail className="h-3 w-3" /> :
-                      <Activity className="h-3 w-3" />
+                        item.activityType === 'sms' ? <Send className="h-3 w-3" /> :
+                          item.activityType === 'email_sent' || item.activityType === 'email_received' ? <Mail className="h-3 w-3" /> :
+                            <Activity className="h-3 w-3" />
                     ) : (item.userName?.charAt(0) || "U")}
                   </AvatarFallback>
                 </Avatar>

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Plus, Sparkles, Mail, Building2, Download, Upload, MoreHorizontal, Edit, Trash2, Eye, Globe, CheckCircle, UserCheck, Columns, UserCircle2 } from "lucide-react";
 import { useLeads, useDeleteLead, useBulkDeleteLeads, useBulkAssignLeads, useUsers } from "@/hooks/useCrmData";
 import { useUpdateLead } from "@/hooks/useCrmMutations";
+import { useCreateActivity } from "@/hooks/useCrmInteractions";
 import { useOrganizationProfiles } from "@/hooks/useTenantQuery";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +26,10 @@ import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { usePersistentState } from "@/hooks/usePersistentState";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { EmailComposer } from "@/components/mail/EmailComposer";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 const statusTone = (status?: string) => {
   const s = (status || "").toLowerCase();
@@ -72,6 +77,39 @@ type LeadRow = {
 
 export default function LeadsPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const [showEmailComposer, setShowEmailComposer] = useState(false);
+  const [emailComposerTo, setEmailComposerTo] = useState("");
+  const [emailComposerLeadId, setEmailComposerLeadId] = useState<string>("");
+  const createActivity = useCreateActivity();
+
+  const { data: mailboxes = [], isLoading: mailboxesLoading } = useQuery({
+    queryKey: ["connected-mailboxes", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const data = await api.get<any[]>('/email/mailboxes');
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  const openEmailComposer = (email: string, leadId: string) => {
+    if (mailboxesLoading) return;
+    if (mailboxes.length === 0) {
+      toast.error("No email account connected", {
+        description: "Connect your Gmail or Outlook account first to send emails.",
+        action: {
+          label: "Connect Now",
+          onClick: () => navigate("/collaboration/mail"),
+        },
+        duration: 6000,
+      });
+      return;
+    }
+    setEmailComposerTo(email);
+    setEmailComposerLeadId(leadId);
+    setShowEmailComposer(true);
+  };
   const [view, setView] = usePersistentState<ViewType>("leads_view", "list");
   const [search, setSearch] = usePersistentState("leads_search", "");
   const [status, setStatus] = usePersistentState("leads_status", "all");
@@ -229,14 +267,27 @@ export default function LeadsPage() {
     setIsAllSelectedGlobally(false);
   }, [search, status, type, workspaceFilter, startDate, endDate]);
 
+  const [sourceTab, setSourceTab] = useState("all");
+
+  // Unique sources from current leads for dynamic tabs
+  const sourceTabs = useMemo(() => {
+    const sources = leads
+      .map(l => l.source)
+      .filter(Boolean)
+      .map(s => s.trim());
+    const unique = Array.from(new Set(sources)).sort();
+    return unique;
+  }, [leads]);
+
   const filtered = useMemo(() => {
-    // Since backend handles filtering, we just sort if needed
-    return [...leads].sort((a, b) => {
-      if (sortBy === "name") return a.name.localeCompare(b.name);
-      if (sortBy === "value") return b.value - a.value;
-      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
-    });
-  }, [leads, sortBy]);
+    return [...leads]
+      .filter(l => sourceTab === "all" || (l.source || "").trim() === sourceTab)
+      .sort((a, b) => {
+        if (sortBy === "name") return a.name.localeCompare(b.name);
+        if (sortBy === "value") return b.value - a.value;
+        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+      });
+  }, [leads, sortBy, sourceTab]);
 
   const handleCreate = () => navigate("/crm/leads/create");
 
@@ -329,7 +380,7 @@ export default function LeadsPage() {
                 className="hover:text-primary hover:underline transition-colors cursor-pointer"
                 onClick={(e) => {
                   e.stopPropagation();
-                  navigate("/collaboration/mail", { state: { composeTo: lead.email } });
+                  openEmailComposer(lead.email, lead.id);
                 }}
               >
                 {lead.email}
@@ -464,7 +515,7 @@ export default function LeadsPage() {
     { key: "priority", header: "Priority", render: (l) => l.priority ? <Badge variant="outline" className="capitalize text-[10px]">{l.priority}</Badge> : <span className="text-muted-foreground text-sm">—</span> },
     { key: "designation", header: "Designation", render: (l) => <span className="text-sm text-muted-foreground">{l.designation || "—"}</span> },
     { key: "address", header: "Address", render: (l) => <span className="text-sm text-muted-foreground truncate max-w-[150px] block">{l.address || "—"}</span> },
-    { key: "email", header: "Email", render: (l) => l.email ? <span className="text-sm text-primary hover:underline cursor-pointer" onClick={(e) => { e.stopPropagation(); navigate("/collaboration/mail", { state: { composeTo: l.email } }); }}>{l.email}</span> : <span className="text-muted-foreground text-sm">—</span> },
+    { key: "email", header: "Email", render: (l) => l.email ? <span className="text-sm text-primary hover:underline cursor-pointer" onClick={(e) => { e.stopPropagation(); openEmailComposer(l.email, l.id); }}>{l.email}</span> : <span className="text-muted-foreground text-sm">—</span> },
     { key: "website", header: "Website", render: (l) => l.website ? <a href={l.website} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline truncate max-w-[120px] block" onClick={e => e.stopPropagation()}>{l.website}</a> : <span className="text-muted-foreground text-sm">—</span> },
     { key: "notes", header: "Notes", render: (l) => <span className="text-sm text-muted-foreground line-clamp-1 max-w-[180px] block">{l.notes || "—"}</span> },
     { key: "tags", header: "Tags", render: (l) => l.tags && l.tags.length > 0 ? <div className="flex flex-wrap gap-1">{(Array.isArray(l.tags) ? l.tags : String(l.tags).split(",")).slice(0, 3).map((t: string) => <Badge key={t} variant="secondary" className="text-[10px] px-1">{t}</Badge>)}</div> : <span className="text-muted-foreground text-sm">—</span> },
@@ -558,34 +609,34 @@ export default function LeadsPage() {
         filters={[
           {
             label: "Status", value: status, onChange: setStatus, options: [
-              { label: "All Statuses", value: "all" }, { label: "New", value: "new" },
+              { label: "New", value: "new" },
               { label: "Contacted", value: "contacted" }, { label: "Qualified", value: "qualified" },
               { label: "Converted", value: "converted" }, { label: "Disqualified", value: "disqualified" },
             ]
           },
-          {
-            label: "Type", value: type, onChange: setType, options: [
-              { label: "All types", value: "all" }, { label: "Inbound", value: "inbound" }, { label: "Planned", value: "planned" },
-            ]
-          },
+          // {
+          //   label: "Type", value: type, onChange: setType, options: [
+          //     { label: "Inbound", value: "inbound" }, { label: "Planned", value: "planned" },
+          //   ]
+          // },
           {
             label: "Priority", value: priorityFilter, onChange: setPriorityFilter, options: [
-              { label: "All Priority", value: "all" }, { label: "Low", value: "low" },
+              { label: "Low", value: "low" },
               { label: "Medium", value: "medium" }, { label: "High", value: "high" }, { label: "Urgent", value: "urgent" },
             ]
           },
-          {
-            label: "Source", value: sourceFilter, onChange: setSourceFilter, options: [
-              { label: "All Sources", value: "all" }, { label: "Website", value: "Website" },
-              { label: "Referral", value: "Referral" }, { label: "Cold Call", value: "Cold Call" },
-              { label: "LinkedIn", value: "LinkedIn" }, { label: "Email", value: "Email" }, { label: "Other", value: "Other" },
-            ]
-          },
+          // {
+          //   label: "Source", value: sourceFilter, onChange: setSourceFilter, options: [
+          //     { label: "Website", value: "Website" },
+          //     { label: "Referral", value: "Referral" }, { label: "Cold Call", value: "Cold Call" },
+          //     { label: "LinkedIn", value: "LinkedIn" }, { label: "Email", value: "Email" }, { label: "Other", value: "Other" },
+          //   ]
+          // },
           {
             label: "Responsible Person", value: assignedToFilter, onChange: setAssignedToFilter,
             options: [...(users?.map(u => ({ label: u.full_name || u.email, value: u.id })) || [])]
           },
-          { label: "Tags", type: "input" as any, value: tagsFilter, onChange: setTagsFilter },
+          // { label: "Tags", type: "input" as any, value: tagsFilter, onChange: setTagsFilter },
           { label: "From", type: "date" as any, value: startDate, onChange: setStartDate },
           { label: "To", type: "date" as any, value: endDate, onChange: setEndDate },
         ]}
@@ -605,6 +656,81 @@ export default function LeadsPage() {
         ]}
         onViewChange={(v) => setView(v as ViewType)}
       />
+
+      {/* ── Source tabs — dynamic, one per unique source value ────────── */}
+      {view === "list" && sourceTabs.length > 0 && (
+        <div className="flex items-center gap-1 flex-wrap border-b border-border pb-0">
+          <button
+            onClick={() => setSourceTab("all")}
+            className={cn(
+              "px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap -mb-px",
+              sourceTab === "all"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+            )}
+          >
+            All
+            <span className="ml-1.5 text-xs opacity-60">({leads.length})</span>
+          </button>
+          {sourceTabs.map(src => {
+            const count = leads.filter(l => (l.source || "").trim() === src).length;
+            return (
+              <button
+                key={src}
+                onClick={() => setSourceTab(src)}
+                className={cn(
+                  "px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap -mb-px capitalize",
+                  sourceTab === src
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+                )}
+              >
+                {src}
+                <span className="ml-1.5 text-xs opacity-60">({count})</span>
+              </button>
+            );
+          })}
+           {/* Column picker — always visible in list view, pushed to right */}
+          <Popover open={colPickerOpen} onOpenChange={setColPickerOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs ml-auto">
+                <Columns className="h-3.5 w-3.5" />
+                Add Fields
+                <span className="bg-primary/10 text-primary rounded px-1 text-[10px] font-semibold">
+                  {visibleColumns.filter(k => k !== "name" && k !== "actions").length}/{ALL_COLUMN_KEYS.length - 2}
+                </span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-2" align="end">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-1">
+                Show / Hide Columns
+              </p>
+              <ScrollArea className="h-72">
+                <div className="space-y-0.5 pr-2">
+                  {ALL_COLUMNS.map(({ key, label }) => (
+                    <label
+                      key={key}
+                      className={cn(
+                        "flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-accent select-none",
+                        key === "name" || key === "actions" ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+                      )}
+                    >
+                      <Checkbox
+                        checked={visibleColumns.includes(key)}
+                        onCheckedChange={() => toggleColumn(key)}
+                        disabled={key === "name" || key === "actions"}
+                        className="h-3.5 w-3.5"
+                      />
+                      <span className="text-sm">{label}</span>
+                    </label>
+                  ))}
+                </div>
+              </ScrollArea>
+            </PopoverContent>
+          </Popover>
+        </div>
+      )}
+      
 
       {/* ── Table toolbar: bulk actions + column picker ────────────────── */}
       {view === "list" && (
@@ -649,44 +775,7 @@ export default function LeadsPage() {
             </>
           )}
 
-          {/* Column picker — always visible in list view, pushed to right */}
-          <Popover open={colPickerOpen} onOpenChange={setColPickerOpen}>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-1.5 text-xs ml-auto">
-                <Columns className="h-3.5 w-3.5" />
-                Add Fields
-                <span className="bg-primary/10 text-primary rounded px-1 text-[10px] font-semibold">
-                  {visibleColumns.filter(k => k !== "name" && k !== "actions").length}/{ALL_COLUMN_KEYS.length - 2}
-                </span>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-56 p-2" align="end">
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-1">
-                Show / Hide Columns
-              </p>
-              <ScrollArea className="h-72">
-                <div className="space-y-0.5 pr-2">
-                  {ALL_COLUMNS.map(({ key, label }) => (
-                    <label
-                      key={key}
-                      className={cn(
-                        "flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-accent select-none",
-                        key === "name" || key === "actions" ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
-                      )}
-                    >
-                      <Checkbox
-                        checked={visibleColumns.includes(key)}
-                        onCheckedChange={() => toggleColumn(key)}
-                        disabled={key === "name" || key === "actions"}
-                        className="h-3.5 w-3.5"
-                      />
-                      <span className="text-sm">{label}</span>
-                    </label>
-                  ))}
-                </div>
-              </ScrollArea>
-            </PopoverContent>
-          </Popover>
+         
         </div>
       )}
 
@@ -736,6 +825,26 @@ export default function LeadsPage() {
           </CardContent>
         </Card>
       )}
+
+      <EmailComposer
+        open={showEmailComposer}
+        onOpenChange={setShowEmailComposer}
+        mailboxes={mailboxes}
+        initialTo={emailComposerTo}
+        entityType="lead"
+        entityId={emailComposerLeadId}
+        onSent={(to, subject) => {
+          if (emailComposerLeadId) {
+            createActivity.mutate({
+              entityType: 'lead',
+              entityId: emailComposerLeadId,
+              activityType: 'email_sent',
+              title: `Email: ${subject}`,
+              description: `To: ${to}\nSubject: ${subject}`,
+            });
+          }
+        }}
+      />
     </div>
   );
 }

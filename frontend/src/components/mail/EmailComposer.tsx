@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -42,9 +42,10 @@ interface EmailComposerProps {
   initialTo?: string;
   entityType?: string;
   entityId?: string;
+  onSent?: (to: string, subject: string) => void;
 }
 
-export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardEmail, initialTo, entityType, entityId }: EmailComposerProps) {
+export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardEmail, initialTo, entityType, entityId, onSent }: EmailComposerProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [showCcBcc, setShowCcBcc] = useState(false);
@@ -61,8 +62,8 @@ export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardE
     subject: replyTo
       ? `Re: ${replyTo.subject}`
       : forwardEmail
-      ? `Fwd: ${forwardEmail.subject}`
-      : "",
+        ? `Fwd: ${forwardEmail.subject}`
+        : "",
     body: forwardEmail
       ? `\n\n---------- Forwarded message ----------\nFrom: ${forwardEmail.from_email}\nSubject: ${forwardEmail.subject}\n\n${forwardEmail.body || ""}`
       : "",
@@ -70,6 +71,30 @@ export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardE
   });
 
   const [attachments, setAttachments] = useState<File[]>([]);
+
+  // Reset form each time the dialog opens with new data
+  useEffect(() => {
+    if (open) {
+      setForm({
+        mailbox_id: mailboxes[0]?.id || "",
+        to: replyTo?.from_email || initialTo || "",
+        cc: "",
+        bcc: "",
+        subject: replyTo
+          ? `Re: ${replyTo.subject}`
+          : forwardEmail
+            ? `Fwd: ${forwardEmail.subject}`
+            : "",
+        body: forwardEmail
+          ? `\n\n---------- Forwarded message ----------\nFrom: ${forwardEmail.from_email}\nSubject: ${forwardEmail.subject}\n\n${forwardEmail.body || ""}`
+          : "",
+      });
+      setAttachments([]);
+      setShowCcBcc(false);
+      draftIdRef.current = null;
+      sentRef.current = false;
+    }
+  }, [open, initialTo]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -152,28 +177,32 @@ export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardE
 
       // Send via edge function (real Gmail API / Graph API)
       const data = await api.post<any>('/email/send', {
-          mailbox_id: form.mailbox_id,
-          to: form.to,
-          cc: form.cc || undefined,
-          bcc: form.bcc || undefined,
-          subject: form.subject,
-          body: form.body.replace(/<[^>]*>?/gm, ''),
-          html_body: form.body,
-          attachments: base64Attachments,
-          in_reply_to: replyTo?.message_id || undefined,
-          thread_id: replyTo?.thread_id || undefined,
-          entity_type: entityType || undefined,
-          entity_id: entityId || undefined,
+        mailbox_id: form.mailbox_id,
+        to: form.to,
+        cc: form.cc || undefined,
+        bcc: form.bcc || undefined,
+        subject: form.subject,
+        body: form.body.replace(/<[^>]*>?/gm, ''),
+        html_body: form.body,
+        attachments: base64Attachments,
+        in_reply_to: replyTo?.message_id || undefined,
+        thread_id: replyTo?.thread_id || undefined,
+        entity_type: entityType || undefined,
+        entity_id: entityId || undefined,
       });
       if (data?.error) throw new Error(data.error);
 
       // Delete draft from DB if it was saved
       if (draftIdRef.current) {
-        api.delete(`/email/messages/${draftIdRef.current}`).catch(() => {});
+        api.delete(`/email/messages/${draftIdRef.current}`).catch(() => { });
       }
       toast.success("Email sent successfully");
       queryClient.invalidateQueries({ queryKey: ["emails"] });
       queryClient.invalidateQueries({ queryKey: ["email-counts"] });
+      if (entityType && entityId) {
+        queryClient.invalidateQueries({ queryKey: ["activities", entityType, entityId] });
+      }
+      onSent?.(form.to, form.subject);
       sentRef.current = true;
       onOpenChange(false);
     } catch (err: any) {
@@ -266,7 +295,7 @@ export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardE
                 toolbar: [
                   [{ 'size': ['small', false, 'large', 'huge'] }],
                   ['bold', 'italic', 'underline', 'strike'],
-                  [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                  [{ 'list': 'ordered' }, { 'list': 'bullet' }],
                   ['link', 'image'],
                   ['clean']
                 ],
@@ -279,7 +308,7 @@ export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardE
               {attachments.map((file, i) => (
                 <Badge key={i} variant="secondary" className="pl-2 flex items-center gap-1 group">
                   <span className="max-w-[150px] truncate">{file.name}</span>
-                  <button 
+                  <button
                     onClick={() => removeAttachment(i)}
                     className="hover:text-destructive p-0.5"
                   >
@@ -300,9 +329,9 @@ export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardE
               className="hidden"
               onChange={handleFileChange}
             />
-            <Button 
-              variant="ghost" 
-              size="icon" 
+            <Button
+              variant="ghost"
+              size="icon"
               className="h-9 w-9 rounded-full hover:bg-primary/10 hover:text-primary transition-all"
               onClick={() => document.getElementById('file-upload')?.click()}
               title="Attach files"

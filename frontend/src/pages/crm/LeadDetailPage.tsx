@@ -40,6 +40,9 @@ import { useOrganizationProfiles } from "@/hooks/useTenantQuery";
 import { usePipelineStages, useCreatePipelineStage, useDeletePipelineStage, useUpdatePipelineStage } from "@/hooks/usePipelineStages";
 import { useSoftphone } from "@/contexts/SoftphoneContext";
 import { ClickToCall } from "@/components/telephony/ClickToCall";
+import { EmailComposer } from "@/components/mail/EmailComposer";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { format, isValid } from "date-fns";
@@ -138,9 +141,10 @@ interface FieldProps {
   placeholder?: string;
   required?: boolean;
   entityId?: string;
+  onEmailClick?: (email: string) => void;
 }
 
-function Field({ label, value, onChange, editing, icon, multiline, type = "text", placeholder, required, entityId }: FieldProps) {
+function Field({ label, value, onChange, editing, icon, multiline, type = "text", placeholder, required, entityId, onEmailClick }: FieldProps) {
   const navigate = useNavigate();
   if (!editing && !value) {
     return (
@@ -193,7 +197,7 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
           ) : type === "email" ? (
             <span
               className="text-primary hover:underline font-medium break-words w-full cursor-pointer"
-              onClick={() => navigate("/collaboration/mail", { state: { composeTo: value } })}
+              onClick={() => onEmailClick ? onEmailClick(value || "") : navigate("/collaboration/mail", { state: { composeTo: value } })}
             >
               {value}
             </span>
@@ -310,7 +314,7 @@ const getStatusIcon = (status: string) => {
 export default function LeadDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const { data: lead, isLoading, error } = useLead(id!);
   const updateLead = useUpdateLead();
   const updateLeadStage = useUpdateLeadStage();
@@ -363,6 +367,36 @@ export default function LeadDetailPage() {
 
   const { data: templates, isLoading: templatesLoading } = useCustomFieldTemplates('lead');
   const saveTemplates = useSaveCustomFieldTemplates();
+
+  // Email composer state
+  const [showEmailComposer, setShowEmailComposer] = useState(false);
+  const [emailComposerTo, setEmailComposerTo] = useState<string>("");
+  const { data: mailboxes = [], isLoading: mailboxesLoading } = useQuery({
+    queryKey: ["connected-mailboxes", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const data = await api.get<any[]>('/email/mailboxes');
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  const openEmailComposer = (email?: string) => {
+    if (mailboxesLoading) return;
+    if (mailboxes.length === 0) {
+      toast.error("No email account connected", {
+        description: "Connect your Gmail or Outlook account first to send emails.",
+        action: {
+          label: "Connect Now",
+          onClick: () => navigate("/collaboration/mail"),
+        },
+        duration: 6000,
+      });
+      return;
+    }
+    setEmailComposerTo(email || lead?.email || "");
+    setShowEmailComposer(true);
+  };
 
   // Combine DB stages with visual fallback data (colors/icons)
   const pipelineStages = dbStages.map(s => {
@@ -753,13 +787,7 @@ export default function LeadDetailPage() {
                             variant="default"
                             size="sm"
                             className="h-8 gap-1.5 bg-primary hover:bg-primary/90 text-white text-xs shadow-sm transition-all hover:scale-105 active:scale-95"
-                            onClick={() => navigate("/collaboration/mail", {
-                              state: {
-                                composeTo: lead.email,
-                                entityType: 'lead',
-                                entityId: id
-                              }
-                            })}
+                            onClick={() => openEmailComposer(lead.email)}
                           >
                             <Mail className="h-3.5 w-3.5" />
                             Email
@@ -1389,7 +1417,7 @@ export default function LeadDetailPage() {
                                   {(form.email as string) ? (
                                     <span
                                       className="text-primary hover:underline font-medium truncate w-full cursor-pointer"
-                                      onClick={() => navigate("/collaboration/mail", { state: { composeTo: form.email } })}
+                                      onClick={() => openEmailComposer(form.email as string)}
                                     >
                                       {form.email as string}
                                     </span>
@@ -1839,7 +1867,7 @@ export default function LeadDetailPage() {
                   <Button
                     variant="outline"
                     className="w-full justify-start gap-2 h-10 border hover:bg-muted/50"
-                    onClick={() => navigate("/collaboration/mail", { state: { composeTo: lead.email } })}
+                    onClick={() => openEmailComposer(lead.email)}
                   >
                     <Mail className="h-4 w-4 text-muted-foreground" />
                     <span className="truncate">Email</span>
@@ -1897,6 +1925,7 @@ export default function LeadDetailPage() {
                         activeTab={interactionTab}
                         onTabChange={setInteractionTab}
                         defaultPhone={lead.phone}
+                        onComposeEmail={() => openEmailComposer(lead.email)}
                       />
                     </div>
                   </TabsContent>
@@ -2147,6 +2176,27 @@ export default function LeadDetailPage() {
         isLoading={deleteLead.isPending}
         title="Delete Lead?"
         description={`Are you sure you want to delete "${lead.name}"? This action cannot be undone.`}
+      />
+
+      {/* Inline Email Composer — stays within LeadDetailPage, logs activity on send */}
+      <EmailComposer
+        open={showEmailComposer}
+        onOpenChange={(open) => {
+          setShowEmailComposer(open);
+        }}
+        mailboxes={mailboxes}
+        initialTo={emailComposerTo}
+        entityType="lead"
+        entityId={id}
+        onSent={(to, subject) => {
+          createActivity.mutate({
+            entityType: 'lead',
+            entityId: id!,
+            activityType: 'email_sent',
+            title: `Email: ${subject}`,
+            description: `To: ${to}\nSubject: ${subject}`,
+          });
+        }}
       />
     </div>
   );

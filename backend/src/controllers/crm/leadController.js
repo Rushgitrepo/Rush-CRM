@@ -1,4 +1,4 @@
-﻿const db = require('../../config/database');
+const db = require('../../config/database');
 const Joi = require('joi');
 const { fireWorkflows } = require('../../services/workflowEngine');
 const notificationService = require('../../services/notificationService');
@@ -349,11 +349,11 @@ const getAll = async (req, res, next) => {
       paramIndex++;
     }
 
-    if (req.query.type && req.query.type !== 'all') {
-      query += ` AND l.type = $${paramIndex}`;
-      params.push(req.query.type);
-      paramIndex++;
-    }
+    // if (req.query.type && req.query.type !== 'all') {
+    //   query += ` AND l.type = $${paramIndex}`;
+    //   params.push(req.query.type);
+    //   paramIndex++;
+    // }
 
     if (startDate) {
       query += ` AND l.created_at >= $${paramIndex}`;
@@ -1604,3 +1604,4 @@ module.exports = {
   ensureDefaultStages,
   DEFAULT_LEAD_STAGES,
 };
+
