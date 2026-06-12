@@ -2188,15 +2188,6 @@ export default function LeadDetailPage() {
         initialTo={emailComposerTo}
         entityType="lead"
         entityId={id}
-        onSent={(to, subject) => {
-          createActivity.mutate({
-            entityType: 'lead',
-            entityId: id!,
-            activityType: 'email_sent',
-            title: `Email: ${subject}`,
-            description: `To: ${to}\nSubject: ${subject}`,
-          });
-        }}
       />
     </div>
   );

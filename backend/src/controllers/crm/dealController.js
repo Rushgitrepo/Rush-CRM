@@ -841,6 +841,12 @@ const remove = async (req, res, next) => {
       [id, req.user.orgId]
     );
 
+    // Null out converted_to_deal_id on any leads that reference this deal
+    await client.query(
+      `UPDATE public.leads SET converted_to_deal_id = NULL, converted_at = NULL WHERE converted_to_deal_id = $1`,
+      [id]
+    );
+
     // 4. Finally delete the deal (scoped to org for safety)
     const result = await client.query(
       `DELETE FROM public.deals WHERE id = $1 AND org_id = $2 RETURNING id`,

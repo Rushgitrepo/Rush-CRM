@@ -31,7 +31,7 @@ import { CustomFieldInput } from "@/components/crm/CustomFieldInput";
 import { FieldDragWrapper, DroppableField } from "@/components/crm/FieldDragWrapper";
 import { DroppableSection } from "@/components/crm/DroppableSection";
 import { GripVertical } from "lucide-react";
-import {useMemo} from 'react';
+import { useMemo } from 'react';
 import { EntitySearchSelect } from "@/components/crm/EntitySearchSelect";
 import { InlineContactDialog } from "@/components/crm/InlineContactDialog";
 import { InlineCompanyDialog } from "@/components/crm/InlineCompanyDialog";
@@ -46,7 +46,8 @@ import { useContacts, useCompanies, useSigningParties, useDealStats, useUpdateDe
 import { usePipelineStages, useCreatePipelineStage, useDealPipelineStages, useCreateDealPipelineStage, useDeleteDealPipelineStage, useUpdateDealPipelineStage } from "@/hooks/usePipelineStages";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
-import { usersApi } from '@/lib/api';
+import { usersApi, api } from '@/lib/api';
+import { EmailComposer } from "@/components/mail/EmailComposer";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useOrganizationProfiles } from "@/hooks/useTenantQuery";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -57,6 +58,7 @@ import { mergeFieldsWithTemplatesSync } from "@/utils/crm/customFieldsRegistry";
 import { sanitizePayload } from "@/utils/crm/sanitize";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { format, isValid } from "date-fns";
+import { toast } from "sonner";
 
 const fallbackStages = [
   {
@@ -260,9 +262,9 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
               className="font-medium break-words w-full text-left"
             />
           ) : type === "email" ? (
-            <span 
+            <span
               className="text-primary hover:underline font-medium break-words w-full cursor-pointer"
-              onClick={() => navigate("/collaboration/mail", { state: { composeTo: value } })}
+              onClick={() => openEmailComposer(value)}
             >
               {value}
             </span>
@@ -332,7 +334,34 @@ export default function DealDetailPage() {
   const saveTemplates = useSaveCustomFieldTemplates();
 
   const { data: dealStats } = useDealStats();
-  
+
+  // Email composer state
+  const [showEmailComposer, setShowEmailComposer] = useState(false);
+  const [emailComposerTo, setEmailComposerTo] = useState<string>("");
+  const { data: mailboxes = [], isLoading: mailboxesLoading } = useQuery({
+    queryKey: ["connected-mailboxes", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const data = await api.get<any[]>('/email/mailboxes');
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  const openEmailComposer = (email?: string) => {
+    if (mailboxesLoading) return;
+    if (mailboxes.length === 0) {
+      toast.error("No email account connected", {
+        description: "Connect your Gmail or Outlook account first to send emails.",
+        action: { label: "Connect Now", onClick: () => navigate("/collaboration/mail") },
+        duration: 6000,
+      });
+      return;
+    }
+    setEmailComposerTo(email || linkedContact?.email || deal?.email || "");
+    setShowEmailComposer(true);
+  };
+
   const [showStageManager, setShowStageManager] = useState(false);
   const [newStageName, setNewStageName] = useState("");
   const [editingStageId, setEditingStageId] = useState<string | null>(null);
@@ -401,9 +430,9 @@ export default function DealDetailPage() {
   // Fetch all team members for assignment
   const selectedPipeline = form.pipeline || deal?.pipeline || "default";
   const departmentFilter = profile?.department === "Sales" ? "Sales" : (profile?.department === "Marketing" ? "Marketing" : undefined);
-  const { data: members = [] } = useOrganizationProfiles({ 
-    department: departmentFilter, 
-    includeSelf: true 
+  const { data: members = [] } = useOrganizationProfiles({
+    department: departmentFilter,
+    includeSelf: true
   });
 
   // Combine DB stages with visual fallback data (colors/icons)
@@ -464,10 +493,10 @@ export default function DealDetailPage() {
           if (rawSectionId === 'qualification-opportunity') sectionId = 'deal-info';
           if (rawSectionId === 'source-section') sectionId = 'more-section';
 
-          return { 
-            id: `field-${k.replace(/\s+/g, '-').toLowerCase()}`, 
-            key: k, 
-            value: String((v as any).value), 
+          return {
+            id: `field-${k.replace(/\s+/g, '-').toLowerCase()}`,
+            key: k,
+            value: String((v as any).value),
             type: (v as any).type || 'string',
             sectionId: sectionId || 'custom-fields',
             afterFieldId: (v as any).afterFieldId || undefined
@@ -523,8 +552,8 @@ export default function DealDetailPage() {
     });
 
     const customFieldsObj = customFields.reduce((acc, field) => {
-      if (field.key.trim()) acc[field.key.trim()] = { 
-        value: field.value, 
+      if (field.key.trim()) acc[field.key.trim()] = {
+        value: field.value,
         type: field.type || 'string',
         sectionId: field.sectionId,
         afterFieldId: field.afterFieldId
@@ -591,7 +620,7 @@ export default function DealDetailPage() {
           if (updatedDeal) {
             setForm(prev => ({ ...prev, stage: updatedDeal.stage, status: updatedDeal.status }));
           }
-          
+
           const stageName = pipelineStages.find(s => s.id === newStage)?.label || newStage;
           createActivity.mutate({
             entityType: 'deal',
@@ -639,15 +668,15 @@ export default function DealDetailPage() {
   const renderDroppedFields = (sectionId: string, isTop = false, afterFieldId?: string) => {
     const sectionFields = customFields.filter(f => {
       if (f.sectionId !== sectionId) return false;
-      
+
       if (afterFieldId) {
         return f.afterFieldId === afterFieldId;
       }
-      
+
       if (isTop) {
         return f.afterFieldId === `${sectionId}-top`;
       }
-      
+
       return !f.afterFieldId;
     });
 
@@ -776,13 +805,7 @@ export default function DealDetailPage() {
                             variant="default"
                             size="sm"
                             className="h-8 gap-1.5 bg-primary hover:bg-primary/90 text-white text-xs shadow-sm transition-all hover:scale-105 active:scale-95"
-                            onClick={() => navigate("/collaboration/mail", { 
-                              state: { 
-                                composeTo: linkedContact?.email || deal.email,
-                                entityType: 'deal',
-                                entityId: id
-                              } 
-                            })}
+                            onClick={() => openEmailComposer(linkedContact?.email || deal.email)}
                           >
                             <Mail className="h-3.5 w-3.5" />
                             Email
@@ -1353,7 +1376,7 @@ export default function DealDetailPage() {
                         {renderDroppedFields("deal-details", false, "fixed-deal-details-description")}
                       </div>
                     </DroppableSection>
-                    
+
                     <DroppableSection id="deal-info" editing={editing} className="md:col-span-2 mt-4">
                       {renderDroppedFields("deal-info")}
                     </DroppableSection>
@@ -1453,7 +1476,7 @@ export default function DealDetailPage() {
                         />
                       </div>
                     </DroppableSection>
-                    
+
                     <DroppableSection id="contact-info" editing={editing} className="md:col-span-2 mt-4">
                       {renderDroppedFields("contact-info")}
                     </DroppableSection>
@@ -1548,7 +1571,7 @@ export default function DealDetailPage() {
                         placeholder="e.g., 50-100 employees"
                       />
                     </DroppableSection>
-                    
+
                     <DroppableSection id="company-info" editing={editing} className="md:col-span-2 mt-4">
                       {renderDroppedFields("company-info")}
                     </DroppableSection>
@@ -1970,13 +1993,7 @@ export default function DealDetailPage() {
                   <Button
                     variant="outline"
                     className="w-full justify-start gap-2 h-10 border hover:bg-muted/50"
-                    onClick={() => navigate("/collaboration/mail", { 
-                      state: { 
-                        composeTo: linkedContact?.email || deal.email,
-                        entityType: 'deal',
-                        entityId: id
-                      } 
-                    })}
+                    onClick={() => openEmailComposer(linkedContact?.email || deal.email)}
                   >
                     <Mail className="h-4 w-4 text-muted-foreground" />
                     <span className="truncate">Email</span>
@@ -2034,6 +2051,7 @@ export default function DealDetailPage() {
                         activeTab={interactionTab}
                         onTabChange={setInteractionTab}
                         defaultPhone={deal.phone || deal.linkedContact?.phone}
+                        onComposeEmail={() => openEmailComposer(linkedContact?.email || deal.email)}
                       />
                     </div>
                   </TabsContent>
@@ -2149,12 +2167,12 @@ export default function DealDetailPage() {
                         </div>
                         <p className="text-[10px] text-muted-foreground">Probability: {s.probability || 0}%</p>
                       </div>
-                      
+
                       <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary"
                         onClick={() => { setEditingStageId(s.dbId); setEditingStageName(s.label); }}>
                         <Edit3 className="h-3.5 w-3.5" />
                       </Button>
-                      
+
                       <Button size="icon" variant="ghost" className={cn("h-7 w-7", s.is_active ? "text-muted-foreground hover:text-orange-500" : "text-orange-500 hover:text-orange-700")}
                         onClick={() => updateStage.mutate({ id: s.dbId, is_active: !s.is_active })}
                         title={s.is_active ? "Hide Stage" : "Show Stage"}>
@@ -2200,7 +2218,7 @@ export default function DealDetailPage() {
         </DialogContent>
       </Dialog>
 
-      <DeleteConfirmationDialog 
+      <DeleteConfirmationDialog
         open={!!stageToDelete}
         onOpenChange={(open) => !open && setStageToDelete(null)}
         onConfirm={() => {
@@ -2215,13 +2233,22 @@ export default function DealDetailPage() {
         description="Are you sure you want to delete this stage? This will permanently remove it from the pipeline configuration."
       />
 
-      <DeleteConfirmationDialog 
+      <DeleteConfirmationDialog
         open={showDeleteDealDialog}
         onOpenChange={setShowDeleteDealDialog}
         onConfirm={() => handleDelete()}
         isLoading={deleteDeal.isPending}
         title="Delete Deal?"
         description={`Are you sure you want to delete "${deal.title}"? This action cannot be undone.`}
+      />
+
+      <EmailComposer
+        open={showEmailComposer}
+        onOpenChange={setShowEmailComposer}
+        mailboxes={mailboxes}
+        initialTo={emailComposerTo}
+        entityType="deal"
+        entityId={id}
       />
     </div>
   );

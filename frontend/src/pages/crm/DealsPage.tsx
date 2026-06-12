@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Plus, Sparkles, Phone, Mail, Building2, Layers, MoreHorizontal, Edit, Trash2, Eye, Download, Upload, XCircle } from "lucide-react";
 import { useDeals, useDeleteDeal, useBulkDeleteDeals, useUsers } from "@/hooks/useCrmData";
 import { useUpdateDeal } from "@/hooks/useCrmMutations";
+import { useCreateActivity } from "@/hooks/useCrmInteractions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,6 +23,10 @@ import { ClickToCall } from "@/components/telephony/ClickToCall";
 import { useDealPipelineStages } from "@/hooks/usePipelineStages";
 import { WorkspaceFilter } from "@/components/crm/leads/WorkspaceFilter";
 import { usePersistentState } from "@/hooks/usePersistentState";
+import { EmailComposer } from "@/components/mail/EmailComposer";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 const WorkflowsPage = lazy(() => import("@/pages/automation/WorkflowsPage"));
 
@@ -60,6 +65,36 @@ type DealRow = {
 
 export default function DealsPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const [showEmailComposer, setShowEmailComposer] = useState(false);
+  const [emailComposerTo, setEmailComposerTo] = useState("");
+  const [emailComposerDealId, setEmailComposerDealId] = useState<string>("");
+  const createActivity = useCreateActivity();
+
+  const { data: mailboxes = [], isLoading: mailboxesLoading } = useQuery({
+    queryKey: ["connected-mailboxes", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const data = await api.get<any[]>('/email/mailboxes');
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  const openEmailComposer = (email: string, dealId: string) => {
+    if (mailboxesLoading) return;
+    if (mailboxes.length === 0) {
+      toast.error("No email account connected", {
+        description: "Connect your Gmail or Outlook account first to send emails.",
+        action: { label: "Connect Now", onClick: () => navigate("/collaboration/mail") },
+        duration: 6000,
+      });
+      return;
+    }
+    setEmailComposerTo(email);
+    setEmailComposerDealId(dealId);
+    setShowEmailComposer(true);
+  };
   const { confirm } = useCustomDialog();
   const [view, setView] = usePersistentState<ViewType>("deals_view", "list");
   const [search, setSearch] = usePersistentState("deals_search", "");
@@ -105,7 +140,7 @@ export default function DealsPage() {
     if (selectedDeals.length === 0 && !isAllSelectedGlobally) return;
 
     const count = isAllSelectedGlobally ? (dbDeals as any)?.pagination?.total : selectedDeals.length;
-    
+
     confirm(`Are you sure you want to delete ${count} deals? This action cannot be undone.`, {
       title: "Bulk Delete Deals",
       confirmLabel: "Delete",
@@ -232,11 +267,11 @@ export default function DealsPage() {
           <p className="text-xs text-muted-foreground flex items-center gap-2">
             <Mail className="h-3 w-3" />
             {deal.email ? (
-              <span 
-                className="hover:text-primary hover:underline transition-colors cursor-pointer" 
+              <span
+                className="hover:text-primary hover:underline transition-colors cursor-pointer"
                 onClick={(e) => {
                   e.stopPropagation();
-                  navigate("/collaboration/mail", { state: { composeTo: deal.email } });
+                  openEmailComposer(deal.email, deal.id);
                 }}
               >
                 {deal.email}
@@ -546,7 +581,7 @@ export default function DealsPage() {
         ]}
         onViewChange={(v) => setView(v as ViewType)}
       >
-    
+
       </DataToolbar>
 
       {view === "list" && (
@@ -603,6 +638,15 @@ export default function DealsPage() {
           </CardContent>
         </Card>
       )}
+
+      <EmailComposer
+        open={showEmailComposer}
+        onOpenChange={setShowEmailComposer}
+        mailboxes={mailboxes}
+        initialTo={emailComposerTo}
+        entityType="deal"
+        entityId={emailComposerDealId}
+      />
     </div>
   );
 }

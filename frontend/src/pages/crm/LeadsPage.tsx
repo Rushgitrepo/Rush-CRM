@@ -690,7 +690,7 @@ export default function LeadsPage() {
               </button>
             );
           })}
-           {/* Column picker — always visible in list view, pushed to right */}
+          {/* Column picker — always visible in list view, pushed to right */}
           <Popover open={colPickerOpen} onOpenChange={setColPickerOpen}>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="gap-1.5 text-xs ml-auto">
@@ -730,7 +730,7 @@ export default function LeadsPage() {
           </Popover>
         </div>
       )}
-      
+
 
       {/* ── Table toolbar: bulk actions + column picker ────────────────── */}
       {view === "list" && (
@@ -775,7 +775,7 @@ export default function LeadsPage() {
             </>
           )}
 
-         
+
         </div>
       )}
 
@@ -833,17 +833,6 @@ export default function LeadsPage() {
         initialTo={emailComposerTo}
         entityType="lead"
         entityId={emailComposerLeadId}
-        onSent={(to, subject) => {
-          if (emailComposerLeadId) {
-            createActivity.mutate({
-              entityType: 'lead',
-              entityId: emailComposerLeadId,
-              activityType: 'email_sent',
-              title: `Email: ${subject}`,
-              description: `To: ${to}\nSubject: ${subject}`,
-            });
-          }
-        }}
       />
     </div>
   );
