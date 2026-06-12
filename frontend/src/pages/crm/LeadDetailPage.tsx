@@ -82,7 +82,7 @@ const sourceOptions = [
   { value: "event", label: "Event" },
   { value: "advertisement", label: "Advertisement" },
   { value: "partner", label: "Partner" },
-  { value: "other", label: "Other" },
+  // { value: "other", label: "Other" },
 ];
 
 const companySizeOptions = [
@@ -98,20 +98,20 @@ const phoneTypeOptions = [
   { value: "work", label: "Work Phone" },
   { value: "mobile", label: "Mobile" },
   { value: "home", label: "Home" },
-  { value: "other", label: "Other" },
+  // { value: "other", label: "Other" },
 ];
 
 const emailTypeOptions = [
   { value: "work", label: "Work" },
   { value: "personal", label: "Personal" },
-  { value: "other", label: "Other" },
+  // { value: "other", label: "Other" },
 ];
 
 const websiteTypeOptions = [
   { value: "corporate", label: "Corporate" },
   { value: "personal", label: "Personal" },
   { value: "portfolio", label: "Portfolio" },
-  { value: "other", label: "Other" },
+  // { value: "other", label: "Other" },
 ];
 
 const currencyOptions = [
@@ -1248,16 +1248,14 @@ export default function LeadDetailPage() {
                         <DroppableField id="fixed-lead-company-details-customer_type" editing={editing}>
                           <div className="space-y-2">
                             <Label className="text-sm font-medium text-foreground">Customer Type</Label>
-                            <Select value={(form.customer_type as string) || ""} onValueChange={(v) => set("customer_type", v)} disabled={!editing}>
-                              <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
-                                <SelectValue placeholder="not selected" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {customerTypeOptions.map(opt => (
-                                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <CreatableSelect
+                              label=""
+                              value={(form.customer_type as string) || ""}
+                              onChange={(v) => set("customer_type", v)}
+                              options={customerTypeOptions}
+                              placeholder="not selected"
+                              disabled={!editing}
+                            />
                           </div>
                         </DroppableField>
                         {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-customer_type")}
@@ -1343,16 +1341,16 @@ export default function LeadDetailPage() {
                                   value={(form.phone as string) || ""}
                                   onChange={(e) => set("phone", e.target.value)}
                                   placeholder="+1 (555) 123-4567"
-                                  className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1"
+                                  className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1 min-w-0"
                                 />
                               ) : (
-                                <div className="h-10 px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-center flex-1">
+                                <div className="h-10 px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-center flex-1 min-w-0 overflow-hidden">
                                   {(form.phone as string) ? (
                                     <ClickToCall
                                       phoneNumber={form.phone as string}
                                       entityType="lead"
                                       entityId={id}
-                                      className="text-sm font-medium text-foreground"
+                                      className="text-sm font-medium text-foreground w-full truncate"
                                     />
                                   ) : (
                                     <span className="text-muted-foreground italic">Not specified</span>
@@ -1360,7 +1358,7 @@ export default function LeadDetailPage() {
                                 </div>
                               )}
                               <Select value={(form.phone_type as string) || ""} onValueChange={(v) => set("phone_type", v)} disabled={!editing}>
-                                <SelectTrigger className="h-10 w-[160px] border-border">
+                                <SelectTrigger className="h-10 w-[150px] shrink-0 border-border">
                                   <SelectValue placeholder="Work Phone" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1384,13 +1382,13 @@ export default function LeadDetailPage() {
                                   value={(form.email as string) || ""}
                                   onChange={(e) => set("email", e.target.value)}
                                   placeholder="john@example.com"
-                                  className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1"
+                                  className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1 min-w-0"
                                 />
                               ) : (
-                                <div className="h-10 px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-center flex-1 overflow-hidden">
+                                <div className="h-10 px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-center flex-1 min-w-0 overflow-hidden">
                                   {(form.email as string) ? (
                                     <span
-                                      className="text-primary hover:underline font-medium break-words w-full cursor-pointer"
+                                      className="text-primary hover:underline font-medium truncate w-full cursor-pointer"
                                       onClick={() => navigate("/collaboration/mail", { state: { composeTo: form.email } })}
                                     >
                                       {form.email as string}
@@ -1401,7 +1399,7 @@ export default function LeadDetailPage() {
                                 </div>
                               )}
                               <Select value={(form.email_type as string) || ""} onValueChange={(v) => set("email_type", v)} disabled={!editing}>
-                                <SelectTrigger className="h-10 w-[140px] border-border">
+                                <SelectTrigger className="h-10 w-[130px] shrink-0 border-border">
                                   <SelectValue placeholder="Work" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1424,19 +1422,19 @@ export default function LeadDetailPage() {
                                   value={(form.website as string) || ""}
                                   onChange={(e) => set("website", e.target.value)}
                                   placeholder="https://example.com"
-                                  className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1"
+                                  className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1 min-w-0"
                                 />
                               ) : (
-                                <div className="h-10 px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-center flex-1 overflow-hidden">
+                                <div className="h-10 px-3 py-2 border border-border rounded-lg bg-muted/40 flex items-center flex-1 min-w-0 overflow-hidden">
                                   {(form.website as string) ? (
-                                    <a href={String(form.website)} target="_blank" rel="noreferrer" className="text-primary hover:underline font-medium break-words w-full">{form.website as string}</a>
+                                    <a href={String(form.website)} target="_blank" rel="noreferrer" className="text-primary hover:underline font-medium truncate w-full">{form.website as string}</a>
                                   ) : (
                                     <span className="text-muted-foreground italic">Not specified</span>
                                   )}
                                 </div>
                               )}
                               <Select value={(form.website_type as string) || ""} onValueChange={(v) => set("website_type", v)} disabled={!editing}>
-                                <SelectTrigger className="h-10 w-[160px] border-border">
+                                <SelectTrigger className="h-10 w-[150px] shrink-0 border-border">
                                   <SelectValue placeholder="Corporate" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1613,16 +1611,14 @@ export default function LeadDetailPage() {
                         <DroppableField id="fixed-qualification-opportunity-company_size" editing={editing}>
                           <div className="space-y-2">
                             <Label className="text-sm font-medium text-foreground">Company Size</Label>
-                            <Select value={(form.company_size as string) || ""} onValueChange={(v) => set("company_size", v)} disabled={!editing}>
-                              <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
-                                <SelectValue placeholder="Company Size" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {companySizeOptions.map(opt => (
-                                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <CreatableSelect
+                              label=""
+                              value={(form.company_size as string) || ""}
+                              onChange={(v) => set("company_size", v)}
+                              options={companySizeOptions}
+                              placeholder="Company Size"
+                              disabled={!editing}
+                            />
                           </div>
                         </DroppableField>
                         {renderDroppedFields("qualification-opportunity", false, "fixed-qualification-opportunity-company_size")}
@@ -1637,10 +1633,10 @@ export default function LeadDetailPage() {
                                 onChange={(e) => set("value", e.target.value ? Number(e.target.value) : null)}
                                 disabled={!editing}
                                 placeholder="0"
-                                className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1"
+                                className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all flex-1 min-w-0"
                               />
                               <Select value={(form.currency as string) || ""} onValueChange={(v) => set("currency", v)} disabled={!editing}>
-                                <SelectTrigger className="h-10 w-[170px] border-border">
+                                <SelectTrigger className="h-10 w-[150px] shrink-0 border-border">
                                   <SelectValue placeholder="US Dollar" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1714,6 +1710,38 @@ export default function LeadDetailPage() {
                   <CardContent className="p-6">
                     <DroppableSection id="source-section" editing={editing}>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                        {/* Source dropdown */}
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground">Source</Label>
+                          <CreatableSelect
+                            label=""
+                            value={(form.source as string) || ""}
+                            onChange={(v) => set("source", v)}
+                            options={sourceOptions}
+                            placeholder="Select source..."
+                            disabled={!editing}
+                          />
+                        </div>
+
+                        {/* Priority dropdown */}
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground">Priority</Label>
+                          <CreatableSelect
+                            label=""
+                            value={(form.priority as string) || ""}
+                            onChange={(v) => set("priority", v)}
+                            options={[
+                              { value: "low", label: "Low" },
+                              { value: "medium", label: "Medium" },
+                              { value: "high", label: "High" },
+                              { value: "urgent", label: "Urgent" },
+                            ]}
+                            placeholder="Select priority..."
+                            disabled={!editing}
+                          />
+                        </div>
+
                         <div className="md:col-span-2 space-y-2">
                           <Label className="text-sm font-medium text-foreground">Source Information</Label>
                           {editing ? (
