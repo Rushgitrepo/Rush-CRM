@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Sparkles, Mail, Phone, Building2, Filter, Download, Upload, MoreHorizontal, Edit, Trash2, Eye, Globe, XCircle, CheckCircle, UserCheck } from "lucide-react";
+import { Plus, Sparkles, Mail, Building2, Download, Upload, MoreHorizontal, Edit, Trash2, Eye, Globe, CheckCircle, UserCheck, Columns, UserCircle2 } from "lucide-react";
 import { useLeads, useDeleteLead, useBulkDeleteLeads, useBulkAssignLeads, useUsers } from "@/hooks/useCrmData";
 import { useUpdateLead } from "@/hooks/useCrmMutations";
 import { useOrganizationProfiles } from "@/hooks/useTenantQuery";
@@ -8,25 +8,23 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { MemberSearchSelect } from "@/components/tasks/MemberSearchSelect";
 import { LeadsKanbanView } from "@/components/crm/leads/LeadsKanbanView";
 import { LeadsActivitiesView } from "@/components/crm/leads/LeadsActivitiesView";
 import { LeadsCalendarView } from "@/components/crm/leads/LeadsCalendarView";
-import { WorkspaceFilter } from "@/components/crm/leads/WorkspaceFilter";
 import { PageHeader } from "@/components/crm/ui/PageHeader";
 import { DataToolbar } from "@/components/crm/ui/DataToolbar";
 import { EntityTable, EntityColumn } from "@/components/crm/ui/EntityTable";
 import { EmptyState } from "@/components/crm/ui/EmptyState";
-import { AdvancedSearch } from "@/components/crm/ui/AdvancedSearch";
 import { useCustomDialog } from "@/contexts/DialogContext";
 import { toast } from "sonner";
 import { ClickToCall } from "@/components/telephony/ClickToCall";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { usePersistentState } from "@/hooks/usePersistentState";
 import { cn } from "@/lib/utils";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const statusTone = (status?: string) => {
   const s = (status || "").toLowerCase();
@@ -45,6 +43,7 @@ type LeadRow = {
   phone: string;
   company: string;
   status: string;
+  stage?: string;
   source: string;
   value: number;
   type: "inbound" | "planned";
@@ -55,6 +54,20 @@ type LeadRow = {
   campaignId?: string;
   createdByName?: string;
   createdByAvatar?: string;
+  // Extra DB fields
+  priority?: string;
+  designation?: string;
+  address?: string;
+  website?: string;
+  notes?: string;
+  tags?: string[];
+  industry?: string;
+  contact_person?: string;
+  next_follow_up_date?: string;
+  last_contacted_date?: string;
+  expected_close_date?: string;
+  agent_name?: string;
+  pipeline?: string;
 };
 
 export default function LeadsPage() {
@@ -104,6 +117,59 @@ export default function LeadsPage() {
   const [assignPickerOpen, setAssignPickerOpen] = useState(false);
   const [bulkAssignUserId, setBulkAssignUserId] = useState("");
 
+  // ── Column visibility ─────────────────────────────────────────────────────
+  // All available columns (from DB via l.*). First 4 always visible by default.
+  const ALL_COLUMNS: { key: string; label: string }[] = [
+    { key: "name", label: "Lead / Email" },
+    { key: "company", label: "Company" },
+    { key: "source", label: "Source" },
+    { key: "campaignName", label: "Campaign" },
+    { key: "value", label: "Value" },
+    { key: "responsible", label: "Responsible" },
+    { key: "phone", label: "Contact" },
+    { key: "createdAt", label: "Created" },
+    { key: "createdByName", label: "Created By" },
+    { key: "stage", label: "Stage" },
+    { key: "status", label: "Status" },
+    { key: "priority", label: "Priority" },
+    { key: "designation", label: "Designation" },
+    { key: "address", label: "Address" },
+    { key: "email", label: "Email" },
+    { key: "website", label: "Website" },
+    { key: "notes", label: "Notes" },
+    { key: "tags", label: "Tags" },
+    { key: "industry", label: "Industry" },
+    { key: "contact_person", label: "Contact Person" },
+    { key: "next_follow_up_date", label: "Follow-up Date" },
+    { key: "last_contacted_date", label: "Last Contacted" },
+    { key: "expected_close_date", label: "Expected Close" },
+    { key: "agent_name", label: "Agent" },
+    { key: "pipeline", label: "Pipeline" },
+    { key: "actions", label: "Actions" },
+  ];
+  const ALL_COLUMN_KEYS = ALL_COLUMNS.map(c => c.key);
+  const ALL_COLUMN_LABELS: Record<string, string> = Object.fromEntries(ALL_COLUMNS.map(c => [c.key, c.label]));
+
+  // Default visible: first 4 + actions
+  const DEFAULT_VISIBLE = ["name", "company", "source", "campaignName", "actions"];
+
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem("leads_visible_columns");
+      return saved ? JSON.parse(saved) : DEFAULT_VISIBLE;
+    } catch { return DEFAULT_VISIBLE; }
+  });
+  const [colPickerOpen, setColPickerOpen] = useState(false);
+
+  const toggleColumn = (key: string) => {
+    if (key === "name" || key === "actions") return; // always visible
+    setVisibleColumns(prev => {
+      const next = prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key];
+      localStorage.setItem("leads_visible_columns", JSON.stringify(next));
+      return next;
+    });
+  };
+
   const leads: LeadRow[] = useMemo(() => {
     // Handle different response formats from the API
     let leadsData: any[] = [];
@@ -139,6 +205,20 @@ export default function LeadsPage() {
         campaignId: l.campaign_id || l.campaignId || "",
         createdByName: l.createdByName || l.created_by_name || null,
         createdByAvatar: l.createdByAvatar || l.created_by_avatar || null,
+        // Extra DB fields
+        priority: l.priority || "",
+        designation: l.designation || "",
+        address: l.address || "",
+        website: l.website || "",
+        notes: l.notes || "",
+        tags: l.tags || [],
+        industry: l.industry || "",
+        contact_person: l.contact_person || "",
+        next_follow_up_date: l.next_follow_up_date || "",
+        last_contacted_date: l.last_contacted_date || "",
+        expected_close_date: l.expected_close_date || "",
+        agent_name: l.agent_name || "",
+        pipeline: l.pipeline || "",
       };
     });
   }, [dbLeads]);
@@ -378,6 +458,23 @@ export default function LeadsPage() {
         </div>
       ),
     },
+    // ── Extra DB columns ──────────────────────────────────────────────
+    { key: "stage", header: "Stage", render: (l) => l.stage ? <Badge variant="outline" className={cn(statusTone(l.stage), "uppercase text-[10px]")}>{l.stage}</Badge> : <span className="text-muted-foreground text-sm">—</span> },
+    { key: "status", header: "Status", render: (l) => <span className="text-sm text-muted-foreground">{l.status || "—"}</span> },
+    { key: "priority", header: "Priority", render: (l) => l.priority ? <Badge variant="outline" className="capitalize text-[10px]">{l.priority}</Badge> : <span className="text-muted-foreground text-sm">—</span> },
+    { key: "designation", header: "Designation", render: (l) => <span className="text-sm text-muted-foreground">{l.designation || "—"}</span> },
+    { key: "address", header: "Address", render: (l) => <span className="text-sm text-muted-foreground truncate max-w-[150px] block">{l.address || "—"}</span> },
+    { key: "email", header: "Email", render: (l) => l.email ? <span className="text-sm text-primary hover:underline cursor-pointer" onClick={(e) => { e.stopPropagation(); navigate("/collaboration/mail", { state: { composeTo: l.email } }); }}>{l.email}</span> : <span className="text-muted-foreground text-sm">—</span> },
+    { key: "website", header: "Website", render: (l) => l.website ? <a href={l.website} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline truncate max-w-[120px] block" onClick={e => e.stopPropagation()}>{l.website}</a> : <span className="text-muted-foreground text-sm">—</span> },
+    { key: "notes", header: "Notes", render: (l) => <span className="text-sm text-muted-foreground line-clamp-1 max-w-[180px] block">{l.notes || "—"}</span> },
+    { key: "tags", header: "Tags", render: (l) => l.tags && l.tags.length > 0 ? <div className="flex flex-wrap gap-1">{(Array.isArray(l.tags) ? l.tags : String(l.tags).split(",")).slice(0, 3).map((t: string) => <Badge key={t} variant="secondary" className="text-[10px] px-1">{t}</Badge>)}</div> : <span className="text-muted-foreground text-sm">—</span> },
+    { key: "industry", header: "Industry", render: (l) => <span className="text-sm text-muted-foreground">{l.industry || "—"}</span> },
+    { key: "contact_person", header: "Contact Person", render: (l) => <span className="text-sm text-muted-foreground">{l.contact_person || "—"}</span> },
+    { key: "next_follow_up_date", header: "Follow-up", render: (l) => <span className="text-sm text-muted-foreground">{l.next_follow_up_date ? new Date(l.next_follow_up_date).toLocaleDateString() : "—"}</span> },
+    { key: "last_contacted_date", header: "Last Contact", render: (l) => <span className="text-sm text-muted-foreground">{l.last_contacted_date ? new Date(l.last_contacted_date).toLocaleDateString() : "—"}</span> },
+    { key: "expected_close_date", header: "Close Date", render: (l) => <span className="text-sm text-muted-foreground">{l.expected_close_date ? new Date(l.expected_close_date).toLocaleDateString() : "—"}</span> },
+    { key: "agent_name", header: "Agent", render: (l) => <span className="text-sm text-muted-foreground">{l.agent_name || "—"}</span> },
+    { key: "pipeline", header: "Pipeline", render: (l) => <span className="text-sm text-muted-foreground capitalize">{l.pipeline || "—"}</span> },
     {
       key: "actions",
       header: "",
@@ -426,8 +523,11 @@ export default function LeadsPage() {
       ),
     },
   ];
+
+
   return (
     <div className="space-y-6">
+      {/* ── Page Header ───────────────────────────────────────────────── */}
       <PageHeader
         title="Leads"
         description="A live, filterable pipeline of every lead with fast actions."
@@ -437,144 +537,57 @@ export default function LeadsPage() {
         ]}
         actions={
           <div className="flex gap-2">
-            {(selectedLeads.length > 0 || isAllSelectedGlobally) && (
-              <div className="flex gap-2 items-center">
-                {/* Assign button — only when specific leads are selected (not global) */}
-                {selectedLeads.length > 0 && !isAllSelectedGlobally && (
-                  <Popover open={assignPickerOpen} onOpenChange={setAssignPickerOpen}>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm" className="gap-2">
-                        <UserCheck className="h-4 w-4" />
-                        Assigned To ({selectedLeads.length})
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-72 p-3" align="start">
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                        Assign {selectedLeads.length} lead{selectedLeads.length > 1 ? "s" : ""} to
-                      </p>
-                      <MemberSearchSelect
-                        members={allMembers}
-                        value={bulkAssignUserId}
-                        onChange={(id) => {
-                          setBulkAssignUserId(id);
-                          if (id) handleBulkAssign(id);
-                        }}
-                        placeholder="Select a user..."
-                      />
-                    </PopoverContent>
-                  </Popover>
-                )}
-                <Button variant="outline" size="sm" onClick={handleBulkExport}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Export ({isAllSelectedGlobally ? (dbLeads as any)?.pagination?.total : selectedLeads.length})
-                </Button>
-                <Button variant="outline" size="sm" onClick={handleBulkDelete}>
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete ({isAllSelectedGlobally ? (dbLeads as any)?.pagination?.total : selectedLeads.length})
-                </Button>
-              </div>
-            )}
             <Button variant="outline" size="sm" onClick={() => navigate('/crm/leads/external-sources')}>
-              <Globe className="h-4 w-4 mr-2" />
-              External Sources
+              <Globe className="h-4 w-4 mr-2" />External Sources
             </Button>
             <Button variant="outline" size="sm" onClick={() => navigate('/crm/leads/import?type=lead')}>
-              <Upload className="h-4 w-4 mr-2" />
-              Import
+              <Upload className="h-4 w-4 mr-2" />Import
             </Button>
             <Button className="bg-primary" onClick={handleCreate}>
-              <Plus className="mr-2 h-4 w-4" />
-              New Lead
+              <Plus className="mr-2 h-4 w-4" />New Lead
             </Button>
           </div>
         }
       />
 
+      {/* ── Filters / Sort / View toolbar ─────────────────────────────── */}
       <DataToolbar
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search everything (lead, company, contact, email, notes...)"
         filters={[
           {
-            label: "Status",
-            value: status,
-            onChange: setStatus,
-            options: [
-              { label: "All Statuses", value: "all" },
-              { label: "New", value: "new" },
-              { label: "Contacted", value: "contacted" },
-              { label: "Qualified", value: "qualified" },
-              { label: "Converted", value: "converted" },
-              { label: "Disqualified", value: "disqualified" },
-            ],
-          },
-          {
-            label: "Type",
-            value: type,
-            onChange: setType,
-            options: [
-              { label: "All types", value: "all" },
-              { label: "Inbound", value: "inbound" },
-              { label: "Planned", value: "planned" },
-            ],
-          }, {
-            label: "Priority",
-            value: priorityFilter,
-            onChange: setPriorityFilter,
-            options: [
-              { label: "All Priority", value: "all" },
-              { label: "Low", value: "low" },
-              { label: "Medium", value: "medium" },
-              { label: "High", value: "high" },
-              { label: "Urgent", value: "urgent" },
-            ],
-          },
-          {
-            label: "Source",
-            value: sourceFilter,
-            onChange: setSourceFilter,
-            options: [
-              { label: "All Sources", value: "all" },
-              { label: "Website", value: "Website" },
-              { label: "Referral", value: "Referral" },
-              { label: "Cold Call", value: "Cold Call" },
-              { label: "LinkedIn", value: "LinkedIn" },
-              { label: "Email", value: "Email" },
-              { label: "Other", value: "Other" },
-            ],
-          },
-          {
-            label: "Responsible Person",
-            value: assignedToFilter,
-            onChange: setAssignedToFilter,
-            options: [
-              ...(users?.map(u => ({ label: u.full_name || u.email, value: u.id })) || [])
+            label: "Status", value: status, onChange: setStatus, options: [
+              { label: "All Statuses", value: "all" }, { label: "New", value: "new" },
+              { label: "Contacted", value: "contacted" }, { label: "Qualified", value: "qualified" },
+              { label: "Converted", value: "converted" }, { label: "Disqualified", value: "disqualified" },
             ]
           },
-          // {
-          //   label: "Campaign",
-          //   type: "input",
-          //   value: campaignFilter,
-          //   onChange: setCampaignFilter
-          // },
           {
-            label: "Tags",
-            type: "input",
-            value: tagsFilter,
-            onChange: setTagsFilter
+            label: "Type", value: type, onChange: setType, options: [
+              { label: "All types", value: "all" }, { label: "Inbound", value: "inbound" }, { label: "Planned", value: "planned" },
+            ]
           },
           {
-            label: "From",
-            type: "date",
-            value: startDate,
-            onChange: setStartDate
+            label: "Priority", value: priorityFilter, onChange: setPriorityFilter, options: [
+              { label: "All Priority", value: "all" }, { label: "Low", value: "low" },
+              { label: "Medium", value: "medium" }, { label: "High", value: "high" }, { label: "Urgent", value: "urgent" },
+            ]
           },
           {
-            label: "To",
-            type: "date",
-            value: endDate,
-            onChange: setEndDate
-          }
+            label: "Source", value: sourceFilter, onChange: setSourceFilter, options: [
+              { label: "All Sources", value: "all" }, { label: "Website", value: "Website" },
+              { label: "Referral", value: "Referral" }, { label: "Cold Call", value: "Cold Call" },
+              { label: "LinkedIn", value: "LinkedIn" }, { label: "Email", value: "Email" }, { label: "Other", value: "Other" },
+            ]
+          },
+          {
+            label: "Responsible Person", value: assignedToFilter, onChange: setAssignedToFilter,
+            options: [...(users?.map(u => ({ label: u.full_name || u.email, value: u.id })) || [])]
+          },
+          { label: "Tags", type: "input" as any, value: tagsFilter, onChange: setTagsFilter },
+          { label: "From", type: "date" as any, value: startDate, onChange: setStartDate },
+          { label: "To", type: "date" as any, value: endDate, onChange: setEndDate },
         ]}
         sortValue={sortBy}
         sortOptions={[
@@ -591,24 +604,105 @@ export default function LeadsPage() {
           { id: "calendar", label: "Calendar" },
         ]}
         onViewChange={(v) => setView(v as ViewType)}
-      >
-      </DataToolbar>
+      />
 
+      {/* ── Table toolbar: bulk actions + column picker ────────────────── */}
       {view === "list" && (
-        <Card >
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Bulk actions — appear when leads are selected */}
+          {(selectedLeads.length > 0 || isAllSelectedGlobally) && (
+            <>
+              {selectedLeads.length > 0 && !isAllSelectedGlobally && (
+                <Popover open={assignPickerOpen} onOpenChange={setAssignPickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-2">
+                      <UserCheck className="h-4 w-4" />
+                      Assign To ({selectedLeads.length})
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-72 p-3" align="start">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                      Assign {selectedLeads.length} lead{selectedLeads.length > 1 ? "s" : ""} to
+                    </p>
+                    <MemberSearchSelect
+                      members={allMembers}
+                      value={bulkAssignUserId}
+                      onChange={(id) => { setBulkAssignUserId(id); if (id) handleBulkAssign(id); }}
+                      placeholder="Select a user..."
+                    />
+                  </PopoverContent>
+                </Popover>
+              )}
+              <Button variant="outline" size="sm" onClick={handleBulkExport}>
+                <Download className="h-4 w-4 mr-2" />
+                Export ({isAllSelectedGlobally ? (dbLeads as any)?.pagination?.total : selectedLeads.length})
+              </Button>
+              <Button
+                variant="outline" size="sm"
+                onClick={handleBulkDelete}
+                className="text-destructive border-destructive/30 hover:bg-destructive/10"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete ({isAllSelectedGlobally ? (dbLeads as any)?.pagination?.total : selectedLeads.length})
+              </Button>
+              <div className="h-5 w-px bg-border mx-1" />
+            </>
+          )}
+
+          {/* Column picker — always visible in list view, pushed to right */}
+          <Popover open={colPickerOpen} onOpenChange={setColPickerOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs ml-auto">
+                <Columns className="h-3.5 w-3.5" />
+                Add Fields
+                <span className="bg-primary/10 text-primary rounded px-1 text-[10px] font-semibold">
+                  {visibleColumns.filter(k => k !== "name" && k !== "actions").length}/{ALL_COLUMN_KEYS.length - 2}
+                </span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-2" align="end">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-1">
+                Show / Hide Columns
+              </p>
+              <ScrollArea className="h-72">
+                <div className="space-y-0.5 pr-2">
+                  {ALL_COLUMNS.map(({ key, label }) => (
+                    <label
+                      key={key}
+                      className={cn(
+                        "flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-accent select-none",
+                        key === "name" || key === "actions" ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+                      )}
+                    >
+                      <Checkbox
+                        checked={visibleColumns.includes(key)}
+                        onCheckedChange={() => toggleColumn(key)}
+                        disabled={key === "name" || key === "actions"}
+                        className="h-3.5 w-3.5"
+                      />
+                      <span className="text-sm">{label}</span>
+                    </label>
+                  ))}
+                </div>
+              </ScrollArea>
+            </PopoverContent>
+          </Popover>
+        </div>
+      )}
+
+      {/* ── List view table ────────────────────────────────────────────── */}
+      {view === "list" && (
+        <Card>
           <CardContent className="p-4 lg:p-6">
             <EntityTable
               data={filtered}
-              columns={columns}
+              columns={columns.filter(c => visibleColumns.includes(c.key as string))}
               isLoading={isLoading}
               pageSize={pageSize}
               totalCount={(dbLeads as any)?.pagination?.total || filtered.length}
               currentPage={currentPage}
               onPageChange={setCurrentPage}
-              onPageSizeChange={(size) => {
-                setPageSize(size);
-                setCurrentPage(1);
-              }}
+              onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
               selectedRows={selectedLeads}
               onSelectionChange={(ids) => {
                 setSelectedLeads(ids as string[]);
@@ -631,10 +725,7 @@ export default function LeadsPage() {
         </Card>
       )}
 
-      {!isLoading && view === "kanban" && (
-        <LeadsKanbanView leads={filtered as any} onCreateLead={handleCreate} selectedStage={status} />
-      )}
-
+      {!isLoading && view === "kanban" && <LeadsKanbanView leads={filtered as any} onCreateLead={handleCreate} selectedStage={status} />}
       {view === "activities" && <LeadsActivitiesView />}
       {view === "calendar" && <LeadsCalendarView />}
 
@@ -648,4 +739,3 @@ export default function LeadsPage() {
     </div>
   );
 }
-

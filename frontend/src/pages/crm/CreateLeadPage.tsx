@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { cn } from "@/lib/utils";
 import {
   Loader2, Save, ArrowLeft, Building2, CalendarDays, MessageSquare,
-  ChevronDown, Sparkles, Tag, Users, Calendar as CalendarIcon, Briefcase, GripVertical
+  ChevronDown, Sparkles, Tag, Users, Calendar as CalendarIcon, Briefcase, GripVertical, Plus
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useOrganizationProfiles } from "@/hooks/useTenantQuery";
@@ -69,6 +69,7 @@ const leadSchema = z.object({
   agentName: z.string().optional(),
   priority: z.string().optional(),
   tags: z.string().optional(),
+  campaignName: z.string().optional(),
 });
 
 type LeadForm = z.infer<typeof leadSchema>;
@@ -107,7 +108,7 @@ const sourceOptions = [
   { value: "event", label: "Event" },
   { value: "advertisement", label: "Advertisement" },
   { value: "partner", label: "Partner" },
-  { value: "other", label: "Other" },
+  // { value: "other", label: "Other" },
 ];
 
 const priorityOptions = [
@@ -141,20 +142,20 @@ const phoneTypeOptions = [
   { value: "work", label: "Work Phone" },
   { value: "mobile", label: "Mobile" },
   { value: "home", label: "Home" },
-  { value: "other", label: "Other" },
+  // { value: "other", label: "Other" },
 ];
 
 const emailTypeOptions = [
   { value: "work", label: "Work" },
   { value: "personal", label: "Personal" },
-  { value: "other", label: "Other" },
+  // { value: "other", label: "Other" },
 ];
 
 const websiteTypeOptions = [
   { value: "corporate", label: "Corporate" },
   { value: "personal", label: "Personal" },
   { value: "portfolio", label: "Portfolio" },
-  { value: "other", label: "Other" },
+  // { value: "other", label: "Other" },
 ];
 
 const currencyOptions = [
@@ -249,7 +250,7 @@ function InlineSelect({
   value,
   onChange,
   placeholder,
-  options,
+  options: initialOptions,
   className,
   error,
 }: {
@@ -260,18 +261,60 @@ function InlineSelect({
   className?: string;
   error?: string;
 }) {
+  const [options, setOptions] = useState(initialOptions);
+  const [adding, setAdding] = useState(false);
+  const [newVal, setNewVal] = useState("");
+
+  const merged = [...initialOptions];
+  for (const o of options) {
+    if (!merged.find(x => x.value === o.value)) merged.push(o);
+  }
+
+  const handleAdd = () => {
+    if (!newVal.trim()) return;
+    const id = newVal.trim().toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
+    if (!merged.find(o => o.value === id)) {
+      setOptions(prev => [...prev, { value: id, label: newVal.trim() }]);
+    }
+    onChange(id);
+    setNewVal("");
+    setAdding(false);
+  };
+
+  if (adding) {
+    return (
+      <div className={cn("flex gap-1 items-center", className)}>
+        <Input
+          value={newVal}
+          onChange={e => setNewVal(e.target.value)}
+          placeholder="New option"
+          className="h-10 text-xs"
+          autoFocus
+          onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleAdd(); } if (e.key === "Escape") { setAdding(false); setNewVal(""); } }}
+        />
+        <Button type="button" size="sm" variant="ghost" className="h-10 px-2 text-xs" onClick={handleAdd}>✓</Button>
+        <Button type="button" size="sm" variant="ghost" className="h-10 px-2 text-xs" onClick={() => { setAdding(false); setNewVal(""); }}>✕</Button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-1.5">
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className={cn(className || "w-[160px] h-11", error && "border-destructive")}>
-          <SelectValue placeholder={placeholder || "Select"} />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map(opt => (
-            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <div className="flex gap-1 items-center">
+        <Select value={value} onValueChange={onChange}>
+          <SelectTrigger className={cn(className || "w-[160px] h-11", error && "border-destructive")}>
+            <SelectValue placeholder={placeholder || "Select"} />
+          </SelectTrigger>
+          <SelectContent>
+            {merged.map(opt => (
+              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button type="button" variant="outline" size="icon" className="h-10 w-10 shrink-0" onClick={() => setAdding(true)} title="Add new option">
+          <Plus className="h-4 w-4" />
+        </Button>
+      </div>
       {error && <p className="text-[10px] text-destructive px-1">{error}</p>}
     </div>
   );
@@ -318,6 +361,7 @@ export default function CreateLeadPage() {
       agentName: "",
       priority: "medium",
       tags: "",
+      campaignName: "",
     },
   });
 
@@ -414,6 +458,7 @@ export default function CreateLeadPage() {
       responsiblePerson: data.responsiblePerson || null,
       externalSourceId: data.externalSourceId || null,
       agentName: data.agentName || null,
+      campaignName: data.campaignName || null,
       priority: data.priority || null,
       tags: data.tags ? data.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
       customFields: customFields.reduce((acc, field) => {
@@ -608,23 +653,22 @@ export default function CreateLeadPage() {
                     <DroppableField id="fixed-lead-company-details-customerType" editing={true}>
                       <div className="space-y-2">
                         <Label className="text-sm font-medium text-foreground">Customer Type</Label>
-                        <Select value={watch("customerType")} onValueChange={v => setValue("customerType", v)}>
-                          <SelectTrigger className={cn("h-10", errors.customerType && "border-destructive")}>
-                            <SelectValue placeholder="not selected" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {customerTypeOptions.map(opt => (
-                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <CreatableSelect
+                          label=""
+                          value={watch("customerType") || ""}
+                          onChange={v => setValue("customerType", v)}
+                          options={customerTypeOptions}
+                          placeholder="not selected"
+                        />
                         {errors.customerType && <p className="text-xs text-destructive">{errors.customerType.message}</p>}
                       </div>
                     </DroppableField>
                     {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-customerType")}
 
                     <DroppableField id="fixed-lead-company-details-title" editing={true}>
-                      <LabeledInput label="Lead name" placeholder="Lead #" fieldProps={register("title")} error={errors.title?.message} />
+                      <div className="w-[573px]">
+                        <LabeledInput label="Lead name" placeholder="Lead name" fieldProps={register("title")} error={errors.title?.message} />
+                      </div>
                     </DroppableField>
                     {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-title")}
                   </div>
@@ -652,17 +696,19 @@ export default function CreateLeadPage() {
                       <div className="flex items-stretch gap-2">
                         <Input
                           placeholder="+1 555 0123"
-                          className={cn("h-11 flex-1", errors.phone && "border-destructive")}
+                          className={cn("h-11 flex-1 min-w-0", errors.phone && "border-destructive")}
                           {...register("phone")}
                         />
-                        <InlineSelect
-                          value={watch("phoneType")}
-                          onChange={v => setValue("phoneType", v)}
-                          placeholder="Work Phone"
-                          options={phoneTypeOptions}
-                          className="w-[160px] h-11"
-                          error={errors.phoneType?.message}
-                        />
+                        <Select value={watch("phoneType") || "work"} onValueChange={v => setValue("phoneType", v)}>
+                          <SelectTrigger className="h-11 w-[150px] shrink-0 border-border">
+                            <SelectValue placeholder="Work Phone" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {phoneTypeOptions.map(opt => (
+                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       {errors.phone && <p className="text-xs text-destructive">{errors.phone.message}</p>}
                     </div>
@@ -673,17 +719,19 @@ export default function CreateLeadPage() {
                         <Input
                           type="email"
                           placeholder="name@example.com"
-                          className={cn("h-11 flex-1", errors.email && "border-destructive")}
+                          className={cn("h-11 flex-1 min-w-0", errors.email && "border-destructive")}
                           {...register("email")}
                         />
-                        <InlineSelect
-                          value={watch("emailType")}
-                          onChange={v => setValue("emailType", v)}
-                          placeholder="Work"
-                          options={emailTypeOptions}
-                          className="w-[160px] h-11"
-                          error={errors.emailType?.message}
-                        />
+                        <Select value={watch("emailType") || "work"} onValueChange={v => setValue("emailType", v)}>
+                          <SelectTrigger className="h-11 w-[130px] shrink-0 border-border">
+                            <SelectValue placeholder="Work" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {emailTypeOptions.map(opt => (
+                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
                     </div>
@@ -693,17 +741,19 @@ export default function CreateLeadPage() {
                       <div className="flex items-stretch gap-2">
                         <Input
                           placeholder="https://example.com"
-                          className={cn("h-11 flex-1", errors.website && "border-destructive")}
+                          className={cn("h-11 flex-1 min-w-0", errors.website && "border-destructive")}
                           {...register("website")}
                         />
-                        <InlineSelect
-                          value={watch("websiteType")}
-                          onChange={v => setValue("websiteType", v)}
-                          placeholder="Corporate"
-                          options={websiteTypeOptions}
-                          className="w-[160px] h-11"
-                          error={errors.websiteType?.message}
-                        />
+                        <Select value={watch("websiteType") || "corporate"} onValueChange={v => setValue("websiteType", v)}>
+                          <SelectTrigger className="h-11 w-[150px] shrink-0 border-border">
+                            <SelectValue placeholder="Corporate" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {websiteTypeOptions.map(opt => (
+                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       {errors.website && <p className="text-xs text-destructive">{errors.website.message}</p>}
                     </div>
@@ -786,7 +836,7 @@ export default function CreateLeadPage() {
                           Service Interested
                         </Label>
                         <CreatableSelect
-                          label="Service Interested"
+                          label=""
                           value={watch("serviceInterested") || ""}
                           onChange={(v) => setValue("serviceInterested", v)}
                           options={serviceOptions}
@@ -799,16 +849,13 @@ export default function CreateLeadPage() {
                     <DroppableField id="fixed-qualification-opportunity-companySize" editing={true}>
                       <div className="space-y-2">
                         <Label className="text-sm font-medium text-foreground">Company Size</Label>
-                        <Select value={watch("companySize")} onValueChange={v => setValue("companySize", v)}>
-                          <SelectTrigger className="h-10">
-                            <SelectValue placeholder="Company Size" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {companySizeOptions.map(opt => (
-                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <CreatableSelect
+                          label=""
+                          value={watch("companySize") || ""}
+                          onChange={v => setValue("companySize", v)}
+                          options={companySizeOptions}
+                          placeholder="Company Size"
+                        />
                       </div>
                     </DroppableField>
                     {renderDroppedFields("qualification-opportunity", false, "fixed-qualification-opportunity-companySize")}
@@ -821,15 +868,18 @@ export default function CreateLeadPage() {
                             type="number"
                             placeholder="0"
                             {...register("value")}
-                            className={cn("h-10 flex-1")}
+                            className={cn("h-10 flex-1 min-w-0")}
                           />
-                          <InlineSelect
-                            value={watch("currency")}
-                            onChange={v => setValue("currency", v)}
-                            placeholder="US Dollar"
-                            options={currencyOptions}
-                            className="w-[170px] h-10"
-                          />
+                          <Select value={watch("currency") || "USD"} onValueChange={v => setValue("currency", v)}>
+                            <SelectTrigger className="h-10 w-[150px] shrink-0 border-border">
+                              <SelectValue placeholder="US Dollar" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {currencyOptions.map(opt => (
+                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
                     </DroppableField>
@@ -894,16 +944,13 @@ export default function CreateLeadPage() {
                     <DroppableField id="fixed-source-section-source" editing={true}>
                       <div className="space-y-2">
                         <Label className="text-sm font-medium text-foreground">Source</Label>
-                        <Select value={watch("source")} onValueChange={v => setValue("source", v)}>
-                          <SelectTrigger className="h-10">
-                            <SelectValue placeholder="Call" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {sourceOptions.map(opt => (
-                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <CreatableSelect
+                          label=""
+                          value={watch("source") || ""}
+                          onChange={v => setValue("source", v)}
+                          options={sourceOptions}
+                          placeholder="Select source..."
+                        />
                       </div>
                     </DroppableField>
                     {renderDroppedFields("source-section", false, "fixed-source-section-source")}
@@ -939,16 +986,13 @@ export default function CreateLeadPage() {
                     <DroppableField id="fixed-source-section-priority" editing={true}>
                       <div className="space-y-2">
                         <Label className="text-sm font-medium text-foreground">Priority</Label>
-                        <Select value={watch("priority")} onValueChange={v => setValue("priority", v)}>
-                          <SelectTrigger className="h-10">
-                            <SelectValue placeholder="Select priority" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {priorityOptions.map(opt => (
-                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <CreatableSelect
+                          label=""
+                          value={watch("priority") || ""}
+                          onChange={v => setValue("priority", v)}
+                          options={priorityOptions}
+                          placeholder="Select priority"
+                        />
                       </div>
                     </DroppableField>
                     {renderDroppedFields("source-section", false, "fixed-source-section-priority")}

@@ -15,3 +15,8 @@ ADD COLUMN IF NOT EXISTS joining_availability VARCHAR(255);
 
 -- Create index on form_token for faster lookups
 CREATE INDEX IF NOT EXISTS idx_candidates_form_token ON candidates(form_token);
+
+
+ALTER TABLE leads
+ADD COLUMN IF NOT EXISTS industry VARCHAR(255);
+ADD COLUMN IF NOT EXISTS contact_person VARCHAR(255);
