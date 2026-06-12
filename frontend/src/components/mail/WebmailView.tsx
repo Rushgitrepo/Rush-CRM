@@ -31,7 +31,6 @@ import {
   RefreshCw,
   Mail,
   CheckCheck,
-  Archive,
   MailOpen,
   Paperclip,
   ChevronLeft,
@@ -52,7 +51,6 @@ const folders = [
   { id: "sent", name: "Sent", icon: Send },
   { id: "drafts", name: "Drafts", icon: FileText },
   { id: "starred", name: "Starred", icon: Star },
-  { id: "archive", name: "Archive", icon: Archive },
   { id: "spam", name: "Spam", icon: AlertTriangle },
   { id: "trash", name: "Trash", icon: Trash2 },
 ];
@@ -162,24 +160,16 @@ export function WebmailView({ mailboxes, onBackToIntegration, initialOpenCompose
     queryClient.invalidateQueries({ queryKey: ["email-counts"] });
   };
 
-  const handleBulkAction = async (action: "read" | "trash" | "archive") => {
+  const handleBulkAction = async (action: "read" | "trash") => {
     if (selectedIds.size === 0) return;
     const ids = Array.from(selectedIds);
     if (action === 'read') {
       await api.post('/email/messages/bulk', { ids, update: { is_read: true } });
       toast.success(`Marked ${ids.length} as read`);
     } else if (action === 'trash') {
-      const isTrash = activeFolder === 'trash';
-      if (isTrash) {
-        await api.post('/email/messages/bulk', { ids, update: { deleted: true } });
-        toast.success(`Permanently deleted ${ids.length} emails`);
-      } else {
-        await api.post('/email/messages/bulk', { ids, update: { folder: 'trash' } });
-        toast.success(`Moved ${ids.length} to trash`);
-      }
-    } else if (action === 'archive') {
-      await api.post('/email/messages/bulk', { ids, update: { folder: 'archive' } });
-      toast.success(`Archived ${ids.length} emails`);
+      const isPermanent = activeFolder === 'trash';
+      await api.post('/email/messages/bulk', { ids, update: isPermanent ? { deleted: true } : { folder: 'trash' } });
+      toast.success(isPermanent ? `Permanently deleted ${ids.length} emails` : `Moved ${ids.length} to trash`);
     }
     setSelectedIds(new Set());
     queryClient.invalidateQueries({ queryKey: ["emails"] });
@@ -315,11 +305,10 @@ export function WebmailView({ mailboxes, onBackToIntegration, initialOpenCompose
             return (
               <button
                 key={folder.id}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors ${
-                  isActive
-                    ? "bg-primary/10 text-primary font-medium"
-                    : "hover:bg-muted/50 text-foreground"
-                }`}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors ${isActive
+                  ? "bg-primary/10 text-primary font-medium"
+                  : "hover:bg-muted/50 text-foreground"
+                  }`}
                 onClick={() => {
                   setActiveFolder(folder.id);
                   setSelectedEmail(null);
@@ -341,7 +330,7 @@ export function WebmailView({ mailboxes, onBackToIntegration, initialOpenCompose
               </button>
             );
           })}
-          
+
           {/* Mailbox accounts section */}
           {mailboxes.length > 0 && (
             <div className="pt-3 mt-2 border-t space-y-1">
@@ -364,6 +353,18 @@ export function WebmailView({ mailboxes, onBackToIntegration, initialOpenCompose
         {/* Email list */}
         <Card className="overflow-hidden">
           <div className="p-3 border-b flex items-center gap-2">
+            <Checkbox
+              checked={emails.length > 0 && selectedIds.size === emails.length}
+              onCheckedChange={(checked) => {
+                if (checked) {
+                  setSelectedIds(new Set(emails.map((e: any) => e.id)));
+                } else {
+                  setSelectedIds(new Set());
+                }
+              }}
+              className="h-4 w-4 shrink-0"
+              aria-label="Select all"
+            />
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -383,14 +384,6 @@ export function WebmailView({ mailboxes, onBackToIntegration, initialOpenCompose
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Mark as read</TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleBulkAction("archive")}>
-                      <Archive className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Archive</TooltipContent>
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -424,13 +417,12 @@ export function WebmailView({ mailboxes, onBackToIntegration, initialOpenCompose
                   return (
                     <div
                       key={email.id}
-                      className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors group ${
-                        isSelected
-                          ? "bg-primary/10"
-                          : !email.is_read
+                      className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors group ${isSelected
+                        ? "bg-primary/10"
+                        : activeFolder === "inbox" && !email.is_read
                           ? "bg-primary/[0.03] hover:bg-primary/[0.06]"
                           : "hover:bg-muted/50"
-                      }`}
+                        }`}
                       onClick={() => openEmail(email)}
                     >
                       <div
@@ -447,11 +439,10 @@ export function WebmailView({ mailboxes, onBackToIntegration, initialOpenCompose
                         }}
                       >
                         <Star
-                          className={`h-4 w-4 transition-colors ${
-                            email.is_starred
-                              ? "fill-warning text-warning"
-                              : "text-muted-foreground/30 group-hover:text-muted-foreground/60"
-                          }`}
+                          className={`h-4 w-4 transition-colors ${email.is_starred
+                            ? "fill-warning text-warning"
+                            : "text-muted-foreground/30 group-hover:text-muted-foreground/60"
+                            }`}
                         />
                       </button>
                       <Avatar className="h-8 w-8 shrink-0">
@@ -463,9 +454,8 @@ export function WebmailView({ mailboxes, onBackToIntegration, initialOpenCompose
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-0.5">
                           <span
-                            className={`text-sm truncate max-w-[180px] ${
-                              !email.is_read ? "font-semibold text-foreground" : "text-muted-foreground"
-                            }`}
+                            className={`text-sm truncate max-w-[180px] ${activeFolder === "inbox" && !email.is_read ? "font-semibold text-foreground" : "text-muted-foreground"
+                              }`}
                           >
                             {email.from_name || email.from_email}
                           </span>
@@ -475,9 +465,8 @@ export function WebmailView({ mailboxes, onBackToIntegration, initialOpenCompose
                           </span>
                         </div>
                         <p
-                          className={`text-sm truncate ${
-                            !email.is_read ? "font-medium text-foreground" : "text-foreground/80"
-                          }`}
+                          className={`text-sm truncate ${activeFolder === "inbox" && !email.is_read ? "font-medium text-foreground" : "text-foreground/80"
+                            }`}
                         >
                           {email.subject || "(No Subject)"}
                         </p>
