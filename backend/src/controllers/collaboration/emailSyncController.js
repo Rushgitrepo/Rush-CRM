@@ -201,22 +201,48 @@ const bulkUpdateMessages = async (req, res, next) => {
       }, {});
 
       for (const [mailboxId, group] of Object.entries(mailboxGroups)) {
-        // Filter out local draft IDs (they start with 'draft-') as they don't exist on the provider
-        const providerIds = group.ids.filter(id => !id.startsWith('draft-'));
+        // Filter out local draft IDs (they start with 'draft-') and UUID-format local IDs
+        const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        const providerIds = group.ids.filter(id =>
+          id &&
+          !id.startsWith('draft-') &&
+          !uuidPattern.test(id)
+        );
 
         if (providerIds.length > 0) {
           if (group.provider === 'gmail') {
             if (update.folder === 'trash') {
-              await gmailSyncService.trashMessages(mailboxId, req.user.id, providerIds);
+              // Process individually so one 404 doesn't abort the rest
+              for (const msgId of providerIds) {
+                try {
+                  await gmailSyncService.trashMessages(mailboxId, req.user.id, [msgId]);
+                } catch (e) {
+                  if (e?.status === 404 || e?.code === 404) {
+                    console.warn(`Gmail trash: message ${msgId} not found on provider, skipping`);
+                  } else {
+                    console.error(`Gmail trash error for ${msgId}:`, e?.message);
+                  }
+                }
+              }
             } else if (update.deleted === true) {
-              await gmailSyncService.permanentlyDeleteMessages(mailboxId, req.user.id, providerIds);
+              // Messages being permanently deleted are already gone from Gmail's trash
+              // Just skip the API call — local DB deletion below handles cleanup
+              console.log(`Skipping Gmail API for permanent delete of ${providerIds.length} messages (already removed from provider)`);
             }
           } else {
-            // IMAP
+            // IMAP — process with same 404 tolerance
             if (update.folder === 'trash') {
-              await imapSyncService.trashMessages(mailboxId, req.user.id, providerIds);
+              try {
+                await imapSyncService.trashMessages(mailboxId, req.user.id, providerIds);
+              } catch (e) {
+                console.warn(`IMAP trash error:`, e?.message);
+              }
             } else if (update.deleted === true) {
-              await imapSyncService.permanentlyDeleteMessages(mailboxId, req.user.id, providerIds);
+              try {
+                await imapSyncService.permanentlyDeleteMessages(mailboxId, req.user.id, providerIds);
+              } catch (e) {
+                console.warn(`IMAP delete error:`, e?.message);
+              }
             }
           }
         }
@@ -228,12 +254,20 @@ const bulkUpdateMessages = async (req, res, next) => {
     const updateDb = { ...update };
     delete updateDb.deleted;
 
-    if (Object.keys(updateDb).length > 0) {
-      const fields = Object.entries(updateDb).map(([k, v], i) => `${k} = $${i + 1}`).join(', ');
+    if (update.deleted === true) {
+      // Permanently remove from local DB
+      await db.query(
+        'DELETE FROM emails WHERE id = ANY($1) AND user_id = $2',
+        [ids, req.user.id]
+      );
+    } else if (Object.keys(updateDb).length > 0) {
+      const setClauses = Object.keys(updateDb).map((k, idx) => `${k} = $${idx + 1}`).join(', ');
       const values = Object.values(updateDb);
-      await db.query(`UPDATE emails SET ${fields} WHERE id = ANY($${values.length + 1}) AND user_id = $${values.length + 2}`, [...values, ids, req.user.id]);
+      await db.query(
+        `UPDATE emails SET ${setClauses} WHERE id = ANY($${values.length + 1}) AND user_id = $${values.length + 2}`,
+        [...values, ids, req.user.id]
+      );
     }
-
     res.json({ success: true });
   } catch (err) {
     next(err);
@@ -246,7 +280,7 @@ const getCounts = async (req, res, next) => {
   try {
     const { mailbox_id } = req.query;
     const counts = {};
-    for (const f of ['inbox', 'sent', 'drafts', 'spam', 'trash', 'archive']) {
+    for (const f of ['inbox', 'sent', 'drafts', 'spam', 'trash']) {
       let q = 'SELECT COUNT(*) FROM emails WHERE user_id = $1 AND folder = $2';
       const p = [req.user.id, f];
       if (mailbox_id) {
@@ -375,7 +409,7 @@ async function processGmailCallback(req) {
     ]
   );
 
-  console.log(`✅ Gmail mailbox connected successfully: ${userInfo.email}`);
+  console.log(`? Gmail mailbox connected successfully: ${userInfo.email}`);
 
   const mailbox = result.rows[0];
 
@@ -627,7 +661,7 @@ const sendEmail = async (req, res, next) => {
       const nodemailer = require('nodemailer');
       const smtpPort = parseInt(mailbox.smtp_port || 587);
       const smtpUser = mailbox.smtp_username || mailbox.imap_username || mailbox.email_address;
-      console.log(`📧 Sending via SMTP: host=${mailbox.smtp_host} port=${smtpPort} user=${smtpUser}`);
+      console.log(`?? Sending via SMTP: host=${mailbox.smtp_host} port=${smtpPort} user=${smtpUser}`);
       const smtpTransporter = nodemailer.createTransport({
         host: mailbox.smtp_host,
         port: smtpPort,
@@ -670,10 +704,10 @@ const sendEmail = async (req, res, next) => {
               `To: ${toStr}\n\n${body || html_body || ''}`
             ]
           );
-          console.log(`✅ Email activity logged for ${entity_type} ${entity_id}`);
+          console.log(`? Email activity logged for ${entity_type} ${entity_id}`);
         }
       } catch (logError) {
-        console.error('❌ Failed to log email activity:', logError.message);
+        console.error('? Failed to log email activity:', logError.message);
       }
     }
 
