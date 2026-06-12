@@ -113,7 +113,7 @@ export function useWorkgroup(id: string) {
 // Create workgroup
 export function useCreateWorkgroup() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: (data: Partial<Workgroup>) => workgroupsApi.create(data),
     onSuccess: () => {
@@ -128,9 +128,9 @@ export function useCreateWorkgroup() {
 // Update workgroup
 export function useUpdateWorkgroup() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string } & Partial<Workgroup>) => 
+    mutationFn: ({ id, ...data }: { id: string } & Partial<Workgroup>) =>
       workgroupsApi.update(id, data),
     onSuccess: (updatedWorkgroup, variables) => {
       queryClient.setQueryData(['workgroup', variables.id], updatedWorkgroup);
@@ -152,7 +152,7 @@ export function useUpdateWorkgroup() {
 // Delete workgroup
 export function useDeleteWorkgroup() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: (id: string) => workgroupsApi.delete(id),
     onSuccess: () => {
@@ -179,12 +179,12 @@ export function useWorkgroupMembers(workgroupId: string) {
 // Add workgroup member
 export function useAddWorkgroupMember() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: ({ workgroupId, userId, role }: { 
-      workgroupId: string; 
-      userId: string; 
-      role?: string 
+    mutationFn: ({ workgroupId, userId, role }: {
+      workgroupId: string;
+      userId: string;
+      role?: string
     }) => workgroupsApi.addMember(workgroupId, { user_id: userId, role }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['workgroup-members', variables.workgroupId] });
@@ -200,9 +200,9 @@ export function useAddWorkgroupMember() {
 // Remove workgroup member
 export function useRemoveWorkgroupMember() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: ({ workgroupId, memberId }: { workgroupId: string; memberId: string }) => 
+    mutationFn: ({ workgroupId, memberId }: { workgroupId: string; memberId: string }) =>
       workgroupsApi.removeMember(workgroupId, memberId),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['workgroup-members', variables.workgroupId] });
@@ -228,7 +228,7 @@ export function useWorkgroupPosts(workgroupId: string, params: { channel_id?: st
 // Create workgroup post
 export function useCreatePost() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: ({ workgroupId, content, channelId, parentId, files, mentions }: {
       workgroupId: string;
@@ -244,11 +244,43 @@ export function useCreatePost() {
       files,
       mentions,
     }),
+    onMutate: async (variables) => {
+      // Only optimistically add text-only messages (no files)
+      if (variables.files && variables.files.length > 0) return;
+
+      const queryKey = ['workgroup-posts', variables.workgroupId];
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData(queryKey);
+
+      const optimisticMsg = {
+        id: `optimistic-${Date.now()}`,
+        workgroup_id: variables.workgroupId,
+        content: variables.content,
+        parent_id: variables.parentId || null,
+        mentions: variables.mentions || [],
+        attachments: [],
+        created_at: new Date().toISOString(),
+        _optimistic: true,
+      };
+
+      queryClient.setQueryData(queryKey, (old: any) => {
+        if (!old) return [optimisticMsg];
+        if (Array.isArray(old)) return [...old, optimisticMsg];
+        // paginated shape { data: [...] }
+        if (old.data) return { ...old, data: [...old.data, optimisticMsg] };
+        return old;
+      });
+
+      return { previous, queryKey };
+    },
+    onError: (_error, _variables, context: any) => {
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(context.queryKey, context.previous);
+      }
+      toast.error('Failed to post message');
+    },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['workgroup-posts', variables.workgroupId] });
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Failed to post message');
     },
   });
 }
@@ -269,14 +301,14 @@ export function useWorkgroupMemberCounts(workgroupIds: string[]) {
     queryKey: ['workgroup-member-counts', workgroupIds],
     queryFn: async () => {
       const counts: Record<string, number> = {};
-      
+
       // In a real app, you'd have a batch API endpoint
       // For now, we'll extract from the main workgroups query
       const workgroups = await workgroupsApi.getAll();
       workgroups.forEach((wg: Workgroup) => {
         counts[wg.id] = wg.member_count;
       });
-      
+
       return counts;
     },
     enabled: workgroupIds.length > 0,
@@ -288,13 +320,13 @@ export function useWorkgroupPostCounts(workgroupIds: string[]) {
     queryKey: ['workgroup-post-counts', workgroupIds],
     queryFn: async () => {
       const counts: Record<string, number> = {};
-      
+
       // In a real app, you'd have a batch API endpoint
       const workgroups = await workgroupsApi.getAll();
       workgroups.forEach((wg: Workgroup) => {
         counts[wg.id] = wg.message_count;
       });
-      
+
       return counts;
     },
     enabled: workgroupIds.length > 0,
@@ -303,7 +335,7 @@ export function useWorkgroupPostCounts(workgroupIds: string[]) {
 
 export function useDeletePost() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: ({ postId, workgroupId }: { postId: string; workgroupId: string }) => {
       return workgroupsApi.deletePost(workgroupId, postId);
@@ -337,12 +369,12 @@ export function useDeletePostForMe() {
 
 export function useTogglePinPost() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: ({ postId, isPinned, workgroupId }: { 
-      postId: string; 
-      isPinned: boolean; 
-      workgroupId: string 
+    mutationFn: ({ postId, isPinned, workgroupId }: {
+      postId: string;
+      isPinned: boolean;
+      workgroupId: string
     }) => {
       return workgroupsApi.togglePinPost(workgroupId, postId, isPinned);
     },
