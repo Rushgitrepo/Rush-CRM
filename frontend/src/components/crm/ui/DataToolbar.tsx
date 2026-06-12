@@ -89,8 +89,8 @@ export function DataToolbar({
                   </div>
                 </Button>
               </PopoverTrigger>
-              <PopoverContent 
-                className="w-[320px] p-4 max-h-[80vh] overflow-y-auto custom-scrollbar" 
+              <PopoverContent
+                className="w-[320px] p-4 max-h-[80vh] overflow-y-auto custom-scrollbar"
                 align="start"
                 onPointerDownOutside={(e) => {
                   // Prevent closing when clicking on a Select content (which is in a portal)
@@ -103,9 +103,9 @@ export function DataToolbar({
                   <div className="flex items-center justify-between">
                     <h4 className="font-medium leading-none">Filters</h4>
                     {filters.some(f => f.value && f.value !== "all") && (
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => filters.forEach(f => f.onChange?.(f.resetValue ?? (f.type === "input" || f.type === "date" ? "" : "all")))}
                         className="h-8 px-2 text-xs"
                       >
@@ -133,7 +133,9 @@ export function DataToolbar({
                               <SelectValue placeholder={`Select ${filter.label}`} />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="all">All {filter.label}s</SelectItem>
+                              {!filter.options?.some(o => o.value === "all") && (
+                                <SelectItem value="all">All {filter.label}</SelectItem>
+                              )}
                               {filter.options?.map((option) => (
                                 <SelectItem key={option.value} value={option.value}>
                                   <div className="flex items-center justify-between w-full gap-2">
@@ -158,9 +160,9 @@ export function DataToolbar({
           )}
 
           {((filters && filters.some(f => f.value && f.value !== "all")) || (quickFilters && quickFilters.some(q => q.active))) && (
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               className="h-9 px-2 lg:px-3 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
               onClick={() => {
                 onSearchChange?.("");
