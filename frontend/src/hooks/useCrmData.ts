@@ -6,10 +6,10 @@ import { toast } from 'sonner';
 const GC_TIME = 5 * 60 * 1000; // 5 minutes (garbage collection time)
 const STALE_TIME = 2 * 60 * 1000; // 2 minutes
 
-export function useLeads(params?: { 
-  search?: string; 
-  status?: string; 
-  type?: string; 
+export function useLeads(params?: {
+  search?: string;
+  status?: string;
+  type?: string;
   workspaceId?: string;
   page?: number;
   limit?: number;
@@ -122,6 +122,20 @@ export function useBulkDeleteLeads() {
   });
 }
 
+export function useBulkAssignLeads() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ ids, assigned_to }: { ids: string[]; assigned_to: string }) =>
+      leadsApi.bulkAssign(ids, assigned_to),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      toast.success(data.message || 'Leads assigned successfully');
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
+
 // Stage/Status specific update hooks for better UX
 export function useUpdateLeadStage() {
   const queryClient = useQueryClient();
@@ -144,7 +158,7 @@ export function useUpdateLeadStage() {
           if (!old?.data) return old;
           return {
             ...old,
-            data: old.data.map((lead: any) => 
+            data: old.data.map((lead: any) =>
               lead.id === id ? { ...lead, stage } : lead
             )
           };
@@ -160,7 +174,7 @@ export function useUpdateLeadStage() {
     onSuccess: (updatedLead, { id }) => {
       // Update the cache with the actual data from the server
       queryClient.setQueryData(['leads', id], updatedLead);
-      
+
       // Mark as stale to trigger background refetch
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['leads', 'stats'] });
@@ -195,11 +209,11 @@ export function useLeadStats() {
   });
 }
 
-export function useDeals(params?: { 
-  page?: number; 
-  limit?: number; 
-  stage?: string; 
-  status?: string; 
+export function useDeals(params?: {
+  page?: number;
+  limit?: number;
+  stage?: string;
+  status?: string;
   search?: string;
   startDate?: string | null;
   endDate?: string | null;
@@ -350,7 +364,7 @@ export function useUpdateDealStage() {
           if (!old?.data) return old;
           return {
             ...old,
-            data: old.data.map((deal: any) => 
+            data: old.data.map((deal: any) =>
               deal.id === id ? { ...deal, stage } : deal
             )
           };
@@ -1064,13 +1078,13 @@ export function useDeletePurchaseOrder() {
 }
 
 // Users hooks
-export function useUsers(params?: { 
-  search?: string; 
-  role?: string; 
-  status?: string; 
-  department?: string; 
-  includeSelf?: boolean | string; 
-  includeSuperAdmin?: boolean | string 
+export function useUsers(params?: {
+  search?: string;
+  role?: string;
+  status?: string;
+  department?: string;
+  includeSelf?: boolean | string;
+  includeSuperAdmin?: boolean | string
 }) {
   return useQuery({
     queryKey: ['users', params],

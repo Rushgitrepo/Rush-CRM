@@ -113,6 +113,8 @@ const createLeadSchema = Joi.object({
   campaignName: Joi.string().optional().allow(null, ''),
   createdAt: Joi.alternatives().try(Joi.date(), Joi.string().isoDate()).optional().allow(null, ''),
   customFields: Joi.object().optional().allow(null),
+  contactPerson: Joi.string().optional().allow(null, ''),
+  industry: Joi.string().optional().allow(null, ''),
 });
 
 const normalizeLeadInput = (body = {}) => {
@@ -196,6 +198,8 @@ const normalizeLeadInput = (body = {}) => {
     campaignName: getVal('campaignName', 'campaign_name'),
     createdAt: getDate('createdAt', 'created_at'),
     customFields: getVal('customFields', 'custom_fields'),
+    contactPerson: getVal('contactPerson', 'contact_person'),
+    industry: getVal('industry', 'industry'),
   };
 };
 
@@ -244,6 +248,9 @@ const updateLeadSchema = Joi.object({
   campaignName: Joi.string().optional().allow(null, ''),
   createdAt: Joi.alternatives().try(Joi.date(), Joi.string().isoDate()).optional().allow(null, ''),
   customFields: Joi.object().optional().allow(null),
+  contactPerson: Joi.string().optional().allow(null, ''),
+  contact_person: Joi.string().optional().allow(null, ''),
+  industry: Joi.string().optional().allow(null, ''),
 }).min(1);
 
 const getAll = async (req, res, next) => {
@@ -781,7 +788,10 @@ const update = async (req, res, next) => {
       campaignId: 'campaign_id',
       campaignName: 'campaign_name',
       createdAt: 'created_at',
-      customFields: 'custom_fields'
+      customFields: 'custom_fields',
+      contactPerson: 'contact_person',
+      contact_person: 'contact_person',
+      industry: 'industry',
     };
 
     const hasStage = value.stage !== undefined;
@@ -1530,6 +1540,51 @@ const importLeads = async (req, res) => {
   }
 };
 
+/**
+ * POST /leads/bulk-assign
+ * Assign multiple leads to a single user
+ */
+const bulkAssign = async (req, res, next) => {
+  try {
+    const { ids, assigned_to } = req.body;
+    const orgId = req.user.orgId;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'No lead IDs provided' });
+    }
+    if (!assigned_to) {
+      return res.status(400).json({ error: 'assigned_to user ID is required' });
+    }
+
+    const cleanIds = [...new Set(ids.filter((id) => id && typeof id === 'string'))];
+
+    // Verify the target user belongs to the org
+    const userCheck = await db.query(
+      'SELECT id, full_name FROM public.users WHERE id = $1 AND org_id = $2',
+      [assigned_to, orgId]
+    );
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Assigned user not found in your organization' });
+    }
+
+    const result = await db.query(
+      `UPDATE public.leads
+       SET assigned_to = $1, updated_at = NOW()
+       WHERE id = ANY($2) AND org_id = $3
+       RETURNING id`,
+      [assigned_to, cleanIds, orgId]
+    );
+
+    res.json({
+      message: `${result.rows.length} leads assigned to ${userCheck.rows[0].full_name}`,
+      updatedCount: result.rows.length,
+      assignedTo: userCheck.rows[0],
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getAll,
   getById,
@@ -1538,6 +1593,7 @@ module.exports = {
   updateStage,
   remove,
   bulkRemove,
+  bulkAssign,
   getStats,
   getStages,
   createStage,

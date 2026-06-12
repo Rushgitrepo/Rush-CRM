@@ -31,6 +31,7 @@ import { CustomFieldsSection, DraggableFieldItem } from "@/components/crm/Custom
 import { CustomFieldInput } from "@/components/crm/CustomFieldInput";
 import { FieldDragWrapper, DroppableField } from "@/components/crm/FieldDragWrapper";
 import { DroppableSection } from "@/components/crm/DroppableSection";
+import { MemberSearchSelect } from "@/components/tasks/MemberSearchSelect";
 
 const leadSchema = z.object({
   title: z.string().min(2, "Lead name is required"),
@@ -593,27 +594,12 @@ export default function CreateLeadPage() {
                             </span>
                           )}
                         </Label>
-                        <Select value={watch("assignedTo") || "unassigned"} onValueChange={v => setValue("assignedTo", v === "unassigned" ? null : v)}>
-                          <SelectTrigger className={cn("h-10", errors.assignedTo && "border-destructive")}>
-                            <SelectValue placeholder="Select owner..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="unassigned">Unassigned</SelectItem>
-                            {members.map((m) => (
-                              <SelectItem key={m.id} value={m.id}>
-                                <div className="flex items-center gap-2">
-                                  <Avatar className="h-5 w-5">
-                                    <AvatarImage src={m.avatar_url || undefined} alt={m.full_name} />
-                                    <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
-                                      {m.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  {m.full_name}
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <MemberSearchSelect
+                          members={members}
+                          value={watch("assignedTo") || ""}
+                          onChange={(v) => setValue("assignedTo", v || null)}
+                          placeholder="Select owner..."
+                        />
                         {errors.assignedTo && <p className="text-xs text-destructive">{errors.assignedTo.message}</p>}
                       </div>
                     </DroppableField>
@@ -974,6 +960,14 @@ export default function CreateLeadPage() {
                       </div>
                     </DroppableField>
                     {renderDroppedFields("source-section", false, "fixed-source-section-tags")}
+
+                    <DroppableField id="fixed-source-section-campaignName" editing={true}>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-foreground">Campaign Name</Label>
+                        <Input placeholder="e.g. Summer Promo 2026" {...register("campaignName")} className="h-10" />
+                      </div>
+                    </DroppableField>
+                    {renderDroppedFields("source-section", false, "fixed-source-section-campaignName")}
 
                     <div className="md:col-span-2 space-y-2">
                       <DroppableField id="fixed-source-section-notes" editing={true}>

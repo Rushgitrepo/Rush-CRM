@@ -6,7 +6,7 @@ import {
   MapPin, Building2, User, Calendar, DollarSign, Tag, FileText,
   Activity, MessageSquare, Clock, Star, MoreHorizontal, Copy,
   CheckCircle, XCircle, AlertCircle, Zap, ChevronRight,
-  TrendingUp, Users, Target, Award, Check, Briefcase, Calendar as CalendarIcon, Edit3, Send, PhoneCall, Eye, EyeOff, Filter, Search, Settings, Share2, Printer, Download, Plus
+  TrendingUp, Users, Target, Award, Check, Briefcase, Calendar as CalendarIcon, Edit3, Send, PhoneCall, Eye, EyeOff, Filter, Search, Settings, Share2, Printer, Download, Plus, Sparkles
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +33,7 @@ import { sanitizePayload } from "@/utils/crm/sanitize";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
 import { WorkspaceShareModal } from "@/components/crm/leads/WorkspaceShareModal";
+import { MemberSearchSelect } from "@/components/tasks/MemberSearchSelect";
 import { DeleteConfirmationDialog } from "@/components/crm/DeleteConfirmationDialog";
 import { useInteractionHistory, useCreateActivity } from "@/hooks/useCrmInteractions";
 import { useOrganizationProfiles } from "@/hooks/useTenantQuery";
@@ -414,12 +415,13 @@ export default function LeadDetailPage() {
     if (lead && !editing && !updateLeadStage.isPending && !updateLead.isPending) {
       setForm({
         title: lead.title,
+        name: lead.name,
         stage: lead.stage,
         status: lead.status,
         assigned_to: lead.assigned_to,
         company_name: lead.company_name,
-        designation: lead.designation,
-        phone: lead.phone,
+        contact_person: (lead as any).contact_person || "",
+        designation: lead.designation, phone: lead.phone,
         email: lead.email,
         website: lead.website,
         address: lead.address,
@@ -432,8 +434,11 @@ export default function LeadDetailPage() {
         source: lead.source,
         source_info: lead.source_info,
         agent_name: lead.agent_name,
+        campaign_id: lead.campaign_id || "",
+        campaign_name: lead.campaign_name || "",
         customer_type: lead.customer_type,
         company_size: lead.company_size,
+        industry: (lead as any).industry || "",
         decision_maker: lead.decision_maker,
         // Additional imported fields
         notes: lead.notes,
@@ -442,7 +447,7 @@ export default function LeadDetailPage() {
         tags: lead.tags,
         expected_close_date: lead.expected_close_date && isValid(new Date(lead.expected_close_date)) ? format(new Date(lead.expected_close_date), "yyyy-MM-dd") : "",
         last_contacted_date: lead.last_contacted_date && isValid(new Date(lead.last_contacted_date)) ? format(new Date(lead.last_contacted_date), "yyyy-MM-dd") : "",
-        next_follow_up_date: lead.next_follow_up_date && isValid(new Date(lead.next_follow_up_date)) ? format(new Date(lead.next_follow_up_date), "yyyy-MM-dd") : "",
+        next_follow_up_date: lead.next_follow_up_date && isValid(new Date(lead.next_follow_up_date)) ? format(new Date(lead.next_follow_up_date), "yyyy-MM-dd'T'HH:mm") : "",
         first_message: lead.first_message,
         last_touch: lead.last_touch,
         phone_type: lead.phone_type,
@@ -472,8 +477,28 @@ export default function LeadDetailPage() {
 
   const handleSave = () => {
     const changes: Record<string, unknown> = {};
+
+    // Date fields stored in different formats — normalize for comparison
+    const dateFields = ['last_contacted_date', 'next_follow_up_date', 'expected_close_date', 'createdAt'];
+
     Object.entries(form).forEach(([key, val]) => {
-      if (val !== (lead as Record<string, unknown>)[key]) changes[key] = val;
+      const leadVal = (lead as Record<string, unknown>)[key];
+      if (dateFields.includes(key)) {
+        // Both are empty/null → no change
+        const formEmpty = !val;
+        const leadEmpty = !leadVal;
+        if (formEmpty && leadEmpty) return;
+        // Compare by normalizing to ISO string
+        try {
+          const formDate = val ? new Date(val as string).toISOString() : null;
+          const leadDate = leadVal ? new Date(leadVal as string).toISOString() : null;
+          if (formDate !== leadDate) changes[key] = val;
+        } catch {
+          if (val !== leadVal) changes[key] = val;
+        }
+      } else {
+        if (val !== leadVal) changes[key] = val;
+      }
     });
 
     const customFieldsObj = customFields.reduce((acc, field) => {
@@ -1191,30 +1216,12 @@ export default function LeadDetailPage() {
                               )}
                             </label>
                             {editing ? (
-                              <Select
-                                value={(form.assigned_to as string) || "unassigned"}
-                                onValueChange={(v) => set("assigned_to", v === "unassigned" ? null : v)}
-                              >
-                                <SelectTrigger className="bg-background border-border">
-                                  <SelectValue placeholder="Select owner..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="unassigned">Unassigned</SelectItem>
-                                  {members.map((m) => (
-                                    <SelectItem key={m.id} value={m.id}>
-                                      <div className="flex items-center gap-2">
-                                        <Avatar className="h-5 w-5">
-                                          <AvatarImage src={(m as any).avatar_url || undefined} alt={m.full_name} />
-                                          <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
-                                            {m.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                                          </AvatarFallback>
-                                        </Avatar>
-                                        {m.full_name}
-                                      </div>
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <MemberSearchSelect
+                                members={members}
+                                value={(form.assigned_to as string) || ""}
+                                onChange={(v) => set("assigned_to", v || null)}
+                                placeholder="Select owner..."
+                              />
                             ) : (
                               <div className="h-10 px-3 py-2 border rounded-lg bg-muted/40 flex items-center gap-2">
                                 {form.assigned_to ? (
@@ -1534,11 +1541,11 @@ export default function LeadDetailPage() {
 
                         <DroppableField id="fixed-activity-tracking-next_follow_up_date" editing={editing}>
                           <Field
-                            label="Next Follow-up Date"
+                            label="Next Follow-up Date & Time"
                             value={form.next_follow_up_date as string}
                             onChange={(v) => set("next_follow_up_date", v)}
                             editing={editing}
-                            type="date"
+                            type="datetime-local"
                             icon={<CalendarIcon className="h-4 w-4" />}
                             entityId={id}
                           />
@@ -1745,6 +1752,15 @@ export default function LeadDetailPage() {
                           editing={editing}
                           icon={<Target className="h-4 w-4" />}
                           placeholder="e.g. CRM-123"
+                          entityId={id}
+                        />
+                        <Field
+                          label="Campaign Name"
+                          value={form.campaign_name as string}
+                          onChange={(v) => set("campaign_name", v)}
+                          editing={editing}
+                          icon={<Sparkles className="h-4 w-4" />}
+                          placeholder="e.g. Summer Promo 2026"
                           entityId={id}
                         />
                         {renderDroppedFields("source-section")}

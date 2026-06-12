@@ -12,6 +12,7 @@
 
 const db = require('../config/database');
 const { fireWorkflows } = require('./advancedWorkflowEngine');
+const notificationService = require('./notificationService');
 
 /**
  * Scheduled Workflows - Cron-based automation
@@ -40,8 +41,16 @@ class ScheduledWorkflowService {
       );
     }, 60 * 1000); // Every 1 minute
 
-    // Initial check
+    // Check every minute for lead follow-up notifications
+    this.followUpInterval = setInterval(() => {
+      this.checkFollowUpNotifications().catch(err =>
+        console.error('Follow-up notification check error:', err)
+      );
+    }, 60 * 1000); // Every 1 minute
+
+    // Initial checks
     this.checkScheduledWorkflows();
+    this.checkFollowUpNotifications();
   }
 
   /**
@@ -52,8 +61,71 @@ class ScheduledWorkflowService {
       clearInterval(this.mainInterval);
       this.mainInterval = null;
     }
+    if (this.followUpInterval) {
+      clearInterval(this.followUpInterval);
+      this.followUpInterval = null;
+    }
     this.isRunning = false;
     console.log('🛑 Stopped Scheduled Workflow Service');
+  }
+
+  /**
+   * Check leads whose next_follow_up_date is within the current minute
+   * and send notifications to relevant users
+   */
+  async checkFollowUpNotifications() {
+    try {
+      const now = new Date();
+      // Match leads whose follow-up time falls within the current minute window
+      const windowStart = new Date(now);
+      windowStart.setSeconds(0, 0);
+      const windowEnd = new Date(windowStart.getTime() + 60 * 1000);
+
+      const { rows: leads } = await db.query(`
+        SELECT 
+          l.id, l.title, l.name, l.org_id,
+          l.assigned_to, l.created_by, l.user_id,
+          l.next_follow_up_date
+        FROM public.leads l
+        WHERE l.next_follow_up_date >= $1
+          AND l.next_follow_up_date < $2
+          AND l.next_follow_up_date IS NOT NULL
+      `, [windowStart.toISOString(), windowEnd.toISOString()]);
+
+      for (const lead of leads) {
+        const leadTitle = lead.title || lead.name || 'Lead';
+        const actionUrl = `/crm/leads/${lead.id}`;
+        const followUpTime = new Date(lead.next_follow_up_date).toLocaleString('en-US', {
+          month: 'short', day: 'numeric', year: 'numeric',
+          hour: 'numeric', minute: '2-digit', hour12: true
+        });
+
+        // Collect unique recipients: assigned_to, created_by, user_id (lead owner)
+        const recipientSet = new Set();
+        if (lead.assigned_to) recipientSet.add(lead.assigned_to);
+        if (lead.created_by) recipientSet.add(lead.created_by);
+        if (lead.user_id) recipientSet.add(lead.user_id);
+
+        for (const userId of recipientSet) {
+          notificationService.notify(
+            lead.org_id,
+            userId,
+            'general',
+            '🔔 Follow-up Reminder',
+            `Follow-up due for lead "${leadTitle}" at ${followUpTime}`,
+            actionUrl,
+            null, // no actor — system notification
+            { leadId: lead.id, leadTitle, followUpDate: lead.next_follow_up_date }
+          );
+        }
+
+        if (leads.length > 0) {
+          console.log(`[FollowUp] Sent notifications for ${leads.length} lead(s)`);
+        }
+      }
+    } catch (err) {
+      console.error('checkFollowUpNotifications error:', err);
+    }
   }
 
   /**
