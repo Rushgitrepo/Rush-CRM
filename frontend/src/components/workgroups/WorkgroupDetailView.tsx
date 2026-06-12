@@ -826,7 +826,24 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
     if ((!newPost.trim() && pendingFiles.length === 0) || !canStartConversation)
       return;
 
-    setIsSendingFile(true);
+    // Only show loading indicator for file uploads — text sends use optimistic updates
+    const hasFiles = pendingFiles.length > 0;
+    if (hasFiles) setIsSendingFile(true);
+
+    // For text-only: clear input immediately for instant feel
+    const postContent = newPost;
+    const postReplyTo = replyTo;
+    const postMentions = selectedMentions;
+    if (!hasFiles) {
+      setNewPost("");
+      setReplyTo(null);
+      setSelectedMentions([]);
+      setShowMentionSuggestions(false);
+      if (messageInputRef.current) {
+        messageInputRef.current.style.height = "auto";
+      }
+    }
+
     try {
       const isAllImages =
         pendingFiles.length > 1 &&
@@ -865,8 +882,8 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
           });
         }
 
-        let mentionsToSend = selectedMentions
-          .filter((m) => newPost.includes(`@${m.label}`))
+        let mentionsToSend = postMentions
+          .filter((m) => postContent.includes(`@${m.label}`))
           .map((m) => m.id);
 
         if (mentionsToSend.includes("all")) {
@@ -880,16 +897,16 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
 
         await createPost.mutateAsync({
           workgroupId,
-          content: isAllImages ? "" : newPost, // No caption allowed for multi-images as per user
-          parentId: replyTo || undefined,
+          content: isAllImages ? "" : postContent,
+          parentId: postReplyTo || undefined,
           mentions: mentionsToSend,
           files: uploadedFiles,
         });
       }
-      // Case 3: Text only
+      // Case 3: Text only — fire-and-forget, input already cleared above
       else {
-        let mentionsToSend = selectedMentions
-          .filter((m) => newPost.includes(`@${m.label}`))
+        let mentionsToSend = postMentions
+          .filter((m) => postContent.includes(`@${m.label}`))
           .map((m) => m.id);
 
         if (mentionsToSend.includes("all")) {
@@ -901,15 +918,16 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
           ).filter((id) => id !== "all");
         }
 
-        await createPost.mutateAsync({
+        createPost.mutate({
           workgroupId,
-          content: newPost,
-          parentId: replyTo || undefined,
+          content: postContent,
+          parentId: postReplyTo || undefined,
           mentions: mentionsToSend,
         });
+        return; // don't wait — optimistic update handles the UI
       }
 
-      // Reset states
+      // Reset states for file sends
       setNewPost("");
       setPendingFiles([]);
       setReplyTo(null);
@@ -923,8 +941,14 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
       }
     } catch (error: any) {
       toast.error(error?.message || "Failed to send message");
+      // Restore input on failure for file sends
+      if (hasFiles) {
+        // files already failed, just clear pending
+        setPendingFiles([]);
+        if (attachmentInputRef.current) attachmentInputRef.current.value = "";
+      }
     } finally {
-      setIsSendingFile(false);
+      if (hasFiles) setIsSendingFile(false);
     }
   };
 
