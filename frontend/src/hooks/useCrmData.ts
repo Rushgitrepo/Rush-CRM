@@ -91,7 +91,6 @@ export function useUpdateLead() {
         if (!old) return updatedLead;
         return { ...old, ...updatedLead };
       });
-
       toast.success('Lead updated successfully');
     },
     onError: (error: Error) => toast.error(error.message),
