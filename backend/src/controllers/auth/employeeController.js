@@ -41,6 +41,7 @@ const getAll = async (req, res, next) => {
       params.push(role);
     }
 
+    
     // Department filter (case-insensitive, supports comma-separated list)
     if (department && department !== 'all') {
       const deptList = department.split(',').map(d => d.trim().toLowerCase());
