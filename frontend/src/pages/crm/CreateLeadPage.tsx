@@ -449,7 +449,7 @@ export default function CreateLeadPage() {
       decisionMaker: data.decisionMaker || null,
       interactionNotes: data.interactionNotes || null,
       lastContactedDate: data.lastContactedDate && isValid(new Date(data.lastContactedDate)) ? new Date(data.lastContactedDate).toISOString() : null,
-      nextFollowUpDate: data.nextFollowUpDate && isValid(new Date(data.nextFollowUpDate)) ? new Date(data.nextFollowUpDate).toISOString() : null,
+      nextFollowUpDate: data.nextFollowUpDate && isValid(new Date(data.nextFollowUpDate)) ? (() => { const d = new Date(data.nextFollowUpDate!); const off = -d.getTimezoneOffset(); const sign = off >= 0 ? '+' : '-'; const pad = (n: number) => String(Math.floor(Math.abs(n))).padStart(2, '0'); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':00' + sign + pad(off / 60) + ':' + pad(off % 60); })() : null,
       expectedCloseDate: data.expectedCloseDate && isValid(new Date(data.expectedCloseDate)) ? new Date(data.expectedCloseDate).toISOString() : null,
       createdAt: data.createdAt && isValid(new Date(data.createdAt)) ? new Date(data.createdAt).toISOString() : new Date().toISOString(),
       lastTouch: new Date().toISOString(),
@@ -800,8 +800,13 @@ export default function CreateLeadPage() {
                       <Input type="date" {...register("lastContactedDate")} className={cn("h-10", errors.lastContactedDate && "border-destructive")} />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-sm font-medium text-foreground">Next Follow-up Date</Label>
-                      <Input type="date" {...register("nextFollowUpDate")} className={cn("h-10", errors.nextFollowUpDate && "border-destructive")} />
+                      <Label className="text-sm font-medium text-foreground">Next Follow-up Date &amp; Time</Label>
+                      <Input type="datetime-local" {...register("nextFollowUpDate")} className={cn("h-10", errors.nextFollowUpDate && "border-destructive")} />
+                      {watch("nextFollowUpDate") && isValid(new Date(watch("nextFollowUpDate")!)) && (
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(watch("nextFollowUpDate")!).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                        </p>
+                      )}
                     </div>
                   </div>
 

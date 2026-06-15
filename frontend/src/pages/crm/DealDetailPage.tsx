@@ -59,6 +59,7 @@ import { sanitizePayload } from "@/utils/crm/sanitize";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { format, isValid } from "date-fns";
 import { toast } from "sonner";
+import { MemberSearchSelect } from "@/components/tasks/MemberSearchSelect";
 
 const fallbackStages = [
   {
@@ -274,7 +275,7 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
             </span>
           ) : type === "datetime-local" && value && isValid(new Date(value)) ? (
             <span className="text-foreground font-medium break-words w-full">
-              {format(new Date(value), "MMM d, yyyy HH:mm")}
+              {new Date(value).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
             </span>
           ) : (
             <span className="text-foreground font-medium break-words w-full">{value}</span>
@@ -510,7 +511,7 @@ export default function DealDetailPage() {
       setForm({
         ...deal,
         expected_close_date: deal.expected_close_date && isValid(new Date(deal.expected_close_date)) ? format(new Date(deal.expected_close_date), "yyyy-MM-dd") : "",
-        next_follow_up_date: deal.next_follow_up_date && isValid(new Date(deal.next_follow_up_date)) ? format(new Date(deal.next_follow_up_date), "yyyy-MM-dd") : "",
+        next_follow_up_date: deal.next_follow_up_date && isValid(new Date(deal.next_follow_up_date)) ? format(new Date(deal.next_follow_up_date), "yyyy-MM-dd'T'HH:mm") : "",
         createdAt: deal.created_at && isValid(new Date(deal.created_at)) ? format(new Date(deal.created_at), "yyyy-MM-dd'T'HH:mm") : "",
       });
     }
@@ -551,6 +552,11 @@ export default function DealDetailPage() {
       if (val !== (deal as Record<string, unknown>)[key]) changes[key] = val;
     });
 
+    // Explicitly check assigned_to since it might be stored differently
+    if ((form.assigned_to || null) !== (deal.assigned_to || null)) {
+      changes.assigned_to = form.assigned_to || null;
+    }
+
     const customFieldsObj = customFields.reduce((acc, field) => {
       if (field.key.trim()) acc[field.key.trim()] = {
         value: field.value,
@@ -573,11 +579,18 @@ export default function DealDetailPage() {
 
     const formattedChanges: Record<string, unknown> = { ...changes };
     if (formattedChanges.expected_close_date) formattedChanges.expected_close_date = new Date(formattedChanges.expected_close_date as string).toISOString();
-    if (formattedChanges.next_follow_up_date) formattedChanges.next_follow_up_date = new Date(formattedChanges.next_follow_up_date as string).toISOString();
+    if (formattedChanges.next_follow_up_date) {
+      const d = new Date(formattedChanges.next_follow_up_date as string);
+      const off = -d.getTimezoneOffset();
+      const sign = off >= 0 ? '+' : '-';
+      const pad = (n: number) => String(Math.floor(Math.abs(n))).padStart(2, '0');
+      formattedChanges.next_follow_up_date = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':00' + sign + pad(off / 60) + ':' + pad(off % 60);
+    }
 
     updateDeal.mutate(sanitizePayload({
       id: deal.id,
       ...formattedChanges,
+      responsible_person: formattedChanges.assigned_to || undefined,
       customFields: customFieldsObj
     }), {
       onSuccess: () => {
@@ -1272,51 +1285,35 @@ export default function DealDetailPage() {
                         type="date"
                       />
                       <Field
-                        label="Next Follow-up Date"
-                        value={form.next_follow_up_date ? (editing ? form.next_follow_up_date as string : format(new Date(form.next_follow_up_date as string), 'MMM d, yyyy')) : ""}
+                        label="Next Follow-up Date & Time"
+                        value={form.next_follow_up_date ? (editing ? form.next_follow_up_date as string : new Date(form.next_follow_up_date as string).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })) : ""}
                         onChange={(val) => set("next_follow_up_date", val)}
                         editing={editing}
                         icon={<Clock className="h-4 w-4" />}
-                        type="date"
+                        type="datetime-local"
                       />
                       <div className="space-y-2">
                         <Label className="text-sm font-medium text-foreground flex items-center gap-2">
                           <Users className="h-4 w-4" />
-                          Responsible Person
+                          Assigned To
                         </Label>
                         {editing ? (
-                          <Select
-                            value={form.assigned_to as string || "unassigned"}
-                            onValueChange={(v) => set("assigned_to", v === "unassigned" ? null : v)}
-                          >
-                            <SelectTrigger className="h-10 border-border">
-                              <SelectValue placeholder="Select owner..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="unassigned">Unassigned</SelectItem>
-                              {members.map((m: any) => (
-                                <SelectItem key={m.id} value={m.id}>
-                                  <div className="flex items-center gap-2">
-                                    <Avatar className="h-5 w-5">
-                                      <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
-                                        {m.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
-                                      </AvatarFallback>
-                                    </Avatar>
-                                    {m.full_name}
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <MemberSearchSelect
+                            members={members}
+                            value={form.assigned_to as string || ""}
+                            onChange={(v) => set("assigned_to", v || undefined)}
+                            placeholder="Select owner..."
+                          />
                         ) : (
                           <div className="h-10 px-3 py-2 border rounded-lg bg-muted/40 flex items-center gap-2">
                             {form.assigned_to ? (
                               <>
                                 <Avatar className="h-6 w-6">
-                                  <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
-                                    {members.find((m: any) => m.id === form.assigned_to)?.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
-                                  </AvatarFallback>
-                                </Avatar>
+                                      <AvatarImage src={(members.find(m => m.id === form.assigned_to) as any)?.avatar_url || undefined} />
+                                      <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+                                        {members.find(m => m.id === form.assigned_to)?.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                                      </AvatarFallback>
+                                    </Avatar>
                                 <span className="text-foreground font-medium">
                                   {members.find((m: any) => m.id === form.assigned_to)?.full_name || 'Assigned User'}
                                 </span>
@@ -2087,7 +2084,7 @@ export default function DealDetailPage() {
                   </div>
                   <div className="space-y-1">
                     <p className="text-[10px] uppercase text-muted-foreground font-bold">Follow Up</p>
-                    <p className="text-xs font-medium text-primary">{form.next_follow_up_date ? format(new Date(form.next_follow_up_date as string), 'MMM d, yyyy') : '—'}</p>
+                    <p className="text-xs font-medium text-primary">{form.next_follow_up_date ? new Date(form.next_follow_up_date as string).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : '—'}</p>
                   </div>
                 </div>
                 {form.interaction_notes && (

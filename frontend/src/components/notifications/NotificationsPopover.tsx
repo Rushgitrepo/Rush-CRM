@@ -337,15 +337,6 @@ function NotificationItem({
         </p>
       </div>
 
-      {/* Delete button (hover) */}
-      <button
-        className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/10 hover:text-destructive text-muted-foreground"
-        onClick={onDelete}
-        aria-label="Delete notification"
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-      </button>
-
       {!n.is_read && (
         <div className="absolute right-3 bottom-3 h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
       )}

@@ -123,6 +123,49 @@ class ScheduledWorkflowService {
           console.log(`[FollowUp] Sent notifications for ${leads.length} lead(s)`);
         }
       }
+
+      // === DEALS follow-up notifications ===
+      const { rows: deals } = await db.query(`
+        SELECT 
+          d.id, d.title, d.org_id,
+          d.assigned_to, d.created_by, d.user_id,
+          d.next_follow_up_date
+        FROM public.deals d
+        WHERE d.next_follow_up_date >= $1
+          AND d.next_follow_up_date < $2
+          AND d.next_follow_up_date IS NOT NULL
+      `, [windowStart.toISOString(), windowEnd.toISOString()]);
+
+      for (const deal of deals) {
+        const dealTitle = deal.title || 'Deal';
+        const actionUrl = `/crm/deals/${deal.id}`;
+        const followUpTime = new Date(deal.next_follow_up_date).toLocaleString('en-US', {
+          month: 'short', day: 'numeric', year: 'numeric',
+          hour: 'numeric', minute: '2-digit', hour12: true
+        });
+
+        const recipientSet = new Set();
+        if (deal.assigned_to) recipientSet.add(deal.assigned_to);
+        if (deal.created_by) recipientSet.add(deal.created_by);
+        if (deal.user_id) recipientSet.add(deal.user_id);
+
+        for (const userId of recipientSet) {
+          notificationService.notify(
+            deal.org_id,
+            userId,
+            'general',
+            '🔔 Deal Follow-up Reminder',
+            `Follow-up due for deal "${dealTitle}" at ${followUpTime}`,
+            actionUrl,
+            null,
+            { dealId: deal.id, dealTitle, followUpDate: deal.next_follow_up_date }
+          );
+        }
+
+        if (deals.length > 0) {
+          console.log(`[FollowUp] Sent notifications for ${deals.length} deal(s)`);
+        }
+      }
     } catch (err) {
       console.error('checkFollowUpNotifications error:', err);
     }
