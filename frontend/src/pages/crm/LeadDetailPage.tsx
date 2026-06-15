@@ -1393,7 +1393,7 @@ export default function LeadDetailPage() {
                                 </div>
                               )}
                               <Select value={(form.phone_type as string) || ""} onValueChange={(v) => set("phone_type", v)} disabled={!editing}>
-                                <SelectTrigger className="h-10 w-[150px] shrink-0 border-border">
+                                <SelectTrigger className="h-10 w-[120px] shrink-0 border-border">
                                   <SelectValue placeholder="Work Phone" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1434,7 +1434,7 @@ export default function LeadDetailPage() {
                                 </div>
                               )}
                               <Select value={(form.email_type as string) || ""} onValueChange={(v) => set("email_type", v)} disabled={!editing}>
-                                <SelectTrigger className="h-10 w-[130px] shrink-0 border-border">
+                                <SelectTrigger className="h-10 w-[100px] shrink-0 border-border">
                                   <SelectValue placeholder="Work" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1469,7 +1469,7 @@ export default function LeadDetailPage() {
                                 </div>
                               )}
                               <Select value={(form.website_type as string) || ""} onValueChange={(v) => set("website_type", v)} disabled={!editing}>
-                                <SelectTrigger className="h-10 w-[150px] shrink-0 border-border">
+                                <SelectTrigger className="h-10 w-[110px] shrink-0 border-border">
                                   <SelectValue placeholder="Corporate" />
                                 </SelectTrigger>
                                 <SelectContent>

@@ -4148,6 +4148,7 @@ function PostCard({
   onImageClick,
 }: PostCardProps) {
   const navigate = useNavigate();
+  const [downloadProgress, setDownloadProgress] = useState<Record<string, number>>({});
   if ((post.content || "").startsWith("[SYSTEM] ")) {
     return (
       <div className="flex justify-center my-3">
@@ -4479,9 +4480,35 @@ function PostCard({
 
   const handleDownload = async (url: string, fileName: string) => {
     try {
-      // If showSaveFilePicker is available (Chrome/Edge/etc), use it to let user pick location.
-      // IMPORTANT: showSaveFilePicker must be called synchronously inside the user gesture handler.
-      // We open the picker first (still in the click event), then fetch the blob afterwards.
+      // Use fetch to track progress
+      setDownloadProgress(prev => ({ ...prev, [url]: 0 }));
+      const response = await fetch(url);
+      
+      if (!response.ok) throw new Error('Network response was not ok');
+      
+      const contentLength = response.headers.get('Content-Length');
+      const total = contentLength ? parseInt(contentLength, 10) : 0;
+      
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('ReadableStream not supported');
+
+      let loaded = 0;
+      const chunks = [];
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        loaded += value.length;
+        if (total > 0) {
+          const progress = Math.round((loaded / total) * 100);
+          setDownloadProgress(prev => ({ ...prev, [url]: progress }));
+        }
+      }
+
+      const blob = new Blob(chunks);
+      const blobUrl = window.URL.createObjectURL(blob);
+
       if ("showSaveFilePicker" in window) {
         let handle: any;
         try {
@@ -4489,39 +4516,40 @@ function PostCard({
             suggestedName: fileName,
           });
         } catch (pickerErr: any) {
-          // User cancelled the picker — not an error
-          if (pickerErr.name === "AbortError") return;
+          if (pickerErr.name === "AbortError") {
+             setDownloadProgress(prev => { const next = { ...prev }; delete next[url]; return next; });
+             return;
+          }
           throw pickerErr;
         }
-        toast.info("Downloading...");
-        const response = await fetch(url);
-        const blob = await response.blob();
+
         const writable = await handle.createWritable();
         await writable.write(blob);
         await writable.close();
         toast.success("File saved successfully");
       } else {
-        // Fallback for browsers without File System Access API
         const link = document.createElement("a");
-        link.href = url;
+        link.href = blobUrl;
         link.download = fileName;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
       }
+      
+      window.URL.revokeObjectURL(blobUrl);
+      setDownloadProgress(prev => {
+        const next = { ...prev };
+        delete next[url];
+        return next;
+      });
     } catch (err: any) {
+      setDownloadProgress(prev => {
+        const next = { ...prev };
+        delete next[url];
+        return next;
+      });
       if (err.name !== "AbortError") {
-        // If File System API fails for any reason, fall back to anchor download
-        try {
-          const link = document.createElement("a");
-          link.href = url;
-          link.download = fileName;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-        } catch {
-          toast.error("Failed to save file");
-        }
+        toast.error("Failed to save file");
         console.error("Download error:", err);
       }
     }
@@ -4967,8 +4995,20 @@ function PostCard({
                     const downloadUrl = a.id
                       ? getAuthedFileUrlForPost(a.id, "download", a.workgroup_id)
                       : a.download_url;
+                    const progress = downloadProgress[downloadUrl];
+                    const isDownloading = progress !== undefined;
+
                     return (
                       <div className="rounded-xl overflow-hidden border border-black/10 dark:border-white/10 max-w-[280px] cursor-pointer group relative">
+                        {isDownloading && (
+                          <div className="absolute inset-0 z-20 bg-black/40 flex items-center justify-center backdrop-blur-[2px]">
+                            <div className="flex flex-col items-center gap-2">
+                              <span className="text-white text-xs font-bold animate-pulse">Downloading</span>
+                              <span className="bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg">{progress}%</span>
+                            </div>
+                            <div className="absolute bottom-0 left-0 h-1 bg-emerald-500 transition-all duration-300" style={{ width: `${progress}%` }} />
+                          </div>
+                        )}
                         <img
                           src={previewUrl}
                           className="w-full max-h-[200px] object-cover"
@@ -4993,8 +5033,15 @@ function PostCard({
                         <div className="grid grid-cols-2 gap-0.5 rounded-xl overflow-hidden border border-black/10 dark:border-white/10">
                           {imageFiles.map((img, i) => {
                             const url = img.id ? getAuthedFileUrlForPost(img.id, "view", img.workgroup_id) : img.download_url;
+                            const dUrl = img.id ? getAuthedFileUrlForPost(img.id, "download", img.workgroup_id) : img.download_url;
+                            const progress = downloadProgress[dUrl];
                             return (
                               <div key={i} className="relative h-[140px] cursor-pointer group overflow-hidden" onClick={() => handleImageClick(i)}>
+                                {progress !== undefined && (
+                                  <div className="absolute inset-0 z-20 bg-black/40 flex items-center justify-center">
+                                    <span className="bg-emerald-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">{progress}%</span>
+                                  </div>
+                                )}
                                 <img src={url} className="w-full h-full object-cover hover:scale-105 transition-transform duration-300" />
                               </div>
                             );
@@ -5026,6 +5073,15 @@ function PostCard({
                           className="relative row-span-2 h-[200px] cursor-pointer group overflow-hidden"
                           onClick={() => handleImageClick(0)}
                         >
+                          {(() => {
+                            const dUrl = imageFiles[0].id ? getAuthedFileUrlForPost(imageFiles[0].id, "download", imageFiles[0].workgroup_id) : imageFiles[0].download_url;
+                            const progress = downloadProgress[dUrl];
+                            return progress !== undefined && (
+                              <div className="absolute inset-0 z-20 bg-black/40 flex items-center justify-center">
+                                <span className="bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{progress}%</span>
+                              </div>
+                            );
+                          })()}
                           <img
                             src={imageFiles[0].id ? getAuthedFileUrlForPost(imageFiles[0].id, "view", imageFiles[0].workgroup_id) : imageFiles[0].download_url}
                             className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
@@ -5036,6 +5092,15 @@ function PostCard({
                           className="relative h-[99px] cursor-pointer group overflow-hidden"
                           onClick={() => handleImageClick(1)}
                         >
+                          {(() => {
+                            const dUrl = imageFiles[1].id ? getAuthedFileUrlForPost(imageFiles[1].id, "download", imageFiles[1].workgroup_id) : imageFiles[1].download_url;
+                            const progress = downloadProgress[dUrl];
+                            return progress !== undefined && (
+                              <div className="absolute inset-0 z-20 bg-black/40 flex items-center justify-center">
+                                <span className="bg-emerald-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">{progress}%</span>
+                              </div>
+                            );
+                          })()}
                           <img
                             src={imageFiles[1].id ? getAuthedFileUrlForPost(imageFiles[1].id, "view", imageFiles[1].workgroup_id) : imageFiles[1].download_url}
                             className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
@@ -5046,6 +5111,15 @@ function PostCard({
                           className="relative h-[99px] cursor-pointer group overflow-hidden"
                           onClick={() => handleImageClick(2)}
                         >
+                          {(() => {
+                            const dUrl = imageFiles[2].id ? getAuthedFileUrlForPost(imageFiles[2].id, "download", imageFiles[2].workgroup_id) : imageFiles[2].download_url;
+                            const progress = downloadProgress[dUrl];
+                            return progress !== undefined && (
+                              <div className="absolute inset-0 z-20 bg-black/40 flex items-center justify-center">
+                                <span className="bg-emerald-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">{progress}%</span>
+                              </div>
+                            );
+                          })()}
                           <img
                             src={imageFiles[2].id ? getAuthedFileUrlForPost(imageFiles[2].id, "view", imageFiles[2].workgroup_id) : imageFiles[2].download_url}
                             className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
@@ -5098,11 +5172,17 @@ function PostCard({
                       .pop()
                       ?.toUpperCase();
 
+                    const progress = downloadProgress[downloadUrl];
+                    const isDownloading = progress !== undefined;
+
                     return (
                       <div
                         key={attachment.id || `${post.id}-file-${idx}`}
-                        className="max-w-[320px] rounded-xl border border-emerald-200/50 dark:border-emerald-800/50 bg-emerald-100/50 dark:bg-emerald-950/20 overflow-hidden shadow-sm"
+                        className="max-w-[320px] rounded-xl border border-emerald-200/50 dark:border-emerald-800/50 bg-emerald-100/50 dark:bg-emerald-950/20 overflow-hidden shadow-sm relative group/file"
                       >
+                        {isDownloading && (
+                          <div className="absolute top-0 left-0 h-1 bg-emerald-500 transition-all duration-300 z-10" style={{ width: `${progress}%` }} />
+                        )}
                         <div className="flex items-start gap-4 p-4">
                           <div className="h-12 w-12 flex items-center justify-center bg-white dark:bg-black/40 rounded-xl shadow-sm shrink-0 border border-emerald-100 dark:border-emerald-900/50">
                             {getFileIcon(
@@ -5122,7 +5202,11 @@ function PostCard({
                         </div>
                         <div className="flex border-t border-emerald-200/50 dark:border-emerald-800/50">
                           <button
-                            className="flex-1 py-2.5 text-[12px] font-bold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200/30 dark:hover:bg-emerald-800/30 transition-colors"
+                            disabled={isDownloading}
+                            className={`flex-1 py-2.5 text-[12px] font-bold transition-colors flex items-center justify-center gap-2 ${isDownloading
+                                ? "text-emerald-500 bg-emerald-100/30"
+                                : "text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200/30 dark:hover:bg-emerald-800/30"
+                              }`}
                             onClick={(e) => {
                               e.stopPropagation();
                               handleDownload(
@@ -5131,7 +5215,14 @@ function PostCard({
                               );
                             }}
                           >
-                            Save as...
+                            {isDownloading ? (
+                              <>
+                                <span className="animate-pulse">Downloading...</span>
+                                <span className="text-[10px] bg-emerald-500 text-white px-1.5 py-0.5 rounded-full">{progress}%</span>
+                              </>
+                            ) : (
+                              "Save as..."
+                            )}
                           </button>
                         </div>
                       </div>
