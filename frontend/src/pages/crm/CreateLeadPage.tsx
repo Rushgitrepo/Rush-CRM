@@ -736,7 +736,7 @@ export default function CreateLeadPage() {
                       {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="space-y-2 w-[572px]">
                       <Label className="text-sm font-medium text-foreground">Website</Label>
                       <div className="flex items-stretch gap-2">
                         <Input

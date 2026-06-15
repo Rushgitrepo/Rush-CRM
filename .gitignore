@@ -76,3 +76,7 @@ pnpm-lock.yaml
 
 .claude/
 .vscode/
+
+
+# Electron cache
+electron/cache/
