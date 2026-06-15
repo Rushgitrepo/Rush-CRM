@@ -695,7 +695,7 @@ export default function LeadsPage() {
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="gap-1.5 text-xs ml-auto">
                 <Columns className="h-3.5 w-3.5" />
-                Add Fields
+                Add Fields 
                 <span className="bg-primary/10 text-primary rounded px-1 text-[10px] font-semibold">
                   {visibleColumns.filter(k => k !== "name" && k !== "actions").length}/{ALL_COLUMN_KEYS.length - 2}
                 </span>
