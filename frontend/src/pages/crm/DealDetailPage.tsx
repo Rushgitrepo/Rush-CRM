@@ -429,8 +429,14 @@ export default function DealDetailPage() {
   });
 
   // Fetch all team members for assignment
-  const selectedPipeline = form.pipeline || deal?.pipeline || "default";
-  const departmentFilter = profile?.department === "Sales" ? "Sales" : (profile?.department === "Marketing" ? "Marketing" : undefined);
+  const selectedPipeline = (form.pipeline as string) || deal?.pipeline || "default";
+  
+  const departmentFilter = selectedPipeline === "marketing"
+    ? "Marketing"
+    : selectedPipeline === "sales"
+      ? "Sales"
+      : "Sales,Marketing"; // standard = both
+
   const { data: members = [] } = useOrganizationProfiles({
     department: departmentFilter,
     includeSelf: true
@@ -593,8 +599,12 @@ export default function DealDetailPage() {
       responsible_person: formattedChanges.assigned_to || undefined,
       customFields: customFieldsObj
     }), {
-      onSuccess: () => {
+      onSuccess: async (updatedDeal) => {
         saveTemplates.mutate({ entityType: 'deal', templates: customFields });
+        
+        // Force refetch and wait for it to ensure we have joined data
+        await queryClient.refetchQueries({ queryKey: ['deals', id] });
+        
         setEditing(false);
         createActivity.mutate({
           entityType: 'deal',
@@ -709,11 +719,8 @@ export default function DealDetailPage() {
               <CustomFieldInput
                 field={field}
                 editing={editing}
-                onUpdate={(updates) => {
-                  setCustomFields(prev => prev.map(f => f.id === field.id ? { ...f, ...updates } : f));
-                }}
-                onDelete={() => {
-                  setCustomFields(prev => prev.filter(f => f.id !== field.id));
+                updateField={(id, updates) => {
+                  setCustomFields(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
                 }}
                 entityId={id}
               />

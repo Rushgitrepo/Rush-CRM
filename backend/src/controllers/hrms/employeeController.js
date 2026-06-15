@@ -129,7 +129,8 @@ const getAll = async (req, res, next) => {
       SELECT 
         e.*,
         CONCAT(e.first_name, ' ', e.last_name) as name,
-        CONCAT(m.first_name, ' ', m.last_name) as manager_name
+        CONCAT(m.first_name, ' ', m.last_name) as manager_name,
+        e."position"
       FROM public.employees e
       LEFT JOIN public.employees m ON e.manager_id = m.id
       WHERE e.org_id = $1
@@ -247,8 +248,10 @@ const create = async (req, res, next) => {
 
     Object.entries(value).forEach(([key, val]) => {
       if (val !== undefined && val !== null && val !== '') {
-        fields.push(key);
-        values.push(val);
+        const fieldName = key === 'position' ? '"position"' : key;
+        const finalVal = key === 'department' ? val.trim().toLowerCase() : val;
+        fields.push(fieldName);
+        values.push(finalVal);
         paramIndex++;
       }
     });
@@ -331,8 +334,10 @@ const update = async (req, res, next) => {
     let paramIndex = 1;
 
     Object.entries(value).forEach(([key, val]) => {
-      fields.push(`${key} = $${paramIndex++}`);
-      values.push(val);
+      const fieldName = key === 'position' ? '"position"' : key;
+      const finalVal = key === 'department' ? val.trim().toLowerCase() : val;
+      fields.push(`${fieldName} = $${paramIndex++}`);
+      values.push(finalVal);
     });
 
     if (fields.length === 0) {
