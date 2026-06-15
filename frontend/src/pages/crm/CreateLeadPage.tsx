@@ -597,10 +597,10 @@ export default function CreateLeadPage() {
                           Pipeline
                         </Label>
                         <Select value={watch("pipeline") || "default"} onValueChange={v => setValue("pipeline", v)}>
-                          <SelectTrigger className="h-10">
+                          <SelectTrigger className="h-9">
                             <SelectValue placeholder="Select pipeline" />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="max-h-[140px] overflow-y-auto">
                             <SelectItem value="default">Standard Pipeline</SelectItem>
                             <SelectItem value="marketing">Marketing Pipeline</SelectItem>
                             <SelectItem value="sales">Sales Pipeline</SelectItem>
@@ -613,16 +613,13 @@ export default function CreateLeadPage() {
                     <DroppableField id="fixed-lead-company-details-stage" editing={true}>
                       <div className="space-y-2">
                         <Label className="text-sm font-medium text-foreground">Stage</Label>
-                        <Select value={watch("stage")} onValueChange={v => { setValue("stage", v); setValue("status", v); }}>
-                          <SelectTrigger className={cn("h-10", errors.stage && "border-destructive")}>
-                            <SelectValue placeholder="Select stage" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {allStageOptions.map(opt => (
-                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <CreatableSelect
+                          label=""
+                          value={watch("stage") || ""}
+                          onChange={v => { setValue("stage", v); setValue("status", v); }}
+                          options={allStageOptions}
+                          placeholder="Select stage"
+                        />
                         {errors.stage && <p className="text-xs text-destructive">{errors.stage.message}</p>}
                       </div>
                     </DroppableField>

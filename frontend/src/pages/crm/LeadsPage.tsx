@@ -272,16 +272,24 @@ export default function LeadsPage() {
   // Unique sources from current leads for dynamic tabs
   const sourceTabs = useMemo(() => {
     const sources = leads
-      .map(l => l.source)
-      .filter(Boolean)
-      .map(s => s.trim());
+      .map(l => {
+        const s = (l.source || "").trim();
+        if (s.toLowerCase() === "instantly") return "Instantly";
+        return s.toLowerCase();
+      })
+      .filter(Boolean);
     const unique = Array.from(new Set(sources)).sort();
     return unique;
   }, [leads]);
 
   const filtered = useMemo(() => {
     return [...leads]
-      .filter(l => sourceTab === "all" || (l.source || "").trim() === sourceTab)
+      .filter(l => {
+        if (sourceTab === "all") return true;
+        const s = (l.source || "").trim();
+        const normalized = s.toLowerCase() === "instantly" ? "Instantly" : s.toLowerCase();
+        return normalized === sourceTab;
+      })
       .sort((a, b) => {
         if (sortBy === "name") return a.name.localeCompare(b.name);
         if (sortBy === "value") return b.value - a.value;

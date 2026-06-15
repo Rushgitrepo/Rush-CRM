@@ -1209,10 +1209,10 @@ export default function LeadDetailPage() {
                               Pipeline
                             </Label>
                             <Select value={(form.pipeline as string) || "default"} onValueChange={(v) => set("pipeline", v)} disabled={!editing}>
-                              <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
+                              <SelectTrigger className="h-9 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
                                 <SelectValue placeholder="Select pipeline" />
                               </SelectTrigger>
-                              <SelectContent>
+                              <SelectContent className="max-h-[200px] overflow-y-auto">
                                 <SelectItem value="default">Standard Pipeline</SelectItem>
                                 <SelectItem value="marketing">Marketing Pipeline</SelectItem>
                                 <SelectItem value="sales">Sales Pipeline</SelectItem>
@@ -1225,16 +1225,14 @@ export default function LeadDetailPage() {
                         <DroppableField id="fixed-lead-company-details-stage" editing={editing}>
                           <div className="space-y-2">
                             <Label className="text-sm font-medium text-foreground">Stage</Label>
-                            <Select value={(form.stage as string) || ""} onValueChange={(v) => set("stage", v)} disabled={!editing}>
-                              <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
-                                <SelectValue placeholder="Select stage" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {pipelineStages.map(stage => (
-                                  <SelectItem key={stage.id} value={stage.id}>{stage.label}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <CreatableSelect
+                              label=""
+                              value={(form.stage as string) || ""}
+                              onChange={(v) => set("stage", v)}
+                              options={pipelineStages}
+                              placeholder="Select stage"
+                              disabled={!editing}
+                            />
                           </div>
                         </DroppableField>
                         {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-stage")}
@@ -1256,6 +1254,7 @@ export default function LeadDetailPage() {
                                 value={(form.assigned_to as string) || ""}
                                 onChange={(v) => set("assigned_to", v || null)}
                                 placeholder="Select owner..."
+                                className="h-9"
                               />
                             ) : (
                               <div className="h-10 px-3 py-2 border rounded-lg bg-muted/40 flex items-center gap-2">
