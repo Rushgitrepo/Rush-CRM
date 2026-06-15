@@ -581,7 +581,7 @@ export default function LeadsPage() {
       {/* ── Page Header ───────────────────────────────────────────────── */}
       <PageHeader
         title="Leads"
-        description="A live, filterable pipeline of every lead with fast actions."
+        description="A live filterable pipeline of every lead with fast actions."
         meta={[
           { label: "Total", value: (dbLeads as any)?.pagination?.total || 0, tone: "info" },
           { label: "Selected", value: isAllSelectedGlobally ? (dbLeads as any)?.pagination?.total : selectedLeads.length, tone: "warning" },

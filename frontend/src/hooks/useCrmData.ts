@@ -83,6 +83,7 @@ export function useUpdateLead() {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       // Invalidate specific lead query
       queryClient.invalidateQueries({ queryKey: ['leads', id] });
+      
       // Invalidate lead stats
       queryClient.invalidateQueries({ queryKey: ['leads', 'stats'] });
 
