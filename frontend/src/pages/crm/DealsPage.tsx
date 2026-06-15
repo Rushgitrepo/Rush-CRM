@@ -469,15 +469,15 @@ export default function DealsPage() {
         onSearchChange={setSearch}
         searchPlaceholder="Search everything (deal, company, contact, email, notes...)"
         filters={[
-          {
-            label: "Stage",
-            value: stage,
-            onChange: setStage,
-            options: [
-              { label: "All stages", value: "all" },
-              ...pipelineStages.map(s => ({ label: s.stage_label, value: s.stage_key }))
-            ],
-          },
+          // {
+          //   label: "Stage",
+          //   value: stage,
+          //   onChange: setStage,
+          //   options: [
+          //     { label: "All stages", value: "all" },
+          //     ...pipelineStages.map(s => ({ label: s.stage_label, value: s.stage_key }))
+          //   ],
+          // },
           {
             label: "Status",
             value: status,
@@ -501,20 +501,20 @@ export default function DealsPage() {
               { label: "Urgent", value: "urgent" },
             ],
           },
-          {
-            label: "Source",
-            value: sourceFilter,
-            onChange: setSourceFilter,
-            options: [
-              { label: "All Sources", value: "all" },
-              { label: "Website", value: "Website" },
-              { label: "Referral", value: "Referral" },
-              { label: "Cold Call", value: "Cold Call" },
-              { label: "LinkedIn", value: "LinkedIn" },
-              { label: "Email", value: "Email" },
-              { label: "Other", value: "Other" },
-            ],
-          },
+          // {
+          //   label: "Source",
+          //   value: sourceFilter,
+          //   onChange: setSourceFilter,
+          //   options: [
+          //     { label: "All Sources", value: "all" },
+          //     { label: "Website", value: "Website" },
+          //     { label: "Referral", value: "Referral" },
+          //     { label: "Cold Call", value: "Cold Call" },
+          //     { label: "LinkedIn", value: "LinkedIn" },
+          //     { label: "Email", value: "Email" },
+          //     { label: "Other", value: "Other" },
+          //   ],
+          // },
           {
             label: "Responsible Person",
             value: assignedToFilter,
@@ -523,30 +523,30 @@ export default function DealsPage() {
               ...(users?.map((u: any) => ({ label: u.full_name || u.email, value: u.id })) || []),
             ],
           },
-          {
-            label: "Workspace",
-            type: "custom",
-            value: workspaceFilter,
-            onChange: setWorkspaceFilter,
-            render: () => (
-              <WorkspaceFilter
-                value={workspaceFilter}
-                onChange={setWorkspaceFilter}
-              />
-            )
-          },
-          {
-            label: "Campaign",
-            type: "input",
-            value: campaignFilter,
-            onChange: setCampaignFilter
-          },
-          {
-            label: "Tags",
-            type: "input",
-            value: tagsFilter,
-            onChange: setTagsFilter
-          },
+          // {
+          //   label: "Workspace",
+          //   type: "custom",
+          //   value: workspaceFilter,
+          //   onChange: setWorkspaceFilter,
+          //   render: () => (
+          //     <WorkspaceFilter
+          //       value={workspaceFilter}
+          //       onChange={setWorkspaceFilter}
+          //     />
+          //   )
+          // },
+          // {
+          //   label: "Campaign",
+          //   type: "input",
+          //   value: campaignFilter,
+          //   onChange: setCampaignFilter
+          // },
+          // {
+          //   label: "Tags",
+          //   type: "input",
+          //   value: tagsFilter,
+          //   onChange: setTagsFilter
+          // },
           {
             label: "From",
             type: "date",

@@ -701,11 +701,11 @@ export default function LeadsPage() {
                 </span>
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-56 p-2" align="end">
+            <PopoverContent className="w-56 h-[47vh] p-2" align="end">
               <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-1">
                 Show / Hide Columns
               </p>
-              <ScrollArea className="h-72">
+              <ScrollArea className="h-[42vh]">
                 <div className="space-y-0.5 pr-2">
                   {ALL_COLUMNS.map(({ key, label }) => (
                     <label
