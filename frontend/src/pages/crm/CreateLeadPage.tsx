@@ -608,6 +608,7 @@ export default function CreateLeadPage() {
                         </Select>
                       </div>
                     </DroppableField>
+                    
                     {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-pipeline")}
 
                     <DroppableField id="fixed-lead-company-details-stage" editing={true}>
