@@ -66,130 +66,7 @@ export function DataToolbar({
             </div>
           )}
 
-          {filters && filters.length > 0 && (
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9 gap-2 border-dashed">
-                  <Filter className="h-4 w-4" />
-                  Filters
-                  {filters.filter(f => f.value && f.value !== "all").length > 0 && (
-                    <Badge variant="secondary" className="ml-1 rounded-sm px-1 font-normal lg:hidden">
-                      {filters.filter(f => f.value && f.value !== "all").length}
-                    </Badge>
-                  )}
-                  <div className="hidden space-x-1 lg:flex">
-                    {filters.filter(f => f.value && f.value !== "all").length > 0 && (
-                      <>
-                        <Separator orientation="vertical" className="mx-2 h-4" />
-                        <Badge variant="secondary" className="rounded-sm px-1 font-normal">
-                          {filters.filter(f => f.value && f.value !== "all").length}
-                        </Badge>
-                      </>
-                    )}
-                  </div>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent
-                className="w-[320px] p-4 max-h-[80vh] overflow-y-auto custom-scrollbar"
-                align="start"
-                onPointerDownOutside={(e) => {
-                  // Prevent closing when clicking on a Select content (which is in a portal)
-                  if (e.target instanceof Element && e.target.closest('[role="listbox"]')) {
-                    e.preventDefault();
-                  }
-                }}
-              >
-                <div className="grid gap-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium leading-none">Filters</h4>
-                    {filters.some(f => f.value && f.value !== "all") && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => filters.forEach(f => f.onChange?.(f.resetValue ?? (f.type === "input" || f.type === "date" ? "" : "all")))}
-                        className="h-8 px-2 text-xs"
-                      >
-                        Reset
-                      </Button>
-                    )}
-                  </div>
-                  <div className="grid gap-4">
-                    {filters.map((filter) => (
-                      <div key={filter.label} className="grid gap-2">
-                        <Label htmlFor={filter.label} className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{filter.label}</Label>
-                        {filter.type === "custom" && filter.render ? (
-                          filter.render()
-                        ) : filter.type === "input" || filter.type === "date" ? (
-                          <Input
-                            type={filter.type}
-                            placeholder={`Filter by ${filter.label.toLowerCase()}...`}
-                            value={filter.value || ""}
-                            onChange={(e) => filter.onChange?.(e.target.value)}
-                            className="h-9"
-                          />
-                        ) : (
-                          <Select value={filter.value} onValueChange={filter.onChange}>
-                            <SelectTrigger className="h-9">
-                              <SelectValue placeholder={`Select ${filter.label}`} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {!filter.options?.some(o => o.value === "all") && (
-                                <SelectItem value="all">All {filter.label}</SelectItem>
-                              )}
-                              {filter.options?.map((option) => (
-                                <SelectItem key={option.value} value={option.value}>
-                                  <div className="flex items-center justify-between w-full gap-2">
-                                    <span>{option.label}</span>
-                                    {option.count !== undefined && (
-                                      <span className="text-[10px] text-muted-foreground opacity-60">
-                                        {option.count}
-                                      </span>
-                                    )}
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
-          )}
 
-          {((filters && filters.some(f => f.value && f.value !== "all")) || (quickFilters && quickFilters.some(q => q.active))) && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-9 px-2 lg:px-3 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-              onClick={() => {
-                onSearchChange?.("");
-                filters?.forEach(f => f.onChange?.(f.resetValue ?? (f.type === "input" || f.type === "date" ? "" : "all")));
-                quickFilters?.forEach(f => f.active && f.onToggle("all"));
-              }}
-            >
-              Clear All
-              <XCircle className="ml-2 h-3.5 w-3.5 opacity-70" />
-            </Button>
-          )}
-
-          {quickFilters && quickFilters.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {quickFilters.map((filter) => (
-                <Button
-                  key={filter.value}
-                  variant={filter.active ? "secondary" : "outline"}
-                  size="sm"
-                  onClick={() => filter.onToggle(filter.active ? "all" : filter.value)}
-                  className="h-9 rounded-full px-4 text-xs font-medium"
-                >
-                  {filter.label}
-                </Button>
-              ))}
-            </div>
-          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2 justify-end">
@@ -233,6 +110,133 @@ export function DataToolbar({
           {children}
         </div>
       </div>
+      <div className="flex gap-4">
+        {filters && filters.length > 0 && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 gap-2 border-dashed">
+                <Filter className="h-4 w-4" />
+                Filters
+                {filters.filter(f => f.value && f.value !== "all").length > 0 && (
+                  <Badge variant="secondary" className="ml-1 rounded-sm px-1 font-normal lg:hidden">
+                    {filters.filter(f => f.value && f.value !== "all").length}
+                  </Badge>
+                )}
+                <div className="hidden space-x-1 lg:flex">
+                  {filters.filter(f => f.value && f.value !== "all").length > 0 && (
+                    <>
+                      <Separator orientation="vertical" className="mx-2 h-4" />
+                      <Badge variant="secondary" className="rounded-sm px-1 font-normal">
+                        {filters.filter(f => f.value && f.value !== "all").length}
+                      </Badge>
+                    </>
+                  )}
+                </div>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              className="w-[320px] p-4 max-h-[45vh] overflow-y-auto custom-scrollbar"
+              align="start"
+              onPointerDownOutside={(e) => {
+                // Prevent closing when clicking on a Select content (which is in a portal)
+                if (e.target instanceof Element && e.target.closest('[role="listbox"]')) {
+                  e.preventDefault();
+                }
+              }}
+            >
+              <div className="grid gap-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium leading-none">Filters</h4>
+                  {filters.some(f => f.value && f.value !== "all") && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => filters.forEach(f => f.onChange?.(f.resetValue ?? (f.type === "input" || f.type === "date" ? "" : "all")))}
+                      className="h-8 px-2 text-xs"
+                    >
+                      Reset
+                    </Button>
+                  )}
+                </div>
+                <div className="grid gap-4">
+                  {filters.map((filter) => (
+                    <div key={filter.label} className="grid gap-2">
+                      <Label htmlFor={filter.label} className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{filter.label}</Label>
+                      {filter.type === "custom" && filter.render ? (
+                        filter.render()
+                      ) : filter.type === "input" || filter.type === "date" ? (
+                        <Input
+                          type={filter.type}
+                          placeholder={`Filter by ${filter.label.toLowerCase()}...`}
+                          value={filter.value || ""}
+                          onChange={(e) => filter.onChange?.(e.target.value)}
+                          className="h-9"
+                        />
+                      ) : (
+                        <Select value={filter.value} onValueChange={filter.onChange}>
+                          <SelectTrigger className="h-9">
+                            <SelectValue placeholder={`Select ${filter.label}`} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {!filter.options?.some(o => o.value === "all") && (
+                              <SelectItem value="all">All {filter.label}</SelectItem>
+                            )}
+                            {filter.options?.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                <div className="flex items-center justify-between w-full gap-2">
+                                  <span>{option.label}</span>
+                                  {option.count !== undefined && (
+                                    <span className="text-[10px] text-muted-foreground opacity-60">
+                                      {option.count}
+                                    </span>
+                                  )}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+        )}
+
+        {((filters && filters.some(f => f.value && f.value !== "all")) || (quickFilters && quickFilters.some(q => q.active))) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 px-2 lg:px-3 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+            onClick={() => {
+              onSearchChange?.("");
+              filters?.forEach(f => f.onChange?.(f.resetValue ?? (f.type === "input" || f.type === "date" ? "" : "all")));
+              quickFilters?.forEach(f => f.active && f.onToggle("all"));
+            }}
+          >
+            Clear All
+            <XCircle className="ml-2 h-3.5 w-3.5 opacity-70" />
+          </Button>
+        )}
+
+        {quickFilters && quickFilters.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {quickFilters.map((filter) => (
+              <Button
+                key={filter.value}
+                variant={filter.active ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => filter.onToggle(filter.active ? "all" : filter.value)}
+                className="h-9 rounded-full px-4 text-xs font-medium"
+              >
+                {filter.label}
+              </Button>
+            ))}
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }
