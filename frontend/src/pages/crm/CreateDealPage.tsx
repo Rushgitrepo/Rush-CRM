@@ -161,11 +161,6 @@ export default function CreateDealPage() {
   const createDeal = useCreateDeal();
   const { data: contacts } = useContacts();
   const { data: companies } = useCompanies();
-  const departmentFilter = profile?.department === "Sales" ? "Sales" : (profile?.department === "Marketing" ? "Marketing" : undefined);
-  const { data: members = [] } = useOrganizationProfiles({
-    department: departmentFilter,
-    includeSelf: true
-  });
   const { data: dbStages = [] } = useDealPipelineStages();
 
   const stageOptions = useMemo(() => {
@@ -268,6 +263,28 @@ export default function CreateDealPage() {
     },
   });
 
+  const selectedPipeline = form.watch("pipeline") || "default";
+
+  const departmentFilter = selectedPipeline === "marketing"
+    ? "Marketing"
+    : selectedPipeline === "sales"
+      ? "Sales"
+      : "Sales,Marketing"; // standard = both
+
+  const { data: members = [] } = useOrganizationProfiles({
+    department: departmentFilter,
+    includeSelf: true
+  });
+
+  // Reset assignedTo when pipeline changes
+  const prevPipelineRef = useRef(selectedPipeline);
+  useEffect(() => {
+    if (prevPipelineRef.current !== selectedPipeline) {
+      prevPipelineRef.current = selectedPipeline;
+      form.setValue("assignedTo", "");
+    }
+  }, [selectedPipeline, form]);
+
   const isSaving = createDeal.isPending;
 
   const handleFieldDropToSection = (fieldKey: string, fieldValue: string, sectionId: string, updatedFields?: CustomField[]) => {
@@ -313,11 +330,8 @@ export default function CreateDealPage() {
                 <CustomFieldInput
                   field={field}
                   editing={true}
-                  onUpdate={(updates) => {
-                    setCustomFields(prev => prev.map(f => f.id === field.id ? { ...f, ...updates } : f));
-                  }}
-                  onDelete={() => {
-                    setCustomFields(prev => prev.filter(f => f.id !== field.id));
+                  updateField={(id, updates) => {
+                    setCustomFields(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
                   }}
                   entityId="new"
                 />

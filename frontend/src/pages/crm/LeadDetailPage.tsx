@@ -333,7 +333,7 @@ export default function LeadDetailPage() {
     ? "Marketing"
     : selectedPipeline === "sales"
       ? "Sales"
-      : undefined; // standard = both (no filter)
+      : "Sales,Marketing"; // standard = both (Sales & Marketing)
 
   const { data: members = [] } = useOrganizationProfiles({
     department: assignedToDepartment,
@@ -571,8 +571,12 @@ export default function LeadDetailPage() {
       responsible_person: formattedChanges.assigned_to || undefined,
       customFields: customFieldsObj
     }), {
-      onSuccess: () => {
+      onSuccess: async (updatedLead) => {
         saveTemplates.mutate({ entityType: 'lead', templates: customFields });
+        
+        // Force refetch and wait for it to ensure we have joined data
+        await queryClient.refetchQueries({ queryKey: ['leads', id] });
+        
         setEditing(false);
       },
     });
@@ -683,11 +687,8 @@ export default function LeadDetailPage() {
                   <CustomFieldInput
                     field={field}
                     editing={editing}
-                    onUpdate={(updates) => {
-                      setCustomFields(prev => prev.map(f => f.id === field.id ? { ...f, ...updates } : f));
-                    }}
-                    onDelete={() => {
-                      setCustomFields(prev => prev.filter(f => f.id !== field.id));
+                    updateField={(id, updates) => {
+                      setCustomFields(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
                     }}
                     entityId={id}
                   />

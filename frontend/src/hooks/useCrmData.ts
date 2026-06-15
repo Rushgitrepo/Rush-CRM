@@ -86,8 +86,11 @@ export function useUpdateLead() {
       // Invalidate lead stats
       queryClient.invalidateQueries({ queryKey: ['leads', 'stats'] });
 
-      // Update the cache immediately for better UX
-      queryClient.setQueryData(['leads', id], updatedLead);
+      // Update the cache immediately for better UX - merge to preserve joined fields (manager name, contact info, etc.)
+      queryClient.setQueryData(['leads', id], (old: any) => {
+        if (!old) return updatedLead;
+        return { ...old, ...updatedLead };
+      });
 
       toast.success('Lead updated successfully');
     },
@@ -306,8 +309,11 @@ export function useUpdateDeal() {
       // Invalidate deal stats
       queryClient.invalidateQueries({ queryKey: ['deals', 'stats'] });
 
-      // Update the cache immediately for better UX
-      queryClient.setQueryData(['deals', id], updatedDeal);
+      // Update the cache immediately for better UX - merge to preserve joined fields
+      queryClient.setQueryData(['deals', id], (old: any) => {
+        if (!old) return updatedDeal;
+        return { ...old, ...updatedDeal };
+      });
 
       toast.success('Deal updated successfully');
     },

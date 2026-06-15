@@ -373,7 +373,7 @@ export default function CreateLeadPage() {
     ? "Marketing"
     : selectedPipeline === "sales"
       ? "Sales"
-      : undefined; // standard = both (no filter)
+      : "Sales,Marketing"; // standard = both
 
   const { data: members = [] } = useOrganizationProfiles({
     department: assignedToDepartment,
