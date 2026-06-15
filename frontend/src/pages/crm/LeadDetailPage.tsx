@@ -207,7 +207,7 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
             </span>
           ) : type === "datetime-local" && value && isValid(new Date(value)) ? (
             <span className="text-foreground font-medium break-words w-full">
-              {format(new Date(value), "MMM d, yyyy HH:mm")}
+              {new Date(value).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
             </span>
           ) : (
             <span className="text-foreground font-medium break-words w-full">{value}</span>
@@ -535,6 +535,11 @@ export default function LeadDetailPage() {
       }
     });
 
+    // Explicitly check assigned_to since it might be stored differently
+    if ((form.assigned_to || null) !== (lead.assigned_to || null)) {
+      changes.assigned_to = form.assigned_to || null;
+    }
+
     const customFieldsObj = customFields.reduce((acc, field) => {
       if (field.key.trim()) acc[field.key.trim()] = {
         value: field.value,
@@ -556,13 +561,14 @@ export default function LeadDetailPage() {
 
     const formattedChanges: Record<string, unknown> = { ...changes };
     if (formattedChanges.last_contacted_date) formattedChanges.last_contacted_date = new Date(formattedChanges.last_contacted_date as string).toISOString();
-    if (formattedChanges.next_follow_up_date) formattedChanges.next_follow_up_date = new Date(formattedChanges.next_follow_up_date as string).toISOString();
+    if (formattedChanges.next_follow_up_date) { const d = new Date(formattedChanges.next_follow_up_date as string); const off = -d.getTimezoneOffset(); const sign = off >= 0 ? '+' : '-'; const pad = (n: number) => String(Math.floor(Math.abs(n))).padStart(2, '0'); formattedChanges.next_follow_up_date = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':00' + sign + pad(off / 60) + ':' + pad(off % 60); }
     if (formattedChanges.expected_close_date) formattedChanges.expected_close_date = new Date(formattedChanges.expected_close_date as string).toISOString();
     if (formattedChanges.createdAt) formattedChanges.createdAt = new Date(formattedChanges.createdAt as string).toISOString();
 
     updateLead.mutate(sanitizePayload({
       id: lead.id,
       ...formattedChanges,
+      responsible_person: formattedChanges.assigned_to || undefined,
       customFields: customFieldsObj
     }), {
       onSuccess: () => {
