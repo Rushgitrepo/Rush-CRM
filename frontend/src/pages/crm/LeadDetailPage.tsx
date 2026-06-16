@@ -1225,14 +1225,22 @@ export default function LeadDetailPage() {
                         <DroppableField id="fixed-lead-company-details-stage" editing={editing}>
                           <div className="space-y-2">
                             <Label className="text-sm font-medium text-foreground">Stage</Label>
-                            <CreatableSelect
-                              label=""
+                            <Select
                               value={(form.stage as string) || ""}
-                              onChange={(v) => set("stage", v)}
-                              options={pipelineStages}
-                              placeholder="Select stage"
+                              onValueChange={(v) => set("stage", v)}
                               disabled={!editing}
-                            />
+                            >
+                              <SelectTrigger className="h-9 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 bg-background text-sm">
+                                <SelectValue placeholder="Select stage" />
+                              </SelectTrigger>
+                              <SelectContent className="max-h-[200px] overflow-y-auto">
+                                {pipelineStages.map((stage) => (
+                                  <SelectItem key={stage.id} value={stage.id}>
+                                    {stage.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
                         </DroppableField>
                         {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-stage")}
@@ -1250,11 +1258,11 @@ export default function LeadDetailPage() {
                             </label>
                             {editing ? (
                               <MemberSearchSelect
-                                members={members}
-                                value={(form.assigned_to as string) || ""}
-                                onChange={(v) => set("assigned_to", v || null)}
-                                placeholder="Select owner..."
-                                className="h-9"
+                              members={members}
+                              value={(form.assigned_to as string) || ""}
+                              onChange={(v) => set("assigned_to", v || null)}
+                              placeholder="Select owner..."
+                              className="h-9"
                               />
                             ) : (
                               <div className="h-10 px-3 py-2 border rounded-lg bg-muted/40 flex items-center gap-2">
