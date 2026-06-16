@@ -166,8 +166,10 @@ const deleteWorkgroupFile = async (req, res, next) => {
 
     // Delete physical file
     try {
-      if (fs.existsSync(file.file_path)) {
-        fs.unlinkSync(file.file_path);
+      const uploadDir = path.join(__dirname, '../../../public/uploads');
+      const resolvedPath = file.name ? path.join(uploadDir, file.name) : file.file_path;
+      if (fs.existsSync(resolvedPath)) {
+        fs.unlinkSync(resolvedPath);
       }
     } catch (fsErr) {
       console.error('Error deleting physical file:', fsErr);
@@ -221,8 +223,12 @@ const downloadWorkgroupFile = async (req, res, next) => {
 
     const file = fileResult.rows[0];
 
+    // Resolve path dynamically relative to the application codebase
+    const uploadDir = path.join(__dirname, '../../../public/uploads');
+    const resolvedPath = file.name ? path.join(uploadDir, file.name) : file.file_path;
+
     // Check if file exists on disk
-    if (!fs.existsSync(file.file_path)) {
+    if (!fs.existsSync(resolvedPath)) {
       return res.status(404).json({ error: 'File not found on disk' });
     }
 
@@ -232,7 +238,7 @@ const downloadWorkgroupFile = async (req, res, next) => {
     res.setHeader('Content-Length', file.file_size);
 
     // Stream the file
-    const fileStream = fs.createReadStream(file.file_path);
+    const fileStream = fs.createReadStream(resolvedPath);
     fileStream.pipe(res);
   } catch (err) {
     next(err);
@@ -280,7 +286,11 @@ const viewWorkgroupFile = async (req, res, next) => {
 
     const file = fileResult.rows[0];
 
-    if (!fs.existsSync(file.file_path)) {
+    // Resolve path dynamically relative to the application codebase
+    const uploadDir = path.join(__dirname, '../../../public/uploads');
+    const resolvedPath = file.name ? path.join(uploadDir, file.name) : file.file_path;
+
+    if (!fs.existsSync(resolvedPath)) {
       return res.status(404).json({ error: 'File not found on disk' });
     }
 
@@ -288,7 +298,7 @@ const viewWorkgroupFile = async (req, res, next) => {
     res.setHeader('Content-Type', file.file_type || 'application/octet-stream');
     res.setHeader('Content-Length', file.file_size);
 
-    const fileStream = fs.createReadStream(file.file_path);
+    const fileStream = fs.createReadStream(resolvedPath);
     fileStream.pipe(res);
   } catch (err) {
     next(err);

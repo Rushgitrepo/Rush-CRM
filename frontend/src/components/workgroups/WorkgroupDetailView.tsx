@@ -417,44 +417,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   const [showLightbox, setShowLightbox] = useState(false);
   const dragCounterRef = useRef(0);
 
-  // Shared download handler — showSaveFilePicker must be called BEFORE any async fetch
-  const handleDownload = async (url: string, fileName: string) => {
-    try {
-      if ("showSaveFilePicker" in window) {
-        let handle: any;
-        try {
-          handle = await (window as any).showSaveFilePicker({ suggestedName: fileName });
-        } catch (pickerErr: any) {
-          if (pickerErr.name === "AbortError") return;
-          throw pickerErr;
-        }
-        const response = await fetch(url);
-        const blob = await response.blob();
-        const writable = await handle.createWritable();
-        await writable.write(blob);
-        await writable.close();
-      } else {
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
-    } catch (err: any) {
-      if (err.name !== "AbortError") {
-        try {
-          const link = document.createElement("a");
-          link.href = url;
-          link.download = fileName;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-        } catch { }
-        console.error("Download error:", err);
-      }
-    }
-  };
+
 
   const flatPosts = useMemo(() => {
     const all: WorkgroupPost[] = [];
@@ -4549,8 +4512,19 @@ function PostCard({
         return next;
       });
       if (err.name !== "AbortError") {
-        toast.error("Failed to save file");
-        console.error("Download error:", err);
+        console.error("Fetch download failed, trying direct browser download fallback:", err);
+        try {
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = fileName;
+          link.target = "_blank";
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        } catch (fallbackErr) {
+          toast.error("Failed to save file");
+          console.error("Direct download fallback failed:", fallbackErr);
+        }
       }
     }
   };
