@@ -284,7 +284,6 @@ export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardE
             />
           </div>
 
-
           <div className="space-y-1 mb-12">
             <ReactQuill
               theme="snow"

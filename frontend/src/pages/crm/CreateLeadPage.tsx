@@ -6,30 +6,67 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { cn } from "@/lib/utils";
 import {
-  Loader2, Save, ArrowLeft, Building2, CalendarDays, MessageSquare,
-  ChevronDown, Sparkles, Tag, Users, Calendar as CalendarIcon, Briefcase, GripVertical, Plus
+  Loader2,
+  Save,
+  ArrowLeft,
+  Building2,
+  CalendarDays,
+  MessageSquare,
+  ChevronDown,
+  Sparkles,
+  Tag,
+  Users,
+  Calendar as CalendarIcon,
+  Briefcase,
+  GripVertical,
+  Plus,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useOrganizationProfiles } from "@/hooks/useTenantQuery";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/crm/ui/PageHeader";
 import { CreatableSelect } from "@/components/crm/CreatableSelect";
-import { useCustomFieldTemplates, useSaveCustomFieldTemplates, useCreateLead } from "@/hooks/useCrmData";
+import {
+  useCustomFieldTemplates,
+  useSaveCustomFieldTemplates,
+  useCreateLead,
+} from "@/hooks/useCrmData";
 import { mergeFieldsWithTemplatesSync } from "@/utils/crm/customFieldsRegistry";
 import { sanitizePayload } from "@/utils/crm/sanitize";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { isValid } from "date-fns";
-import { CustomFieldsSection, DraggableFieldItem } from "@/components/crm/CustomFieldsSection";
+import {
+  CustomFieldsSection,
+  DraggableFieldItem,
+} from "@/components/crm/CustomFieldsSection";
 import { CustomFieldInput } from "@/components/crm/CustomFieldInput";
-import { FieldDragWrapper, DroppableField } from "@/components/crm/FieldDragWrapper";
+import {
+  FieldDragWrapper,
+  DroppableField,
+} from "@/components/crm/FieldDragWrapper";
 import { DroppableSection } from "@/components/crm/DroppableSection";
 import { MemberSearchSelect } from "@/components/tasks/MemberSearchSelect";
 
@@ -210,7 +247,10 @@ function LabeledInput({
           type={type}
           placeholder={placeholder}
           {...fieldProps}
-          className={cn("h-11", error && "border-destructive focus-visible:ring-destructive")}
+          className={cn(
+            "h-11",
+            error && "border-destructive focus-visible:ring-destructive",
+          )}
         />
         {rightAddon}
       </div>
@@ -239,7 +279,9 @@ function LabeledTextarea({
         rows={rows}
         placeholder={placeholder}
         {...fieldProps}
-        className={cn(error && "border-destructive focus-visible:ring-destructive")}
+        className={cn(
+          error && "border-destructive focus-visible:ring-destructive",
+        )}
       />
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
@@ -267,14 +309,18 @@ function InlineSelect({
 
   const merged = [...initialOptions];
   for (const o of options) {
-    if (!merged.find(x => x.value === o.value)) merged.push(o);
+    if (!merged.find((x) => x.value === o.value)) merged.push(o);
   }
 
   const handleAdd = () => {
     if (!newVal.trim()) return;
-    const id = newVal.trim().toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
-    if (!merged.find(o => o.value === id)) {
-      setOptions(prev => [...prev, { value: id, label: newVal.trim() }]);
+    const id = newVal
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "_")
+      .replace(/[^a-z0-9_]/g, "");
+    if (!merged.find((o) => o.value === id)) {
+      setOptions((prev) => [...prev, { value: id, label: newVal.trim() }]);
     }
     onChange(id);
     setNewVal("");
@@ -286,14 +332,42 @@ function InlineSelect({
       <div className={cn("flex gap-1 items-center", className)}>
         <Input
           value={newVal}
-          onChange={e => setNewVal(e.target.value)}
+          onChange={(e) => setNewVal(e.target.value)}
           placeholder="New option"
           className="h-10 text-xs"
           autoFocus
-          onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleAdd(); } if (e.key === "Escape") { setAdding(false); setNewVal(""); } }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              handleAdd();
+            }
+            if (e.key === "Escape") {
+              setAdding(false);
+              setNewVal("");
+            }
+          }}
         />
-        <Button type="button" size="sm" variant="ghost" className="h-10 px-2 text-xs" onClick={handleAdd}>✓</Button>
-        <Button type="button" size="sm" variant="ghost" className="h-10 px-2 text-xs" onClick={() => { setAdding(false); setNewVal(""); }}>✕</Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-10 px-2 text-xs"
+          onClick={handleAdd}
+        >
+          ✓
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-10 px-2 text-xs"
+          onClick={() => {
+            setAdding(false);
+            setNewVal("");
+          }}
+        >
+          ✕
+        </Button>
       </div>
     );
   }
@@ -302,16 +376,30 @@ function InlineSelect({
     <div className="space-y-1.5">
       <div className="flex gap-1 items-center">
         <Select value={value} onValueChange={onChange}>
-          <SelectTrigger className={cn(className || "w-[160px] h-11", error && "border-destructive")}>
+          <SelectTrigger
+            className={cn(
+              className || "w-[160px] h-11",
+              error && "border-destructive",
+            )}
+          >
             <SelectValue placeholder={placeholder || "Select"} />
           </SelectTrigger>
           <SelectContent>
-            {merged.map(opt => (
-              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+            {merged.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <Button type="button" variant="outline" size="icon" className="h-10 w-10 shrink-0" onClick={() => setAdding(true)} title="Add new option">
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="h-10 w-10 shrink-0"
+          onClick={() => setAdding(true)}
+          title="Add new option"
+        >
           <Plus className="h-4 w-4" />
         </Button>
       </div>
@@ -354,7 +442,7 @@ export default function CreateLeadPage() {
       interactionNotes: "",
       lastContactedDate: "",
       nextFollowUpDate: "",
-      createdAt: new Date().toISOString().split('T')[0],
+      createdAt: new Date().toISOString().split("T")[0],
       assignedTo: null,
       expectedCloseDate: "",
       pipeline: "default",
@@ -365,19 +453,26 @@ export default function CreateLeadPage() {
     },
   });
 
-  const { handleSubmit, register, setValue, watch, formState: { errors } } = form;
+  const {
+    handleSubmit,
+    register,
+    setValue,
+    watch,
+    formState: { errors },
+  } = form;
   const selectedPipeline = watch("pipeline") || "default";
 
   // Filter Assigned To members based on selected pipeline
-  const assignedToDepartment = selectedPipeline === "marketing"
-    ? "Marketing"
-    : selectedPipeline === "sales"
-      ? "Sales"
-      : undefined; // standard = both (no filter)
+  const assignedToDepartment =
+    selectedPipeline === "marketing"
+      ? "Marketing"
+      : selectedPipeline === "sales"
+        ? "Sales"
+        : "Sales,Marketing"; // standard = both
 
   const { data: members = [] } = useOrganizationProfiles({
     department: assignedToDepartment,
-    includeSelf: true
+    includeSelf: true,
   });
 
   // Reset assignedTo when pipeline changes so stale selection is cleared
@@ -391,8 +486,8 @@ export default function CreateLeadPage() {
   const { data: dbStages = [] } = usePipelineStages();
 
   const customDbStages = dbStages
-    .filter(s => !stageOptions.some(d => d.value === s.stage_key))
-    .map(s => ({
+    .filter((s) => !stageOptions.some((d) => d.value === s.stage_key))
+    .map((s) => ({
       value: s.stage_key,
       label: s.stage_label,
     }));
@@ -404,19 +499,22 @@ export default function CreateLeadPage() {
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
 
   // Load templates when profile is available
-  const { data: templates, isLoading: templatesLoading } = useCustomFieldTemplates('lead');
+  const { data: templates, isLoading: templatesLoading } =
+    useCustomFieldTemplates("lead");
   const saveTemplates = useSaveCustomFieldTemplates();
 
   useEffect(() => {
     if (templates) {
-      setCustomFields(templates.map(t => ({
-        id: `template-${Math.random().toString(36).substr(2, 9)}`,
-        key: t.key,
-        value: "",
-        type: t.type,
-        sectionId: t.sectionId || "custom-fields",
-        afterFieldId: t.afterFieldId
-      })));
+      setCustomFields(
+        templates.map((t) => ({
+          id: `template-${Math.random().toString(36).substr(2, 9)}`,
+          key: t.key,
+          value: "",
+          type: t.type,
+          sectionId: t.sectionId || "custom-fields",
+          afterFieldId: t.afterFieldId,
+        })),
+      );
     }
   }, [templates]);
 
@@ -448,57 +546,112 @@ export default function CreateLeadPage() {
       serviceInterested: data.serviceInterested || null,
       decisionMaker: data.decisionMaker || null,
       interactionNotes: data.interactionNotes || null,
-      lastContactedDate: data.lastContactedDate && isValid(new Date(data.lastContactedDate)) ? new Date(data.lastContactedDate).toISOString() : null,
-      nextFollowUpDate: data.nextFollowUpDate && isValid(new Date(data.nextFollowUpDate)) ? new Date(data.nextFollowUpDate).toISOString() : null,
-      expectedCloseDate: data.expectedCloseDate && isValid(new Date(data.expectedCloseDate)) ? new Date(data.expectedCloseDate).toISOString() : null,
-      createdAt: data.createdAt && isValid(new Date(data.createdAt)) ? new Date(data.createdAt).toISOString() : new Date().toISOString(),
+      lastContactedDate:
+        data.lastContactedDate && isValid(new Date(data.lastContactedDate))
+          ? new Date(data.lastContactedDate).toISOString()
+          : null,
+      nextFollowUpDate:
+        data.nextFollowUpDate && isValid(new Date(data.nextFollowUpDate))
+          ? (() => {
+              const d = new Date(data.nextFollowUpDate!);
+              const off = -d.getTimezoneOffset();
+              const sign = off >= 0 ? "+" : "-";
+              const pad = (n: number) =>
+                String(Math.floor(Math.abs(n))).padStart(2, "0");
+              return (
+                d.getFullYear() +
+                "-" +
+                pad(d.getMonth() + 1) +
+                "-" +
+                pad(d.getDate()) +
+                "T" +
+                pad(d.getHours()) +
+                ":" +
+                pad(d.getMinutes()) +
+                ":00" +
+                sign +
+                pad(off / 60) +
+                ":" +
+                pad(off % 60)
+              );
+            })()
+          : null,
+      expectedCloseDate:
+        data.expectedCloseDate && isValid(new Date(data.expectedCloseDate))
+          ? new Date(data.expectedCloseDate).toISOString()
+          : null,
+      createdAt:
+        data.createdAt && isValid(new Date(data.createdAt))
+          ? new Date(data.createdAt).toISOString()
+          : new Date().toISOString(),
       lastTouch: new Date().toISOString(),
       assignedTo: data.assignedTo || null,
-      pipeline: data.pipeline || 'default',
+      pipeline: data.pipeline || "default",
       responsiblePerson: data.responsiblePerson || null,
       externalSourceId: data.externalSourceId || null,
       agentName: data.agentName || null,
       campaignName: data.campaignName || null,
       priority: data.priority || null,
-      tags: data.tags ? data.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
-      customFields: customFields.reduce((acc, field) => {
-        if (field.key.trim()) {
-          acc[field.key.trim()] = {
-            value: field.value,
-            type: field.type || 'string',
-            sectionId: field.sectionId || 'custom-fields',
-            afterFieldId: field.afterFieldId
-          };
-        }
-        return acc;
-      }, {} as Record<string, any>),
+      tags: data.tags
+        ? data.tags
+            .split(",")
+            .map((t: string) => t.trim())
+            .filter(Boolean)
+        : [],
+      customFields: customFields.reduce(
+        (acc, field) => {
+          if (field.key.trim()) {
+            acc[field.key.trim()] = {
+              value: field.value,
+              type: field.type || "string",
+              sectionId: field.sectionId || "custom-fields",
+              afterFieldId: field.afterFieldId,
+            };
+          }
+          return acc;
+        },
+        {} as Record<string, any>,
+      ),
     } as Record<string, unknown>;
 
     createLead.mutate(sanitizePayload(payload), {
       onSuccess: () => {
         // Save these field definitions as templates for future leads
-        saveTemplates.mutate({ entityType: 'lead', templates: customFields });
+        saveTemplates.mutate({ entityType: "lead", templates: customFields });
 
         toast.success("Lead created successfully", { description: data.title });
         navigate("/crm/leads");
       },
       onError: (err: any) => {
-        toast.error("Failed to create lead", { description: err?.message || "Please try again" });
+        toast.error("Failed to create lead", {
+          description: err?.message || "Please try again",
+        });
       },
     });
   };
 
-  const handleFieldDropToSection = (fieldKey: string, fieldValue: string, sectionId: string, updatedFields?: CustomField[]) => {
-    setCustomFields(prev => {
-      const updated = updatedFields || prev.map(f => f.id === fieldKey ? { ...f, sectionId } : f);
+  const handleFieldDropToSection = (
+    fieldKey: string,
+    fieldValue: string,
+    sectionId: string,
+    updatedFields?: CustomField[],
+  ) => {
+    setCustomFields((prev) => {
+      const updated =
+        updatedFields ||
+        prev.map((f) => (f.id === fieldKey ? { ...f, sectionId } : f));
       // Persist this change globally to the registry so new leads follow this layout
-      saveTemplates.mutate({ entityType: 'lead', templates: updated });
+      saveTemplates.mutate({ entityType: "lead", templates: updated });
       return updated;
     });
   };
 
-  const renderDroppedFields = (sectionId: string, isTop = false, afterFieldId?: string) => {
-    const sectionFields = customFields.filter(f => {
+  const renderDroppedFields = (
+    sectionId: string,
+    isTop = false,
+    afterFieldId?: string,
+  ) => {
+    const sectionFields = customFields.filter((f) => {
       if (f.sectionId !== sectionId) return false;
 
       if (afterFieldId) {
@@ -516,12 +669,17 @@ export default function CreateLeadPage() {
 
     return (
       <>
-        <SortableContext items={sectionFields.map(f => f.id)} strategy={verticalListSortingStrategy}>
+        <SortableContext
+          items={sectionFields.map((f) => f.id)}
+          strategy={verticalListSortingStrategy}
+        >
           {sectionFields.map((field) => (
             <DraggableFieldItem key={field.id} fieldKey={field.id}>
               <div className="group relative">
                 <div className="flex items-center justify-between mb-1.5">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{field.key}</Label>
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    {field.key}
+                  </Label>
                   <DraggableFieldItem fieldKey={field.id} isHandle>
                     <div className="p-1 cursor-grab active:cursor-grabbing text-primary hover:text-primary-foreground hover:bg-primary rounded transition-all opacity-0 group-hover:opacity-100">
                       <GripVertical className="h-3 w-3" />
@@ -532,7 +690,9 @@ export default function CreateLeadPage() {
                   field={field}
                   editing={true}
                   updateField={(id, updates) => {
-                    setCustomFields(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
+                    setCustomFields((prev) =>
+                      prev.map((f) => (f.id === id ? { ...f, ...updates } : f)),
+                    );
                   }}
                   entityType="lead"
                 />
@@ -545,8 +705,16 @@ export default function CreateLeadPage() {
   };
 
   const saveButton = (
-    <Button onClick={handleSubmit(onSubmit)} disabled={isSaving} className="gap-2">
-      {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+    <Button
+      onClick={handleSubmit(onSubmit)}
+      disabled={isSaving}
+      className="gap-2"
+    >
+      {isSaving ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
+        <Save className="h-4 w-4" />
+      )}
       {isSaving ? "Saving..." : "Save lead"}
     </Button>
   );
@@ -558,7 +726,11 @@ export default function CreateLeadPage() {
         description="Capture a new lead with custom fields support."
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => navigate(-1)} disabled={isSaving}>
+            <Button
+              variant="outline"
+              onClick={() => navigate(-1)}
+              disabled={isSaving}
+            >
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
           </div>
@@ -580,7 +752,9 @@ export default function CreateLeadPage() {
                     <Building2 className="h-5 w-5 text-primary" />
                     Lead & Company Details
                   </CardTitle>
-                  <CardDescription>Core contact and company information</CardDescription>
+                  <CardDescription>
+                    Core contact and company information
+                  </CardDescription>
                 </CardHeader>
               </DroppableSection>
               <CardContent className="p-6">
@@ -590,45 +764,77 @@ export default function CreateLeadPage() {
 
                 <DroppableSection id="lead-company-details" editing={true}>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-                    <DroppableField id="fixed-lead-company-details-pipeline" editing={true}>
+                    <DroppableField
+                      id="fixed-lead-company-details-pipeline"
+                      editing={true}
+                    >
                       <div className="space-y-2">
                         <Label className="text-sm font-medium text-foreground flex items-center gap-2">
                           <Briefcase className="h-4 w-4" />
                           Pipeline
                         </Label>
-                        <Select value={watch("pipeline") || "default"} onValueChange={v => setValue("pipeline", v)}>
-                          <SelectTrigger className="h-10">
+                        <Select
+                          value={watch("pipeline") || "default"}
+                          onValueChange={(v) => setValue("pipeline", v)}
+                        >
+                          <SelectTrigger className="h-9">
                             <SelectValue placeholder="Select pipeline" />
                           </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="default">Standard Pipeline</SelectItem>
-                            <SelectItem value="marketing">Marketing Pipeline</SelectItem>
-                            <SelectItem value="sales">Sales Pipeline</SelectItem>
+                          <SelectContent className="max-h-[140px] overflow-y-auto">
+                            <SelectItem value="default">
+                              Standard Pipeline
+                            </SelectItem>
+                            <SelectItem value="marketing">
+                              Marketing Pipeline
+                            </SelectItem>
+                            <SelectItem value="sales">
+                              Sales Pipeline
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                     </DroppableField>
-                    {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-pipeline")}
+                    {renderDroppedFields(
+                      "lead-company-details",
+                      false,
+                      "fixed-lead-company-details-pipeline",
+                    )}
 
-                    <DroppableField id="fixed-lead-company-details-stage" editing={true}>
+                    <DroppableField
+                      id="fixed-lead-company-details-stage"
+                      editing={true}
+                    >
                       <div className="space-y-2">
-                        <Label className="text-sm font-medium text-foreground">Stage</Label>
-                        <Select value={watch("stage")} onValueChange={v => { setValue("stage", v); setValue("status", v); }}>
-                          <SelectTrigger className={cn("h-10", errors.stage && "border-destructive")}>
-                            <SelectValue placeholder="Select stage" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {allStageOptions.map(opt => (
-                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {errors.stage && <p className="text-xs text-destructive">{errors.stage.message}</p>}
+                        <Label className="text-sm font-medium text-foreground">
+                          Stage
+                        </Label>
+                        <CreatableSelect
+                          label=""
+                          value={watch("stage") || ""}
+                          onChange={(v) => {
+                            setValue("stage", v);
+                            setValue("status", v);
+                          }}
+                          options={allStageOptions}
+                          placeholder="Select stage"
+                        />
+                        {errors.stage && (
+                          <p className="text-xs text-destructive">
+                            {errors.stage.message}
+                          </p>
+                        )}
                       </div>
                     </DroppableField>
-                    {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-stage")}
+                    {renderDroppedFields(
+                      "lead-company-details",
+                      false,
+                      "fixed-lead-company-details-stage",
+                    )}
 
-                    <DroppableField id="fixed-lead-company-details-assignedTo" editing={true}>
+                    <DroppableField
+                      id="fixed-lead-company-details-assignedTo"
+                      editing={true}
+                    >
                       <div className="space-y-2">
                         <Label className="text-sm font-medium text-foreground flex items-center gap-2">
                           <Users className="h-4 w-4" />
@@ -645,133 +851,269 @@ export default function CreateLeadPage() {
                           onChange={(v) => setValue("assignedTo", v || null)}
                           placeholder="Select owner..."
                         />
-                        {errors.assignedTo && <p className="text-xs text-destructive">{errors.assignedTo.message}</p>}
+                        {errors.assignedTo && (
+                          <p className="text-xs text-destructive">
+                            {errors.assignedTo.message}
+                          </p>
+                        )}
                       </div>
                     </DroppableField>
-                    {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-assignedTo")}
+                    {renderDroppedFields(
+                      "lead-company-details",
+                      false,
+                      "fixed-lead-company-details-assignedTo",
+                    )}
 
-                    <DroppableField id="fixed-lead-company-details-customerType" editing={true}>
+                    <DroppableField
+                      id="fixed-lead-company-details-customerType"
+                      editing={true}
+                    >
                       <div className="space-y-2">
-                        <Label className="text-sm font-medium text-foreground">Customer Type</Label>
+                        <Label className="text-sm font-medium text-foreground">
+                          Customer Type
+                        </Label>
                         <CreatableSelect
                           label=""
                           value={watch("customerType") || ""}
-                          onChange={v => setValue("customerType", v)}
+                          onChange={(v) => setValue("customerType", v)}
                           options={customerTypeOptions}
                           placeholder="not selected"
                         />
-                        {errors.customerType && <p className="text-xs text-destructive">{errors.customerType.message}</p>}
+                        {errors.customerType && (
+                          <p className="text-xs text-destructive">
+                            {errors.customerType.message}
+                          </p>
+                        )}
                       </div>
                     </DroppableField>
-                    {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-customerType")}
+                    {renderDroppedFields(
+                      "lead-company-details",
+                      false,
+                      "fixed-lead-company-details-customerType",
+                    )}
 
-                    <DroppableField id="fixed-lead-company-details-title" editing={true}>
+                    <DroppableField
+                      id="fixed-lead-company-details-title"
+                      editing={true}
+                    >
                       <div className="w-[573px]">
-                        <LabeledInput label="Lead name" placeholder="Lead name" fieldProps={register("title")} error={errors.title?.message} />
+                        <LabeledInput
+                          label="Lead name"
+                          placeholder="Lead name"
+                          fieldProps={register("title")}
+                          error={errors.title?.message}
+                        />
                       </div>
                     </DroppableField>
-                    {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-title")}
+                    {renderDroppedFields(
+                      "lead-company-details",
+                      false,
+                      "fixed-lead-company-details-title",
+                    )}
                   </div>
 
                   <div className="grid gap-5 md:grid-cols-2 mt-5">
-                    <DroppableField id="fixed-lead-company-details-companyName" editing={true}>
-                      <LabeledInput label="Company name" placeholder="Company name" fieldProps={register("companyName")} error={errors.companyName?.message} />
+                    <DroppableField
+                      id="fixed-lead-company-details-companyName"
+                      editing={true}
+                    >
+                      <LabeledInput
+                        label="Company name"
+                        placeholder="Company name"
+                        fieldProps={register("companyName")}
+                        error={errors.companyName?.message}
+                      />
                     </DroppableField>
-                    {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-companyName")}
+                    {renderDroppedFields(
+                      "lead-company-details",
+                      false,
+                      "fixed-lead-company-details-companyName",
+                    )}
 
-                    <DroppableField id="fixed-lead-company-details-companyPhone" editing={true}>
-                      <LabeledInput label="Company phone" placeholder="Company phone" fieldProps={register("companyPhone")} error={errors.companyPhone?.message} />
+                    <DroppableField
+                      id="fixed-lead-company-details-companyPhone"
+                      editing={true}
+                    >
+                      <LabeledInput
+                        label="Company phone"
+                        placeholder="Company phone"
+                        fieldProps={register("companyPhone")}
+                        error={errors.companyPhone?.message}
+                      />
                     </DroppableField>
-                    {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-companyPhone")}
+                    {renderDroppedFields(
+                      "lead-company-details",
+                      false,
+                      "fixed-lead-company-details-companyPhone",
+                    )}
 
-                    <DroppableField id="fixed-lead-company-details-companyEmail" editing={true}>
-                      <LabeledInput label="Company email" placeholder="Company email" fieldProps={register("companyEmail")} error={errors.companyEmail?.message} />
+                    <DroppableField
+                      id="fixed-lead-company-details-companyEmail"
+                      editing={true}
+                    >
+                      <LabeledInput
+                        label="Company email"
+                        placeholder="Company email"
+                        fieldProps={register("companyEmail")}
+                        error={errors.companyEmail?.message}
+                      />
                     </DroppableField>
-                    {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-companyEmail")}
+                    {renderDroppedFields(
+                      "lead-company-details",
+                      false,
+                      "fixed-lead-company-details-companyEmail",
+                    )}
 
-                    <LabeledInput label="Designation" placeholder="Job title / designation" fieldProps={register("designation")} error={errors.designation?.message} />
+                    <LabeledInput
+                      label="Designation"
+                      placeholder="Job title / designation"
+                      fieldProps={register("designation")}
+                      error={errors.designation?.message}
+                    />
 
                     <div className="space-y-2">
-                      <Label className="text-sm font-medium text-foreground">Personal Number</Label>
+                      <Label className="text-sm font-medium text-foreground">
+                        Personal Number
+                      </Label>
                       <div className="flex items-stretch gap-2">
                         <Input
                           placeholder="+1 555 0123"
-                          className={cn("h-11 flex-1 min-w-0", errors.phone && "border-destructive")}
+                          className={cn(
+                            "h-11 flex-1 min-w-0",
+                            errors.phone && "border-destructive",
+                          )}
                           {...register("phone")}
                         />
-                        <Select value={watch("phoneType") || "work"} onValueChange={v => setValue("phoneType", v)}>
+                        <Select
+                          value={watch("phoneType") || "work"}
+                          onValueChange={(v) => setValue("phoneType", v)}
+                        >
                           <SelectTrigger className="h-11 w-[150px] shrink-0 border-border">
                             <SelectValue placeholder="Work Phone" />
                           </SelectTrigger>
                           <SelectContent>
-                            {phoneTypeOptions.map(opt => (
-                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                            {phoneTypeOptions.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </div>
-                      {errors.phone && <p className="text-xs text-destructive">{errors.phone.message}</p>}
+                      {errors.phone && (
+                        <p className="text-xs text-destructive">
+                          {errors.phone.message}
+                        </p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-sm font-medium text-foreground">Personal E-mail</Label>
+                      <Label className="text-sm font-medium text-foreground">
+                        Personal E-mail
+                      </Label>
                       <div className="flex items-stretch gap-2">
                         <Input
                           type="email"
                           placeholder="name@example.com"
-                          className={cn("h-11 flex-1 min-w-0", errors.email && "border-destructive")}
+                          className={cn(
+                            "h-11 flex-1 min-w-0",
+                            errors.email && "border-destructive",
+                          )}
                           {...register("email")}
                         />
-                        <Select value={watch("emailType") || "work"} onValueChange={v => setValue("emailType", v)}>
+                        <Select
+                          value={watch("emailType") || "work"}
+                          onValueChange={(v) => setValue("emailType", v)}
+                        >
                           <SelectTrigger className="h-11 w-[130px] shrink-0 border-border">
                             <SelectValue placeholder="Work" />
                           </SelectTrigger>
                           <SelectContent>
-                            {emailTypeOptions.map(opt => (
-                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                            {emailTypeOptions.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </div>
-                      {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+                      {errors.email && (
+                        <p className="text-xs text-destructive">
+                          {errors.email.message}
+                        </p>
+                      )}
                     </div>
 
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-foreground">Website</Label>
+                    <div className="space-y-2 w-[572px]">
+                      <Label className="text-sm font-medium text-foreground">
+                        Website
+                      </Label>
                       <div className="flex items-stretch gap-2">
                         <Input
                           placeholder="https://example.com"
-                          className={cn("h-11 flex-1 min-w-0", errors.website && "border-destructive")}
+                          className={cn(
+                            "h-11 flex-1 min-w-0",
+                            errors.website && "border-destructive",
+                          )}
                           {...register("website")}
                         />
-                        <Select value={watch("websiteType") || "corporate"} onValueChange={v => setValue("websiteType", v)}>
+                        <Select
+                          value={watch("websiteType") || "corporate"}
+                          onValueChange={(v) => setValue("websiteType", v)}
+                        >
                           <SelectTrigger className="h-11 w-[150px] shrink-0 border-border">
                             <SelectValue placeholder="Corporate" />
                           </SelectTrigger>
                           <SelectContent>
-                            {websiteTypeOptions.map(opt => (
-                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                            {websiteTypeOptions.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </div>
-                      {errors.website && <p className="text-xs text-destructive">{errors.website.message}</p>}
+                      {errors.website && (
+                        <p className="text-xs text-destructive">
+                          {errors.website.message}
+                        </p>
+                      )}
                     </div>
 
                     <div className="md:col-span-2 space-y-2">
                       <div className="flex items-center justify-between">
-                        <Label className="text-sm font-medium text-foreground">Address</Label>
+                        <Label className="text-sm font-medium text-foreground">
+                          Address
+                        </Label>
                       </div>
                       <Textarea
                         placeholder="Address"
                         {...register("address")}
-                        className={cn("min-h-[84px]", errors.address && "border-destructive")}
+                        className={cn(
+                          "min-h-[84px]",
+                          errors.address && "border-destructive",
+                        )}
                       />
-                      {errors.address && <p className="text-xs text-destructive">{errors.address.message}</p>}
+                      {errors.address && (
+                        <p className="text-xs text-destructive">
+                          {errors.address.message}
+                        </p>
+                      )}
                     </div>
 
-                    <LabeledInput label="Company Phone Number" placeholder="+1 555 0123" fieldProps={register("companyPhone")} error={errors.companyPhone?.message} />
-                    <LabeledInput label="Company Email" placeholder="info@company.com" fieldProps={register("companyEmail")} type="email" error={errors.companyEmail?.message} />
+                    <LabeledInput
+                      label="Company Phone Number"
+                      placeholder="+1 555 0123"
+                      fieldProps={register("companyPhone")}
+                      error={errors.companyPhone?.message}
+                    />
+                    <LabeledInput
+                      label="Company Email"
+                      placeholder="info@company.com"
+                      fieldProps={register("companyEmail")}
+                      type="email"
+                      error={errors.companyEmail?.message}
+                    />
                   </div>
                   {renderDroppedFields("lead-company-details")}
                 </DroppableSection>
@@ -785,7 +1127,9 @@ export default function CreateLeadPage() {
                     <CalendarDays className="h-5 w-5 text-primary" />
                     Activity & Interaction
                   </CardTitle>
-                  <CardDescription>Track touchpoints and follow-up timing</CardDescription>
+                  <CardDescription>
+                    Track touchpoints and follow-up timing
+                  </CardDescription>
                 </CardHeader>
               </DroppableSection>
               <CardContent className="p-6">
@@ -796,12 +1140,45 @@ export default function CreateLeadPage() {
                 <DroppableSection id="activity-tracking" editing={true}>
                   <div className="grid gap-5 md:grid-cols-2">
                     <div className="space-y-2">
-                      <Label className="text-sm font-medium text-foreground">Last Contacted Date</Label>
-                      <Input type="date" {...register("lastContactedDate")} className={cn("h-10", errors.lastContactedDate && "border-destructive")} />
+                      <Label className="text-sm font-medium text-foreground">
+                        Last Contacted Date
+                      </Label>
+                      <Input
+                        type="date"
+                        {...register("lastContactedDate")}
+                        className={cn(
+                          "h-10",
+                          errors.lastContactedDate && "border-destructive",
+                        )}
+                      />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-sm font-medium text-foreground">Next Follow-up Date</Label>
-                      <Input type="date" {...register("nextFollowUpDate")} className={cn("h-10", errors.nextFollowUpDate && "border-destructive")} />
+                      <Label className="text-sm font-medium text-foreground">
+                        Next Follow-up Date &amp; Time
+                      </Label>
+                      <Input
+                        type="datetime-local"
+                        {...register("nextFollowUpDate")}
+                        className={cn(
+                          "h-10",
+                          errors.nextFollowUpDate && "border-destructive",
+                        )}
+                      />
+                      {watch("nextFollowUpDate") &&
+                        isValid(new Date(watch("nextFollowUpDate")!)) && (
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(
+                              watch("nextFollowUpDate")!,
+                            ).toLocaleString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                              hour: "numeric",
+                              minute: "2-digit",
+                              hour12: true,
+                            })}
+                          </p>
+                        )}
                     </div>
                   </div>
 
@@ -829,7 +1206,10 @@ export default function CreateLeadPage() {
                 </CardHeader>
                 <CardContent className="space-y-5 p-6">
                   <div className="grid gap-5 md:grid-cols-2">
-                    <DroppableField id="fixed-qualification-opportunity-serviceInterested" editing={true}>
+                    <DroppableField
+                      id="fixed-qualification-opportunity-serviceInterested"
+                      editing={true}
+                    >
                       <div className="space-y-2">
                         <Label className="text-sm font-medium text-foreground flex items-center gap-2">
                           <Sparkles className="h-4 w-4" />
@@ -844,25 +1224,43 @@ export default function CreateLeadPage() {
                         />
                       </div>
                     </DroppableField>
-                    {renderDroppedFields("qualification-opportunity", false, "fixed-qualification-opportunity-serviceInterested")}
+                    {renderDroppedFields(
+                      "qualification-opportunity",
+                      false,
+                      "fixed-qualification-opportunity-serviceInterested",
+                    )}
 
-                    <DroppableField id="fixed-qualification-opportunity-companySize" editing={true}>
+                    <DroppableField
+                      id="fixed-qualification-opportunity-companySize"
+                      editing={true}
+                    >
                       <div className="space-y-2">
-                        <Label className="text-sm font-medium text-foreground">Company Size</Label>
+                        <Label className="text-sm font-medium text-foreground">
+                          Company Size
+                        </Label>
                         <CreatableSelect
                           label=""
                           value={watch("companySize") || ""}
-                          onChange={v => setValue("companySize", v)}
+                          onChange={(v) => setValue("companySize", v)}
                           options={companySizeOptions}
                           placeholder="Company Size"
                         />
                       </div>
                     </DroppableField>
-                    {renderDroppedFields("qualification-opportunity", false, "fixed-qualification-opportunity-companySize")}
+                    {renderDroppedFields(
+                      "qualification-opportunity",
+                      false,
+                      "fixed-qualification-opportunity-companySize",
+                    )}
 
-                    <DroppableField id="fixed-qualification-opportunity-value" editing={true}>
+                    <DroppableField
+                      id="fixed-qualification-opportunity-value"
+                      editing={true}
+                    >
                       <div className="space-y-2">
-                        <Label className="text-sm font-medium text-foreground">Estimated Opportunity Value</Label>
+                        <Label className="text-sm font-medium text-foreground">
+                          Estimated Opportunity Value
+                        </Label>
                         <div className="flex items-stretch gap-2">
                           <Input
                             type="number"
@@ -870,48 +1268,88 @@ export default function CreateLeadPage() {
                             {...register("value")}
                             className={cn("h-10 flex-1 min-w-0")}
                           />
-                          <Select value={watch("currency") || "USD"} onValueChange={v => setValue("currency", v)}>
+                          <Select
+                            value={watch("currency") || "USD"}
+                            onValueChange={(v) => setValue("currency", v)}
+                          >
                             <SelectTrigger className="h-10 w-[150px] shrink-0 border-border">
                               <SelectValue placeholder="US Dollar" />
                             </SelectTrigger>
                             <SelectContent>
-                              {currencyOptions.map(opt => (
-                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                              {currencyOptions.map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         </div>
                       </div>
                     </DroppableField>
-                    {renderDroppedFields("qualification-opportunity", false, "fixed-qualification-opportunity-value")}
+                    {renderDroppedFields(
+                      "qualification-opportunity",
+                      false,
+                      "fixed-qualification-opportunity-value",
+                    )}
 
-                    <DroppableField id="fixed-qualification-opportunity-decisionMaker" editing={true}>
+                    <DroppableField
+                      id="fixed-qualification-opportunity-decisionMaker"
+                      editing={true}
+                    >
                       <LabeledInput
                         label="Decision Maker Identified"
                         placeholder="not selected"
                         fieldProps={register("decisionMaker")}
                       />
                     </DroppableField>
-                    {renderDroppedFields("qualification-opportunity", false, "fixed-qualification-opportunity-decisionMaker")}
+                    {renderDroppedFields(
+                      "qualification-opportunity",
+                      false,
+                      "fixed-qualification-opportunity-decisionMaker",
+                    )}
 
-                    <DroppableField id="fixed-qualification-opportunity-expectedCloseDate" editing={true}>
+                    <DroppableField
+                      id="fixed-qualification-opportunity-expectedCloseDate"
+                      editing={true}
+                    >
                       <div className="space-y-2">
                         <Label className="text-sm font-medium text-foreground flex items-center gap-2">
                           <CalendarIcon className="h-4 w-4" />
                           Expected Close Date
                         </Label>
-                        <Input type="date" {...register("expectedCloseDate")} className="h-10" />
+                        <Input
+                          type="date"
+                          {...register("expectedCloseDate")}
+                          className="h-10"
+                        />
                       </div>
                     </DroppableField>
-                    {renderDroppedFields("qualification-opportunity", false, "fixed-qualification-opportunity-expectedCloseDate")}
+                    {renderDroppedFields(
+                      "qualification-opportunity",
+                      false,
+                      "fixed-qualification-opportunity-expectedCloseDate",
+                    )}
 
-                    <DroppableField id="fixed-qualification-opportunity-responsiblePerson" editing={true}>
+                    <DroppableField
+                      id="fixed-qualification-opportunity-responsiblePerson"
+                      editing={true}
+                    >
                       <div className="space-y-2">
-                        <Label className="text-sm font-medium text-foreground">Responsible Person</Label>
-                        <Input placeholder="Responsible Person" {...register("responsiblePerson")} className="h-10" />
+                        <Label className="text-sm font-medium text-foreground">
+                          Responsible Person
+                        </Label>
+                        <Input
+                          placeholder="Responsible Person"
+                          {...register("responsiblePerson")}
+                          className="h-10"
+                        />
                       </div>
                     </DroppableField>
-                    {renderDroppedFields("qualification-opportunity", false, "fixed-qualification-opportunity-responsiblePerson")}
+                    {renderDroppedFields(
+                      "qualification-opportunity",
+                      false,
+                      "fixed-qualification-opportunity-responsiblePerson",
+                    )}
                   </div>
                   {renderDroppedFields("qualification-opportunity")}
                 </CardContent>
@@ -929,9 +1367,14 @@ export default function CreateLeadPage() {
                 </CardHeader>
                 <CardContent className="space-y-5 p-6">
                   <div className="grid gap-5 md:grid-cols-2">
-                    <DroppableField id="fixed-source-section-createdAt" editing={true}>
+                    <DroppableField
+                      id="fixed-source-section-createdAt"
+                      editing={true}
+                    >
                       <div className="space-y-2">
-                        <Label className="text-sm font-medium text-foreground">Created on</Label>
+                        <Label className="text-sm font-medium text-foreground">
+                          Created on
+                        </Label>
                         <Input
                           type="date"
                           {...register("createdAt")}
@@ -939,90 +1382,182 @@ export default function CreateLeadPage() {
                         />
                       </div>
                     </DroppableField>
-                    {renderDroppedFields("source-section", false, "fixed-source-section-createdAt")}
+                    {renderDroppedFields(
+                      "source-section",
+                      false,
+                      "fixed-source-section-createdAt",
+                    )}
 
-                    <DroppableField id="fixed-source-section-source" editing={true}>
+                    <DroppableField
+                      id="fixed-source-section-source"
+                      editing={true}
+                    >
                       <div className="space-y-2">
-                        <Label className="text-sm font-medium text-foreground">Source</Label>
+                        <Label className="text-sm font-medium text-foreground">
+                          Source
+                        </Label>
                         <CreatableSelect
                           label=""
                           value={watch("source") || ""}
-                          onChange={v => setValue("source", v)}
+                          onChange={(v) => setValue("source", v)}
                           options={sourceOptions}
                           placeholder="Select source..."
                         />
                       </div>
                     </DroppableField>
-                    {renderDroppedFields("source-section", false, "fixed-source-section-source")}
+                    {renderDroppedFields(
+                      "source-section",
+                      false,
+                      "fixed-source-section-source",
+                    )}
 
                     <div className="md:col-span-2 space-y-2">
-                      <DroppableField id="fixed-source-section-sourceInfo" editing={true}>
-                        <Label className="text-sm font-medium text-foreground">Source Information</Label>
+                      <DroppableField
+                        id="fixed-source-section-sourceInfo"
+                        editing={true}
+                      >
+                        <Label className="text-sm font-medium text-foreground">
+                          Source Information
+                        </Label>
                         <Textarea
                           placeholder="Source Information"
                           {...register("sourceInfo")}
                           className="min-h-[110px]"
                         />
                       </DroppableField>
-                      {renderDroppedFields("source-section", false, "fixed-source-section-sourceInfo")}
+                      {renderDroppedFields(
+                        "source-section",
+                        false,
+                        "fixed-source-section-sourceInfo",
+                      )}
                     </div>
 
-                    <DroppableField id="fixed-source-section-externalSourceId" editing={true}>
+                    <DroppableField
+                      id="fixed-source-section-externalSourceId"
+                      editing={true}
+                    >
                       <div className="space-y-2">
-                        <Label className="text-sm font-medium text-foreground">External Source ID</Label>
-                        <Input placeholder="e.g. CRM-123" {...register("externalSourceId")} className="h-10" />
+                        <Label className="text-sm font-medium text-foreground">
+                          External Source ID
+                        </Label>
+                        <Input
+                          placeholder="e.g. CRM-123"
+                          {...register("externalSourceId")}
+                          className="h-10"
+                        />
                       </div>
                     </DroppableField>
-                    {renderDroppedFields("source-section", false, "fixed-source-section-externalSourceId")}
+                    {renderDroppedFields(
+                      "source-section",
+                      false,
+                      "fixed-source-section-externalSourceId",
+                    )}
 
-                    <DroppableField id="fixed-source-section-agentName" editing={true}>
+                    <DroppableField
+                      id="fixed-source-section-agentName"
+                      editing={true}
+                    >
                       <div className="space-y-2">
-                        <Label className="text-sm font-medium text-foreground">Agent Name</Label>
-                        <Input placeholder="Agent name" {...register("agentName")} className="h-10" />
+                        <Label className="text-sm font-medium text-foreground">
+                          Agent Name
+                        </Label>
+                        <Input
+                          placeholder="Agent name"
+                          {...register("agentName")}
+                          className="h-10"
+                        />
                       </div>
                     </DroppableField>
-                    {renderDroppedFields("source-section", false, "fixed-source-section-agentName")}
+                    {renderDroppedFields(
+                      "source-section",
+                      false,
+                      "fixed-source-section-agentName",
+                    )}
 
-                    <DroppableField id="fixed-source-section-priority" editing={true}>
+                    <DroppableField
+                      id="fixed-source-section-priority"
+                      editing={true}
+                    >
                       <div className="space-y-2">
-                        <Label className="text-sm font-medium text-foreground">Priority</Label>
+                        <Label className="text-sm font-medium text-foreground">
+                          Priority
+                        </Label>
                         <CreatableSelect
                           label=""
                           value={watch("priority") || ""}
-                          onChange={v => setValue("priority", v)}
+                          onChange={(v) => setValue("priority", v)}
                           options={priorityOptions}
                           placeholder="Select priority"
                         />
                       </div>
                     </DroppableField>
-                    {renderDroppedFields("source-section", false, "fixed-source-section-priority")}
+                    {renderDroppedFields(
+                      "source-section",
+                      false,
+                      "fixed-source-section-priority",
+                    )}
 
-                    <DroppableField id="fixed-source-section-tags" editing={true}>
+                    <DroppableField
+                      id="fixed-source-section-tags"
+                      editing={true}
+                    >
                       <div className="space-y-2">
-                        <Label className="text-sm font-medium text-foreground">Tags</Label>
-                        <Input placeholder="e.g. hot-lead, enterprise, Q2" {...register("tags")} className="h-10" />
+                        <Label className="text-sm font-medium text-foreground">
+                          Tags
+                        </Label>
+                        <Input
+                          placeholder="e.g. hot-lead, enterprise, Q2"
+                          {...register("tags")}
+                          className="h-10"
+                        />
                       </div>
                     </DroppableField>
-                    {renderDroppedFields("source-section", false, "fixed-source-section-tags")}
+                    {renderDroppedFields(
+                      "source-section",
+                      false,
+                      "fixed-source-section-tags",
+                    )}
 
-                    <DroppableField id="fixed-source-section-campaignName" editing={true}>
+                    <DroppableField
+                      id="fixed-source-section-campaignName"
+                      editing={true}
+                    >
                       <div className="space-y-2">
-                        <Label className="text-sm font-medium text-foreground">Campaign Name</Label>
-                        <Input placeholder="e.g. Summer Promo 2026" {...register("campaignName")} className="h-10" />
+                        <Label className="text-sm font-medium text-foreground">
+                          Campaign Name
+                        </Label>
+                        <Input
+                          placeholder="e.g. Summer Promo 2026"
+                          {...register("campaignName")}
+                          className="h-10"
+                        />
                       </div>
                     </DroppableField>
-                    {renderDroppedFields("source-section", false, "fixed-source-section-campaignName")}
+                    {renderDroppedFields(
+                      "source-section",
+                      false,
+                      "fixed-source-section-campaignName",
+                    )}
 
                     <div className="md:col-span-2 space-y-2">
-                      <DroppableField id="fixed-source-section-notes" editing={true}>
-                        <Label className="text-sm font-medium text-foreground">Additional Notes</Label>
+                      <DroppableField
+                        id="fixed-source-section-notes"
+                        editing={true}
+                      >
+                        <Label className="text-sm font-medium text-foreground">
+                          Additional Notes
+                        </Label>
                         <Textarea
                           placeholder="Add any extra context"
                           {...register("notes")}
                           className="min-h-[110px]"
                         />
                       </DroppableField>
-                      {renderDroppedFields("source-section", false, "fixed-source-section-notes")}
+                      {renderDroppedFields(
+                        "source-section",
+                        false,
+                        "fixed-source-section-notes",
+                      )}
                     </div>
                   </div>
                   {renderDroppedFields("source-section")}
@@ -1046,28 +1581,38 @@ export default function CreateLeadPage() {
                 Lead Preview
               </CardTitle>
               <CardDescription>
-                You are now adding a lead. Complete the fields and save when ready.
+                You are now adding a lead. Complete the fields and save when
+                ready.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 p-6">
               <div className="rounded-lg border p-4">
-                <p className="text-sm font-medium text-foreground">Add a new activity</p>
+                <p className="text-sm font-medium text-foreground">
+                  Add a new activity
+                </p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Plan your next action on the lead to keep follow-up details in one place.
+                  Plan your next action on the lead to keep follow-up details in
+                  one place.
                 </p>
               </div>
 
               <div className="space-y-3 rounded-lg border p-4">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Stage</span>
-                  <span className="text-sm font-medium">{watch("stage") || "new"}</span>
+                  <span className="text-sm font-medium">
+                    {watch("stage") || "new"}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Source</span>
-                  <span className="text-sm font-medium">{watch("source") || "call"}</span>
+                  <span className="text-sm font-medium">
+                    {watch("source") || "call"}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Opportunity</span>
+                  <span className="text-sm text-muted-foreground">
+                    Opportunity
+                  </span>
                   <span className="text-sm font-medium">
                     {watch("currency") || "USD"} {watch("value") || "0"}
                   </span>
@@ -1076,7 +1621,11 @@ export default function CreateLeadPage() {
 
               <div className="flex flex-col gap-2">
                 {saveButton}
-                <Button variant="outline" onClick={() => navigate("/crm/leads")} disabled={isSaving}>
+                <Button
+                  variant="outline"
+                  onClick={() => navigate("/crm/leads")}
+                  disabled={isSaving}
+                >
                   Cancel
                 </Button>
               </div>

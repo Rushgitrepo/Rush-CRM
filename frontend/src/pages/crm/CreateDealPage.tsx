@@ -1,11 +1,11 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { cn } from "@/lib/utils";
-import { Save, Loader2, ArrowLeft } from "lucide-react";
+import { Save, Loader2, ArrowLeft, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -27,10 +27,11 @@ import { useDealPipelineStages } from "@/hooks/usePipelineStages";
 import { mergeFieldsWithTemplatesSync } from "@/utils/crm/customFieldsRegistry";
 import { sanitizePayload } from "@/utils/crm/sanitize";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { User } from "lucide-react";
+import { User, Users } from "lucide-react";
 import { CardDescription } from "@/components/ui/card";
 import { toast } from "sonner";
 import { isValid } from "date-fns";
+import { MemberSearchSelect } from "@/components/tasks/MemberSearchSelect";
 
 const dealSchema = z.object({
   title: z.string().min(2, "Deal title required"),
@@ -160,12 +161,6 @@ export default function CreateDealPage() {
   const createDeal = useCreateDeal();
   const { data: contacts } = useContacts();
   const { data: companies } = useCompanies();
-  const selectedPipeline = watch("pipeline") || "default";
-  const departmentFilter = profile?.department === "Sales" ? "Sales" : (profile?.department === "Marketing" ? "Marketing" : undefined);
-  const { data: members = [] } = useOrganizationProfiles({ 
-    department: departmentFilter, 
-    includeSelf: true 
-  });
   const { data: dbStages = [] } = useDealPipelineStages();
 
   const stageOptions = useMemo(() => {
@@ -268,6 +263,28 @@ export default function CreateDealPage() {
     },
   });
 
+  const selectedPipeline = form.watch("pipeline") || "default";
+
+  const departmentFilter = selectedPipeline === "marketing"
+    ? "Marketing"
+    : selectedPipeline === "sales"
+      ? "Sales"
+      : "Sales,Marketing"; // standard = both
+
+  const { data: members = [] } = useOrganizationProfiles({
+    department: departmentFilter,
+    includeSelf: true
+  });
+
+  // Reset assignedTo when pipeline changes
+  const prevPipelineRef = useRef(selectedPipeline);
+  useEffect(() => {
+    if (prevPipelineRef.current !== selectedPipeline) {
+      prevPipelineRef.current = selectedPipeline;
+      form.setValue("assignedTo", "");
+    }
+  }, [selectedPipeline, form]);
+
   const isSaving = createDeal.isPending;
 
   const handleFieldDropToSection = (fieldKey: string, fieldValue: string, sectionId: string, updatedFields?: CustomField[]) => {
@@ -282,15 +299,15 @@ export default function CreateDealPage() {
   const renderDroppedFields = (sectionId: string, isTop = false, afterFieldId?: string) => {
     const sectionFields = customFields.filter(f => {
       if (f.sectionId !== sectionId) return false;
-      
+
       if (afterFieldId) {
         return f.afterFieldId === afterFieldId;
       }
-      
+
       if (isTop) {
         return f.afterFieldId === `${sectionId}-top`;
       }
-      
+
       return !f.afterFieldId;
     });
 
@@ -303,27 +320,24 @@ export default function CreateDealPage() {
             <DraggableFieldItem key={field.id} fieldKey={field.id}>
               <div className="group relative">
                 <div className="flex items-center justify-between mb-1.5">
-                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{field.key}</Label>
-                    <DraggableFieldItem fieldKey={field.id} isHandle>
-                      <div className="p-1 cursor-grab active:cursor-grabbing text-primary hover:text-primary-foreground hover:bg-primary rounded transition-all opacity-0 group-hover:opacity-100">
-                        <GripVertical className="h-3 w-3" />
-                      </div>
-                    </DraggableFieldItem>
-                  </div>
-                  <CustomFieldInput
-                    field={field}
-                    editing={true}
-                    onUpdate={(updates) => {
-                      setCustomFields(prev => prev.map(f => f.id === field.id ? { ...f, ...updates } : f));
-                    }}
-                    onDelete={() => {
-                      setCustomFields(prev => prev.filter(f => f.id !== field.id));
-                    }}
-                    entityId="new"
-                  />
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{field.key}</Label>
+                  <DraggableFieldItem fieldKey={field.id} isHandle>
+                    <div className="p-1 cursor-grab active:cursor-grabbing text-primary hover:text-primary-foreground hover:bg-primary rounded transition-all opacity-0 group-hover:opacity-100">
+                      <GripVertical className="h-3 w-3" />
+                    </div>
+                  </DraggableFieldItem>
                 </div>
-              </DraggableFieldItem>
-            ))}
+                <CustomFieldInput
+                  field={field}
+                  editing={true}
+                  updateField={(id, updates) => {
+                    setCustomFields(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
+                  }}
+                  entityId="new"
+                />
+              </div>
+            </DraggableFieldItem>
+          ))}
         </SortableContext>
       </>
     );
@@ -366,7 +380,7 @@ export default function CreateDealPage() {
       sourceInfo: data.sourceInfo,
       projectBlueprints: data.projectBlueprints,
       expected_close_date: data.expectedCloseDate && isValid(new Date(data.expectedCloseDate)) ? new Date(data.expectedCloseDate).toISOString() : undefined,
-      next_follow_up_date: data.nextFollowUpDate && isValid(new Date(data.nextFollowUpDate)) ? new Date(data.nextFollowUpDate).toISOString() : undefined,
+      next_follow_up_date: data.nextFollowUpDate && isValid(new Date(data.nextFollowUpDate)) ? (() => { const d = new Date(data.nextFollowUpDate!); const off = -d.getTimezoneOffset(); const sign = off >= 0 ? '+' : '-'; const pad = (n: number) => String(Math.floor(Math.abs(n))).padStart(2, '0'); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':00' + sign + pad(off / 60) + ':' + pad(off % 60); })() : undefined,
       assigned_to: data.assignedTo || undefined,
       responsible_person: data.assignedTo || undefined,
       external_source_id: data.externalSourceId,
@@ -384,8 +398,8 @@ export default function CreateDealPage() {
       service_interested: data.serviceInterested || null,
       customFields: customFields.reduce((acc, field) => {
         if (field.key.trim()) {
-          acc[field.key.trim()] = { 
-            value: field.value, 
+          acc[field.key.trim()] = {
+            value: field.value,
             type: field.type || 'string',
             sectionId: field.sectionId || 'custom-fields',
             afterFieldId: field.afterFieldId
@@ -399,7 +413,7 @@ export default function CreateDealPage() {
       onSuccess: () => {
         // Save these field definitions as templates for future deals
         saveTemplates.mutate({ entityType: 'deal', templates: customFields });
-        
+
         toast.success("Deal created successfully", { description: data.title });
         navigate("/crm/deals");
       },
@@ -410,10 +424,16 @@ export default function CreateDealPage() {
   };
 
   const saveButton = (
-    <Button onClick={form.handleSubmit(onSubmit)} disabled={isSaving} className="gap-2">
-      {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-      {isSaving ? "Saving..." : "Save deal"}
-    </Button>
+    <div className="flex gap-2">
+      <Button onClick={form.handleSubmit(onSubmit)} disabled={isSaving} className="gap-2 bg-primary hover:bg-primary/90">
+        {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+        {isSaving ? "Saving..." : "Create Deal"}
+      </Button>
+      <Button variant="outline" onClick={() => navigate("/crm/deals")} disabled={isSaving} className="gap-2">
+        <X className="h-4 w-4" />
+        Cancel
+      </Button>
+    </div>
   );
 
   return (
@@ -423,9 +443,7 @@ export default function CreateDealPage() {
         description="Spin up a new deal with the key details and linked contacts."
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => navigate(-1)} disabled={isSaving}>
-              <ArrowLeft className="mr-2 h-4 w-4" /> Back
-            </Button>
+            {saveButton}
           </div>
         }
       />
@@ -438,266 +456,263 @@ export default function CreateDealPage() {
           editing={true}
         >
           <div className="lg:col-span-2 space-y-4">
-                <Card className="border shadow-sm overflow-hidden">
-                  <DroppableSection id="deal-info-top" editing={true}>
-                    <CardHeader className="border-b bg-muted/30 hover:bg-muted/50 transition-colors">
-                      <CardTitle className="flex items-center gap-2">
-                        <User className="h-5 w-5 text-primary" />
-                        Deal Information
-                      </CardTitle>
-                      <CardDescription>Primary deal details and status</CardDescription>
-                    </CardHeader>
-                  </DroppableSection>
-                  <CardContent className="p-6">
-                    <DroppableSection id="deal-info-top" editing={true}>
-                      {renderDroppedFields("deal-info-top", true)}
-                    </DroppableSection>
+            <Card className="border shadow-sm overflow-hidden">
+              <DroppableSection id="deal-info-top" editing={true}>
+                <CardHeader className="border-b bg-muted/30 hover:bg-muted/50 transition-colors">
+                  <CardTitle className="flex items-center gap-2">
+                    <User className="h-5 w-5 text-primary" />
+                    Deal Information
+                  </CardTitle>
+                  <CardDescription>Primary deal details and status</CardDescription>
+                </CardHeader>
+              </DroppableSection>
+              <CardContent className="p-6">
+                <DroppableSection id="deal-info-top" editing={true}>
+                  {renderDroppedFields("deal-info-top", true)}
+                </DroppableSection>
 
-                    <DroppableSection id="deal-info" editing={true}>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <DroppableField id="fixed-deal-info-title" editing={true}>
-                          <div className="space-y-2">
-                            <Label>Deal title *</Label>
-                            <Input
-                              placeholder="New build proposal"
-                              {...form.register("title")}
-                              className={cn(form.formState.errors.title && "border-destructive")}
-                            />
-                            {form.formState.errors.title && <p className="text-xs text-destructive">{form.formState.errors.title.message}</p>}
-                          </div>
-                        </DroppableField>
-                        {renderDroppedFields("deal-info", false, "fixed-deal-info-title")}
-
-                        <DroppableField id="fixed-deal-info-contactName" editing={true}>
-                          <div className="space-y-2">
-                            <Label>Contact Name</Label>
-                            <Input
-                              placeholder="John Smith"
-                              {...form.register("contactName")}
-                              className={cn(form.formState.errors.contactName && "border-destructive")}
-                            />
-                            {form.formState.errors.contactName && <p className="text-xs text-destructive">{form.formState.errors.contactName.message}</p>}
-                          </div>
-                        </DroppableField>
-                        {renderDroppedFields("deal-info", false, "fixed-deal-info-contactName")}
-
-                        <DroppableField id="fixed-deal-info-companyName" editing={true}>
-                          <div className="space-y-2">
-                            <Label>Company Name</Label>
-                            <Input
-                              placeholder="Acme Inc"
-                              {...form.register("companyName")}
-                              className={cn(form.formState.errors.companyName && "border-destructive")}
-                            />
-                            {form.formState.errors.companyName && <p className="text-xs text-destructive">{form.formState.errors.companyName.message}</p>}
-                          </div>
-                        </DroppableField>
-                        {renderDroppedFields("deal-info", false, "fixed-deal-info-companyName")}
-
-                        <DroppableField id="fixed-deal-info-email" editing={true}>
-                          <div className="space-y-2">
-                            <Label>Email</Label>
-                            <Input
-                              type="email"
-                              placeholder="john@example.com"
-                              {...form.register("email")}
-                              className={cn(form.formState.errors.email && "border-destructive")}
-                            />
-                            {form.formState.errors.email && <p className="text-xs text-destructive">{form.formState.errors.email.message}</p>}
-                          </div>
-                        </DroppableField>
-                        {renderDroppedFields("deal-info", false, "fixed-deal-info-email")}
-
-                        <DroppableField id="fixed-deal-info-phone" editing={true}>
-                          <div className="space-y-2">
-                            <Label>Phone</Label>
-                            <Input
-                              placeholder="+1 555-0123"
-                              {...form.register("phone")}
-                              className={cn(form.formState.errors.phone && "border-destructive")}
-                            />
-                            {form.formState.errors.phone && <p className="text-xs text-destructive">{form.formState.errors.phone.message}</p>}
-                          </div>
-                        </DroppableField>
-                        {renderDroppedFields("deal-info", false, "fixed-deal-info-phone")}
-
-                        <DroppableField id="fixed-deal-info-value" editing={true}>
-                          <div className="space-y-2">
-                            <Label>Deal Value</Label>
-                            <div className="flex items-center gap-2">
-                              <Input
-                                type="number"
-                                placeholder="25000"
-                                {...form.register("value")}
-                                className={cn(form.formState.errors.value && "border-destructive")}
-                              />
-                              <Select value={form.watch("currency") || "USD"} onValueChange={(v) => form.setValue("currency", v)}>
-                                <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
-                                <SelectContent>{currencyOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent>
-                              </Select>
-                            </div>
-                            {form.formState.errors.value && <p className="text-xs text-destructive">{form.formState.errors.value.message}</p>}
-                          </div>
-                        </DroppableField>
-                        {renderDroppedFields("deal-info", false, "fixed-deal-info-value")}
-                        <DroppableField id="fixed-deal-info-pipeline" editing={true}>
-                          <div className="space-y-2">
-                            <Label>Pipeline</Label>
-                            <Select defaultValue="default" onValueChange={(v) => form.setValue("pipeline", v)}>
-                              <SelectTrigger><SelectValue placeholder="Select pipeline" /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="default">Standard Pipeline</SelectItem>
-                                <SelectItem value="marketing">Marketing Pipeline</SelectItem>
-                                <SelectItem value="sales">Sales Pipeline</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </DroppableField>
-                        {renderDroppedFields("deal-info", false, "fixed-deal-info-pipeline")}
-
-                        <DroppableField id="fixed-deal-info-stage" editing={true}>
-                          <div className="space-y-2">
-                            <Label>Stage</Label>
-                            <Select value={form.watch("stage")} onValueChange={(v) => { form.setValue("stage", v); form.setValue("status", v); }}>
-                              <SelectTrigger className={cn(form.formState.errors.stage && "border-destructive")}><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                {stageOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
-                            {form.formState.errors.stage && <p className="text-xs text-destructive">{form.formState.errors.stage.message}</p>}
-                          </div>
-                        </DroppableField>
-                        {renderDroppedFields("deal-info", false, "fixed-deal-info-stage")}
-
-                        <DroppableField id="fixed-deal-info-priority" editing={true}>
-                          <div className="space-y-2">
-                            <Label>Priority</Label>
-                            <Select defaultValue="medium" onValueChange={(v) => form.setValue("priority", v)}>
-                              <SelectTrigger className={cn(form.formState.errors.priority && "border-destructive")}><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="low">Low</SelectItem>
-                                <SelectItem value="medium">Medium</SelectItem>
-                                <SelectItem value="high">High</SelectItem>
-                                <SelectItem value="urgent">Urgent</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            {form.formState.errors.priority && <p className="text-xs text-destructive">{form.formState.errors.priority.message}</p>}
-                          </div>
-                        </DroppableField>
-                        {renderDroppedFields("deal-info", false, "fixed-deal-info-priority")}
-
-                        <DroppableField id="fixed-deal-info-expectedCloseDate" editing={true}>
-                          <div className="space-y-2">
-                            <Label>Expected Close Date</Label>
-                            <Input
-                              type="date"
-                              {...form.register("expectedCloseDate")}
-                              className={cn(form.formState.errors.expectedCloseDate && "border-destructive")}
-                            />
-                            {form.formState.errors.expectedCloseDate && <p className="text-xs text-destructive">{form.formState.errors.expectedCloseDate.message}</p>}
-                          </div>
-                        </DroppableField>
-                        {renderDroppedFields("deal-info", false, "fixed-deal-info-expectedCloseDate")}
-
-                        <DroppableField id="fixed-deal-info-nextFollowUpDate" editing={true}>
-                          <div className="space-y-2">
-                            <Label>Next Follow-up Date</Label>
-                            <Input
-                              type="date"
-                              {...form.register("nextFollowUpDate")}
-                              className={cn(form.formState.errors.nextFollowUpDate && "border-destructive")}
-                            />
-                            {form.formState.errors.nextFollowUpDate && <p className="text-xs text-destructive">{form.formState.errors.nextFollowUpDate.message}</p>}
-                          </div>
-                        </DroppableField>
-                        {renderDroppedFields("deal-info", false, "fixed-deal-info-nextFollowUpDate")}
-
-                        <DroppableField id="fixed-deal-info-assignedTo" editing={true}>
-                          <div className="space-y-2">
-                            <Label>Responsible Person</Label>
-                            <Select value={form.watch("assignedTo") || ""} onValueChange={(v) => form.setValue("assignedTo", v)}>
-                              <SelectTrigger><SelectValue placeholder="Select responsible..." /></SelectTrigger>
-                              <SelectContent>
-                                {members.map((m) => (
-                                  <SelectItem key={m.id} value={m.id}>
-                                    <div className="flex items-center gap-2">
-                                      <Avatar className="h-5 w-5">
-                                        <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
-                                          {m.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                                        </AvatarFallback>
-                                      </Avatar>
-                                      {m.full_name}
-                                    </div>
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </DroppableField>
-                        {renderDroppedFields("deal-info", false, "fixed-deal-info-assignedTo")}
-
-                        <DroppableField id="fixed-deal-info-externalSourceId" editing={true}>
-                          <div className="space-y-2">
-                            <Label>External Source ID</Label>
-                            <Input
-                              placeholder="e.g., EXT-12345"
-                              {...form.register("externalSourceId")}
-                            />
-                          </div>
-                        </DroppableField>
-                        {renderDroppedFields("deal-info", false, "fixed-deal-info-externalSourceId")}
-
-                        <DroppableField id="fixed-deal-info-probability" editing={true}>
-                          <div className="space-y-2">
-                            <Label>Probability (%)</Label>
-                            <Input
-                              type="number"
-                              placeholder="0-100"
-                              {...form.register("probability")}
-                              className={cn(form.formState.errors.probability && "border-destructive")}
-                            />
-                          </div>
-                        </DroppableField>
-                        {renderDroppedFields("deal-info", false, "fixed-deal-info-probability")}
-
-                        <DroppableField id="fixed-deal-info-createdAt" editing={true}>
-                          <div className="space-y-2">
-                            <Label>Created Date</Label>
-                            <Input type="date" {...form.register("createdAt")} className="h-10" />
-                          </div>
-                        </DroppableField>
-                        {renderDroppedFields("deal-info", false, "fixed-deal-info-createdAt")}
+                <DroppableSection id="deal-info" editing={true}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <DroppableField id="fixed-deal-info-title" editing={true}>
+                      <div className="space-y-2">
+                        <Label>Deal title *</Label>
+                        <Input
+                          placeholder="New build proposal"
+                          {...form.register("title")}
+                          className={cn(form.formState.errors.title && "border-destructive")}
+                        />
+                        {form.formState.errors.title && <p className="text-xs text-destructive">{form.formState.errors.title.message}</p>}
                       </div>
+                    </DroppableField>
+                    {renderDroppedFields("deal-info", false, "fixed-deal-info-title")}
 
-                      <div className="space-y-2 mt-4">
-                        <DroppableField id="fixed-deal-info-description" editing={true}>
-                          <Label>Description</Label>
-                          <Textarea
-                            rows={3}
-                            placeholder="Deal description"
-                            {...form.register("description")}
+                    <DroppableField id="fixed-deal-info-contactName" editing={true}>
+                      <div className="space-y-2">
+                        <Label>Contact Name</Label>
+                        <Input
+                          placeholder="John Smith"
+                          {...form.register("contactName")}
+                          className={cn(form.formState.errors.contactName && "border-destructive")}
+                        />
+                        {form.formState.errors.contactName && <p className="text-xs text-destructive">{form.formState.errors.contactName.message}</p>}
+                      </div>
+                    </DroppableField>
+                    {renderDroppedFields("deal-info", false, "fixed-deal-info-contactName")}
+
+                    <DroppableField id="fixed-deal-info-companyName" editing={true}>
+                      <div className="space-y-2">
+                        <Label>Company Name</Label>
+                        <Input
+                          placeholder="Acme Inc"
+                          {...form.register("companyName")}
+                          className={cn(form.formState.errors.companyName && "border-destructive")}
+                        />
+                        {form.formState.errors.companyName && <p className="text-xs text-destructive">{form.formState.errors.companyName.message}</p>}
+                      </div>
+                    </DroppableField>
+                    {renderDroppedFields("deal-info", false, "fixed-deal-info-companyName")}
+
+                    <DroppableField id="fixed-deal-info-email" editing={true}>
+                      <div className="space-y-2">
+                        <Label>Email</Label>
+                        <Input
+                          type="email"
+                          placeholder="john@example.com"
+                          {...form.register("email")}
+                          className={cn(form.formState.errors.email && "border-destructive")}
+                        />
+                        {form.formState.errors.email && <p className="text-xs text-destructive">{form.formState.errors.email.message}</p>}
+                      </div>
+                    </DroppableField>
+                    {renderDroppedFields("deal-info", false, "fixed-deal-info-email")}
+
+                    <DroppableField id="fixed-deal-info-phone" editing={true}>
+                      <div className="space-y-2">
+                        <Label>Phone</Label>
+                        <Input
+                          placeholder="+1 555-0123"
+                          {...form.register("phone")}
+                          className={cn(form.formState.errors.phone && "border-destructive")}
+                        />
+                        {form.formState.errors.phone && <p className="text-xs text-destructive">{form.formState.errors.phone.message}</p>}
+                      </div>
+                    </DroppableField>
+                    {renderDroppedFields("deal-info", false, "fixed-deal-info-phone")}
+
+                    <DroppableField id="fixed-deal-info-value" editing={true}>
+                      <div className="space-y-2">
+                        <Label>Deal Value</Label>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            placeholder="25000"
+                            {...form.register("value")}
+                            className={cn(form.formState.errors.value && "border-destructive")}
                           />
-                        </DroppableField>
-                        {renderDroppedFields("deal-info", false, "fixed-deal-info-description")}
+                          <Select value={form.watch("currency") || "USD"} onValueChange={(v) => form.setValue("currency", v)}>
+                            <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
+                            <SelectContent>{currencyOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent>
+                          </Select>
+                        </div>
+                        {form.formState.errors.value && <p className="text-xs text-destructive">{form.formState.errors.value.message}</p>}
                       </div>
+                    </DroppableField>
+                    {renderDroppedFields("deal-info", false, "fixed-deal-info-value")}
+                    <DroppableField id="fixed-deal-info-pipeline" editing={true}>
+                      <div className="space-y-2">
+                        <Label>Pipeline</Label>
+                        <Select defaultValue="default" onValueChange={(v) => form.setValue("pipeline", v)}>
+                          <SelectTrigger><SelectValue placeholder="Select pipeline" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="default">Standard Pipeline</SelectItem>
+                            <SelectItem value="marketing">Marketing Pipeline</SelectItem>
+                            <SelectItem value="sales">Sales Pipeline</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </DroppableField>
+                    {renderDroppedFields("deal-info", false, "fixed-deal-info-pipeline")}
 
-                      <div className="space-y-2 mt-4">
-                        <DroppableField id="fixed-deal-info-notes" editing={true}>
-                          <Label>Notes</Label>
-                          <Textarea
-                            rows={4}
-                            placeholder="Scope, risks, deliverables"
-                            {...form.register("notes")}
-                            className={cn(form.formState.errors.notes && "border-destructive")}
-                          />
-                        </DroppableField>
-                        {form.formState.errors.notes && <p className="text-xs text-destructive">{form.formState.errors.notes.message}</p>}
-                        {renderDroppedFields("deal-info", false, "fixed-deal-info-notes")}
+                    <DroppableField id="fixed-deal-info-stage" editing={true}>
+                      <div className="space-y-2">
+                        <Label>Stage</Label>
+                        <Select value={form.watch("stage")} onValueChange={(v) => { form.setValue("stage", v); form.setValue("status", v); }}>
+                          <SelectTrigger className={cn(form.formState.errors.stage && "border-destructive")}><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {stageOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        {form.formState.errors.stage && <p className="text-xs text-destructive">{form.formState.errors.stage.message}</p>}
                       </div>
-                      {renderDroppedFields("deal-info")}
-                    </DroppableSection>
-                  </CardContent>
-                </Card>
+                    </DroppableField>
+                    {renderDroppedFields("deal-info", false, "fixed-deal-info-stage")}
+
+                    <DroppableField id="fixed-deal-info-priority" editing={true}>
+                      <div className="space-y-2">
+                        <Label>Priority</Label>
+                        <Select defaultValue="medium" onValueChange={(v) => form.setValue("priority", v)}>
+                          <SelectTrigger className={cn(form.formState.errors.priority && "border-destructive")}><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="low">Low</SelectItem>
+                            <SelectItem value="medium">Medium</SelectItem>
+                            <SelectItem value="high">High</SelectItem>
+                            <SelectItem value="urgent">Urgent</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {form.formState.errors.priority && <p className="text-xs text-destructive">{form.formState.errors.priority.message}</p>}
+                      </div>
+                    </DroppableField>
+                    {renderDroppedFields("deal-info", false, "fixed-deal-info-priority")}
+
+                    <DroppableField id="fixed-deal-info-expectedCloseDate" editing={true}>
+                      <div className="space-y-2">
+                        <Label>Expected Close Date</Label>
+                        <Input
+                          type="date"
+                          {...form.register("expectedCloseDate")}
+                          className={cn(form.formState.errors.expectedCloseDate && "border-destructive")}
+                        />
+                        {form.formState.errors.expectedCloseDate && <p className="text-xs text-destructive">{form.formState.errors.expectedCloseDate.message}</p>}
+                      </div>
+                    </DroppableField>
+                    {renderDroppedFields("deal-info", false, "fixed-deal-info-expectedCloseDate")}
+
+                    <DroppableField id="fixed-deal-info-nextFollowUpDate" editing={true}>
+                      <div className="space-y-2">
+                        <Label>Next Follow-up Date &amp; Time</Label>
+                        <Input
+                          type="datetime-local"
+                          {...form.register("nextFollowUpDate")}
+                          className={cn(form.formState.errors.nextFollowUpDate && "border-destructive")}
+                        />
+                        {form.watch("nextFollowUpDate") && isValid(new Date(form.watch("nextFollowUpDate")!)) && (
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(form.watch("nextFollowUpDate")!).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                          </p>
+                        )}
+                        {form.formState.errors.nextFollowUpDate && <p className="text-xs text-destructive">{form.formState.errors.nextFollowUpDate.message}</p>}
+                      </div>
+                    </DroppableField>
+                    {renderDroppedFields("deal-info", false, "fixed-deal-info-nextFollowUpDate")}
+
+                    <DroppableField id="fixed-deal-info-assignedTo" editing={true}>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-foreground flex items-center gap-2">
+                          <Users className="h-4 w-4" />
+                          Assigned To
+                        </Label>
+                        <MemberSearchSelect
+                          members={members}
+                          value={form.watch("assignedTo") || ""}
+                          onChange={(v) => form.setValue("assignedTo", v || "")}
+                          placeholder="Select owner..."
+                        />
+                      </div>
+                    </DroppableField>
+                    {renderDroppedFields("deal-info", false, "fixed-deal-info-assignedTo")}
+
+                    <DroppableField id="fixed-deal-info-externalSourceId" editing={true}>
+                      <div className="space-y-2">
+                        <Label>External Source ID</Label>
+                        <Input
+                          placeholder="e.g., EXT-12345"
+                          {...form.register("externalSourceId")}
+                        />
+                      </div>
+                    </DroppableField>
+                    {renderDroppedFields("deal-info", false, "fixed-deal-info-externalSourceId")}
+
+                    <DroppableField id="fixed-deal-info-probability" editing={true}>
+                      <div className="space-y-2">
+                        <Label>Probability (%)</Label>
+                        <Input
+                          type="number"
+                          placeholder="0-100"
+                          {...form.register("probability")}
+                          className={cn(form.formState.errors.probability && "border-destructive")}
+                        />
+                      </div>
+                    </DroppableField>
+                    {renderDroppedFields("deal-info", false, "fixed-deal-info-probability")}
+
+                    <DroppableField id="fixed-deal-info-createdAt" editing={true}>
+                      <div className="space-y-2">
+                        <Label>Created Date</Label>
+                        <Input type="date" {...form.register("createdAt")} className="h-10" />
+                      </div>
+                    </DroppableField>
+                    {renderDroppedFields("deal-info", false, "fixed-deal-info-createdAt")}
+                  </div>
+
+                  <div className="space-y-2 mt-4">
+                    <DroppableField id="fixed-deal-info-description" editing={true}>
+                      <Label>Description</Label>
+                      <Textarea
+                        rows={3}
+                        placeholder="Deal description"
+                        {...form.register("description")}
+                      />
+                    </DroppableField>
+                    {renderDroppedFields("deal-info", false, "fixed-deal-info-description")}
+                  </div>
+
+                  <div className="space-y-2 mt-4">
+                    <DroppableField id="fixed-deal-info-notes" editing={true}>
+                      <Label>Notes</Label>
+                      <Textarea
+                        rows={4}
+                        placeholder="Scope, risks, deliverables"
+                        {...form.register("notes")}
+                        className={cn(form.formState.errors.notes && "border-destructive")}
+                      />
+                    </DroppableField>
+                    {form.formState.errors.notes && <p className="text-xs text-destructive">{form.formState.errors.notes.message}</p>}
+                    {renderDroppedFields("deal-info", false, "fixed-deal-info-notes")}
+                  </div>
+                  {renderDroppedFields("deal-info")}
+                </DroppableSection>
+              </CardContent>
+            </Card>
 
             <DroppableSection id="contact-company-info" editing={true}>
               <Card className="border shadow-sm rounded-xl">

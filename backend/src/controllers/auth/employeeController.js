@@ -41,10 +41,16 @@ const getAll = async (req, res, next) => {
       params.push(role);
     }
 
-    // Department filter (case-insensitive)
+    // Department filter (case-insensitive, supports comma-separated list)
     if (department && department !== 'all') {
-      conditions.push(`LOWER(u.department) = LOWER($${params.length + 1})`);
-      params.push(department);
+      const deptList = department.split(',').map(d => d.trim().toLowerCase());
+      if (deptList.length > 1) {
+        conditions.push(`LOWER(u.department) = ANY($${params.length + 1})`);
+        params.push(deptList);
+      } else {
+        conditions.push(`LOWER(u.department) = LOWER($${params.length + 1})`);
+        params.push(deptList[0]);
+      }
     }
 
     // Search filter
@@ -55,7 +61,7 @@ const getAll = async (req, res, next) => {
     }
 
     let query = `
-      SELECT u.id, u.email, u.full_name, u.role, u.department, u.phone, u.position, u.is_active,
+      SELECT u.id, u.email, u.full_name, u.role, u.department, u.phone, u."position", u.is_active,
              u.avatar_url, u.created_at, u.updated_at, u.module_permissions, u.password_change_required
       FROM public.users u
       WHERE ${conditions.join(' AND ')}
@@ -152,11 +158,14 @@ const create = async (req, res, next) => {
     const orgId = req.user.orgId;
     const inviteId = uuidv4();
 
+    // Normalize department (lowercase and trimmed)
+    const normalizedDept = department ? department.trim().toLowerCase() : department;
+
     await client.query(
       `INSERT INTO public.invites
-       (id, email, full_name, role, phone, position, department, module_permissions, invite_token, expires_at, org_id)
+       (id, email, full_name, role, phone, "position", department, module_permissions, invite_token, expires_at, org_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-      [inviteId, email, fullName, role || 'employee', phone, position, department, JSON.stringify(module_permissions || {}), inviteToken, expiresAt, orgId]
+      [inviteId, email, fullName, role || 'employee', phone, position, normalizedDept, JSON.stringify(module_permissions || {}), inviteToken, expiresAt, orgId]
     );
 
     try {
@@ -206,11 +215,14 @@ const update = async (req, res, next) => {
     const userValues = [];
     let uIdx = 1;
 
+    // Normalize department
+    const normalizedDept = department ? department.trim().toLowerCase() : department;
+
     if (fullName !== undefined)              { userFields.push(`full_name = $${uIdx++}`);              userValues.push(fullName); }
     if (phone !== undefined)                 { userFields.push(`phone = $${uIdx++}`);                  userValues.push(phone); }
-    if (position !== undefined)              { userFields.push(`position = $${uIdx++}`);               userValues.push(position); }
+    if (position !== undefined)              { userFields.push(`"position" = $${uIdx++}`);             userValues.push(position); }
     if (role !== undefined)                  { userFields.push(`role = $${uIdx++}`);                   userValues.push(role); }
-    if (department !== undefined)            { userFields.push(`department = $${uIdx++}`);             userValues.push(department); }
+    if (normalizedDept !== undefined)        { userFields.push(`department = $${uIdx++}`);             userValues.push(normalizedDept); }
     if (is_active !== undefined)             { userFields.push(`is_active = $${uIdx++}`);              userValues.push(is_active); }
     if (module_permissions !== undefined)    { userFields.push(`module_permissions = $${uIdx++}`);     userValues.push(JSON.stringify(module_permissions)); }
     if (password_change_required !== undefined) { userFields.push(`password_change_required = $${uIdx++}`); userValues.push(password_change_required); }
@@ -231,7 +243,7 @@ const update = async (req, res, next) => {
     if (fullName !== undefined)                          { profFields.push(`full_name = $${pIdx++}`);  profValues.push(fullName); }
     if (phone !== undefined)                             { profFields.push(`phone = $${pIdx++}`);      profValues.push(phone); }
     if (position !== undefined || job_title !== undefined) { profFields.push(`job_title = $${pIdx++}`); profValues.push(position || job_title); }
-    if (department !== undefined)                        { profFields.push(`department = $${pIdx++}`); profValues.push(department); }
+    if (normalizedDept !== undefined)                    { profFields.push(`department = $${pIdx++}`); profValues.push(normalizedDept); }
 
     if (profFields.length > 0) {
       profFields.push(`updated_at = now()`);
@@ -245,7 +257,7 @@ const update = async (req, res, next) => {
     await client.query('COMMIT');
 
     const finalResult = await client.query(
-      `SELECT u.id, u.email, u.full_name, u.role, u.department, u.phone, u.position, u.is_active,
+      `SELECT u.id, u.email, u.full_name, u.role, u.department, u.phone, u."position", u.is_active,
               u.avatar_url, u.created_at, u.updated_at, u.module_permissions, u.password_change_required
        FROM public.users u
        WHERE u.id = $1 AND u.org_id = $2`,

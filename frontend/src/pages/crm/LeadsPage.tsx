@@ -272,16 +272,24 @@ export default function LeadsPage() {
   // Unique sources from current leads for dynamic tabs
   const sourceTabs = useMemo(() => {
     const sources = leads
-      .map(l => l.source)
-      .filter(Boolean)
-      .map(s => s.trim());
+      .map(l => {
+        const s = (l.source || "").trim();
+        if (s.toLowerCase() === "instantly") return "Instantly";
+        return s.toLowerCase();
+      })
+      .filter(Boolean);
     const unique = Array.from(new Set(sources)).sort();
     return unique;
   }, [leads]);
 
   const filtered = useMemo(() => {
     return [...leads]
-      .filter(l => sourceTab === "all" || (l.source || "").trim() === sourceTab)
+      .filter(l => {
+        if (sourceTab === "all") return true;
+        const s = (l.source || "").trim();
+        const normalized = s.toLowerCase() === "instantly" ? "Instantly" : s.toLowerCase();
+        return normalized === sourceTab;
+      })
       .sort((a, b) => {
         if (sortBy === "name") return a.name.localeCompare(b.name);
         if (sortBy === "value") return b.value - a.value;
@@ -581,7 +589,7 @@ export default function LeadsPage() {
       {/* ── Page Header ───────────────────────────────────────────────── */}
       <PageHeader
         title="Leads"
-        description="A live, filterable pipeline of every lead with fast actions."
+        description="A live filterable pipeline of every lead with fast actions."
         meta={[
           { label: "Total", value: (dbLeads as any)?.pagination?.total || 0, tone: "info" },
           { label: "Selected", value: isAllSelectedGlobally ? (dbLeads as any)?.pagination?.total : selectedLeads.length, tone: "warning" },
@@ -600,6 +608,7 @@ export default function LeadsPage() {
           </div>
         }
       />
+
 
       {/* ── Filters / Sort / View toolbar ─────────────────────────────── */}
       <DataToolbar
@@ -695,17 +704,17 @@ export default function LeadsPage() {
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="gap-1.5 text-xs ml-auto">
                 <Columns className="h-3.5 w-3.5" />
-                Add Fields
+                Add Fields 
                 <span className="bg-primary/10 text-primary rounded px-1 text-[10px] font-semibold">
                   {visibleColumns.filter(k => k !== "name" && k !== "actions").length}/{ALL_COLUMN_KEYS.length - 2}
                 </span>
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-56 p-2" align="end">
+            <PopoverContent className="w-56 h-[47vh] p-2" align="end">
               <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-1">
                 Show / Hide Columns
               </p>
-              <ScrollArea className="h-72">
+              <ScrollArea className="h-[42vh]">
                 <div className="space-y-0.5 pr-2">
                   {ALL_COLUMNS.map(({ key, label }) => (
                     <label

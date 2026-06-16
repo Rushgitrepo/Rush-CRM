@@ -729,7 +729,7 @@ CREATE TABLE IF NOT EXISTS deals (
     website_type text DEFAULT 'corporate'::text,
     customer_type text,
     last_contacted_date date,
-    next_follow_up_date date,
+    next_follow_up_date TIMESTAMP WITH TIME ZONE,
     responsible_person uuid,
     owner_id uuid,
     lost_reason text,

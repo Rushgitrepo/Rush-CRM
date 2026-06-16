@@ -105,16 +105,22 @@ export function CreatableSelect({
   const handleAdd = () => {
     const trimmed = newLabel.trim();
     if (!trimmed) return;
-    const key = trimmed.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
-    if (allOptions.find((o) => o.value === key)) {
+    // Special rule: "Instantly" gets a capital I, everything else is fully lowercase
+    const isInstantly = trimmed.toLowerCase() === "instantly";
+    const formattedLabel = isInstantly ? "Instantly" : trimmed.toLowerCase();
+    
+    // Force the value (key) to be "Instantly" if it matches, otherwise lowercase slug
+    const key = isInstantly ? "Instantly" : trimmed.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
+    
+    if (allOptions.find((o) => o.value.toLowerCase() === key.toLowerCase())) {
       // already exists — just select it
-      onChange(key);
+      onChange(allOptions.find((o) => o.value.toLowerCase() === key.toLowerCase())?.value || key);
       setNewLabel("");
       setAddingNew(false);
       setOpen(false);
       return;
     }
-    const next = [...customOptions, { value: key, label: trimmed, isCustom: true }];
+    const next = [...customOptions, { value: key, label: formattedLabel, isCustom: true }];
     setCustomOptions(next);
     saveCustomOptions(orgId, storageKey, next);
     onChange(key);
@@ -127,11 +133,14 @@ export function CreatableSelect({
   const handleSaveEdit = () => {
     const trimmed = editLabel.trim();
     if (!editingValue || !trimmed) { setEditingValue(null); return; }
+    // Special rule: "Instantly" gets a capital I, everything else is fully lowercase
+    const isInstantly = trimmed.toLowerCase() === "instantly";
+    const formattedLabel = isInstantly ? "Instantly" : trimmed.toLowerCase();
     const existing = customOptions.findIndex((o) => o.value === editingValue);
     let next: SelectOption[];
     if (existing >= 0) {
       next = customOptions.map((o) =>
-        o.value === editingValue ? { ...o, label: trimmed } : o
+        o.value === editingValue ? { ...o, label: formattedLabel } : o
       );
     } else {
       // Override a built-in option's label
@@ -176,7 +185,7 @@ export function CreatableSelect({
           <button
             type="button"
             className={cn(
-              "w-full flex items-center justify-between h-10 px-3 rounded-lg border border-border bg-background text-sm transition-all",
+              "w-full flex items-center justify-between h-9 px-3 rounded-lg border border-border bg-background text-sm transition-all",
               "hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary",
               !selectedOption && "text-muted-foreground"
             )}
@@ -187,7 +196,7 @@ export function CreatableSelect({
         </PopoverTrigger>
 
         <PopoverContent className="w-[--radix-popover-trigger-width] p-1" align="start" sideOffset={4}>
-          <ScrollArea className="max-h-60">
+          <ScrollArea className="max-h-[140px] overflow-y-auto">
             <div className="py-1">
               {allOptions.map((opt) => {
                 const isEditing = editingValue === opt.value;

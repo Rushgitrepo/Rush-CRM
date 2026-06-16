@@ -207,7 +207,7 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
             </span>
           ) : type === "datetime-local" && value && isValid(new Date(value)) ? (
             <span className="text-foreground font-medium break-words w-full">
-              {format(new Date(value), "MMM d, yyyy HH:mm")}
+              {new Date(value).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
             </span>
           ) : (
             <span className="text-foreground font-medium break-words w-full">{value}</span>
@@ -333,7 +333,7 @@ export default function LeadDetailPage() {
     ? "Marketing"
     : selectedPipeline === "sales"
       ? "Sales"
-      : undefined; // standard = both (no filter)
+      : "Sales,Marketing"; // standard = both (Sales & Marketing)
 
   const { data: members = [] } = useOrganizationProfiles({
     department: assignedToDepartment,
@@ -535,6 +535,11 @@ export default function LeadDetailPage() {
       }
     });
 
+    // Explicitly check assigned_to since it might be stored differently
+    if ((form.assigned_to || null) !== (lead.assigned_to || null)) {
+      changes.assigned_to = form.assigned_to || null;
+    }
+
     const customFieldsObj = customFields.reduce((acc, field) => {
       if (field.key.trim()) acc[field.key.trim()] = {
         value: field.value,
@@ -556,17 +561,22 @@ export default function LeadDetailPage() {
 
     const formattedChanges: Record<string, unknown> = { ...changes };
     if (formattedChanges.last_contacted_date) formattedChanges.last_contacted_date = new Date(formattedChanges.last_contacted_date as string).toISOString();
-    if (formattedChanges.next_follow_up_date) formattedChanges.next_follow_up_date = new Date(formattedChanges.next_follow_up_date as string).toISOString();
+    if (formattedChanges.next_follow_up_date) { const d = new Date(formattedChanges.next_follow_up_date as string); const off = -d.getTimezoneOffset(); const sign = off >= 0 ? '+' : '-'; const pad = (n: number) => String(Math.floor(Math.abs(n))).padStart(2, '0'); formattedChanges.next_follow_up_date = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':00' + sign + pad(off / 60) + ':' + pad(off % 60); }
     if (formattedChanges.expected_close_date) formattedChanges.expected_close_date = new Date(formattedChanges.expected_close_date as string).toISOString();
     if (formattedChanges.createdAt) formattedChanges.createdAt = new Date(formattedChanges.createdAt as string).toISOString();
 
     updateLead.mutate(sanitizePayload({
       id: lead.id,
       ...formattedChanges,
+      responsible_person: formattedChanges.assigned_to || undefined,
       customFields: customFieldsObj
     }), {
-      onSuccess: () => {
+      onSuccess: async (updatedLead) => {
         saveTemplates.mutate({ entityType: 'lead', templates: customFields });
+        
+        // Force refetch and wait for it to ensure we have joined data
+        await queryClient.refetchQueries({ queryKey: ['leads', id] });
+        
         setEditing(false);
       },
     });
@@ -677,11 +687,8 @@ export default function LeadDetailPage() {
                   <CustomFieldInput
                     field={field}
                     editing={editing}
-                    onUpdate={(updates) => {
-                      setCustomFields(prev => prev.map(f => f.id === field.id ? { ...f, ...updates } : f));
-                    }}
-                    onDelete={() => {
-                      setCustomFields(prev => prev.filter(f => f.id !== field.id));
+                    updateField={(id, updates) => {
+                      setCustomFields(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
                     }}
                     entityId={id}
                   />
@@ -1202,10 +1209,10 @@ export default function LeadDetailPage() {
                               Pipeline
                             </Label>
                             <Select value={(form.pipeline as string) || "default"} onValueChange={(v) => set("pipeline", v)} disabled={!editing}>
-                              <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
+                              <SelectTrigger className="h-9 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
                                 <SelectValue placeholder="Select pipeline" />
                               </SelectTrigger>
-                              <SelectContent>
+                              <SelectContent className="max-h-[200px] overflow-y-auto">
                                 <SelectItem value="default">Standard Pipeline</SelectItem>
                                 <SelectItem value="marketing">Marketing Pipeline</SelectItem>
                                 <SelectItem value="sales">Sales Pipeline</SelectItem>
@@ -1218,16 +1225,14 @@ export default function LeadDetailPage() {
                         <DroppableField id="fixed-lead-company-details-stage" editing={editing}>
                           <div className="space-y-2">
                             <Label className="text-sm font-medium text-foreground">Stage</Label>
-                            <Select value={(form.stage as string) || ""} onValueChange={(v) => set("stage", v)} disabled={!editing}>
-                              <SelectTrigger className="h-10 border-border focus:border-primary focus:ring-2 focus:ring-primary/20">
-                                <SelectValue placeholder="Select stage" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {pipelineStages.map(stage => (
-                                  <SelectItem key={stage.id} value={stage.id}>{stage.label}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <CreatableSelect
+                              label=""
+                              value={(form.stage as string) || ""}
+                              onChange={(v) => set("stage", v)}
+                              options={pipelineStages}
+                              placeholder="Select stage"
+                              disabled={!editing}
+                            />
                           </div>
                         </DroppableField>
                         {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-stage")}
@@ -1249,6 +1254,7 @@ export default function LeadDetailPage() {
                                 value={(form.assigned_to as string) || ""}
                                 onChange={(v) => set("assigned_to", v || null)}
                                 placeholder="Select owner..."
+                                className="h-9"
                               />
                             ) : (
                               <div className="h-10 px-3 py-2 border rounded-lg bg-muted/40 flex items-center gap-2">
@@ -1386,7 +1392,7 @@ export default function LeadDetailPage() {
                                 </div>
                               )}
                               <Select value={(form.phone_type as string) || ""} onValueChange={(v) => set("phone_type", v)} disabled={!editing}>
-                                <SelectTrigger className="h-10 w-[150px] shrink-0 border-border">
+                                <SelectTrigger className="h-10 w-[120px] shrink-0 border-border">
                                   <SelectValue placeholder="Work Phone" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1427,7 +1433,7 @@ export default function LeadDetailPage() {
                                 </div>
                               )}
                               <Select value={(form.email_type as string) || ""} onValueChange={(v) => set("email_type", v)} disabled={!editing}>
-                                <SelectTrigger className="h-10 w-[130px] shrink-0 border-border">
+                                <SelectTrigger className="h-10 w-[100px] shrink-0 border-border">
                                   <SelectValue placeholder="Work" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1462,7 +1468,7 @@ export default function LeadDetailPage() {
                                 </div>
                               )}
                               <Select value={(form.website_type as string) || ""} onValueChange={(v) => set("website_type", v)} disabled={!editing}>
-                                <SelectTrigger className="h-10 w-[150px] shrink-0 border-border">
+                                <SelectTrigger className="h-10 w-[110px] shrink-0 border-border">
                                   <SelectValue placeholder="Corporate" />
                                 </SelectTrigger>
                                 <SelectContent>
