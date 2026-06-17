@@ -376,7 +376,7 @@ export default function LeadsPage() {
       render: (lead) => (
         <div className="space-y-0.5 max-w-[250px]">
           <div className="flex items-center gap-2 overflow-hidden">
-            <span className="font-semibold truncate">{lead.name}</span>
+            <span className="font-semibold truncate">{lead.contact_person}</span>
             <Badge variant="outline" className={cn(statusTone(lead.stage), "whitespace-nowrap flex-shrink-0 uppercase")}>
               {lead.stage || "New"}
             </Badge>

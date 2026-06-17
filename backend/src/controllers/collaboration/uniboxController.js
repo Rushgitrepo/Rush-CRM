@@ -954,7 +954,7 @@ const getEmailLeadInfo = async (req, res, next) => {
               standardKeysToRemove.forEach(k => delete mergedCustomFields[k]);
 
               await db.query(
-                `UPDATE leads SET 
+                `UPDATE leads SET
                   phone = COALESCE(NULLIF(phone, ''), $1),
                   company = COALESCE(NULLIF(company, ''), $2),
                   company_name = COALESCE(NULLIF(company_name, ''), $2),
@@ -962,6 +962,7 @@ const getEmailLeadInfo = async (req, res, next) => {
                   address = COALESCE(NULLIF(address, ''), $4),
                   first_name = COALESCE(NULLIF(first_name, ''), $5),
                   last_name = COALESCE(NULLIF(last_name, ''), $6),
+                  contact_person = COALESCE(NULLIF(contact_person, ''), NULLIF(TRIM(COALESCE($5, '') || ' ' || COALESCE($6, '')), '')),
                   custom_fields = $7,
                   updated_at = NOW()
                  WHERE id = $8`,
@@ -977,6 +978,9 @@ const getEmailLeadInfo = async (req, res, next) => {
               lead.first_name = enrichedFirstName;
               lead.last_name = enrichedLastName;
               lead.custom_fields = mergedCustomFields;
+              if (!lead.contact_person && (enrichedFirstName || enrichedLastName)) {
+                lead.contact_person = [enrichedFirstName, enrichedLastName].filter(Boolean).join(' ').trim() || null;
+              }
             }
           }
         }
@@ -1022,6 +1026,7 @@ const getEmailLeadInfo = async (req, res, next) => {
         address: lead.address,
         source: lead.source,
         stage: lead.stage,
+        contact_person: lead.contact_person || null,
         custom_fields: typeof lead.custom_fields === 'string' ? JSON.parse(lead.custom_fields) : (lead.custom_fields || {}),
         createdAt: lead.created_at
       } : null,

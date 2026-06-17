@@ -728,10 +728,10 @@ export default function UniboxPage() {
                 {/* Header / Avatar info */}
                 <div className="flex flex-col items-center justify-center p-6 border-b border-border bg-muted/5">
                   <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary text-2xl font-bold mb-3 border border-primary/20">
-                    {(matchedLead?.name || selectedEmail?.sender_name || selectedEmail?.sender_email || "P")[0].toUpperCase()}
+                    {(matchedLead?.contact_person || matchedLead?.name || selectedEmail?.sender_name || selectedEmail?.sender_email || "P")[0].toUpperCase()}
                   </div>
                   <h4 className="text-lg font-semibold text-foreground text-center">
-                    {matchedLead?.name || selectedEmail?.sender_name || "Prospect"}
+                    {matchedLead?.contact_person || matchedLead?.name || selectedEmail?.sender_name || "Prospect"}
                   </h4>
                   <div className="flex items-center gap-1.5 mt-1 text-sm text-muted-foreground">
                     <span>{selectedEmail?.sender_email}</span>
@@ -792,6 +792,16 @@ export default function UniboxPage() {
                         </div>
                       );
                     })()}
+
+                    {/* Contact Person */}
+                    {(matchedLead?.contact_person || selectedEmail?.sender_name) && (
+                      <div className="flex flex-col pb-2 border-b border-border/50">
+                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Contact Person</span>
+                        <span className="text-xs text-foreground font-semibold">
+                          {matchedLead?.contact_person || selectedEmail?.sender_name}
+                        </span>
+                      </div>
+                    )}
 
                     {/* Email */}
                     <div className="flex flex-col pb-2 border-b border-border/50">

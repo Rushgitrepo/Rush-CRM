@@ -448,10 +448,10 @@ class InstantlyService {
         console.log(`[Instantly Service] Auto-adding new lead: ${email}`);
         await db.query(
           `INSERT INTO leads (
-            org_id, organization_id, user_id, created_by, title, name, first_name, last_name, email, phone, company, company_name, 
-            company_phone, company_email, designation, website, address, source, status, stage, 
-            interaction_notes, description, custom_fields, campaign_id, campaign_name, created_at, updated_at
-          ) VALUES ($1, $1, $20, $20, $2, $3, $4, $5, $6, $7, $8, $8, $7, $6, $9, $10, $11, $12, $13, $14, $15, $15, $16, $17, $18, $19, now())`,
+            org_id, organization_id, user_id, created_by, title, name, first_name, last_name, email, phone, company, company_name,
+            company_phone, company_email, designation, website, address, source, status, stage,
+            interaction_notes, description, custom_fields, campaign_id, campaign_name, contact_person, created_at, updated_at
+          ) VALUES ($1, $1, $20, $20, $2, $3, $4, $5, $6, $7, $8, $8, $7, $6, $9, $10, $11, $12, $13, $14, $15, $15, $16, $17, $18, $3, $19, now())`,
           [
             orgId,
             cleanLeadTitle,
@@ -484,11 +484,15 @@ class InstantlyService {
         const existingCustomFields = customFieldsCheck.rows[0]?.custom_fields || {};
         const mergedCustomFields = { ...existingCustomFields, ...customFields };
 
+        // fullName as contact_person fallback (sender_name when first/last name missing)
+        const contactPersonFallback = (fullName && fullName !== email.split('@')[0]) ? fullName : null;
+
         await db.query(
-          `UPDATE leads SET 
+          `UPDATE leads SET
             first_name = COALESCE(NULLIF(first_name, ''), $1),
             last_name = COALESCE(NULLIF(last_name, ''), $2),
             name = CASE WHEN (name IS NULL OR name = '' OR name = split_part(email, '@', 1)) AND ($1 IS NOT NULL) THEN (COALESCE($1, '') || ' ' || COALESCE($2, '')) ELSE name END,
+            contact_person = COALESCE(NULLIF(contact_person, ''), NULLIF(TRIM(COALESCE($1, '') || ' ' || COALESCE($2, '')), ''), $10),
             company = COALESCE(NULLIF(company, ''), $3),
             company_name = COALESCE(NULLIF(company_name, ''), $3),
             phone = COALESCE(NULLIF(phone, ''), $4),
@@ -500,7 +504,7 @@ class InstantlyService {
             description = COALESCE(NULLIF(description, ''), $8),
             custom_fields = $9,
             updated_at = now()
-           WHERE id = $10`,
+           WHERE id = $11`,
           [
             enrichedFirstName || null,
             enrichedLastName || null,
@@ -511,6 +515,7 @@ class InstantlyService {
             designation || null,
             interactionNotes || null,
             JSON.stringify(mergedCustomFields),
+            contactPersonFallback,
             existingLead.id
           ]
         );
@@ -918,6 +923,83 @@ class InstantlyService {
         'UPDATE instantly_integrations SET last_sync_at = now() WHERE org_id = $1',
         [orgId]
       );
+
+      // ── Backfill contact_person from sender_name for ALL existing unibox_emails ──
+      // This fixes leads created before contact_person support was added
+      try {
+        await db.query(
+          `UPDATE leads l
+           SET contact_person = ue.sender_name, updated_at = now()
+           FROM unibox_emails ue
+           WHERE ue.org_id = $1
+             AND l.org_id = $1
+             AND ue.sender_name IS NOT NULL
+             AND ue.sender_name != ''
+             AND ue.sender_name != ue.sender_email
+             AND (l.email = ue.sender_email OR l.company_email = ue.sender_email)
+             AND (l.contact_person IS NULL OR l.contact_person = '')`,
+          [orgId]
+        );
+        console.log('[Instantly Service] ✅ Backfilled contact_person from sender_name');
+      } catch (bfErr) {
+        console.error('[Instantly Service] contact_person backfill failed:', bfErr.message);
+      }
+
+      // ── Create leads for unibox_emails that have no matching lead yet ──
+      if (autoAddLeads) {
+        try {
+          const unmatched = await db.query(
+            `SELECT ue.sender_email, ue.sender_name, ue.subject, ue.body_text, ue.received_at, ue.metadata
+             FROM unibox_emails ue
+             WHERE ue.org_id = $1
+               AND ue.sender_email IS NOT NULL
+               AND ue.sender_email != 'unknown@example.com'
+               AND NOT EXISTS (
+                 SELECT 1 FROM leads l
+                 WHERE (l.email = ue.sender_email OR l.company_email = ue.sender_email)
+                   AND l.org_id = $1
+               )
+             LIMIT 200`,
+            [orgId]
+          );
+
+          console.log(`[Instantly Service] Found ${unmatched.rows.length} unibox emails without a lead — creating...`);
+
+          for (const ue of unmatched.rows) {
+            const meta = typeof ue.metadata === 'string' ? JSON.parse(ue.metadata) : (ue.metadata || {});
+            const item = meta.item || {};
+            const payload = item.payload || meta.payload || {};
+
+            let firstName = item.first_name || payload.firstName || null;
+            let lastName = item.last_name || payload.lastName || null;
+            if (!firstName && ue.sender_name && ue.sender_name !== ue.sender_email) {
+              const parts = ue.sender_name.trim().split(' ');
+              firstName = parts[0] || null;
+              lastName = parts.slice(1).join(' ') || null;
+            }
+
+            await this._ensureLeadExists(orgId, {
+              email: ue.sender_email,
+              first_name: firstName,
+              last_name: lastName,
+              company: item.company_name || payload.companyName || null,
+              phone: item.phone || payload.phone || payload.Myphone || null,
+              website: item.website || payload.website || null,
+              location: payload.location || payload.Location || null,
+              payload,
+              subject: ue.subject,
+              body_text: ue.body_text,
+              received_at: ue.received_at,
+              campaign_id: item.campaign_id || meta.campaign_id || null,
+              campaign_name: meta.campaign_name || null,
+              sender_name: ue.sender_name || null,
+              created_by: triggeredByUserId || null,
+            });
+          }
+        } catch (createErr) {
+          console.error('[Instantly Service] Lead creation from unibox_emails failed:', createErr.message);
+        }
+      }
 
       let message = `Synced ${syncCount} new, backfilled ${updateCount}, skipped ${skipCount}.`;
       if (!useEmailsApi) {

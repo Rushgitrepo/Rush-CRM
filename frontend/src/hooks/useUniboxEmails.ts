@@ -383,6 +383,7 @@ export interface MatchedLead {
   address: string | null;
   source: string | null;
   stage: string | null;
+  contact_person?: string | null;
   custom_fields?: Record<string, any>;
   createdAt: string;
 }
