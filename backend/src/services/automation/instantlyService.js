@@ -1118,6 +1118,7 @@ class InstantlyService {
           existingByExternal.rows[0].id,
         ]
       );
+      if (result.rows[0]) realtimeService.emitUniboxEmailCreated(orgId, result.rows[0]);
       return { action: 'updated', email: result.rows[0] };
     }
 
@@ -1135,6 +1136,7 @@ class InstantlyService {
           `UPDATE unibox_emails SET status = $1, updated_at = now() WHERE id = $2 RETURNING *`,
           [parsed.status, existingBySender.rows[0].id]
         );
+        if (result.rows[0]) realtimeService.emitUniboxEmailCreated(orgId, result.rows[0]);
         return { action: 'status_updated', email: result.rows[0] };
       }
     }
