@@ -190,6 +190,11 @@ class RealtimeService {
               `SELECT user_id FROM workgroup_members WHERE workgroup_id = $1 AND user_id != $2`,
               [payload.workgroupId, socket.userId]
             );
+            // Tell the caller exactly who was invited so they can track rejections correctly
+            socket.emit('call:group-invited', {
+              callId: payload.callId,
+              memberIds: membersResult.rows.map(m => m.user_id),
+            });
             for (const member of membersResult.rows) {
               const targetRoom = `user:${member.user_id}`;
               this.io.to(targetRoom).emit('call:incoming', incomingPayload);
@@ -272,11 +277,31 @@ class RealtimeService {
           accepterName: payload.accepterName,
           accepterAvatar: payload.accepterAvatar,
         });
+        // Cancel the incoming-call notification on all of the accepter's other tabs/devices
+        fcmService.sendPushNotification(socket.userId, '', '', {
+          type: 'cancel_call',
+          callId: payload.callId
+        });
+        // Also dismiss the ringing notification on accepter's other open tabs via socket
+        socket.to(`user:${socket.userId}`).emit('call:end', {
+          callId: payload.callId,
+          reason: 'accepted_elsewhere',
+        });
       });
 
       socket.on('call:reject', (payload) => {
         // payload: { callId, callerId, reason }
         console.log(`[WebRTC] Call rejected: ${socket.userId} rejected call ${payload.callId}`);
+        // Dismiss the incoming-call notification on the rejecter's own devices via FCM
+        fcmService.sendPushNotification(socket.userId, '', '', {
+          type: 'cancel_call',
+          callId: payload.callId,
+        });
+        // Dismiss on rejecter's other open tabs
+        socket.to(`user:${socket.userId}`).emit('call:end', {
+          callId: payload.callId,
+          reason: 'accepted_elsewhere',
+        });
         this.io.to(`user:${payload.callerId}`).emit('call:rejected', {
           callId: payload.callId,
           rejectedBy: socket.userId,

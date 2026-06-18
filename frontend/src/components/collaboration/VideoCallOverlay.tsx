@@ -636,17 +636,17 @@ export default function VideoCallOverlay() {
   };
 
   const handleEndCallClick = () => {
-    const peerCount = Object.keys(peers).length;
-
-    if (peerCount <= 1) {
-      // 1-on-1 call: end for both sides immediately, no dialog
-      endCall(true);
-    } else if (isOutgoing) {
-      // Group call + original caller: show "End for Everyone" / "Leave" dialog
-      setShowEndConfirm(true);
+    const isDirectChatPage = window.location.href.includes("direct-chats");
+    if (isGroupCall && !isDirectChatPage) {
+      // Group call: original caller can "End for Everyone", others just leave
+      if (isOutgoing) {
+        setShowEndConfirm(true);
+      } else {
+        endCall(false);
+      }
     } else {
-      // Group call + non-caller: just leave silently
-      endCall(false);
+      // True 1-on-1 call or direct chat: always end for both sides
+      endCall(true);
     }
   };
 
