@@ -20,12 +20,28 @@ const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Received background message ', payload);
-  
-  const notificationTitle = payload.notification.title;
+
+  const data = payload.data || {};
+
+  // If this is a cancel_call signal, dismiss any matching call notification silently
+  if (data.type === 'cancel_call' && data.callId) {
+    self.registration.getNotifications().then((notifications) => {
+      notifications.forEach((n) => {
+        if ((n.data && n.data.callId === data.callId) || n.tag === `incoming-call-${data.callId}`) {
+          n.close();
+        }
+      });
+    });
+    return;
+  }
+
+  // Web tokens send data-only messages (no notification block), fall back to data fields
+  const notificationTitle = (payload.notification && payload.notification.title) || data.title || 'Incoming Call';
   const notificationOptions = {
-    body: payload.notification.body,
+    body: (payload.notification && payload.notification.body) || data.body || '',
     icon: '/logo.png',
-    data: payload.data, // This allows us to pass custom data like action_url
+    data: data,
+    tag: data.callId ? `incoming-call-${data.callId}` : undefined,
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);

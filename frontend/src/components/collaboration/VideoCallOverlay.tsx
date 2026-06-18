@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useVideoCall } from "@/contexts/VideoCallContext";
 import { getAvatarUrl, cn } from "@/lib/utils";
@@ -481,6 +481,29 @@ function AudioCallView({
   );
 }
 
+function getSnapPos(x: number, y: number, w: number, h: number) {
+  const PAD = 24;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  const pts = [
+    { x: PAD, y: PAD },
+    { x: vw - w - PAD, y: PAD },
+    { x: PAD, y: vh - h - PAD },
+    { x: vw - w - PAD, y: vh - h - PAD },
+    { x: (vw - w) / 2, y: PAD },
+    { x: (vw - w) / 2, y: vh - h - PAD },
+    { x: PAD, y: (vh - h) / 2 },
+    { x: vw - w - PAD, y: (vh - h) / 2 },
+  ];
+  return pts.reduce((best, p) => {
+    const d = (p.x + w / 2 - cx) ** 2 + (p.y + h / 2 - cy) ** 2;
+    const bd = (best.x + w / 2 - cx) ** 2 + (best.y + h / 2 - cy) ** 2;
+    return d < bd ? p : best;
+  });
+}
+
 export default function VideoCallOverlay() {
   const {
     callState,
@@ -523,32 +546,17 @@ export default function VideoCallOverlay() {
     );
   }, [allUsers, peers, user]);
 
-  const setLocalVideo = useCallback(
-    (el: HTMLVideoElement | null) => {
-      if (el && localStream) {
-        el.srcObject = localStream;
-      }
-    },
-    [localStream],
-  );
-
-  const setPipLocalVideo = useCallback(
-    (el: HTMLVideoElement | null) => {
-      if (el && localStream) {
-        el.srcObject = localStream;
-      }
-    },
-    [localStream],
-  );
-
-  const setScreenVideo = useCallback(
-    (el: HTMLVideoElement | null) => {
-      if (el && screenStream) {
-        el.srcObject = screenStream;
-      }
-    },
-    [screenStream],
-  );
+  const screenVideoRef = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const el = screenVideoRef.current;
+    if (!el) return;
+    if (screenStream) {
+      el.srcObject = screenStream;
+      el.play().catch(() => {});
+    } else {
+      el.srcObject = null;
+    }
+  }, [screenStream]);
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
@@ -560,9 +568,19 @@ export default function VideoCallOverlay() {
   const controlsTimerRef = useRef<number | null>(null);
 
   const [isMinimized, setIsMinimized] = useState(false);
+  const [miniWidth, setMiniWidth] = useState(224);
   const [mobilePosition, setMobilePosition] = useState({ x: 0, y: 0 });
-  const [minimizedPosition, setMinimizedPosition] = useState({ x: 0, y: 0 });
+  const [minimizedPosition, setMinimizedPosition] = useState(() => ({
+    x: Math.max(0, window.innerWidth - 248),
+    y: Math.max(0, window.innerHeight - 224),
+  }));
   const [pipPosition, setPipPosition] = useState({ x: 0, y: 0 });
+  const miniInteractRef = useRef<{
+    mode: "drag" | "resize" | null;
+    corner: "br" | "bl" | "tr" | "tl";
+    startX: number; startY: number;
+    startLeft: number; startTop: number; startW: number; startH: number;
+  }>({ mode: null, corner: "br", startX: 0, startY: 0, startLeft: 0, startTop: 0, startW: 0, startH: 0 });
   const [pipMode, setPipMode] = useState<"local" | "remote">("local");
   const [pipSwapped, setPipSwapped] = useState(false); 
   const [gridPage, setGridPage] = useState(0); 
@@ -636,17 +654,17 @@ export default function VideoCallOverlay() {
   };
 
   const handleEndCallClick = () => {
-    const peerCount = Object.keys(peers).length;
-
-    if (peerCount <= 1) {
-      // 1-on-1 call: end for both sides immediately, no dialog
-      endCall(true);
-    } else if (isOutgoing) {
-      // Group call + original caller: show "End for Everyone" / "Leave" dialog
-      setShowEndConfirm(true);
+    const isDirectChatPage = window.location.href.includes("direct-chats");
+    if (isGroupCall && !isDirectChatPage) {
+      // Group call: original caller can "End for Everyone", others just leave
+      if (isOutgoing) {
+        setShowEndConfirm(true);
+      } else {
+        endCall(false);
+      }
     } else {
-      // Group call + non-caller: just leave silently
-      endCall(false);
+      // True 1-on-1 call or direct chat: always end for both sides
+      endCall(true);
     }
   };
 
@@ -910,52 +928,57 @@ export default function VideoCallOverlay() {
 
   if (callState === "incoming") {
     return createPortal(
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
-        <div className="relative bg-zinc-900 w-full max-w-sm rounded-[40px] p-10 border border-white/5 shadow-2xl animate-in zoom-in-95 fade-in duration-300">
-          <div className="flex flex-col items-center text-center">
-            <div className="relative mb-8">
-              <div className="w-28 h-28 rounded-full bg-indigo-500/10 flex items-center justify-center animate-pulse">
-                <Avatar className="h-16 w-16 border-4 border-zinc-900 shadow-2xl overflow-hidden">
+      <div className="fixed bottom-6 right-6 z-[9999] animate-in slide-in-from-bottom-6 fade-in duration-400">
+        <div className="bg-zinc-900/95 backdrop-blur-xl w-80 rounded-3xl border border-white/10 shadow-2xl overflow-hidden">
+          <div className="px-5 pt-5 pb-4 flex items-center gap-3">
+            <div className="relative shrink-0">
+              <div className="relative w-14 h-14">
+                <div className="absolute inset-0 rounded-full border-2 border-indigo-500/50 animate-ping" />
+                <Avatar className="h-14 w-14 border-2 border-zinc-800 shadow-xl overflow-hidden">
                   <AvatarImage src={getAvatarUrl(firstPeer?.avatar)} />
-                  <AvatarFallback className="bg-indigo-600 text-white text-xl font-bold">
+                  <AvatarFallback className="bg-indigo-600 text-white text-lg font-bold">
                     {firstPeer?.name?.charAt(0)}
                   </AvatarFallback>
                 </Avatar>
+                <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-indigo-600 flex items-center justify-center border-2 border-zinc-900">
+                  {callType === "video" ? (
+                    <Video className="w-2.5 h-2.5 text-white" />
+                  ) : (
+                    <Phone className="w-2.5 h-2.5 text-white" />
+                  )}
+                </div>
               </div>
-              <div className="absolute -bottom-1 -right-1 w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center border-4 border-zinc-900 text-white">
-                {callType === "video" ? (
-                  <Video className="w-5 h-5 font-bold" />
-                ) : (
-                  <Phone className="w-5 h-5 font-bold" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-white font-bold text-sm truncate flex items-center gap-1.5">
+                {firstPeer?.name}
+                {firstPeer?.isModerator && (
+                  <Badge className="bg-indigo-600 text-white text-[8px] px-1.5 py-0 font-bold">
+                    Mod
+                  </Badge>
                 )}
-              </div>
+              </p>
+              <p className="text-zinc-400 text-xs mt-0.5">
+                {callType === "video" ? "Incoming video call" : "Incoming voice call"}
+                {isGroupCall ? " · Group" : ""}
+              </p>
             </div>
-            <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
-              {firstPeer?.name}
-              {firstPeer?.isModerator && (
-                <Badge className="bg-indigo-600 text-white text-[9px] px-1.5 py-0 font-bold">
-                  Moderator
-                </Badge>
-              )}
-            </h2>
-            <p className="text-zinc-500 tracking-widest uppercase text-[10px] font-bold mb-10">
-              {callType === "video" ? "Video Call..." : "Audio Call..."}
-            </p>
-            <div className="flex gap-4 w-full">
-              <button
-                onClick={rejectCall}
-                className="flex-1 h-16 rounded-[24px] bg-red-500 hover:bg-red-600 flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95"
-              >
-                <PhoneOff className="w-8 h-8 text-white" />
-              </button>
-              <button
-                onClick={acceptCall}
-                className="flex-1 h-16 rounded-[24px] bg-emerald-500 hover:bg-emerald-600 flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95"
-              >
-                <Phone className="w-8 h-8 text-white" />
-              </button>
-            </div>
+          </div>
+          <div className="px-5 pb-5 flex gap-3">
+            <button
+              onClick={rejectCall}
+              className="flex-1 h-11 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white hover:border-transparent flex items-center justify-center gap-2 transition-all duration-200"
+            >
+              <PhoneOff className="w-4 h-4" />
+              <span className="text-sm font-bold">Decline</span>
+            </button>
+            <button
+              onClick={acceptCall}
+              className="flex-1 h-11 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white flex items-center justify-center gap-2 transition-all duration-200 shadow-lg shadow-emerald-500/20"
+            >
+              <Phone className="w-4 h-4" />
+              <span className="text-sm font-bold">Accept</span>
+            </button>
           </div>
         </div>
       </div>,
@@ -982,7 +1005,6 @@ export default function VideoCallOverlay() {
           toggleMute={toggleMute}
           toggleVideo={toggleVideo}
           toggleScreenShare={toggleScreenShare}
-          toggleChat={toggleChat}
         />
       );
     }
@@ -1024,7 +1046,7 @@ export default function VideoCallOverlay() {
                   <div className="flex-1 bg-black relative flex items-center justify-center">
                     {isScreenSharing ? (
                       <video
-                        ref={setScreenVideo}
+                        ref={screenVideoRef}
                         autoPlay
                         playsInline
                         className="w-full h-full object-contain"
@@ -1527,11 +1549,20 @@ export default function VideoCallOverlay() {
           )}
         </div>
 
-        {!effectiveIsGroupCall && peerList.length > 1 && (
-          <div className="text-[10px] text-white font-bold bg-white/5 px-2 py-1 rounded mt-1">
-            {peerList.length + 1} ON CALL
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {!effectiveIsGroupCall && peerList.length > 1 && (
+            <div className="text-[10px] text-white font-bold bg-white/5 px-2 py-1 rounded mt-1">
+              {peerList.length + 1} ON CALL
+            </div>
+          )}
+          <button
+            onClick={() => setIsMinimized(true)}
+            className="w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-xl border border-white/10 flex items-center justify-center transition-all"
+            title="Minimize"
+          >
+            <Minimize2 className="w-4 h-4 text-white" />
+          </button>
+        </div>
       </div>
 
       {renderCallContent()}
@@ -1557,86 +1588,264 @@ export default function VideoCallOverlay() {
 
   const shouldShowFullScreen = isGroupCall || callType === "video";
 
-  // ─── Minimized floating widget (audio call) ──────────────────
-  if (isMinimized && !shouldShowFullScreen && callState === "connected") {
-    const peer = peerList[0];
-    const avatarUrl = peer?.avatar ? getAvatarUrl(peer.avatar) : null;
+  // ─── Minimized floating widget (draggable, 4-corner resizable, snappable) ─
+  if (isMinimized && callState === "connected") {
+    const FOOTER_H = 52;
+    const videoH = Math.round(miniWidth * 9 / 16);
+    const totalH = videoH + FOOTER_H;
+
+    const displayPeers = peerList.slice(0, 4);
+    const extraCount = Math.max(0, peerList.length - 4);
+    const gridCols = displayPeers.length <= 1 ? 1 : 2;
+    const gridRows = displayPeers.length > 2 ? 2 : 1;
+    const cellW = miniWidth / gridCols;
+    const avatarPx = Math.min(Math.floor(cellW / 3), 72);
+
+    const onDragDown = (e: React.PointerEvent<HTMLDivElement>) => {
+      if ((e.target as HTMLElement).closest("button")) return;
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      miniInteractRef.current = {
+        mode: "drag", corner: "br",
+        startX: e.clientX, startY: e.clientY,
+        startLeft: minimizedPosition.x, startTop: minimizedPosition.y,
+        startW: miniWidth, startH: totalH,
+      };
+    };
+    const onDragMove = (e: React.PointerEvent<HTMLDivElement>) => {
+      const ref = miniInteractRef.current;
+      if (ref.mode !== "drag") return;
+      setMinimizedPosition({
+        x: Math.max(0, Math.min(window.innerWidth - miniWidth, ref.startLeft + e.clientX - ref.startX)),
+        y: Math.max(0, Math.min(window.innerHeight - totalH, ref.startTop + e.clientY - ref.startY)),
+      });
+    };
+    const onDragUp = () => {
+      if (miniInteractRef.current.mode !== "drag") return;
+      miniInteractRef.current.mode = null;
+      setMinimizedPosition((prev) => getSnapPos(prev.x, prev.y, miniWidth, totalH));
+    };
+
+    // Factory for per-corner resize handlers
+    const resizeHandlers = (corner: "br" | "bl" | "tr" | "tl") => ({
+      onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => {
+        e.stopPropagation();
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        miniInteractRef.current = {
+          mode: "resize", corner,
+          startX: e.clientX, startY: e.clientY,
+          startLeft: minimizedPosition.x, startTop: minimizedPosition.y,
+          startW: miniWidth, startH: totalH,
+        };
+      },
+      onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => {
+        const ref = miniInteractRef.current;
+        if (ref.mode !== "resize" || ref.corner !== corner) return;
+        const dx = e.clientX - ref.startX;
+        const rawW =
+          corner === "br" || corner === "tr"
+            ? ref.startW + dx
+            : ref.startW - dx;
+        const newW = Math.max(160, Math.min(540, rawW));
+        const newH = Math.round(newW * 9 / 16) + FOOTER_H;
+        const newLeft =
+          corner === "bl" || corner === "tl"
+            ? ref.startLeft + (ref.startW - newW)
+            : ref.startLeft;
+        const newTop =
+          corner === "tr" || corner === "tl"
+            ? ref.startTop + (ref.startH - newH)
+            : ref.startTop;
+        setMiniWidth(newW);
+        setMinimizedPosition({
+          x: Math.max(0, Math.min(window.innerWidth - newW, newLeft)),
+          y: Math.max(0, Math.min(window.innerHeight - newH, newTop)),
+        });
+      },
+      onPointerUp: () => { miniInteractRef.current.mode = null; },
+      onPointerCancel: () => { miniInteractRef.current.mode = null; },
+    });
+
     return createPortal(
-      <div
-        className="fixed bottom-6 right-6 z-[9999] cursor-pointer group"
-        onClick={() => setIsMinimized(false)}
-        title="Click to expand call"
-      >
-        <div className="relative flex items-center gap-3 bg-zinc-900 border border-white/10 rounded-2xl px-4 py-3 shadow-2xl hover:bg-zinc-800 transition-all duration-200 hover:scale-105">
-          {/* Pulsing green dot */}
-          <div className="absolute -top-1 -left-1 w-3 h-3 rounded-full bg-emerald-500 border-2 border-zinc-900 animate-pulse" />
+      <>
+        <div
+          className="fixed z-[9999] rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-zinc-900"
+          style={{ left: minimizedPosition.x, top: minimizedPosition.y, width: miniWidth }}
+        >
+          {/* ── Drag handle: entire video area ── */}
+          <div
+            className="cursor-move select-none"
+            onPointerDown={onDragDown}
+            onPointerMove={onDragMove}
+            onPointerUp={onDragUp}
+            onPointerCancel={onDragUp}
+          >
+            <div
+              className="w-full bg-zinc-950 grid gap-px"
+              style={{
+                height: videoH,
+                gridTemplateColumns: `repeat(${gridCols}, 1fr)`,
+                gridTemplateRows: `repeat(${gridRows}, 1fr)`,
+              }}
+            >
+              {displayPeers.length === 0 && (
+                <div
+                  className="flex items-center justify-center text-white/30 text-xs pointer-events-none"
+                  style={{ gridColumn: "1 / -1", gridRow: "1 / -1" }}
+                >
+                  Connecting…
+                </div>
+              )}
+              {displayPeers.map((p) => (
+                <div
+                  key={p.userId}
+                  className="relative overflow-hidden bg-zinc-900 flex items-center justify-center"
+                >
+                  {!p.isVideoOff && p.stream ? (
+                    <>
+                      <div className="absolute inset-0 pointer-events-none">
+                        <RemotePeerVideo peer={p} />
+                      </div>
+                      {gridCols > 1 && (
+                        <div className="absolute bottom-1 left-1 bg-black/60 px-1 py-0.5 rounded text-[8px] text-white font-medium max-w-[60px] truncate pointer-events-none">
+                          {p.name}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="flex items-center justify-center pointer-events-none">
+                      {p.avatar ? (
+                        <img
+                          src={getAvatarUrl(p.avatar)}
+                          style={{ width: avatarPx, height: avatarPx }}
+                          className="rounded-full object-cover border-2 border-white/10 shrink-0"
+                          alt={p.name}
+                        />
+                      ) : (
+                        <div
+                          className="rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold border-2 border-white/10 shrink-0"
+                          style={{ width: avatarPx, height: avatarPx, fontSize: Math.max(10, avatarPx * 0.4) }}
+                        >
+                          {p.name?.charAt(0)?.toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+              {extraCount > 0 && (
+                <div className="overflow-hidden bg-zinc-900/80 flex items-center justify-center pointer-events-none">
+                  <span
+                    className="text-white font-bold"
+                    style={{ fontSize: Math.max(12, avatarPx * 0.5) }}
+                  >
+                    +{extraCount}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
 
-          {/* Avatar */}
-          <div className="relative shrink-0">
-            {avatarUrl ? (
-              <img
-                src={avatarUrl}
-                className="w-10 h-10 rounded-full object-cover border-2 border-white/10"
-                alt={peer?.name}
-              />
-            ) : (
-              <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm border-2 border-white/10">
-                {peer?.name?.charAt(0)?.toUpperCase()}
+          {/* ── Footer bar ── */}
+          <div className="px-3 py-2 flex items-center justify-between bg-zinc-950 border-t border-white/5 h-[52px]">
+            <div className="min-w-0 flex-1">
+              <p
+                className="text-white text-xs font-semibold truncate"
+                style={{ maxWidth: miniWidth - 120 }}
+              >
+                {effectiveIsGroupCall
+                  ? `${peerList.length + 1} participants`
+                  : peerList[0]?.name || "Call"}
+              </p>
+              <div className="flex items-center gap-1 mt-0.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-emerald-400 text-[10px] font-mono">
+                  {formatDuration(callDuration)}
+                </span>
               </div>
-            )}
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={(e) => { e.stopPropagation(); toggleMute(); }}
+                className={cn(
+                  "w-7 h-7 rounded-full flex items-center justify-center transition-all",
+                  isMuted ? "bg-white text-zinc-900" : "bg-white/10 text-white hover:bg-white/20",
+                )}
+              >
+                {isMuted ? <MicOff className="w-3 h-3" /> : <Mic className="w-3 h-3" />}
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setIsMinimized(false); }}
+                className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"
+              >
+                <Maximize2 className="w-3 h-3 text-white" />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleEndCallClick(); }}
+                className="w-7 h-7 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center transition-all"
+              >
+                <PhoneOff className="w-3 h-3 text-white" />
+              </button>
+            </div>
           </div>
 
-          {/* Info */}
-          <div className="flex flex-col min-w-0">
-            <span className="text-white text-xs font-semibold truncate max-w-[100px]">
-              {peer?.name || "Call"}
-            </span>
-            <span className="text-emerald-400 text-[10px] font-mono">
-              {formatDuration(callDuration)}
-            </span>
-          </div>
-
-          {/* Controls */}
-          <div className="flex items-center gap-1 ml-1">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleMute();
-              }}
-              className={cn(
-                "w-8 h-8 rounded-full flex items-center justify-center transition-all",
-                isMuted
-                  ? "bg-white text-zinc-900"
-                  : "bg-white/10 text-white hover:bg-white/20",
-              )}
-            >
-              {isMuted ? (
-                <MicOff className="w-3.5 h-3.5" />
-              ) : (
-                <Mic className="w-3.5 h-3.5" />
-              )}
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleEndCallClick();
-              }}
-              className="w-8 h-8 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center transition-all"
-            >
-              <PhoneOff className="w-3.5 h-3.5 text-white" />
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsMinimized(false);
-              }}
-              className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"
-            >
-              <Maximize2 className="w-3.5 h-3.5 text-white" />
-            </button>
-          </div>
+          {/* ── 4-corner resize handles ── */}
+          <div
+            className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize z-20"
+            style={{ background: "linear-gradient(135deg, transparent 50%, rgba(255,255,255,0.18) 50%)" }}
+            {...resizeHandlers("br")}
+          />
+          <div
+            className="absolute bottom-0 left-0 w-4 h-4 cursor-sw-resize z-20"
+            style={{ background: "linear-gradient(-45deg, transparent 50%, rgba(255,255,255,0.18) 50%)" }}
+            {...resizeHandlers("bl")}
+          />
+          <div
+            className="absolute top-0 right-0 w-4 h-4 cursor-ne-resize z-20"
+            style={{ background: "linear-gradient(45deg, transparent 50%, rgba(255,255,255,0.18) 50%)" }}
+            {...resizeHandlers("tr")}
+          />
+          <div
+            className="absolute top-0 left-0 w-4 h-4 cursor-nw-resize z-20"
+            style={{ background: "linear-gradient(-135deg, transparent 50%, rgba(255,255,255,0.18) 50%)" }}
+            {...resizeHandlers("tl")}
+          />
         </div>
-      </div>,
+
+        {/* ── End call confirmation — full overlay, outside widget ── */}
+        {showEndConfirm && (
+          <div className="fixed inset-0 z-[10002] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+            <div className="w-[320px] bg-zinc-900 rounded-3xl border border-white/10 p-6 shadow-2xl animate-in zoom-in-95 duration-300">
+              <h3 className="text-xl font-bold text-white mb-2 text-center">End Meeting?</h3>
+              <p className="text-zinc-400 text-sm mb-6 text-center">
+                Do you want to end the meeting for everyone or just leave?
+              </p>
+              <div className="flex flex-col gap-3">
+                <Button
+                  variant="destructive"
+                  className="w-full h-12 rounded-2xl font-bold text-sm"
+                  onClick={() => { endCall(true); setShowEndConfirm(false); }}
+                >
+                  End for Everyone
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full h-12 rounded-2xl font-bold text-sm bg-white/5 border-white/10 hover:bg-white/10 text-white"
+                  onClick={() => { endCall(false); setShowEndConfirm(false); }}
+                >
+                  Leave Meeting
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full h-12 rounded-2xl font-bold text-xs text-zinc-500 hover:text-white"
+                  onClick={() => setShowEndConfirm(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>,
       document.body,
     );
   }
