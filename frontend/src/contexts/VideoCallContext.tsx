@@ -340,6 +340,8 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
       if (peerConnectionsRef.current.has(targetUserId)) {
         peerConnectionsRef.current.get(targetUserId)?.close();
       }
+      // Clear stale remote stream so a fresh one is built from new tracks
+      remoteStreamsRef.current.delete(targetUserId);
 
       const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
       peerConnectionsRef.current.set(targetUserId, pc);
@@ -439,13 +441,15 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
 
   const toggleScreenShare = useCallback(async () => {
     const socket = getSocket();
-    if (state.isScreenSharing) {
+    // Always read live state via ref — avoids stale closure when called from
+    // videoTrack.onended (which captured this callback before isScreenSharing was true)
+    if (stateRef.current.isScreenSharing) {
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
       screenStreamRef.current = null;
       setScreenStream(null);
       setState((prev) => ({ ...prev, isScreenSharing: false }));
       socket?.emit("call:toggle-media", {
-        callId: state.callId,
+        callId: stateRef.current.callId,
         mediaType: "screen",
         enabled: false,
       });
@@ -457,7 +461,6 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
           if (sender && videoTrack) {
             await sender.replaceTrack(videoTrack);
           } else if (sender && !videoTrack) {
-            // No camera to fall back to, remove the screen track sender
             pc.removeTrack(sender);
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
@@ -481,7 +484,7 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
         setScreenStream(stream);
         setState((prev) => ({ ...prev, isScreenSharing: true }));
         socket?.emit("call:toggle-media", {
-          callId: state.callId,
+          callId: stateRef.current.callId,
           mediaType: "screen",
           enabled: true,
         });
@@ -509,6 +512,9 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
           }
         });
 
+        // onended fires when user clicks the browser's native "Stop sharing" button.
+        // We call toggleScreenShare() directly — it is now stable (no state deps) and
+        // reads live state via stateRef, so it correctly enters the stop branch.
         videoTrack.onended = () => {
           if (screenStreamRef.current === stream) {
             toggleScreenShare();
@@ -518,7 +524,8 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
         console.error("[WebRTC] Screen share failed:", err);
       }
     }
-  }, [state.isScreenSharing, state.callId]);
+  // No state deps — reads all mutable values through stable refs (stateRef, screenStreamRef, etc.)
+  }, []);
 
   const logCall = useCallback(
     async (
@@ -1057,22 +1064,6 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
         },
       }));
 
-      // Auto-navigate to the chat where the call is coming from
-      const cleanWorkgroupId =
-        p.workgroupId && p.workgroupId !== "undefined" ? p.workgroupId : "";
-      if (cleanWorkgroupId) {
-        const basePath = p.isBroadcast
-          ? "/collaboration/broadcast"
-          : p.isDirectChat
-            ? "/collaboration/direct-chats"
-            : "/collaboration/workgroups";
-
-        const queryKey = p.isDirectChat ? "chat" : "team";
-        const path = `${basePath}?${queryKey}=${cleanWorkgroupId}`;
-
-        console.log("[VideoCall] Auto-navigating to call context:", path);
-        window.dispatchEvent(new CustomEvent("navigate", { detail: path }));
-      }
       playRingtoneRef.current("incoming");
 
       // Show electron call overlay if applicable
@@ -1204,6 +1195,11 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
         // Group call: a member left — remove them
         const targetId = p.userId || p.fromUserId;
         if (targetId) {
+          // Close and remove their peer connection so a rejoin creates a fresh one
+          peerConnectionsRef.current.get(targetId)?.close();
+          peerConnectionsRef.current.delete(targetId);
+          remoteStreamsRef.current.delete(targetId);
+
           // Log call before resetting if this was the last peer in the call
           const sCurrent = stateRef.current;
           const remainingCount = Object.keys(sCurrent.peers).filter(id => id !== targetId).length;
@@ -1623,9 +1619,11 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
         };
       });
       try {
+        // Collision only when we are already creating an offer (not just because
+        // remoteDescription exists — that is normal renegotiation from the peer)
         const offerCollision =
           p.sdp.type === "offer" &&
-          (pc.signalingState !== "stable" || pc.remoteDescription !== null);
+          pc.signalingState !== "stable";
 
         // Simple polite peer logic: peer with "smaller" userId is polite
         const isPolite =
@@ -1644,10 +1642,8 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
             "[WebRTC] Offer collision detected (polite), rolling back and accepting offer from:",
             p.fromUserId,
           );
-          await Promise.all([
-            pc.setLocalDescription({ type: "rollback" } as any),
-            pc.setRemoteDescription(new RTCSessionDescription(p.sdp)),
-          ]);
+          await pc.setLocalDescription({ type: "rollback" } as any);
+          await pc.setRemoteDescription(new RTCSessionDescription(p.sdp));
         } else {
           await pc.setRemoteDescription(new RTCSessionDescription(p.sdp));
         }
@@ -1781,6 +1777,7 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
       });
       peerConnectionsRef.current.get(targetId)?.close();
       peerConnectionsRef.current.delete(targetId);
+      remoteStreamsRef.current.delete(targetId);
     };
 
     const handleUpgradeToVideo = (p: any) => {
