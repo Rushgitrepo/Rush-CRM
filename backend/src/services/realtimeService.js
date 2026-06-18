@@ -2,6 +2,7 @@ const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
 const fcmService = require('./fcmService');
+const pushService = require('./pushService');
 
 class RealtimeService {
   constructor() {
@@ -198,8 +199,10 @@ class RealtimeService {
             for (const member of membersResult.rows) {
               const targetRoom = `user:${member.user_id}`;
               this.io.to(targetRoom).emit('call:incoming', incomingPayload);
-              // Only send FCM push if user has NO active socket (mobile app background)
-              // Web browsers get notified via browser Notification API in VideoCallContext
+              // VAPID push — sw.js suppresses if any app tab is visible
+              // Covers tab-hidden and closed-tab scenarios
+              pushService.sendPushToUser(member.user_id, { ...pushData, title: pushTitle, body: pushBody });
+              // FCM only when user has no socket (mobile apps / fully offline)
               if (!this.isUserConnected(member.user_id)) {
                 fcmService.sendPushNotification(member.user_id, pushTitle, pushBody, pushData);
               }
@@ -209,7 +212,9 @@ class RealtimeService {
           }
         } else if (payload.targetUserId) {
           this.io.to(`user:${payload.targetUserId}`).emit('call:incoming', incomingPayload);
-          // Only send FCM push if user has NO active socket (mobile app background)
+          // VAPID push — sw.js suppresses if any app tab is visible
+          pushService.sendPushToUser(payload.targetUserId, { ...pushData, title: pushTitle, body: pushBody });
+          // FCM only when user has no socket (mobile apps / fully offline)
           if (!this.isUserConnected(payload.targetUserId)) {
             fcmService.sendPushNotification(payload.targetUserId, pushTitle, pushBody, pushData);
           }
@@ -265,6 +270,8 @@ class RealtimeService {
         };
 
         this.io.to(`user:${payload.targetUserId}`).emit('call:incoming', invitePayload);
+        // VAPID push covers tab-hidden and closed-tab; FCM covers mobile/fully offline
+        pushService.sendPushToUser(payload.targetUserId, { ...pushData, title: pushTitle, body: pushBody });
         fcmService.sendPushNotification(payload.targetUserId, pushTitle, pushBody, pushData);
       });
 

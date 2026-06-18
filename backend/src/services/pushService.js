@@ -72,7 +72,7 @@ async function sendPushToUser(userId, payload) {
         await webpush.sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
           JSON.stringify(payload),
-          { TTL: 60 }
+          { TTL: 86400 }
         );
       } catch (err) {
         if (err.statusCode === 410 || err.statusCode === 404) {

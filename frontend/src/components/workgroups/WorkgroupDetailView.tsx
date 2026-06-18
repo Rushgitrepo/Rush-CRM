@@ -4548,7 +4548,7 @@ function PostCard({
         className={`flex ${isAuthor ? "justify-end" : "justify-start"} items-end gap-2 mb-0.5`}
       >
         {/* Checkbox — always on left side for both sender and receiver */}
-        {(isForwardSelectMode || isDeleteSelectMode) && (
+        {(isForwardSelectMode || isDeleteSelectMode) && !isDeletedMessage && (
           <Checkbox
             checked={isForwardSelectMode ? isSelectedForForward : isSelectedForDelete}
             onCheckedChange={(value) => {

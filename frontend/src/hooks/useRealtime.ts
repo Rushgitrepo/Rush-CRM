@@ -171,6 +171,23 @@ export const getSocket = (): Socket | null => {
         authorName: msg?.author_name || "",
       });
 
+      // Browser notification when tab is hidden — mirrors the call notification approach
+      // (VAPID push handles closed-tab; this covers tab-switch where socket is still alive)
+      if (
+        (document.hidden || !document.hasFocus()) &&
+        Notification.permission === "granted"
+      ) {
+        const browserNotif = new Notification(title, {
+          body: displayBody,
+          icon: notifAvatar || "/crm.png",
+          tag: `msg-${workgroupId}`,
+        });
+        browserNotif.onclick = () => {
+          window.focus();
+          browserNotif.close();
+        };
+      }
+
       // Electron Rich Overlay
       // @ts-ignore
       if (window.electronAPI?.isElectron) {
