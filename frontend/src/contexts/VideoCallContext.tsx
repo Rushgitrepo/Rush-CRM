@@ -86,7 +86,7 @@ interface VideoCallContextType extends VideoCallState {
     forceGroupCall?: boolean,
     isModerator?: boolean,
   ) => void;
-  joinRoom: (roomId: string, callType: CallType) => void;
+  joinRoom: (roomId: string, callType: CallType, existingCallId?: string) => void;
   acceptCall: () => void;
   rejectCall: () => void;
   endCall: (endForAll?: boolean) => void;
@@ -561,11 +561,13 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
   );
 
   const joinRoom = useCallback(
-    async (roomId: string, callType: CallType) => {
+    async (roomId: string, callType: CallType, existingCallId?: string) => {
       const socket = getSocket();
       if (!socket || !profile) return;
 
-      const callId = `room_${roomId}`;
+      // When rejoining an existing call, use its original callId so we land in
+      // the same socket room. Fall back to "room_<workgroupId>" for fresh joins.
+      const callId = existingCallId || `room_${roomId}`;
       setState((prev) => ({
         ...prev,
         callState: "connecting",
@@ -574,7 +576,7 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
         roomId,
         peers: {},
         isMuted: false,
-        isVideoOff: false,
+        isVideoOff: callType === "audio",
         isGroupCall: true,
         callStatus: null,
       }));
@@ -852,8 +854,14 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
   const toggleVideo = useCallback(async () => {
     const socket = getSocket();
 
-    // Audio call upgrading to video — need to acquire video track first
-    if (state.callType === "audio" && state.isVideoOff) {
+    // Need to acquire camera when no live video track exists locally.
+    // This covers: (a) audio-only calls, (b) users whose callType was flipped to
+    // "video" by a peer's upgrade-to-video event before they enabled their own camera.
+    const hasLiveVideoTrack =
+      (localStreamRef.current?.getVideoTracks() ?? []).some(
+        (t) => t.readyState === "live",
+      );
+    if (state.isVideoOff && !hasLiveVideoTrack) {
       try {
         const videoStream = await navigator.mediaDevices.getUserMedia({
           video: true,
@@ -906,7 +914,10 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
           mediaType: "video",
           enabled: true,
         });
-        socket?.emit("call:upgrade-to-video", { callId: state.callId });
+        // Only announce the upgrade when we're the first to switch from audio mode
+        if (stateRef.current.callType === "audio") {
+          socket?.emit("call:upgrade-to-video", { callId: state.callId });
+        }
       } catch (err) {
         console.error("[WebRTC] Failed to get video track:", err);
         toast.error("Could not access camera.");
@@ -1079,44 +1090,54 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
         });
       }
 
-      // Show browser notification when tab is not focused
-      if (document.hidden || !document.hasFocus()) {
+      // Show OS notification when tab is not focused (tab-switch; VAPID handles closed-tab)
+      if (
+        (document.hidden || !document.hasFocus()) &&
+        Notification.permission === "granted"
+      ) {
         try {
-          if (Notification.permission === "granted") {
-            const isVideo = p.callType === "video";
-            const displayName = p.isGroupCall && p.groupName ? p.groupName : p.callerName;
-            const displayAvatar = p.isGroupCall && p.groupAvatar ? p.groupAvatar : p.callerAvatar;
-            const apiBase = (import.meta.env.VITE_API_URL || "http://localhost:4000/api").replace(/\/api$/, "");
-            let iconUrl = "/crm.png";
-            if (displayAvatar) {
-              iconUrl = displayAvatar.startsWith("http")
-                ? displayAvatar
-                : `${apiBase}${displayAvatar.startsWith("/") ? "" : "/"}${displayAvatar}`;
-            }
-            const callIcon = isVideo ? "📹" : "📞";
-            const callLabel = isVideo ? "Incoming video call" : "Incoming voice call";
+          const isVideo = p.callType === "video";
+          const displayName = p.isGroupCall && p.groupName ? p.groupName : p.callerName;
+          const displayAvatar = p.isGroupCall && p.groupAvatar ? p.groupAvatar : p.callerAvatar;
+          const apiBase = (import.meta.env.VITE_API_URL || "http://localhost:4000/api").replace(/\/api$/, "");
+          let iconUrl = "/crm.png";
+          if (displayAvatar) {
+            iconUrl = displayAvatar.startsWith("http")
+              ? displayAvatar
+              : `${apiBase}${displayAvatar.startsWith("/") ? "" : "/"}${displayAvatar}`;
+          }
+          const callIcon = isVideo ? "📹" : "📞";
+          const callLabel = isVideo ? "Incoming video call" : "Incoming voice call";
+          const notifTitle = displayName || "Incoming Call";
+          const notifBody = `${callIcon} ${callLabel}`;
+          const tag = `incoming-call-${p.callId}`;
 
-            const notif = new Notification(displayName || "Incoming Call", {
-              body: `${callIcon} ${callLabel}`,
-              icon: iconUrl,
-              tag: `incoming-call-${p.callId}`,
-              requireInteraction: true,
-            });
-
+          const showAndTrack = (notif: Notification) => {
             activeNotificationRef.current = notif;
-
-            notif.onclick = () => {
-              window.focus();
-              notif.close();
-            };
-
-            // Auto-close after 30s
+            notif.onclick = () => { window.focus(); notif.close(); };
             setTimeout(() => {
-              if (activeNotificationRef.current === notif) {
-                activeNotificationRef.current = null;
-              }
+              if (activeNotificationRef.current === notif) activeNotificationRef.current = null;
               notif.close();
             }, 30000);
+          };
+
+          // Service worker showNotification is more reliable on macOS Safari/Chrome
+          if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.ready
+              .then((reg) =>
+                reg.showNotification(notifTitle, {
+                  body: notifBody,
+                  icon: iconUrl,
+                  tag,
+                  requireInteraction: true,
+                  data: { callId: p.callId, type: "incoming_call" },
+                }),
+              )
+              .catch(() => {
+                showAndTrack(new Notification(notifTitle, { body: notifBody, icon: iconUrl, tag, requireInteraction: true }));
+              });
+          } else {
+            showAndTrack(new Notification(notifTitle, { body: notifBody, icon: iconUrl, tag, requireInteraction: true }));
           }
         } catch (e) {
           console.warn("[VideoCall] Browser notification failed:", e);

@@ -159,6 +159,9 @@ function NotifCard({
   );
 }
 
+const smsSound = new Audio("/sms.mp3");
+smsSound.volume = 0.6;
+
 export function RushNotificationContainer() {
   const [notifs, setNotifs] = useState<RushNotifData[]>([]);
 
@@ -169,6 +172,8 @@ export function RushNotificationContainer() {
   useEffect(() => {
     const handler = (e: Event) => {
       const data = (e as CustomEvent<RushNotifData>).detail;
+      smsSound.currentTime = 0;
+      smsSound.play().catch(() => {});
       setNotifs((prev) => {
         const existing = prev.find((n) => n.workgroupId === data.workgroupId);
         if (existing) {
