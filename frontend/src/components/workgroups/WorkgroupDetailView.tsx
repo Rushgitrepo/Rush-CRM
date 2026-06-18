@@ -2473,7 +2473,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                             {replyTo && (
                               <div className="flex animate-in slide-in-from-bottom-2 duration-200">
                                 <div className="flex-1 flex gap-3 p-2 bg-muted/50 rounded-lg border-l-4 border-primary shadow-sm">
-                                  <div className="flex-1 min-w-0">
+                                  <div className="flex-1 w-auto max-w-[630px]">
                                     <p className="text-[11px] font-bold text-primary uppercase tracking-tight">
                                       Replying to{" "}
                                       {findMessageById(replyTo)?.author_name}
