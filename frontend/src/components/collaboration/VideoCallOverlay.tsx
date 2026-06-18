@@ -89,10 +89,12 @@ function RemotePeerVideo({
   peer,
   fullScreen,
   forceVideoOff,
+  compact,
 }: {
   peer: any;
   fullScreen?: boolean;
   forceVideoOff?: boolean;
+  compact?: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -184,10 +186,12 @@ function RemotePeerVideo({
               </span>
             )}
           </div>
-          <span className="text-white font-medium text-lg tracking-tight">
-            {peer.name}
-          </span>
-          {!forceVideoOff && (
+          {!compact && (
+            <span className="text-white font-medium text-sm tracking-tight">
+              {peer.name}
+            </span>
+          )}
+          {!forceVideoOff && !compact && (
             <div className="flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full backdrop-blur-md">
               <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
               <span className="text-[10px] text-white/40 uppercase font-bold tracking-widest">
@@ -198,16 +202,18 @@ function RemotePeerVideo({
         </div>
       )}
 
-      {/* Peer Label - always visible at bottom */}
-      <div
-        className={cn(
-          "absolute flex items-center gap-2 px-3 py-1.5 bg-black/50 backdrop-blur-md rounded-full border border-white/10 z-10",
-          "bottom-4 left-4",
-        )}
-      >
-        <span className="text-white text-xs font-bold">{peer.name}</span>
-        {peer.isMuted && <MicOff className="w-3 h-3 text-red-500" />}
-      </div>
+      {/* Peer Label - only in full / non-compact modes */}
+      {!compact && (
+        <div
+          className={cn(
+            "absolute flex items-center gap-2 px-3 py-1.5 bg-black/50 backdrop-blur-md rounded-full border border-white/10 z-10",
+            "bottom-4 left-4",
+          )}
+        >
+          <span className="text-white text-xs font-bold">{peer.name}</span>
+          {peer.isMuted && <MicOff className="w-3 h-3 text-red-500" />}
+        </div>
+      )}
     </div>
   );
 }
@@ -1703,7 +1709,7 @@ export default function VideoCallOverlay() {
                   {!p.isVideoOff && p.stream ? (
                     <>
                       <div className="absolute inset-0 pointer-events-none">
-                        <RemotePeerVideo peer={p} />
+                        <RemotePeerVideo peer={p} compact />
                       </div>
                       {gridCols > 1 && (
                         <div className="absolute bottom-1 left-1 bg-black/60 px-1 py-0.5 rounded text-[8px] text-white font-medium max-w-[60px] truncate pointer-events-none">

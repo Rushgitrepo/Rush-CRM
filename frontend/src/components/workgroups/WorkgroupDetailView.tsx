@@ -115,7 +115,7 @@ interface Props {
 export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   const { user, profile } = useAuth();
   const { prompt, confirm } = useCustomDialog();
-  const { startCall: startVideoCall, callState } = useVideoCall();
+  const { startCall: startVideoCall, callState, joinRoom } = useVideoCall();
   const { data: workgroup } = useWorkgroup(workgroupId);
   const { data: allWorkgroups = [] } = useWorkgroups();
   const navigate = useNavigate();
@@ -251,6 +251,25 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
       offRealtime("presence:update", handlePresenceUpdate);
     };
   }, [onRealtime, offRealtime, queryClient, workgroupId]);
+
+  // Track active group call in this workgroup (for rejoin button)
+  const [activeGroupCall, setActiveGroupCall] = useState<{ callId: string; callType: string } | null>(null);
+  useEffect(() => {
+    const handleCallIncoming = (p: any) => {
+      if (String(p.isGroupCall) === "true" && p.workgroupId === workgroupId) {
+        setActiveGroupCall({ callId: p.callId, callType: p.callType || "video" });
+      }
+    };
+    const handleCallEnd = (p: any) => {
+      setActiveGroupCall((prev) => (prev?.callId === p.callId ? null : prev));
+    };
+    onRealtime("call:incoming", handleCallIncoming);
+    onRealtime("call:end", handleCallEnd);
+    return () => {
+      offRealtime("call:incoming", handleCallIncoming);
+      offRealtime("call:end", handleCallEnd);
+    };
+  }, [workgroupId, onRealtime, offRealtime]);
 
   useEffect(() => {
     const handleWorkgroupUpdated = (payload: {
@@ -1076,6 +1095,14 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   };
 
   const startForwardSelection = (postId: string) => {
+    const targetPost = flatPosts.find(p => p.id === postId);
+    const deletedForUsers = Array.isArray((targetPost as any)?.deleted_for_users)
+      ? (targetPost as any).deleted_for_users as string[]
+      : [];
+    const ownDeleted =
+      Boolean(targetPost?.is_deleted && targetPost?.user_id === user?.id) ||
+      Boolean(user?.id && deletedForUsers.includes(user.id));
+    if (ownDeleted) return;
     setIsForwardSelectMode(true);
     setSelectedForwardPostIds([postId]);
   };
@@ -1168,11 +1195,17 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   };
 
   const startDeleteSelection = (postId: string) => {
+    const targetPost = flatPosts.find(p => p.id === postId);
+    const deletedForUsers = Array.isArray((targetPost as any)?.deleted_for_users)
+      ? (targetPost as any).deleted_for_users as string[]
+      : [];
+    const ownDeleted =
+      Boolean(targetPost?.is_deleted && targetPost?.user_id === user?.id) ||
+      Boolean(user?.id && deletedForUsers.includes(user.id));
     setIsDeleteSelectMode(true);
     setSelectedDeletePostIds([postId]);
-    // Check if this is a deleted placeholder
-    const targetPost = flatPosts.find(p => p.id === postId);
-    setIsDeletedPlaceholderMode(Boolean(targetPost?.is_deleted));
+    // Placeholder mode: checkboxes appear only on own-deleted bubbles; no "delete for everyone"
+    setIsDeletedPlaceholderMode(ownDeleted);
   };
 
   const clearDeleteSelection = () => {
@@ -2131,6 +2164,25 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                 </div>
               ) : (
                 <>
+                  {/* Active group call banner — only for group workgroups */}
+                  {!isDirectChat && activeGroupCall && callState === "idle" && (
+                    <div className="flex items-center justify-between px-4 py-2 bg-emerald-500/10 border-b border-emerald-500/20 shrink-0">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                          Group call in progress
+                        </span>
+                      </div>
+                      <Button
+                        size="sm"
+                        className="h-7 bg-emerald-500 hover:bg-emerald-600 text-white text-xs px-3 gap-1"
+                        onClick={() => joinRoom(workgroupId, activeGroupCall.callType as "audio" | "video", activeGroupCall.callId)}
+                      >
+                        <Phone className="w-3 h-3" />
+                        Join
+                      </Button>
+                    </div>
+                  )}
                   {/* Messages Area - WhatsApp style background */}
                   <div
                     ref={scrollRef}
@@ -2302,6 +2354,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                                     startForwardSelection
                                   }
                                   isDeleteSelectMode={isDeleteSelectMode}
+                                  isDeletedPlaceholderMode={isDeletedPlaceholderMode}
                                   isSelectedForDelete={selectedDeletePostIds.includes(
                                     post.id,
                                   )}
@@ -3177,6 +3230,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -3203,7 +3257,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
               variant="destructive"
               onClick={() => handleDeleteSelectedMessages("everyone")}
               disabled={isDeletingMessages}
-              className={!canDeleteEveryoneForSelection ? "hidden" : ""}
+              className={(!canDeleteEveryoneForSelection || isDeletedPlaceholderMode) ? "hidden" : ""}
             >
               Delete for everyone
             </Button>
@@ -4066,6 +4120,7 @@ interface PostCardProps {
   onToggleForwardSelection?: (postId: string, checked: boolean) => void;
   onStartForwardSelection?: (postId: string) => void;
   isDeleteSelectMode?: boolean;
+  isDeletedPlaceholderMode?: boolean;
   isSelectedForDelete?: boolean;
   onToggleDeleteSelection?: (postId: string, checked: boolean) => void;
   onStartDeleteSelection?: (postId: string) => void;
@@ -4099,6 +4154,7 @@ function PostCard({
   onToggleForwardSelection,
   onStartForwardSelection,
   isDeleteSelectMode = false,
+  isDeletedPlaceholderMode = false,
   isSelectedForDelete = false,
   onToggleDeleteSelection,
   onStartDeleteSelection,
@@ -4547,8 +4603,13 @@ function PostCard({
       <div
         className={`flex ${isAuthor ? "justify-end" : "justify-start"} items-end gap-2 mb-0.5`}
       >
-        {/* Checkbox — always on left side for both sender and receiver */}
-        {(isForwardSelectMode || isDeleteSelectMode) && !isDeletedMessage && (
+        {/* Checkbox: forward mode — skip own-deleted; delete mode — in placeholder mode show ONLY own-deleted, otherwise skip own-deleted */}
+        {((isForwardSelectMode && !(isDeletedMessage && isAuthor)) ||
+          (isDeleteSelectMode && (
+            isDeletedPlaceholderMode
+              ? (isDeletedMessage && isAuthor)
+              : !(isDeletedMessage && isAuthor)
+          ))) && (
           <Checkbox
             checked={isForwardSelectMode ? isSelectedForForward : isSelectedForDelete}
             onCheckedChange={(value) => {
