@@ -31,6 +31,71 @@ async function sendSubscriptionToServer(subscription: PushSubscription) {
   });
 }
 
+async function doSubscribe() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  if (Notification.permission !== 'granted') return;
+
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const existingSub = await registration.pushManager.getSubscription();
+    if (existingSub) {
+      await sendSubscriptionToServer(existingSub);
+      return;
+    }
+    const vapidKey = await fetchVapidKey();
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(vapidKey),
+    });
+    await sendSubscriptionToServer(subscription);
+  } catch (err) {
+    console.debug('Push subscription failed:', err);
+  }
+}
+
+// Safari (and some mobile browsers) require Notification.requestPermission() to be
+// called from a user-gesture context. This helper tries immediately (works in Chrome/
+// Firefox/Edge), and if that is rejected or returns 'default', attaches a one-time
+// listener so the next user interaction triggers the prompt.
+function requestPermissionWithFallback(onGranted: () => void) {
+  const tryRequest = async () => {
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') onGranted();
+    } catch {
+      // Some browsers throw when called outside a gesture — handled by listener below
+    }
+  };
+
+  if (Notification.permission === 'granted') {
+    onGranted();
+    return;
+  }
+
+  if (Notification.permission === 'denied') return;
+
+  // Try immediately (Chrome / Firefox / Edge allow this)
+  tryRequest();
+
+  // Also attach gesture listener so Safari picks it up on first interaction
+  const events = ['click', 'keydown', 'pointerdown'] as const;
+  const handler = () => {
+    events.forEach((e) => document.removeEventListener(e, handler));
+    if (Notification.permission === 'default') tryRequest();
+    else if (Notification.permission === 'granted') onGranted();
+  };
+  events.forEach((e) => document.addEventListener(e, handler, { once: false }));
+
+  // Clean up listener once permission is decided
+  const interval = setInterval(() => {
+    if (Notification.permission !== 'default') {
+      events.forEach((e) => document.removeEventListener(e, handler));
+      clearInterval(interval);
+      if (Notification.permission === 'granted') onGranted();
+    }
+  }, 1000);
+}
+
 export function usePushNotifications() {
   const { user } = useAuth();
   const subscribedRef = useRef(false);
@@ -39,35 +104,9 @@ export function usePushNotifications() {
     if (!user || subscribedRef.current) return;
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
 
-    const setup = async () => {
-      try {
-        // Request notification permission
-        const permission = await Notification.requestPermission();
-        if (permission !== 'granted') return;
-
-        const registration = await navigator.serviceWorker.ready;
-        const existingSub = await registration.pushManager.getSubscription();
-
-        if (existingSub) {
-          await sendSubscriptionToServer(existingSub);
-          subscribedRef.current = true;
-          return;
-        }
-
-        const vapidKey = await fetchVapidKey();
-        const subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(vapidKey),
-        });
-
-        await sendSubscriptionToServer(subscription);
-        subscribedRef.current = true;
-      } catch (err) {
-        // Silently fail — push is a progressive enhancement
-        console.debug('Push notification setup failed:', err);
-      }
-    };
-
-    setup();
+    requestPermissionWithFallback(() => {
+      subscribedRef.current = true;
+      doSubscribe();
+    });
   }, [user]);
 }

@@ -35,6 +35,34 @@ function isViewingWorkgroup(workgroupId: string): boolean {
   return activeId === workgroupId;
 }
 
+// Show an OS-level notification. Uses the service worker's showNotification() which
+// works reliably on macOS Safari/Chrome/Firefox in async contexts. Falls back to the
+// Notification constructor if no SW is controlling the page.
+function showOsNotification(
+  title: string,
+  body: string,
+  icon: string,
+  tag: string,
+  clickUrl?: string,
+) {
+  if (Notification.permission !== "granted") return;
+
+  const opts: NotificationOptions = { body, icon, tag, renotify: true };
+  const data = clickUrl ? { url: clickUrl } : undefined;
+
+  if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.ready
+      .then((reg) => reg.showNotification(title, { ...opts, data }))
+      .catch(() => {
+        const n = new Notification(title, opts);
+        if (clickUrl) n.onclick = () => { window.location.href = clickUrl; window.focus(); n.close(); };
+      });
+  } else {
+    const n = new Notification(title, opts);
+    if (clickUrl) n.onclick = () => { window.location.href = clickUrl; window.focus(); n.close(); };
+  }
+}
+
 function showDesktopNotification(
   title: string,
   body: string,
@@ -42,25 +70,13 @@ function showDesktopNotification(
   isDirectChat: boolean,
   isBroadcast?: boolean,
 ) {
-  if (Notification.permission !== "granted") return;
   const baseUrl = isDirectChat
     ? `/collaboration/direct-chats?chat=${workgroupId}`
     : isBroadcast
       ? `/collaboration/broadcast?team=${workgroupId}`
       : `/collaboration/workgroups?team=${workgroupId}`;
 
-  const url = `/#${baseUrl}`;
-  const n = new Notification(title, {
-    body,
-    icon: "/crm.png",
-    tag: `workgroup-${workgroupId}`,
-    renotify: true,
-  });
-  n.onclick = () => {
-    window.focus();
-    window.location.href = url;
-    n.close();
-  };
+  showOsNotification(title, body, "/crm.png", `workgroup-${workgroupId}`, `/#${baseUrl}`);
 }
 
 const emitPresenceFromWindowState = () => {
@@ -171,21 +187,20 @@ export const getSocket = (): Socket | null => {
         authorName: msg?.author_name || "",
       });
 
-      // Browser notification when tab is hidden — mirrors the call notification approach
-      // (VAPID push handles closed-tab; this covers tab-switch where socket is still alive)
-      if (
-        (document.hidden || !document.hasFocus()) &&
-        Notification.permission === "granted"
-      ) {
-        const browserNotif = new Notification(title, {
-          body: displayBody,
-          icon: notifAvatar || "/crm.png",
-          tag: `msg-${workgroupId}`,
-        });
-        browserNotif.onclick = () => {
-          window.focus();
-          browserNotif.close();
-        };
+      // OS notification when tab is hidden (tab-switch; closed-tab handled by VAPID push)
+      if (document.hidden || !document.hasFocus()) {
+        const baseUrl = isDirectChat
+          ? `/collaboration/direct-chats?chat=${workgroupId}`
+          : Boolean(msg?.is_broadcast)
+            ? `/collaboration/broadcast?team=${workgroupId}`
+            : `/collaboration/workgroups?team=${workgroupId}`;
+        showOsNotification(
+          title,
+          displayBody,
+          notifAvatar || "/crm.png",
+          `msg-${workgroupId}`,
+          `/#${baseUrl}`,
+        );
       }
 
       // Electron Rich Overlay

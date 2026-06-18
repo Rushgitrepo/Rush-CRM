@@ -1090,44 +1090,54 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
         });
       }
 
-      // Show browser notification when tab is not focused
-      if (document.hidden || !document.hasFocus()) {
+      // Show OS notification when tab is not focused (tab-switch; VAPID handles closed-tab)
+      if (
+        (document.hidden || !document.hasFocus()) &&
+        Notification.permission === "granted"
+      ) {
         try {
-          if (Notification.permission === "granted") {
-            const isVideo = p.callType === "video";
-            const displayName = p.isGroupCall && p.groupName ? p.groupName : p.callerName;
-            const displayAvatar = p.isGroupCall && p.groupAvatar ? p.groupAvatar : p.callerAvatar;
-            const apiBase = (import.meta.env.VITE_API_URL || "http://localhost:4000/api").replace(/\/api$/, "");
-            let iconUrl = "/crm.png";
-            if (displayAvatar) {
-              iconUrl = displayAvatar.startsWith("http")
-                ? displayAvatar
-                : `${apiBase}${displayAvatar.startsWith("/") ? "" : "/"}${displayAvatar}`;
-            }
-            const callIcon = isVideo ? "📹" : "📞";
-            const callLabel = isVideo ? "Incoming video call" : "Incoming voice call";
+          const isVideo = p.callType === "video";
+          const displayName = p.isGroupCall && p.groupName ? p.groupName : p.callerName;
+          const displayAvatar = p.isGroupCall && p.groupAvatar ? p.groupAvatar : p.callerAvatar;
+          const apiBase = (import.meta.env.VITE_API_URL || "http://localhost:4000/api").replace(/\/api$/, "");
+          let iconUrl = "/crm.png";
+          if (displayAvatar) {
+            iconUrl = displayAvatar.startsWith("http")
+              ? displayAvatar
+              : `${apiBase}${displayAvatar.startsWith("/") ? "" : "/"}${displayAvatar}`;
+          }
+          const callIcon = isVideo ? "📹" : "📞";
+          const callLabel = isVideo ? "Incoming video call" : "Incoming voice call";
+          const notifTitle = displayName || "Incoming Call";
+          const notifBody = `${callIcon} ${callLabel}`;
+          const tag = `incoming-call-${p.callId}`;
 
-            const notif = new Notification(displayName || "Incoming Call", {
-              body: `${callIcon} ${callLabel}`,
-              icon: iconUrl,
-              tag: `incoming-call-${p.callId}`,
-              requireInteraction: true,
-            });
-
+          const showAndTrack = (notif: Notification) => {
             activeNotificationRef.current = notif;
-
-            notif.onclick = () => {
-              window.focus();
-              notif.close();
-            };
-
-            // Auto-close after 30s
+            notif.onclick = () => { window.focus(); notif.close(); };
             setTimeout(() => {
-              if (activeNotificationRef.current === notif) {
-                activeNotificationRef.current = null;
-              }
+              if (activeNotificationRef.current === notif) activeNotificationRef.current = null;
               notif.close();
             }, 30000);
+          };
+
+          // Service worker showNotification is more reliable on macOS Safari/Chrome
+          if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.ready
+              .then((reg) =>
+                reg.showNotification(notifTitle, {
+                  body: notifBody,
+                  icon: iconUrl,
+                  tag,
+                  requireInteraction: true,
+                  data: { callId: p.callId, type: "incoming_call" },
+                }),
+              )
+              .catch(() => {
+                showAndTrack(new Notification(notifTitle, { body: notifBody, icon: iconUrl, tag, requireInteraction: true }));
+              });
+          } else {
+            showAndTrack(new Notification(notifTitle, { body: notifBody, icon: iconUrl, tag, requireInteraction: true }));
           }
         } catch (e) {
           console.warn("[VideoCall] Browser notification failed:", e);
