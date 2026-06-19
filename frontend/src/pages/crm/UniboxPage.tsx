@@ -154,7 +154,8 @@ export default function UniboxPage() {
     markAsRead,
     toggleArchive,
     convertToLead,
-    syncInstantly
+    syncInstantly,
+    quickSync,
   } = uniboxData;
 
   const selectedEmail = emails.find((e) => e.id.toString() === selectedEmailId) || fetchedEmail || null;

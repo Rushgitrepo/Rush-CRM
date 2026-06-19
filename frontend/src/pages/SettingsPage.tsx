@@ -1,15 +1,46 @@
 import { useState, useEffect, useRef } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { User, Building2, Bell, Palette, Shield, Globe, Mail, Phone, Camera, Save, KeyRound, Eye, EyeOff, Loader2 } from "lucide-react";
+import {
+  User,
+  Building2,
+  Bell,
+  Palette,
+  Shield,
+  Globe,
+  Mail,
+  Phone,
+  Camera,
+  Save,
+  KeyRound,
+  Eye,
+  EyeOff,
+  Loader2,
+  Users,
+  Copy,
+} from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { api } from "@/lib/api";
@@ -24,7 +55,9 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-foreground">Settings</h1>
-        <p className="text-muted-foreground">Manage your account and preferences</p>
+        <p className="text-muted-foreground">
+          Manage your account and preferences
+        </p>
       </div>
 
       <Tabs defaultValue="profile">
@@ -67,12 +100,17 @@ export default function SettingsPage() {
 function ProfileSettings() {
   const { profile, user, refreshProfile, userRole } = useAuth();
   const { currentRole } = useOrganization();
-  const isAdmin = userRole?.role === "admin" || userRole?.role === "super_admin";
+  const isAdmin =
+    userRole?.role === "admin" || userRole?.role === "super_admin";
   const [saving, setSaving] = useState(false);
   const [fullName, setFullName] = useState(profile?.full_name || "");
   const [phone, setPhone] = useState((profile as any)?.phone || "");
-  const [jobTitle, setJobTitle] = useState((profile as any)?.position || (profile as any)?.job_title || "");
-  const [department, setDepartment] = useState((profile as any)?.department || "");
+  const [jobTitle, setJobTitle] = useState(
+    (profile as any)?.position || (profile as any)?.job_title || "",
+  );
+  const [department, setDepartment] = useState(
+    (profile as any)?.department || "",
+  );
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -88,7 +126,9 @@ function ProfileSettings() {
     if (profile) {
       setFullName(profile.full_name || "");
       setPhone((profile as any).phone || "");
-      setJobTitle((profile as any).position || (profile as any).job_title || "");
+      setJobTitle(
+        (profile as any).position || (profile as any).job_title || "",
+      );
       setDepartment((profile as any).department || "");
     }
   }, [profile]);
@@ -124,7 +164,7 @@ function ProfileSettings() {
     try {
       await api.post(`/auth/change-password`, {
         currentPassword,
-        newPassword
+        newPassword,
       });
       toast.success("Password updated successfully");
       setCurrentPassword("");
@@ -161,12 +201,13 @@ function ProfileSettings() {
     }
   };
 
-  const initials = profile?.full_name
-    ?.split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2) || "U";
+  const initials =
+    profile?.full_name
+      ?.split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2) || "U";
 
   return (
     <div className="space-y-6">
@@ -176,32 +217,42 @@ function ProfileSettings() {
             <User className="h-5 w-5 text-primary" />
             Personal Information
           </CardTitle>
-          <CardDescription>Update your personal details and contact information</CardDescription>
+          <CardDescription>
+            Update your personal details and contact information
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="flex items-center gap-6">
             <div className="relative group">
               <Avatar className="h-24 w-24 border-2 border-primary/20">
                 <AvatarImage src={getAvatarUrl(profile?.avatar_url)} />
-                <AvatarFallback className="text-2xl bg-primary text-primary-foreground">{initials}</AvatarFallback>
+                <AvatarFallback className="text-2xl bg-primary text-primary-foreground">
+                  {initials}
+                </AvatarFallback>
               </Avatar>
-              <button 
+              <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploadingAvatar}
                 className="absolute inset-0 flex items-center justify-center bg-black/40 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity disabled:cursor-not-allowed"
               >
-                {uploadingAvatar ? <Loader2 className="h-6 w-6 animate-spin" /> : <Camera className="h-6 w-6" />}
+                {uploadingAvatar ? (
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                ) : (
+                  <Camera className="h-6 w-6" />
+                )}
               </button>
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleAvatarChange} 
-                className="hidden" 
-                accept="image/*" 
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleAvatarChange}
+                className="hidden"
+                accept="image/*"
               />
             </div>
             <div>
-              <p className="font-bold text-xl text-foreground">{profile?.full_name}</p>
+              <p className="font-bold text-xl text-foreground">
+                {profile?.full_name}
+              </p>
               <p className="text-sm text-muted-foreground">{user?.email}</p>
               <div className="flex flex-wrap gap-2 mt-2">
                 {currentRole && (
@@ -209,10 +260,10 @@ function ProfileSettings() {
                     {currentRole.name}
                   </span>
                 )}
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="h-7 text-xs" 
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploadingAvatar}
                 >
@@ -227,23 +278,55 @@ function ProfileSettings() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="fullName">Full Name</Label>
-              <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} disabled={!isAdmin} className={!isAdmin ? "bg-muted" : ""} />
+              <Input
+                id="fullName"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                disabled={!isAdmin}
+                className={!isAdmin ? "bg-muted" : ""}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" value={user?.email || ""} disabled className="bg-muted" />
+              <Input
+                id="email"
+                value={user?.email || ""}
+                disabled
+                className="bg-muted"
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="phone">Phone</Label>
-              <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 (555) 000-0000" disabled={!isAdmin} className={!isAdmin ? "bg-muted" : ""} />
+              <Input
+                id="phone"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+1 (555) 000-0000"
+                disabled={!isAdmin}
+                className={!isAdmin ? "bg-muted" : ""}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="jobTitle">Job Title</Label>
-              <Input id="jobTitle" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} placeholder="e.g. Sales Manager" disabled={!isAdmin} className={!isAdmin ? "bg-muted" : ""} />
+              <Input
+                id="jobTitle"
+                value={jobTitle}
+                onChange={(e) => setJobTitle(e.target.value)}
+                placeholder="e.g. Sales Manager"
+                disabled={!isAdmin}
+                className={!isAdmin ? "bg-muted" : ""}
+              />
             </div>
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="department">Department</Label>
-              <Input id="department" value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="e.g. Sales" disabled={!isAdmin} className={!isAdmin ? "bg-muted" : ""} />
+              <Input
+                id="department"
+                value={department}
+                onChange={(e) => setDepartment(e.target.value)}
+                placeholder="e.g. Sales"
+                disabled={!isAdmin}
+                className={!isAdmin ? "bg-muted" : ""}
+              />
             </div>
           </div>
 
@@ -271,33 +354,79 @@ function ProfileSettings() {
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="currentPassword">Current Password</Label>
               <div className="relative">
-                <Input id="currentPassword" type={showCurrentPassword ? "text" : "password"} value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className="pr-12" />
-                <a type="button" className="absolute right-0 top-0 h-10 w-10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 flex items-center justify-center cursor-pointer" onClick={() => setShowCurrentPassword(!showCurrentPassword)}>
-                  {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                <Input
+                  id="currentPassword"
+                  type={showCurrentPassword ? "text" : "password"}
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="pr-12"
+                />
+                <a
+                  type="button"
+                  className="absolute right-0 top-0 h-10 w-10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 flex items-center justify-center cursor-pointer"
+                  onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                >
+                  {showCurrentPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </a>
               </div>
             </div>
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="newPassword">New Password</Label>
               <div className="relative">
-                <Input id="newPassword" type={showNewPassword ? "text" : "password"} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Minimum 8 characters" className="pr-12" />
-                <a type="button" className="absolute right-0 top-0 h-10 w-10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 flex items-center justify-center cursor-pointer" onClick={() => setShowNewPassword(!showNewPassword)}>
-                  {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                <Input
+                  id="newPassword"
+                  type={showNewPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Minimum 8 characters"
+                  className="pr-12"
+                />
+                <a
+                  type="button"
+                  className="absolute right-0 top-0 h-10 w-10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 flex items-center justify-center cursor-pointer"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                >
+                  {showNewPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </a>
               </div>
             </div>
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="confirmPassword">Confirm New Password</Label>
               <div className="relative">
-                <Input id="confirmPassword" type={showConfirmPassword ? "text" : "password"} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="pr-12" />
-                <a type="button" className="absolute right-0 top-0 h-10 w-10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 flex items-center justify-center cursor-pointer" onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
-                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                <Input
+                  id="confirmPassword"
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="pr-12"
+                />
+                <a
+                  type="button"
+                  className="absolute right-0 top-0 h-10 w-10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 flex items-center justify-center cursor-pointer"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </a>
               </div>
             </div>
           </div>
           <div className="flex justify-end">
-            <Button onClick={changePassword} disabled={changingPassword || !newPassword || !currentPassword}>
+            <Button
+              onClick={changePassword}
+              disabled={changingPassword || !newPassword || !currentPassword}
+            >
               {changingPassword ? "Updating..." : "Update Password"}
             </Button>
           </div>
@@ -307,21 +436,39 @@ function ProfileSettings() {
   );
 }
 
+const ROLE_LABELS: Record<string, string> = {
+  super_admin: "Super Admin",
+  admin: "Admin",
+  manager: "Manager",
+  member: "Member",
+  viewer: "Viewer",
+};
+
 function OrganizationSettings() {
   const { organization, refreshOrganization } = useOrganization();
   const { userRole } = useAuth();
-  const isAdmin = userRole?.role === "admin" || userRole?.role === "super_admin";
+  const isSuperAdmin = userRole?.role === "super_admin";
 
   const [orgName, setOrgName] = useState(organization?.name || "");
-  const [domain, setDomain] = useState(organization?.domain || "");
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    if (organization?.name) setOrgName(organization.name);
+  }, [organization?.name]);
+
+  const { data: membersData, isLoading: membersLoading } = useQuery({
+    queryKey: ["org-members"],
+    queryFn: () => api.get<{ members: any[] }>("/organizations/members"),
+    staleTime: 30000,
+  });
+  const members = membersData?.members || [];
+
   const saveOrg = async () => {
-    if (!organization || !isAdmin) return;
+    if (!organization || !isSuperAdmin) return;
     setSaving(true);
     try {
-      await api.put(`/organizations/${organization.id}`, { name: orgName, domain: domain || null });
-      toast.success("Organization updated");
+      await api.put(`/organizations/${organization.id}`, { name: orgName });
+      toast.success("Organization name updated");
       await refreshOrganization();
     } catch {
       toast.error("Failed to update organization");
@@ -329,8 +476,14 @@ function OrganizationSettings() {
     setSaving(false);
   };
 
+  const copyId = () => {
+    navigator.clipboard.writeText(organization?.id || "");
+    toast.success("Organization ID copied");
+  };
+
   return (
     <div className="space-y-6">
+      {/* Organization Details */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -338,35 +491,57 @@ function OrganizationSettings() {
             Organization Details
           </CardTitle>
           <CardDescription>
-            {isAdmin ? "Manage your organization settings" : "View your organization information"}
+            {isSuperAdmin
+              ? "Only Super Admin can change organization name"
+              : "View your organization information"}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
+            {/* Org Name — editable only by super_admin */}
             <div className="space-y-2">
               <Label htmlFor="orgName">Organization Name</Label>
               <Input
                 id="orgName"
                 value={orgName}
                 onChange={(e) => setOrgName(e.target.value)}
-                disabled={!isAdmin}
-                className={!isAdmin ? "bg-muted" : ""}
+                disabled={!isSuperAdmin}
+                className={!isSuperAdmin ? "bg-muted" : ""}
               />
             </div>
+
+            {/* Domain — always read-only */}
             <div className="space-y-2">
-              <Label htmlFor="domain">Domain</Label>
+              <Label>Domain</Label>
               <Input
-                id="domain"
-                value={domain}
-                onChange={(e) => setDomain(e.target.value)}
-                disabled={!isAdmin}
-                className={!isAdmin ? "bg-muted" : ""}
-                placeholder="example.com"
+                value={organization?.domain || "—"}
+                disabled
+                className="bg-muted"
               />
+            </div>
+
+            {/* Org ID — display only, copyable */}
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Organization ID</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={organization?.id || "—"}
+                  disabled
+                  className="bg-muted font-mono text-xs"
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={copyId}
+                  title="Copy ID"
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </div>
 
-          {isAdmin && (
+          {isSuperAdmin && (
             <div className="flex justify-end">
               <Button onClick={saveOrg} disabled={saving}>
                 <Save className="h-4 w-4 mr-2" />
@@ -377,6 +552,7 @@ function OrganizationSettings() {
         </CardContent>
       </Card>
 
+      {/* Security & Access */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -388,11 +564,15 @@ function OrganizationSettings() {
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="rounded-lg border border-border p-4 text-center">
-              <p className="text-2xl font-bold text-foreground">{organization?.id ? "Active" : "—"}</p>
+              <p className="text-2xl font-bold text-foreground">
+                {organization?.id ? "Active" : "—"}
+              </p>
               <p className="text-sm text-muted-foreground">Status</p>
             </div>
             <div className="rounded-lg border border-border p-4 text-center">
-              <p className="text-2xl font-bold text-foreground">{userRole?.role?.replace("_", " ") || "—"}</p>
+              <p className="text-2xl font-bold text-foreground capitalize">
+                {userRole?.role?.replace("_", " ") || "—"}
+              </p>
               <p className="text-sm text-muted-foreground">Your Role</p>
             </div>
             <div className="rounded-lg border border-border p-4 text-center">
@@ -415,7 +595,7 @@ function NotificationSettings() {
     hrms: true,
     recruitment: true,
     collaboration: true,
-    general: true
+    general: true,
   });
 
   useEffect(() => {
@@ -427,7 +607,7 @@ function NotificationSettings() {
   const toggleSetting = (key: string) => {
     setSettings((prev: any) => ({
       ...prev,
-      [key]: !prev[key]
+      [key]: !prev[key],
     }));
   };
 
@@ -444,12 +624,48 @@ function NotificationSettings() {
   };
 
   const notifItems = [
-    { id: "crm", label: "CRM & Deals", desc: "Leads, deals, and assignment updates", icon: Globe, value: settings.crm },
-    { id: "tasks", label: "Projects & Tasks", desc: "Task assignments and status changes", icon: Bell, value: settings.tasks },
-    { id: "hrms", label: "HR & Leave", desc: "Leave requests and attendance alerts", icon: User, value: settings.hrms },
-    { id: "recruitment", label: "Recruitment", desc: "Candidate status and interview updates", icon: Building2, value: settings.recruitment },
-    { id: "collaboration", label: "Collaboration", desc: "Direct messages and mentions", icon: Mail, value: settings.collaboration },
-    { id: "general", label: "System Alerts", desc: "Important general system notifications", icon: Shield, value: settings.general },
+    {
+      id: "crm",
+      label: "CRM & Deals",
+      desc: "Leads, deals, and assignment updates",
+      icon: Globe,
+      value: settings.crm,
+    },
+    {
+      id: "tasks",
+      label: "Projects & Tasks",
+      desc: "Task assignments and status changes",
+      icon: Bell,
+      value: settings.tasks,
+    },
+    {
+      id: "hrms",
+      label: "HR & Leave",
+      desc: "Leave requests and attendance alerts",
+      icon: User,
+      value: settings.hrms,
+    },
+    {
+      id: "recruitment",
+      label: "Recruitment",
+      desc: "Candidate status and interview updates",
+      icon: Building2,
+      value: settings.recruitment,
+    },
+    {
+      id: "collaboration",
+      label: "Collaboration",
+      desc: "Direct messages and mentions",
+      icon: Mail,
+      value: settings.collaboration,
+    },
+    {
+      id: "general",
+      label: "System Alerts",
+      desc: "Important general system notifications",
+      icon: Shield,
+      value: settings.general,
+    },
   ];
 
   return (
@@ -459,19 +675,29 @@ function NotificationSettings() {
           <Bell className="h-5 w-5 text-primary" />
           Notification Preferences
         </CardTitle>
-        <CardDescription>Choose which real-time notifications you'd like to receive</CardDescription>
+        <CardDescription>
+          Choose which real-time notifications you'd like to receive
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-1">
         {notifItems.map((item) => (
-          <div key={item.id} className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/50 transition-colors">
+          <div
+            key={item.id}
+            className="flex items-center justify-between py-3 px-2 rounded-lg hover:bg-muted/50 transition-colors"
+          >
             <div className="flex items-center gap-3">
               <item.icon className="h-4 w-4 text-muted-foreground" />
               <div>
-                <p className="text-sm font-medium text-foreground">{item.label}</p>
+                <p className="text-sm font-medium text-foreground">
+                  {item.label}
+                </p>
                 <p className="text-xs text-muted-foreground">{item.desc}</p>
               </div>
             </div>
-            <Switch checked={item.value} onCheckedChange={() => toggleSetting(item.id)} />
+            <Switch
+              checked={item.value}
+              onCheckedChange={() => toggleSetting(item.id)}
+            />
           </div>
         ))}
         <Separator className="my-4" />
@@ -490,7 +716,9 @@ function AppearanceSettings() {
   const [language, setLanguage] = useState("en");
   const [dateFormat, setDateFormat] = useState("MM/DD/YYYY");
   const [timeFormat, setTimeFormat] = useState("12h");
-  const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const [timezone, setTimezone] = useState(
+    Intl.DateTimeFormat().resolvedOptions().timeZone,
+  );
   const [compactMode, setCompactMode] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -506,14 +734,18 @@ function AppearanceSettings() {
             <Globe className="h-5 w-5 text-primary" />
             Regional Settings
           </CardTitle>
-          <CardDescription>Configure language, date, and time preferences</CardDescription>
+          <CardDescription>
+            Configure language, date, and time preferences
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Language</Label>
               <Select value={language} onValueChange={setLanguage}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="en">English</SelectItem>
                   <SelectItem value="es">Español</SelectItem>
@@ -526,12 +758,16 @@ function AppearanceSettings() {
             <div className="space-y-2">
               <Label>Timezone</Label>
               <Select value={timezone} onValueChange={setTimezone}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="America/New_York">Eastern (ET)</SelectItem>
                   <SelectItem value="America/Chicago">Central (CT)</SelectItem>
                   <SelectItem value="America/Denver">Mountain (MT)</SelectItem>
-                  <SelectItem value="America/Los_Angeles">Pacific (PT)</SelectItem>
+                  <SelectItem value="America/Los_Angeles">
+                    Pacific (PT)
+                  </SelectItem>
                   <SelectItem value="Europe/London">London (GMT)</SelectItem>
                   <SelectItem value="Europe/Berlin">Berlin (CET)</SelectItem>
                   <SelectItem value="Asia/Dubai">Dubai (GST)</SelectItem>
@@ -543,7 +779,9 @@ function AppearanceSettings() {
             <div className="space-y-2">
               <Label>Date Format</Label>
               <Select value={dateFormat} onValueChange={setDateFormat}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="MM/DD/YYYY">MM/DD/YYYY</SelectItem>
                   <SelectItem value="DD/MM/YYYY">DD/MM/YYYY</SelectItem>
@@ -554,7 +792,9 @@ function AppearanceSettings() {
             <div className="space-y-2">
               <Label>Time Format</Label>
               <Select value={timeFormat} onValueChange={setTimeFormat}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="12h">12-hour (AM/PM)</SelectItem>
                   <SelectItem value="24h">24-hour</SelectItem>
@@ -576,17 +816,28 @@ function AppearanceSettings() {
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between py-2">
             <div>
-              <p className="text-sm font-medium text-foreground">Compact Mode</p>
-              <p className="text-xs text-muted-foreground">Reduce spacing for denser information display</p>
+              <p className="text-sm font-medium text-foreground">
+                Compact Mode
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Reduce spacing for denser information display
+              </p>
             </div>
             <Switch checked={compactMode} onCheckedChange={setCompactMode} />
           </div>
           <div className="flex items-center justify-between py-2">
             <div>
-              <p className="text-sm font-medium text-foreground">Sidebar Collapsed by Default</p>
-              <p className="text-xs text-muted-foreground">Start with the sidebar minimized</p>
+              <p className="text-sm font-medium text-foreground">
+                Sidebar Collapsed by Default
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Start with the sidebar minimized
+              </p>
             </div>
-            <Switch checked={sidebarCollapsed} onCheckedChange={setSidebarCollapsed} />
+            <Switch
+              checked={sidebarCollapsed}
+              onCheckedChange={setSidebarCollapsed}
+            />
           </div>
           <Separator />
           <div className="flex justify-end">

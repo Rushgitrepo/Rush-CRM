@@ -27,6 +27,9 @@ router.patch('/campaign-folders/:id/assign-user', uniboxController.assignUserToF
 router.patch('/campaign-folders/:id', uniboxController.updateCampaignFolder);
 router.delete('/campaign-folders/:id', uniboxController.deleteCampaignFolder);
 
+// Sync
+router.post('/quick-sync', uniboxController.quickSync);
+
 // Permissions
 router.get('/permission', uniboxController.checkPermission);
 router.get('/permissions', uniboxController.getPermissions);

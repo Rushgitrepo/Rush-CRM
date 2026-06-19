@@ -128,10 +128,33 @@ const deleteInvite = async (req, res, next) => {
   }
 };
 
+const getMembers = async (req, res, next) => {
+  try {
+    const result = await db.query(
+      `SELECT
+         u.id,
+         u.email,
+         u.full_name,
+         u.avatar_url,
+         u.role,
+         u.is_active,
+         u.created_at AS joined_at
+       FROM users u
+       WHERE u.org_id = $1
+       ORDER BY u.created_at ASC`,
+      [req.user.orgId]
+    );
+    res.json({ members: result.rows });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getCurrent,
   update,
   getInvites,
   createInvite,
   deleteInvite,
+  getMembers,
 };

@@ -1550,6 +1550,18 @@ const assignUserToFolder = async (req, res, next) => {
   }
 };
 
+// Quick sync — lightweight poll: only fetches last 20 Instantly emails, inserts new ones, emits via socket
+const quickSync = async (req, res, next) => {
+  try {
+    const orgId = req.user.orgId;
+    const instantlyService = require('../../services/automation/instantlyService');
+    const result = await instantlyService.pollNewEmails(orgId);
+    res.json({ success: true, added: result.added, message: result.added > 0 ? `${result.added} new email(s) synced` : 'Already up to date' });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getEmails,
   getEmail,
@@ -1573,4 +1585,5 @@ module.exports = {
   deleteCampaignFolder,
   assignCampaignToFolder,
   assignUserToFolder,
+  quickSync,
 };

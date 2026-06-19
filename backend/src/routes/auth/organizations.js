@@ -8,6 +8,7 @@ router.use(auth, requireOrg);
 router.get('/', orgController.getCurrent);
 router.put('/', orgController.update);
 router.put('/:id', orgController.update);
+router.get('/members', orgController.getMembers);
 router.get('/invites', orgController.getInvites);
 router.post('/invites', orgController.createInvite);
 router.delete('/invites/:id', orgController.deleteInvite);

@@ -69,6 +69,7 @@ async function bootstrap() {
     // Start real-time IMAP IDLE watchers for all active IMAP mailboxes
     imapIdleService.startAll();
 
+
   } catch (error) {
     console.error('Failed to connect to the database. Server shutting down...', error);
     process.exit(1);

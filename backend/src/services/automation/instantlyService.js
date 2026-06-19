@@ -1276,6 +1276,184 @@ class InstantlyService {
       [orgId, 'instantly-webhook', processedIncrement]
     );
   }
+
+  /**
+   * Lightweight poll — fetches only the 20 most recent emails from Instantly
+   * and inserts any that don't already exist in unibox_emails.
+   * Called by the auto-poller every 60 seconds per org.
+   */
+  async pollNewEmails(orgId) {
+    try {
+      const settings = await this.getSettings(orgId);
+      if (!settings?.api_key_encrypted) return { added: 0 };
+      if (!settings.is_enabled && !settings.is_global) return { added: 0 };
+
+      const apiKey = settings.api_key_encrypted;
+
+      const response = await fetch(
+        `${this.baseUrl}/emails?limit=20&i_status=1&latest_of_thread=true&preview_only=false`,
+        { headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' } }
+      );
+      if (!response.ok) return { added: 0 };
+
+      const data = await response.json();
+      const items = data.items || [];
+      if (items.length === 0) return { added: 0 };
+
+      // Bulk-check which external IDs already exist
+      const externalIds = items.map(i => (i.id || '').toString()).filter(Boolean);
+      const existing = await db.query(
+        'SELECT external_id FROM unibox_emails WHERE org_id = $1 AND external_id = ANY($2)',
+        [orgId, externalIds]
+      );
+      const existingSet = new Set(existing.rows.map(r => r.external_id));
+
+      const autoAddLeads = settings.auto_add_leads === true;
+      let added = 0;
+
+      for (const item of items) {
+        const externalId = (item.id || '').toString();
+        if (!externalId || existingSet.has(externalId)) continue;
+
+        // Also check by sender email to avoid near-duplicates
+        const leadEmail = item.lead || item.from_address_email || null;
+        if (!leadEmail) continue;
+
+        const senderCheck = await db.query(
+          'SELECT id FROM unibox_emails WHERE org_id = $1 AND sender_email = $2 LIMIT 1',
+          [orgId, leadEmail]
+        );
+
+        // Extract fields
+        let firstName, lastName;
+        if (item.from_address_json?.[0]?.name) {
+          const parts = item.from_address_json[0].name.split(' ');
+          firstName = parts[0];
+          lastName = parts.slice(1).join(' ');
+        }
+        firstName = firstName || item.from_address_name?.split(' ')[0];
+        lastName  = lastName  || item.from_address_name?.split(' ').slice(1).join(' ');
+
+        const senderName = [firstName, lastName].filter(Boolean).join(' ').trim()
+          || item.from_address_name || leadEmail;
+        const subject   = item.subject || '(No subject)';
+        const bodyText  = item.body?.text || item.content_preview || '';
+        const bodyHtml  = item.body?.html || '';
+        const receivedAt = new Date(item.timestamp_email || item.timestamp_created || Date.now());
+
+        // Resolve campaign name
+        let campaignName = null;
+        if (item.campaign_id) {
+          campaignName = await this.getCampaignName(apiKey, item.campaign_id).catch(() => null);
+        }
+
+        const metadata = {
+          source: 'auto_poll',
+          campaign_id: item.campaign_id || null,
+          campaign_name: campaignName,
+          item,
+        };
+
+        if (senderCheck.rows.length > 0) {
+          // Sender exists — just backfill content if missing
+          await db.query(
+            `UPDATE unibox_emails SET
+               external_id = COALESCE(NULLIF(external_id,''), $1),
+               subject     = CASE WHEN subject IS NULL OR subject='' THEN $2 ELSE subject END,
+               body_text   = CASE WHEN body_text IS NULL OR body_text='' THEN $3 ELSE body_text END,
+               updated_at  = now()
+             WHERE id = $4`,
+            [externalId, subject, bodyText, senderCheck.rows[0].id]
+          );
+          existingSet.add(externalId);
+          continue;
+        }
+
+        try {
+          const result = await db.query(
+            `INSERT INTO unibox_emails
+               (org_id, external_id, sender_email, sender_name, subject, body_text, body_html,
+                status, priority, received_at, is_read, metadata)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+             ON CONFLICT DO NOTHING
+             RETURNING *`,
+            [
+              orgId, externalId, leadEmail, senderName, subject, bodyText, bodyHtml,
+              'Interested', 'Normal', receivedAt,
+              item.is_unread === 1,
+              JSON.stringify(metadata),
+            ]
+          );
+
+          if (result.rows[0]) {
+            realtimeService.emitUniboxEmailCreated(orgId, result.rows[0]);
+            added++;
+
+            if (autoAddLeads) {
+              this._ensureLeadExists(orgId, {
+                email: leadEmail,
+                first_name: firstName,
+                last_name: lastName,
+                subject,
+                body_text: bodyText,
+                received_at: receivedAt,
+                campaign_id: item.campaign_id || null,
+                campaign_name: campaignName,
+                sender_name: senderName,
+              }).catch(() => {});
+            }
+          }
+          existingSet.add(externalId);
+        } catch (insertErr) {
+          if (insertErr.code !== '23505') {
+            console.error(`[Instantly Poll] Insert failed for ${leadEmail}:`, insertErr.message);
+          }
+        }
+      }
+
+      if (added > 0) {
+        console.log(`[Instantly Poll] ✅ org=${orgId} added=${added} new emails`);
+        await db.query(
+          'UPDATE instantly_integrations SET last_sync_at = now() WHERE org_id = $1',
+          [orgId]
+        );
+      }
+      return { added };
+    } catch (err) {
+      console.error(`[Instantly Poll] ✖ org=${orgId}:`, err.message);
+      return { added: 0, error: err.message };
+    }
+  }
+
+  /**
+   * Start background auto-polling for all orgs that have Instantly configured.
+   * Runs every 60 seconds — emits via Socket.IO so Unibox updates live.
+   */
+  startAutoPoller(intervalMs = 60000) {
+    if (this._pollerStarted) return;
+    this._pollerStarted = true;
+
+    console.log(`[Instantly Poll] ▶ Auto-poller started (every ${intervalMs / 1000}s)`);
+
+    const tick = async () => {
+      try {
+        const orgs = await db.query(
+          `SELECT org_id FROM instantly_integrations WHERE is_enabled = true`
+        );
+        for (const row of orgs.rows) {
+          await this.pollNewEmails(row.org_id);
+        }
+      } catch (err) {
+        console.error('[Instantly Poll] Tick error:', err.message);
+      }
+    };
+
+    // First run after 10s (give server time to boot), then every intervalMs
+    setTimeout(() => {
+      tick();
+      setInterval(tick, intervalMs);
+    }, 10000);
+  }
 }
 
 module.exports = new InstantlyService();

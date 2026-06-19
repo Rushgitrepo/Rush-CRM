@@ -342,6 +342,20 @@ export function useUniboxEmails(filters: {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  // Quick-sync: lightweight poll of last 20 emails — no toast unless new emails found
+  const quickSync = useMutation({
+    mutationFn: async () => {
+      return api.post('/unibox/quick-sync', {});
+    },
+    onSuccess: (data: any) => {
+      if (data?.added > 0) {
+        queryClient.invalidateQueries({ queryKey: ["unibox-emails"] });
+        queryClient.invalidateQueries({ queryKey: ["unibox-stats"] });
+        toast.success(`${data.added} new email(s) received`);
+      }
+    },
+  });
+
   return {
     ...emailsQuery.data,
     emails: emailsQuery.data?.emails || [],
@@ -352,6 +366,7 @@ export function useUniboxEmails(filters: {
     toggleArchive,
     convertToLead,
     syncInstantly,
+    quickSync,
   };
 };
 
