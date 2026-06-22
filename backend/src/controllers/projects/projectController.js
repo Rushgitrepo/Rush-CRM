@@ -8,7 +8,9 @@ const getAll = async (req, res, next) => {
 
     const isAdmin = req.user.role === 'super_admin' || req.user.role === 'admin';
 
-    let query = 'SELECT * FROM public.projects WHERE org_id = $1';
+    let query = `SELECT p.*, u.full_name AS created_by_name, u.avatar_url AS created_by_avatar
+      FROM public.projects p LEFT JOIN public.users u ON u.id = p.created_by
+      WHERE p.org_id = $1`;
     const params = [req.user.orgId];
     let paramIndex = 2;
 
@@ -18,13 +20,13 @@ const getAll = async (req, res, next) => {
       // - OR they delegated it (delegated_by = current user) — so delegator keeps visibility
       // - OR has a task assigned to them in this project
       query += ` AND (
-        manager_id = $${paramIndex} OR
-        created_by = $${paramIndex} OR
-        owner_id = $${paramIndex} OR
-        delegated_by = $${paramIndex} OR
+        p.manager_id = $${paramIndex} OR
+        p.created_by = $${paramIndex} OR
+        p.owner_id = $${paramIndex} OR
+        p.delegated_by = $${paramIndex} OR
         EXISTS (
           SELECT 1 FROM public.tasks t
-          WHERE t.project_id = public.projects.id
+          WHERE t.project_id = p.id
             AND t.assigned_to = $${paramIndex}
             AND t.org_id = $1
         )
@@ -34,12 +36,12 @@ const getAll = async (req, res, next) => {
     }
 
     if (status) {
-      query += ` AND status = $${paramIndex}`;
+      query += ` AND p.status = $${paramIndex}`;
       params.push(status);
       paramIndex++;
     }
 
-    query += ` ORDER BY created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    query += ` ORDER BY p.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     params.push(limit, offset);
 
     const result = await db.query(query, params);

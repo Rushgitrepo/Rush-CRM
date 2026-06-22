@@ -23,7 +23,9 @@ import {
   Trash2,
   Calendar,
   AlertTriangle,
+  UserCircle2,
 } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -222,6 +224,22 @@ export function ProjectListView({
                     {project.end_date
                       ? format(new Date(project.end_date), "MMM d")
                       : "Flexible"}
+                  </span>
+                </div>
+                {/* Creator */}
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  {project.created_by_avatar ? (
+                    <Avatar className="h-5 w-5">
+                      <AvatarImage src={project.created_by_avatar} />
+                      <AvatarFallback className="text-[9px]">
+                        {(project.created_by_name || "?").slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  ) : (
+                    <UserCircle2 className="h-4 w-4" />
+                  )}
+                  <span className="text-[11px] font-medium truncate max-w-[90px]">
+                    {project.created_by_name || "Unknown"}
                   </span>
                 </div>
               </div>

@@ -18,10 +18,13 @@ const getAll = async (req, res, next) => {
              p.created_by  AS project_created_by,
              p.owner_id    AS project_owner_id,
              u.full_name   AS assigned_to_name,
-             u.avatar_url  AS assigned_to_avatar
+             u.avatar_url  AS assigned_to_avatar,
+             cu.full_name  AS created_by_name,
+             cu.avatar_url AS created_by_avatar
       FROM public.tasks t
       LEFT JOIN public.projects p ON t.project_id = p.id
       LEFT JOIN users u ON t.assigned_to = u.id
+      LEFT JOIN users cu ON t.created_by = cu.id
       WHERE t.org_id = $1`;
 
     const params = [req.user.orgId];

@@ -34,6 +34,8 @@ export interface Task {
   project_manager_id?: string | null;
   assigned_to_name?: string;
   assigned_to_avatar?: string | null;
+  created_by_name?: string;
+  created_by_avatar?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -52,6 +54,8 @@ export interface Project {
   color: string | null;
   progress: number;
   can_assign: boolean;
+  created_by_name?: string;
+  created_by_avatar?: string | null;
   created_at: string;
   updated_at: string;
 }

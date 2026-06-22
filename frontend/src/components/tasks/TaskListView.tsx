@@ -240,12 +240,25 @@ export function TaskListView({ tasks, onEditTask, onToggleStar }: TaskListViewPr
                   <div className={cn("h-1.5 w-1.5 rounded-full", priority.dot)} />
                   {priority.label}
                 </div>
+                
 
                 {/* Progress Indicator */}
                 {task.progress !== undefined && task.progress > 0 && task.status !== 'completed' && (
                   <div className="flex items-center gap-2 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold">
                     {task.progress}%
                   </div>
+                )}
+                
+                {(task as any).created_by_name && (
+                  <span className="flex items-center absolute right-3 gap-1.5 text-muted-foreground/70 mb-2">
+                    <Avatar className="h-5 w-5">
+                      {(task as any).created_by_avatar && <AvatarImage src={(task as any).created_by_avatar} />}
+                      <AvatarFallback className="text-[9px] font-bold bg-muted">
+                        {((task as any).created_by_name as string).split(/\s+/).map((w: string) => w[0]).join("").toUpperCase().slice(0, 2)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-[12px]">By {(task as any).created_by_name}</span>
+                  </span>
                 )}
               </div>
 
@@ -257,6 +270,7 @@ export function TaskListView({ tasks, onEditTask, onToggleStar }: TaskListViewPr
                     {task.project_name}
                   </span>
                 )}
+                
 
                 {task.due_date && (
                   <span
@@ -275,7 +289,7 @@ export function TaskListView({ tasks, onEditTask, onToggleStar }: TaskListViewPr
                     <Avatar className="h-5 w-5 ring-2 ring-background transition-transform group-hover/avatar:scale-110">
                       {task.assigned_to_avatar && <AvatarImage src={task.assigned_to_avatar} alt={task.assigned_to_name} />}
                       <AvatarFallback className="text-[9px] font-bold bg-amber-600/30 text-primary">
-                        {task.assigned_to_name.split(/\s+/).map(w => w[0]).join("").toUpperCase().slice(0, 2)}
+                       {task.assigned_to_name.split(/\s+/).map(w => w[0]).join("").toUpperCase().slice(0, 2)}
                       </AvatarFallback>
                     </Avatar>
                     <span className="group-hover/avatar:text-foreground transition-colors">
@@ -283,6 +297,7 @@ export function TaskListView({ tasks, onEditTask, onToggleStar }: TaskListViewPr
                     </span>
                   </span>
                 )}
+
               </div>
 
               {/* Description preview */}
