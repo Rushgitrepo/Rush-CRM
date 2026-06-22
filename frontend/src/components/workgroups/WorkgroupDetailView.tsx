@@ -346,7 +346,9 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   const [activeTab, setActiveTab] = useState<
     "posts" | "files" | "wiki" | "settings"
   >("posts");
-  const [newPost, setNewPost] = useState("");
+  const [newPost, setNewPost] = useState<string>(() => {
+    return localStorage.getItem(`chat_draft_${workgroupId}`) || "";
+  });
   const [showMentionSuggestions, setShowMentionSuggestions] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
   const [selectedMentions, setSelectedMentions] = useState<
@@ -436,7 +438,23 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
   const [showLightbox, setShowLightbox] = useState(false);
   const dragCounterRef = useRef(0);
 
-
+  // When workgroupId changes: save previous draft is already in localStorage via onChange,
+  // load the new chat's draft and reset other composer state
+  const prevWorkgroupIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (prevWorkgroupIdRef.current && prevWorkgroupIdRef.current !== workgroupId) {
+      // Load draft for the new chat
+      const saved = localStorage.getItem(`chat_draft_${workgroupId}`) || "";
+      setNewPost(saved);
+      setReplyTo(null);
+      setReplyContent("");
+      setSelectedMentions([]);
+      setShowMentionSuggestions(false);
+      setPendingFiles([]);
+      if (messageInputRef.current) messageInputRef.current.style.height = "auto";
+    }
+    prevWorkgroupIdRef.current = workgroupId;
+  }, [workgroupId]);
 
   const flatPosts = useMemo(() => {
     const all: WorkgroupPost[] = [];
@@ -818,6 +836,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
     const postMentions = selectedMentions;
     if (!hasFiles) {
       setNewPost("");
+      localStorage.removeItem(`chat_draft_${workgroupId}`);
       setReplyTo(null);
       setSelectedMentions([]);
       setShowMentionSuggestions(false);
@@ -911,6 +930,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
 
       // Reset states for file sends
       setNewPost("");
+      localStorage.removeItem(`chat_draft_${workgroupId}`);
       setPendingFiles([]);
       setReplyTo(null);
       setSelectedMentions([]);
@@ -967,6 +987,12 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
 
   const handleComposerChange = (value: string, cursorPos: number) => {
     setNewPost(value);
+    // Save draft per chat
+    if (value.trim()) {
+      localStorage.setItem(`chat_draft_${workgroupId}`, value);
+    } else {
+      localStorage.removeItem(`chat_draft_${workgroupId}`);
+    }
     const textBeforeCursor = value.slice(0, cursorPos);
     const mentionMatch = textBeforeCursor.match(/(?:^|\s)@([^\s@]*)$/);
     if (mentionMatch) {

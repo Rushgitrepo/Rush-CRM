@@ -431,6 +431,7 @@ export default function BroadcastPage() {
     return (
       <div className="-mx-4 md:-mx-6 lg:-mx-8 -my-4 md:-my-6 lg:-my-8 h-[calc(100vh-4rem)] overflow-hidden">
         <WorkgroupDetailView
+          key={selectedId}
           workgroupId={selectedId}
           onBack={() => setSelectedId(null)}
         />
