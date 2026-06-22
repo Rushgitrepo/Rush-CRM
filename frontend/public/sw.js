@@ -135,21 +135,31 @@ self.addEventListener('push', (event) => {
           ? `/#/collaboration/workgroups?team=${cleanWgId}`
           : '/#/');
 
-  if (data.type === 'incoming_call') {
-    const separator = clickUrl.includes('?') ? '&' : '?';
-    clickUrl = `${clickUrl}${separator}incomingCall=true&callId=${data.callId || ''}&callerId=${data.callerId || ''}&callType=${data.callType || ''}&isGroupCall=${data.isGroupCall || ''}&callerName=${encodeURIComponent(data.callerName || '')}&callerAvatar=${encodeURIComponent(data.callerAvatar || '')}`;
-  }
+  // For incoming_call, keep URL clean (no call params) — call data sent via postMessage on click
 
   const options = {
     body,
     icon,
     badge: '/crm.png',
-    tag: `workgroup-${cleanWgId || 'general'}`,
+    tag: data.type === 'incoming_call' ? `incoming-call-${data.callId || 'call'}` : `workgroup-${cleanWgId || 'general'}`,
     renotify: true,
+    requireInteraction: data.type === 'incoming_call',
     data: {
       url: clickUrl,
       callId: data.callId || '',
       type: data.type || '',
+      // For incoming_call, store full call info so postMessage can restore the ring UI
+      callData: data.type === 'incoming_call' ? {
+        callId: data.callId || '',
+        callerId: data.callerId || '',
+        callType: data.callType || 'video',
+        isGroupCall: data.isGroupCall === 'true' || data.isGroupCall === true,
+        callerName: data.callerName || '',
+        callerAvatar: data.callerAvatar || '',
+        workgroupId: cleanWgId || null,
+        groupName: data.groupName || null,
+        groupAvatar: data.groupAvatar || null,
+      } : null,
     },
   };
 
@@ -168,16 +178,45 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = event.notification.data?.url || '/';
+  const notifData = event.notification.data || {};
+  const url = notifData.url || '/';
+  const isIncomingCall = notifData.type === 'incoming_call';
+  const callData = notifData.callData || null;
+
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      for (const client of clientList) {
-        if (client.url.includes(self.location.origin) && 'focus' in client) {
-          client.navigate(url);
-          return client.focus();
+      // Find any existing Rush tab
+      const existingClient = clientList.find(
+        c => c.url.includes(self.location.origin)
+      );
+
+      if (existingClient && 'focus' in existingClient) {
+        // For incoming calls: send postMessage instead of navigating with long URL
+        // This avoids white screen and keeps URL clean
+        if (isIncomingCall && callData) {
+          existingClient.focus();
+          existingClient.postMessage({
+            type: 'INCOMING_CALL_CLICK',
+            callData,
+          });
+          return;
         }
+        // Regular notification: navigate to chat URL
+        existingClient.navigate(url);
+        return existingClient.focus();
       }
-      if (self.clients.openWindow) return self.clients.openWindow(url);
+
+      // No existing tab — open new window
+      // For incoming calls, open clean URL (no call params) — postMessage won't work for new windows
+      // so we embed minimal params for the new tab to pick up
+      if (isIncomingCall && callData) {
+        const callUrl = url + (url.includes('?') ? '&' : '?') +
+          `incomingCall=true&callId=${callData.callId}&callerId=${callData.callerId}` +
+          `&callType=${callData.callType}&isGroupCall=${callData.isGroupCall}` +
+          `&callerName=${encodeURIComponent(callData.callerName)}&callerAvatar=${encodeURIComponent(callData.callerAvatar || '')}`;
+        return self.clients.openWindow(callUrl);
+      }
+      return self.clients.openWindow(url);
     })
   );
 });

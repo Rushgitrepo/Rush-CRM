@@ -1502,8 +1502,38 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
           : cleanHash;
         window.history.replaceState(null, "", newHash);
 
+        // Save to sessionStorage so ringing survives page refresh
+        try {
+          sessionStorage.setItem(PENDING_CALL_KEY, JSON.stringify({
+            callId,
+            callerId,
+            callType: callType || "video",
+            isGroupCall,
+            callerName: decodeURIComponent(callerName || ""),
+            callerAvatar: callerAvatar ? decodeURIComponent(callerAvatar) : "",
+            workgroupId,
+            savedAt: Date.now(),
+          }));
+        } catch {}
+
         // Play the ringtone
         playRingtone("incoming");
+
+        // Auto-reject after 30s if not answered
+        if (autoRejectTimerRef.current) clearTimeout(autoRejectTimerRef.current);
+        autoRejectTimerRef.current = window.setTimeout(() => {
+          if (callStateRef.current === "incoming") {
+            const s = stateRef.current;
+            getSocket()?.emit("call:reject", {
+              callId: s.callId,
+              callerId: Object.keys(s.peers)[0],
+              reason: "no_answer",
+            });
+            sessionStorage.removeItem(PENDING_CALL_KEY);
+            resetCallStateRef.current();
+            toast.info("Missed call — no answer");
+          }
+        }, 30000);
       }
     };
 
@@ -1523,6 +1553,77 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener("navigate", handleNav);
     };
   }, [playRingtone]);
+
+  // ─── Service Worker postMessage: incoming call click ─────────────
+  // When the user clicks an incoming-call push notification while the tab is already open,
+  // the service worker sends INCOMING_CALL_CLICK instead of navigating.
+  // We listen here and trigger the ring UI without changing the URL.
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+
+    const handleSwMessage = (event: MessageEvent) => {
+      if (event.data?.type !== "INCOMING_CALL_CLICK") return;
+      const p = event.data.callData;
+      if (!p || !p.callId || !p.callerId) return;
+
+      // Don't interrupt an active call
+      if (callStateRef.current !== "idle") return;
+
+      console.log("[VideoCall] SW postMessage INCOMING_CALL_CLICK", p);
+
+      setState((prev) => ({
+        ...prev,
+        callState: "incoming",
+        callType: p.callType || "video",
+        callId: p.callId,
+        callStatus: null,
+        workgroupId: p.workgroupId || null,
+        isOutgoing: false,
+        isGroupCall: p.isGroupCall === true || p.isGroupCall === "true",
+        groupName: p.groupName || null,
+        groupAvatar: p.groupAvatar || null,
+        peers: {
+          [p.callerId]: {
+            userId: p.callerId,
+            name: p.callerName || "Someone",
+            avatar: p.callerAvatar || null,
+            isMuted: false,
+            isVideoOff: false,
+            isScreenSharing: false,
+            stream: null,
+          },
+        },
+      }));
+
+      // Save to sessionStorage so ringing survives refresh
+      try {
+        sessionStorage.setItem(PENDING_CALL_KEY, JSON.stringify({ ...p, savedAt: Date.now() }));
+      } catch {}
+
+      playRingtoneRef.current("incoming");
+
+      // Auto-reject after 30s if not answered
+      if (autoRejectTimerRef.current) clearTimeout(autoRejectTimerRef.current);
+      autoRejectTimerRef.current = window.setTimeout(() => {
+        if (callStateRef.current === "incoming") {
+          const s = stateRef.current;
+          getSocket()?.emit("call:reject", {
+            callId: s.callId,
+            callerId: Object.keys(s.peers)[0],
+            reason: "no_answer",
+          });
+          sessionStorage.removeItem(PENDING_CALL_KEY);
+          resetCallStateRef.current();
+          toast.info("Missed call — no answer");
+        }
+      }, 30000);
+    };
+
+    navigator.serviceWorker.addEventListener("message", handleSwMessage);
+    return () => {
+      navigator.serviceWorker.removeEventListener("message", handleSwMessage);
+    };
+  }, []); // stable: mount once
 
   useEffect(() => {
     const socket = getSocket();
