@@ -161,6 +161,10 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
   const callStateRef = useRef(state.callState);
   const stateRef = useRef(state);
   const activeNotificationRef = useRef<Notification | null>(null);
+  // Auto-reject timer: drops unanswered incoming call after 60s
+  const autoRejectTimerRef = useRef<number | null>(null);
+  // Key used to save pending incoming call in sessionStorage for refresh persistence
+  const PENDING_CALL_KEY = "rms_pending_incoming_call";
 
   useEffect(() => {
     callStateRef.current = state.callState;
@@ -257,6 +261,13 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
     stopCallTimer();
     cleanupMedia();
     loggedCallsRef.current.clear();
+    // Cancel auto-reject timer
+    if (autoRejectTimerRef.current) {
+      clearTimeout(autoRejectTimerRef.current);
+      autoRejectTimerRef.current = null;
+    }
+    // Clear saved pending call from sessionStorage
+    try { sessionStorage.removeItem(PENDING_CALL_KEY); } catch {}
 
     // Close electron call overlay if it's open
     // @ts-ignore
@@ -722,6 +733,9 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
 
     stopRingtone();
     dismissCallNotification(state.callId);
+    // Cancel auto-reject timer
+    if (autoRejectTimerRef.current) { clearTimeout(autoRejectTimerRef.current); autoRejectTimerRef.current = null; }
+    try { sessionStorage.removeItem(PENDING_CALL_KEY); } catch {}
 
     setState((prev) => ({
       ...prev,
@@ -763,6 +777,8 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
     if (state.callState !== "incoming" || !state.callId) return;
     const cid = state.callId;
     dismissCallNotification(cid);
+    if (autoRejectTimerRef.current) { clearTimeout(autoRejectTimerRef.current); autoRejectTimerRef.current = null; }
+    try { sessionStorage.removeItem(PENDING_CALL_KEY); } catch {}
     const callerId = Object.keys(state.peers)[0];
     getSocket()?.emit("call:reject", {
       callId: cid,
@@ -1075,7 +1091,24 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
         },
       }));
 
+      // Save to sessionStorage so ringing survives page refresh
+      try {
+        sessionStorage.setItem(PENDING_CALL_KEY, JSON.stringify({ ...p, savedAt: Date.now() }));
+      } catch {}
+
       playRingtoneRef.current("incoming");
+
+      // Auto-reject after 60 seconds if not answered
+      if (autoRejectTimerRef.current) clearTimeout(autoRejectTimerRef.current);
+      autoRejectTimerRef.current = window.setTimeout(() => {
+        if (callStateRef.current === "incoming") {
+          const s = stateRef.current;
+          getSocket()?.emit("call:reject", { callId: s.callId, callerId: Object.keys(s.peers)[0], reason: "no_answer" });
+          sessionStorage.removeItem(PENDING_CALL_KEY);
+          resetCallStateRef.current();
+          toast.info("Missed call — no answer after 60 seconds");
+        }
+      }, 60000);
 
       // Show electron call overlay if applicable
       // @ts-ignore
@@ -1335,6 +1368,25 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
         "[VideoCall] stable listeners attached on socket:",
         socket.id,
       );
+
+      // Restore pending incoming call after page refresh
+      if (callStateRef.current === "idle") {
+        try {
+          const saved = sessionStorage.getItem(PENDING_CALL_KEY);
+          if (saved) {
+            const p = JSON.parse(saved);
+            const age = Date.now() - (p.savedAt || 0);
+            if (age < 60000) {
+              // Still within 60s window — re-trigger incoming call UI
+              console.log("[VideoCall] Restoring pending incoming call after refresh", p.callId);
+              handleIncoming(p);
+            } else {
+              // Expired — discard
+              sessionStorage.removeItem(PENDING_CALL_KEY);
+            }
+          }
+        } catch {}
+      }
     };
 
     attach();
