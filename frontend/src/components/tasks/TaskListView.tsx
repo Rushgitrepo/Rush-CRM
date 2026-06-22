@@ -250,8 +250,8 @@ export function TaskListView({ tasks, onEditTask, onToggleStar }: TaskListViewPr
                 )}
                 
                 {(task as any).created_by_name && (
-                  <span className="flex items-center absolute right-3 gap-1.5 text-muted-foreground/70 mb-2">
-                    <Avatar className="h-5 w-5">
+                  <span className="flex items-center gap-1.5 text-muted-foreground/70">
+                    <Avatar className="h-5 w-5 ">
                       {(task as any).created_by_avatar && <AvatarImage src={(task as any).created_by_avatar} />}
                       <AvatarFallback className="text-[9px] font-bold bg-muted">
                         {((task as any).created_by_name as string).split(/\s+/).map((w: string) => w[0]).join("").toUpperCase().slice(0, 2)}
