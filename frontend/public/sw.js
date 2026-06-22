@@ -128,11 +128,11 @@ self.addEventListener('push', (event) => {
   let clickUrl = data.action_url && !data.action_url.includes('undefined')
     ? data.action_url
     : (isDirectChat && cleanWgId
-      ? `/#/collaboration/direct-chats?chat=${cleanWgId}`
+      ? `/#/dc?chat=${cleanWgId}`
       : (data.is_broadcast || data.is_broadcast === 'true') && cleanWgId
-        ? `/#/collaboration/broadcast?team=${cleanWgId}`
+        ? `/#/bc?team=${cleanWgId}`
         : cleanWgId
-          ? `/#/collaboration/workgroups?team=${cleanWgId}`
+          ? `/#/wg?team=${cleanWgId}`
           : '/#/');
 
   // For incoming_call, keep URL clean (no call params) — call data sent via postMessage on click

@@ -71,10 +71,10 @@ function showDesktopNotification(
   isBroadcast?: boolean,
 ) {
   const baseUrl = isDirectChat
-    ? `/collaboration/direct-chats?chat=${workgroupId}`
+    ? `/dc?chat=${workgroupId}`
     : isBroadcast
-      ? `/collaboration/broadcast?team=${workgroupId}`
-      : `/collaboration/workgroups?team=${workgroupId}`;
+      ? `/bc?team=${workgroupId}`
+      : `/wg?team=${workgroupId}`;
 
   showOsNotification(title, body, "/crm.png", `workgroup-${workgroupId}`, `/#${baseUrl}`);
 }
@@ -190,10 +190,10 @@ export const getSocket = (): Socket | null => {
       // OS notification when tab is hidden (tab-switch; closed-tab handled by VAPID push)
       if (document.hidden || !document.hasFocus()) {
         const baseUrl = isDirectChat
-          ? `/collaboration/direct-chats?chat=${workgroupId}`
+          ? `/dc?chat=${workgroupId}`
           : Boolean(msg?.is_broadcast)
-            ? `/collaboration/broadcast?team=${workgroupId}`
-            : `/collaboration/workgroups?team=${workgroupId}`;
+            ? `/bc?team=${workgroupId}`
+            : `/wg?team=${workgroupId}`;
         showOsNotification(
           title,
           displayBody,

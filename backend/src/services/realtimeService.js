@@ -139,7 +139,7 @@ class RealtimeService {
         const pushBody = `${payload.callerName} is calling you`;
         // Determine correct path
         let cleanWorkgroupId = (payload.workgroupId && payload.workgroupId !== 'undefined') ? payload.workgroupId : '';
-        let basePath = '/collaboration/workgroups';
+        let basePath = '/wg';  // short alias for /collaboration/workgroups
         let queryKey = 'team';
 
         if (cleanWorkgroupId) {
@@ -149,9 +149,9 @@ class RealtimeService {
               const wg = wgResult.rows[0];
               const settings = wg.settings || {};
               if (settings.is_broadcast === true || settings.is_broadcast === 'true') {
-                basePath = '/collaboration/broadcast';
+                basePath = '/bc';  // short alias for /collaboration/broadcast
               } else if (settings.is_direct_chat === true || settings.is_direct_chat === 'true') {
-                basePath = '/collaboration/direct-chats';
+                basePath = '/dc'; // short alias for /collaboration/direct-chats
                 queryKey = 'chat';
               }
             }
@@ -160,7 +160,7 @@ class RealtimeService {
           }
         }
 
-        const action_url = cleanWorkgroupId ? `${basePath}?${queryKey}=${cleanWorkgroupId}` : '/#/';
+        const action_url = cleanWorkgroupId ? `/#${basePath}?${queryKey}=${cleanWorkgroupId}` : '/#/';
 
         const pushData = {
           type: 'incoming_call',
@@ -227,7 +227,7 @@ class RealtimeService {
         const pushBody = `${payload.callerName} is inviting you to a call`;
         // Determine correct path
         let cleanWorkgroupId = (payload.workgroupId && payload.workgroupId !== 'undefined') ? payload.workgroupId : '';
-        let basePath = '/collaboration/workgroups';
+        let basePath = '/wg';  // short alias
         let queryKey = 'team';
 
         if (cleanWorkgroupId) {
@@ -237,9 +237,9 @@ class RealtimeService {
               const wg = wgResult.rows[0];
               const settings = wg.settings || {};
               if (settings.is_broadcast === true || settings.is_broadcast === 'true') {
-                basePath = '/collaboration/broadcast';
+                basePath = '/bc';
               } else if (settings.is_direct_chat === true || settings.is_direct_chat === 'true') {
-                basePath = '/collaboration/direct-chats';
+                basePath = '/dc';
                 queryKey = 'chat';
               }
             }
@@ -248,7 +248,7 @@ class RealtimeService {
           }
         }
 
-        const action_url = cleanWorkgroupId ? `${basePath}?${queryKey}=${cleanWorkgroupId}` : '/#/';
+        const action_url = cleanWorkgroupId ? `/#${basePath}?${queryKey}=${cleanWorkgroupId}` : '/#/';
 
         const pushData = {
           type: 'incoming_call',

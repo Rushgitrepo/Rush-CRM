@@ -137,6 +137,22 @@ import IncomingCallOverlay from "./pages/electron/IncomingCallOverlay";
 import MessageOverlay from "./pages/electron/MessageOverlay";
 import DesktopAppPage from "./pages/DesktopAppPage";
 import NotFound from "./pages/NotFound";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useEffect } from "react";
+
+// Short-URL redirect component used by push notification click URLs
+// /dc?chat=UUID  → /collaboration/direct-chats?chat=UUID
+// /wg?team=UUID  → /collaboration/workgroups?team=UUID
+// /bc?team=UUID  → /collaboration/broadcast?team=UUID
+const ShortUrlRedirect = ({ to }: { to: string }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  useEffect(() => {
+    navigate(to + location.search, { replace: true });
+  }, []);
+  return null;
+};
+
 
 const queryClient = new QueryClient();
 
@@ -289,6 +305,10 @@ const App = () => (
                         <Route path="/settings" element={<SettingsPage />} />
                         <Route path="/desktop-app" element={<DesktopAppPage />} />
                       </Route>
+                      {/* Short URL aliases for push notifications */}
+                      <Route path="/dc" element={<ShortUrlRedirect to="/collaboration/direct-chats" />} />
+                      <Route path="/wg" element={<ShortUrlRedirect to="/collaboration/workgroups" />} />
+                      <Route path="/bc" element={<ShortUrlRedirect to="/collaboration/broadcast" />} />
                       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                       <Route path="*" element={<NotFound />} />
                     </Routes>

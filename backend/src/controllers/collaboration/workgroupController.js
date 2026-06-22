@@ -1211,10 +1211,10 @@ const createWorkgroupPost = async (req, res, next) => {
     const isBroadcast = workgroup?.settings?.is_broadcast === true || workgroup?.settings?.is_broadcast === 'true';
 
     const actionUrl = isDirectChat
-      ? `/#/collaboration/direct-chats?chat=${id}`
+      ? `/#/dc?chat=${id}`
       : isBroadcast
-        ? `/#/collaboration/broadcast?team=${id}`
-        : `/#/collaboration/workgroups?team=${id}`;
+        ? `/#/bc?team=${id}`
+        : `/#/wg?team=${id}`;
 
     const notifPayload = {
       title: notifTitle,
