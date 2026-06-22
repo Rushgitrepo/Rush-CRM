@@ -88,29 +88,6 @@ class InstantlyService {
     );
     let settings = result.rows[0];
 
-    // If no org-specific settings, but we have a global key in .env
-    const globalApiKey = process.env.INSTANTLY_API_KEY;
-
-    if (!settings && globalApiKey) {
-      // Auto-create/return virtual settings using global key
-      settings = {
-        org_id: orgId,
-        api_key_encrypted: globalApiKey,
-        is_enabled: true,
-        status: 'connected',
-        is_global: true
-      };
-    } else if (settings && globalApiKey && !settings.api_key_encrypted) {
-      // Use global key if local one is missing
-      settings.api_key_encrypted = globalApiKey;
-      settings.is_global = true;
-    } else if (settings && globalApiKey && !settings.is_enabled) {
-      // DB record exists but is disabled — still allow using .env global key
-      settings.api_key_encrypted = settings.api_key_encrypted || globalApiKey;
-      settings.is_global = true;
-      // Note: we do NOT force is_enabled=true here — syncEmails handles the is_global check
-    }
-
     if (settings) {
       const webhookUrl = this._getWebhookUrl(orgId);
       if (!settings.webhook_url || settings.webhook_url !== webhookUrl) {
@@ -191,13 +168,12 @@ class InstantlyService {
           );
           const sentinelPayload = [...registered, { scope_limited: true }];
           await db.query(
-            `INSERT INTO instantly_integrations (org_id, webhook_url, registered_webhook_ids, updated_at)
-             VALUES ($1, $2, $3, now())
-             ON CONFLICT (org_id) DO UPDATE SET
-               webhook_url = EXCLUDED.webhook_url,
-               registered_webhook_ids = EXCLUDED.registered_webhook_ids,
-               updated_at = now()`,
-            [orgId, webhookUrl, JSON.stringify(sentinelPayload)]
+            `UPDATE instantly_integrations SET
+               webhook_url = $1,
+               registered_webhook_ids = $2,
+               updated_at = now()
+             WHERE org_id = $3`,
+            [webhookUrl, JSON.stringify(sentinelPayload), orgId]
           );
           return {
             registered,
@@ -210,14 +186,14 @@ class InstantlyService {
       }
     }
 
+    // Only update an existing row — never auto-create one (org must explicitly connect first)
     await db.query(
-      `INSERT INTO instantly_integrations (org_id, webhook_url, registered_webhook_ids, updated_at)
-       VALUES ($1, $2, $3, now())
-       ON CONFLICT (org_id) DO UPDATE SET
-         webhook_url = EXCLUDED.webhook_url,
-         registered_webhook_ids = EXCLUDED.registered_webhook_ids,
-         updated_at = now()`,
-      [orgId, webhookUrl, JSON.stringify(registered)]
+      `UPDATE instantly_integrations SET
+         webhook_url = $1,
+         registered_webhook_ids = $2,
+         updated_at = now()
+       WHERE org_id = $3`,
+      [webhookUrl, JSON.stringify(registered), orgId]
     );
 
     return {

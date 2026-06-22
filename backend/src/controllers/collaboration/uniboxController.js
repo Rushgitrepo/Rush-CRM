@@ -498,7 +498,7 @@ const convertToLead = async (req, res, next) => {
       [req.user.orgId]
     );
     const settings = integrationResult.rows[0];
-    const apiKey = settings?.api_key_encrypted || process.env.INSTANTLY_API_KEY;
+    const apiKey = settings?.api_key_encrypted || null;
 
     if (apiKey) {
       try {
@@ -900,7 +900,7 @@ const getEmailLeadInfo = async (req, res, next) => {
       [req.user.orgId]
     );
     const settings = integrationResult.rows[0];
-    const apiKey = settings?.api_key_encrypted || process.env.INSTANTLY_API_KEY;
+    const apiKey = settings?.api_key_encrypted || null;
 
     if (apiKey) {
       try {
@@ -1089,7 +1089,7 @@ const getCampaigns = async (req, res, next) => {
       [orgId]
     );
     const settings = integrationResult.rows[0];
-    const apiKey = settings?.api_key_encrypted || process.env.INSTANTLY_API_KEY;
+    const apiKey = settings?.api_key_encrypted || null;
 
     if (settings?.is_enabled !== false && apiKey) {
       try {

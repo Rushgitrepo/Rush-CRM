@@ -1,17 +1,7 @@
 import Cookies from 'js-cookie';
 
-// FORCE hosted backend for ALL production builds
-const isDevelopment = import.meta.env.DEV;
+export const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
 
-export const API_BASE_URL = isDevelopment
-  ? "http://localhost:4000/api"  // Development only
-  : "https://rms.rushcorporation.com/api";  // Production (browser + desktop)
-
-console.log('🚀 API_BASE_URL:', API_BASE_URL);
-console.log('🔧 Environment:', isDevelopment ? 'Development' : 'Production');
-console.log('🔧 import.meta.env.DEV:', import.meta.env.DEV);
-console.log('🔧 import.meta.env.PROD:', import.meta.env.PROD);
-console.log('🔧 import.meta.env.MODE:', import.meta.env.MODE);
 
 export const FILE_BASE_URL = API_BASE_URL.replace('/api', '');
 

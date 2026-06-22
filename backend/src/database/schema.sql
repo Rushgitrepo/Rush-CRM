@@ -9001,6 +9001,7 @@ CREATE TABLE IF NOT EXISTS instantly_integrations (
   webhook_url text,
   registered_webhook_ids jsonb DEFAULT '[]'::jsonb,
   is_enabled boolean DEFAULT false,
+  auto_add_leads boolean DEFAULT false,
   status text DEFAULT 'disconnected', -- 'connected', 'disconnected', 'error'
   last_sync_at timestamp with time zone,
   created_at timestamp with time zone DEFAULT now(),
@@ -9025,6 +9026,17 @@ CREATE TABLE IF NOT EXISTS instantly_unibox_events (
   error_message text,
   received_at timestamp with time zone DEFAULT now(),
   created_at timestamp with time zone DEFAULT now()
+);
+
+-- Per-org webhook event registrations (manually added from UI)
+CREATE TABLE IF NOT EXISTS instantly_webhook_registrations (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id      UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  event_type  TEXT NOT NULL,
+  webhook_id  TEXT NOT NULL,
+  webhook_url TEXT NOT NULL,
+  created_at  TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(org_id, event_type)
 );
 
 -- Webhook Health Monitoring

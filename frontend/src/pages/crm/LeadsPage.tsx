@@ -679,10 +679,11 @@ export default function LeadsPage() {
             )}
           >
             All
-            <span className="ml-1.5 text-xs opacity-60">({leads.length})</span>
+            <span className="ml-1.5 text-xs opacity-60">({(dbLeads as any)?.pagination?.total ?? leads.length})</span>
           </button>
           {sourceTabs.map(src => {
-            const count = leads.filter(l => (l.source || "").trim() === src).length;
+            const sourceCounts = (dbLeads as any)?.source_counts || {};
+            const count = sourceCounts[src] ?? leads.filter(l => (l.source || "").trim() === src).length;
             return (
               <button
                 key={src}

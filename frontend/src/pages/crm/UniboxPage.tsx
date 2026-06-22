@@ -995,7 +995,7 @@ export default function UniboxPage() {
                     onCheckedChange={(checked) => updateSettings.mutate({ auto_add_leads: checked })}
                   />
                   <Label htmlFor="auto-add-leads" className="text-sm font-medium cursor-pointer">
-                    Auto-add Leads
+                    Auto Leads
                   </Label>
                 </div>
               )}

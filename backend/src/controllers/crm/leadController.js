@@ -519,6 +519,30 @@ const getAll = async (req, res, next) => {
 
     const countResult = await db.query(countQuery, countParams);
 
+    // Source counts — same filters except source, grouped by source
+    const scParams = [req.user.orgId];
+    let scQuery = `SELECT COALESCE(l.source, '') as source, COUNT(DISTINCT l.id) as count
+      FROM public.leads l LEFT JOIN public.companies co ON co.id = l.company_id
+      WHERE l.org_id = $1`;
+    let scIdx = 2;
+    if (!isAdmin) {
+      scQuery += ` AND (l.assigned_to = $${scIdx} OR l.owner_id = $${scIdx} OR l.user_id = $${scIdx} OR l.created_by = $${scIdx}
+        ${hasUniboxAccess ? " OR (l.source = 'Instantly' AND EXISTS (SELECT 1 FROM instantly_integrations ii WHERE ii.org_id = l.org_id AND ii.auto_add_leads = true))" : ""})`;
+      scParams.push(req.user.id); scIdx++;
+    }
+    if (workspaceId) { scQuery += ` AND l.workspace_id = $${scIdx}`; scParams.push(workspaceId); scIdx++; }
+    if (status) { scQuery += ` AND l.status = $${scIdx}`; scParams.push(status); scIdx++; }
+    if (priority) { scQuery += ` AND l.priority = $${scIdx}`; scParams.push(priority); scIdx++; }
+    if (assignedTo) { scQuery += ` AND l.assigned_to = $${scIdx}`; scParams.push(assignedTo); scIdx++; }
+    if (search) { scQuery += ` AND (l.title ILIKE $${scIdx} OR l.name ILIKE $${scIdx} OR l.email ILIKE $${scIdx} OR co.name ILIKE $${scIdx})`; scParams.push(`%${search}%`); scIdx++; }
+    scQuery += ' GROUP BY l.source';
+
+    let sourceCounts = {};
+    try {
+      const scResult = await db.query(scQuery, scParams);
+      scResult.rows.forEach(r => { if (r.source) sourceCounts[r.source] = parseInt(r.count); });
+    } catch { /* ignore */ }
+
     res.json({
       data: result.rows.map(lead => ({
         ...lead,
@@ -545,6 +569,7 @@ const getAll = async (req, res, next) => {
         limit: parseInt(limit),
         totalPages: Math.ceil(countResult.rows[0].count / limit),
       },
+      source_counts: sourceCounts,
     });
   } catch (err) {
     next(err);

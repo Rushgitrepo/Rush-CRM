@@ -38,7 +38,9 @@ import {
   Loader2,
   Users,
   Copy,
+  Plug,
 } from "lucide-react";
+import InstantlyIntegrationPanel from "@/components/admin/InstantlyIntegrationPanel";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
@@ -47,9 +49,23 @@ import { api } from "@/lib/api";
 import { getAvatarUrl } from "@/lib/utils";
 import { toast } from "sonner";
 
+const SETTINGS_TAB_KEY = "settings_active_tab";
+
 export default function SettingsPage() {
-  const { profile, user, refreshProfile } = useAuth();
+  const { profile, user, refreshProfile, userRole } = useAuth();
   const { organization, currentRole, refreshOrganization } = useOrganization();
+
+  const isAdmin =
+    userRole?.role === "admin" || userRole?.role === "super_admin";
+
+  const [activeTab, setActiveTab] = useState(
+    () => localStorage.getItem(SETTINGS_TAB_KEY) || "profile"
+  );
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    localStorage.setItem(SETTINGS_TAB_KEY, value);
+  };
 
   return (
     <div className="space-y-6">
@@ -60,8 +76,10 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="profile">
-        <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
+        <TabsList
+          className={`grid w-full lg:w-auto lg:inline-grid ${isAdmin ? "grid-cols-4" : "grid-cols-3"}`}
+        >
           <TabsTrigger value="profile" className="gap-2">
             <User className="h-4 w-4" />
             <span className="hidden sm:inline">Profile</span>
@@ -74,10 +92,12 @@ export default function SettingsPage() {
             <Bell className="h-4 w-4" />
             <span className="hidden sm:inline">Notifications</span>
           </TabsTrigger>
-          {/* <TabsTrigger value="appearance" className="gap-2">
-            <Palette className="h-4 w-4" />
-            <span className="hidden sm:inline">Appearance</span>
-          </TabsTrigger> */}
+          {isAdmin && (
+            <TabsTrigger value="integrations" className="gap-2">
+              <Plug className="h-4 w-4" />
+              <span className="hidden sm:inline">Integrations</span>
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="profile" className="mt-6">
@@ -89,6 +109,11 @@ export default function SettingsPage() {
         <TabsContent value="notifications" className="mt-6">
           <NotificationSettings />
         </TabsContent>
+        {isAdmin && (
+          <TabsContent value="integrations" className="mt-6">
+            <InstantlyIntegrationPanel />
+          </TabsContent>
+        )}
         <TabsContent value="appearance" className="mt-6">
           <AppearanceSettings />
         </TabsContent>

@@ -6,6 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Zap,
   Plug,
@@ -19,11 +20,43 @@ import {
   Activity,
   Eye,
   EyeOff,
+  Plus,
+  Trash2,
+  Webhook,
 } from "lucide-react";
-import { api } from '@/lib/api';
+import { api, FILE_BASE_URL } from '@/lib/api';
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { format } from "date-fns";
+
+const EVENT_OPTIONS = [
+  { value: 'all_events',  label: 'All Events' },
+  { value: 'email_sent',  label: 'Email Sent' },
+  { value: 'email_bounced',  label: 'Email Bounced' },
+  { value: 'email_opened',      label: 'Email Opened' },
+  { value: 'email_link_clicked',  label: 'Email Link Clicked' },
+  { value: 'reply_received',  label: 'Reply Received' },
+  { value: 'lead_unsubscribed',  label: 'Lead Unsubscribed' },
+  { value: 'campaign_completed',  label: 'Campaign Completed' },
+  { value: 'email_account_error',  label: 'Email Account Error' },
+  { value: 'lead_is_marked_as_interested',   label: 'Interested' },
+  { value: 'lead_out_of_office',         label: 'Out of Office' },
+  { value: 'lead_is_marked_as_not_interested',   label: 'Not Interested' },
+  { value: 'lead_is_marked_neutral',    label: 'Neutral' },
+  { value: 'lead_closed',          label: 'Lead Closed' },
+  { value: 'lead_not_close',          label: 'Not Close' },
+  { value: 'lead_meeting_booked',          label: 'Meeting Booked' },
+  { value: 'lead_wrong_person',          label: 'Wrong Person' },
+];
+
+interface WebhookEntry {
+  id: string;
+  org_id?: string;
+  event_type: string;
+  webhook_id: string;
+  webhook_url: string;
+  created_at?: string;
+}
 
 interface Integration {
   id: string;
@@ -33,6 +66,7 @@ interface Integration {
   status: string;
   webhook_url: string | null;
   webhook_secret: string | null;
+  registered_webhook_ids: WebhookEntry[] | null;
   last_sync_at: string | null;
   is_global?: boolean;
 }
@@ -58,6 +92,7 @@ interface RecentEvent {
 
 export default function InstantlyIntegrationPanel() {
   const { profile } = useAuth();
+  const webhookUrl_base = `${FILE_BASE_URL}/api/webhooks/instantly/${profile?.org_id}`;
   const [integration, setIntegration] = useState<Integration | null>(null);
   const [health, setHealth] = useState<WebhookHealth | null>(null);
   const [recentEvents, setRecentEvents] = useState<RecentEvent[]>([]);
@@ -68,19 +103,73 @@ export default function InstantlyIntegrationPanel() {
   const [showSecret, setShowSecret] = useState(false);
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
 
+  // Webhook management state
+  const [webhookList, setWebhookList] = useState<WebhookEntry[]>([]);
+  const [savedWebhookTypes, setSavedWebhookTypes] = useState<Set<string>>(new Set());
+  const [newEventType, setNewEventType] = useState("");
+  const [newWebhookId, setNewWebhookId] = useState("");
+  const [savingWebhooks, setSavingWebhooks] = useState(false);
+
   const fetchHealth = async () => {
     if (!profile?.org_id) return;
     try {
-      const res = await api.post<any>('/integrations/instantly', { action: 'health' });
-      if (res) {
-        setIntegration(res.integration);
-        setHealth(res.health);
-        setRecentEvents(res.recent_events || []);
+      const [healthRes, webhookRes] = await Promise.all([
+        api.post<any>('/integrations/instantly', { action: 'health' }),
+        api.post<any>('/integrations/instantly', { action: 'get-webhooks' }),
+      ]);
+      if (healthRes) {
+        setIntegration(healthRes.integration);
+        setHealth(healthRes.health);
+        setRecentEvents(healthRes.recent_events || []);
+      }
+      if (webhookRes) {
+        const rows: WebhookEntry[] = webhookRes.webhooks || [];
+        setWebhookList(rows);
+        setSavedWebhookTypes(new Set(rows.map((w: WebhookEntry) => w.event_type)));
       }
     } catch (err) {
       console.error("Failed to fetch health:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const addWebhook = async () => {
+    if (!newEventType) { toast.error("Select an event type"); return; }
+    if (!newWebhookId.trim()) { toast.error("Enter the webhook ID"); return; }
+    if (webhookList.some(w => w.event_type === newEventType)) {
+      toast.error("This event type is already added");
+      return;
+    }
+    const webhookUrl = integration?.webhook_url || webhookUrl_base;
+    setSavingWebhooks(true);
+    try {
+      const res = await api.post<any>('/integrations/instantly', {
+        action: 'save-webhooks',
+        webhooks: [{ event_type: newEventType, webhook_id: newWebhookId.trim(), webhook_url: webhookUrl }],
+      });
+      const rows: WebhookEntry[] = res.webhooks || [];
+      setWebhookList(rows);
+      setSavedWebhookTypes(new Set(rows.map((w: WebhookEntry) => w.event_type)));
+      setNewEventType("");
+      setNewWebhookId("");
+      toast.success("Webhook saved");
+    } catch {
+      toast.error("Failed to save webhook");
+    } finally {
+      setSavingWebhooks(false);
+    }
+  };
+
+  const removeWebhook = async (eventType: string) => {
+    try {
+      const res = await api.post<any>('/integrations/instantly', { action: 'delete-webhook', event_type: eventType });
+      const rows: WebhookEntry[] = res.webhooks || [];
+      setWebhookList(rows);
+      setSavedWebhookTypes(new Set(rows.map((w: WebhookEntry) => w.event_type)));
+      toast.success("Webhook removed");
+    } catch {
+      toast.error("Failed to remove webhook");
     }
   };
 
@@ -281,19 +370,39 @@ export default function InstantlyIntegrationPanel() {
               <>
                 {showApiKeyInput ? (
                   <div className="flex-1 space-y-3">
-                    <div>
+                    <div className="space-y-2">
                       <Label className="text-sm">Instantly.ai API Key</Label>
                       <Input
                         type="password"
                         placeholder="Enter your API key from Instantly.ai dashboard"
                         value={apiKey}
                         onChange={(e) => setApiKey(e.target.value)}
-                        className="mt-1"
                       />
-                      <p className="text-xs text-muted-foreground mt-1">
+                      <p className="text-xs text-muted-foreground">
                         Find your API key at Settings → Integrations in your Instantly.ai dashboard
                       </p>
                     </div>
+                    {/* <div className="space-y-2">
+                      <Label className="text-sm">Webhook URL (auto-generated)</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          value={webhookUrl_base}
+                          readOnly
+                          className="font-mono text-xs bg-muted"
+                        />
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          type="button"
+                          onClick={() => { navigator.clipboard.writeText(webhookUrl_base); toast.success("Copied"); }}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        This URL will be registered in Instantly.ai automatically on connect
+                      </p>
+                    </div> */}
                     <div className="flex gap-2">
                       <Button onClick={handleConnect} disabled={connecting}>
                         {connecting ? (
@@ -346,12 +455,12 @@ export default function InstantlyIntegrationPanel() {
               Webhook Configuration
             </CardTitle>
             <CardDescription>
-              Webhooks are registered automatically when you connect. New replies appear in Unibox in real time.
+              Add your Instantly.ai webhook IDs for each event type you want to receive.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Webhook URL */}
-            <div>
+            {/* <div>
               <Label className="text-sm font-medium">Webhook URL</Label>
               <div className="flex gap-2 mt-1">
                 <Input
@@ -368,9 +477,9 @@ export default function InstantlyIntegrationPanel() {
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Registered automatically via API. Use Sync Now only to backfill older emails.
+                Use this URL when creating webhooks in your Instantly.ai dashboard.
               </p>
-            </div>
+            </div> */}
 
             {/* Webhook Secret */}
             {integration?.webhook_secret && (
@@ -382,23 +491,109 @@ export default function InstantlyIntegrationPanel() {
                     readOnly
                     className="font-mono text-xs"
                   />
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setShowSecret(!showSecret)}
-                  >
+                  <Button variant="outline" size="icon" onClick={() => setShowSecret(!showSecret)}>
                     {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => copyToClipboard(integration.webhook_secret || "")}
-                  >
+                  <Button variant="outline" size="icon" onClick={() => copyToClipboard(integration.webhook_secret || "")}>
                     <Copy className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
             )}
+
+            {/* Manual Webhook Event Registration */}
+            <div className="space-y-3 pt-2">
+              <Label className="text-sm font-medium flex items-center gap-2">
+                <Webhook className="h-4 w-4" />
+                Event Webhooks
+              </Label>
+
+              {/* Add New Row */}
+              <div className="flex gap-2">
+                <Select
+                  value={newEventType}
+                  onValueChange={setNewEventType}
+                >
+                  <SelectTrigger className="w-[200px] ">
+                    <SelectValue placeholder="Select event type" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[212px] overflow-y-auto">
+                    {EVENT_OPTIONS.filter(opt => !webhookList.some(w => w.event_type === opt.value)).map(opt => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  placeholder="Webhook ID from Instantly.ai"
+                  value={newWebhookId}
+                  onChange={e => setNewWebhookId(e.target.value)}
+                  className="font-mono text-xs"
+                />
+                <Button variant="outline" onClick={addWebhook} size="icon" disabled={savingWebhooks}>
+                  {savingWebhooks ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                </Button>
+              </div>
+
+              {/* Saved Webhook List */}
+              <div className="rounded-lg border border-border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Event Type</th>
+                      <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Webhook ID</th>
+                      <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Status</th>
+                      <th className="px-3 py-2 w-10"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {webhookList.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="px-3 py-4 text-center text-xs text-muted-foreground">
+                          No webhooks added yet. Select an event type and enter the webhook ID above.
+                        </td>
+                      </tr>
+                    ) : (
+                      webhookList.map(w => (
+                        <tr key={w.event_type} className="border-t border-border">
+                          <td className="px-3 py-2">
+                            <Badge variant="secondary" className="text-xs">
+                              {EVENT_OPTIONS.find(o => o.value === w.event_type)?.label || w.event_type}
+                            </Badge>
+                          </td>
+                          <td className="px-3 py-2 font-mono text-xs text-muted-foreground truncate max-w-[220px]">
+                            {w.webhook_id}
+                          </td>
+                          <td className="px-3 py-2">
+                            {savedWebhookTypes.has(w.event_type) ? (
+                              <Badge className="bg-green-500/10 text-green-600 border-green-500/20 text-xs gap-1">
+                                <CheckCircle2 className="h-3 w-3" />
+                                Connected
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20 text-xs gap-1">
+                                <Clock className="h-3 w-3" />
+                                Pending Save
+                              </Badge>
+                            )}
+                          </td>
+                          <td className="px-3 py-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive hover:text-destructive"
+                              onClick={() => removeWebhook(w.event_type)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+            </div>
 
             {/* Webhook Health */}
             {health && (
@@ -437,7 +632,7 @@ export default function InstantlyIntegrationPanel() {
       )}
 
       {/* Recent Events */}
-      {isConnected && recentEvents.length > 0 && (
+      {/* {isConnected && recentEvents.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -485,7 +680,7 @@ export default function InstantlyIntegrationPanel() {
             </Table>
           </CardContent>
         </Card>
-      )}
+      )} */}
     </div>
   );
 }

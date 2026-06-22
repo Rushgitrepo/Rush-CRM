@@ -53,6 +53,7 @@ const onedriveExchangeCode = async (req, res, next) => {
 };
 
 const instantlyService = require('../../services/automation/instantlyService');
+const db = require('../../config/database');
 
 const instantly = async (req, res, next) => {
   try {
@@ -61,7 +62,8 @@ const instantly = async (req, res, next) => {
 
     if (action === 'health') {
       const settings = await instantlyService.getSettings(orgId);
-      if (settings?.api_key_encrypted && settings?.is_enabled) {
+      // Only auto-register webhooks if the org has explicitly connected (DB row exists, not global env key)
+      if (settings?.api_key_encrypted && settings?.is_enabled && !settings?.is_global) {
         try {
           await instantlyService.ensureWebhooksRegistered(orgId);
         } catch (whErr) {
@@ -123,6 +125,51 @@ const instantly = async (req, res, next) => {
     if (action === 'sync') {
       const result = await instantlyService.syncEmails(orgId, req.user.id);
       return res.json({ message: 'Sync completed', ...result });
+    }
+
+    if (action === 'save-webhooks') {
+      const { webhooks } = req.body;
+      if (!Array.isArray(webhooks)) {
+        return res.status(400).json({ error: 'webhooks must be an array' });
+      }
+      // Upsert each webhook into dedicated table
+      for (const w of webhooks) {
+        if (!w.event_type || !w.webhook_id || !w.webhook_url) continue;
+        await db.query(
+          `INSERT INTO instantly_webhook_registrations (org_id, event_type, webhook_id, webhook_url)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (org_id, event_type) DO UPDATE SET
+             webhook_id  = EXCLUDED.webhook_id,
+             webhook_url = EXCLUDED.webhook_url`,
+          [orgId, w.event_type, w.webhook_id, w.webhook_url]
+        );
+      }
+      const result = await db.query(
+        `SELECT * FROM instantly_webhook_registrations WHERE org_id = $1 ORDER BY created_at ASC`,
+        [orgId]
+      );
+      return res.json({ message: 'Webhooks saved', webhooks: result.rows });
+    }
+
+    if (action === 'get-webhooks') {
+      const result = await db.query(
+        `SELECT * FROM instantly_webhook_registrations WHERE org_id = $1 ORDER BY created_at ASC`,
+        [orgId]
+      );
+      return res.json({ webhooks: result.rows });
+    }
+
+    if (action === 'delete-webhook') {
+      const { event_type } = req.body;
+      await db.query(
+        `DELETE FROM instantly_webhook_registrations WHERE org_id = $1 AND event_type = $2`,
+        [orgId, event_type]
+      );
+      const result = await db.query(
+        `SELECT * FROM instantly_webhook_registrations WHERE org_id = $1 ORDER BY created_at ASC`,
+        [orgId]
+      );
+      return res.json({ message: 'Webhook removed', webhooks: result.rows });
     }
 
     res.status(400).json({ error: 'Invalid action' });
