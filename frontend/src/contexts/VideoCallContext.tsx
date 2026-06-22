@@ -1106,9 +1106,9 @@ export function VideoCallProvider({ children }: { children: React.ReactNode }) {
           getSocket()?.emit("call:reject", { callId: s.callId, callerId: Object.keys(s.peers)[0], reason: "no_answer" });
           sessionStorage.removeItem(PENDING_CALL_KEY);
           resetCallStateRef.current();
-          toast.info("Missed call — no answer after 60 seconds");
+          toast.info("Missed call — no answer");
         }
-      }, 60000);
+      }, 30000);
 
       // Show electron call overlay if applicable
       // @ts-ignore
