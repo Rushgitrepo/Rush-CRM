@@ -45,7 +45,7 @@ import { useCreateActivity } from "@/hooks/useCrmInteractions";
 import { useContacts, useCompanies, useSigningParties, useDealStats, useUpdateDealStage } from "@/hooks/useCrmData";
 import { usePipelineStages, useCreatePipelineStage, useDealPipelineStages, useCreateDealPipelineStage, useDeleteDealPipelineStage, useUpdateDealPipelineStage } from "@/hooks/usePipelineStages";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usersApi, api } from '@/lib/api';
 import { EmailComposer } from "@/components/mail/EmailComposer";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -60,6 +60,20 @@ import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { format, isValid } from "date-fns";
 import { toast } from "sonner";
 import { MemberSearchSelect } from "@/components/tasks/MemberSearchSelect";
+
+type CustomField = { id: string; key: string; label?: string; value: string; type?: string; sectionId?: string; afterFieldId?: string };
+
+const sourceOptions = [
+  { value: "Instantly", label: "Instantly" },
+  { value: "call", label: "Call" },
+  { value: "website", label: "Website" },
+  { value: "referral", label: "Referral" },
+  { value: "linkedin", label: "LinkedIn" },
+  { value: "email", label: "Email" },
+  { value: "event", label: "Event" },
+  { value: "advertisement", label: "Advertisement" },
+  { value: "partner", label: "Partner" },
+];
 
 const fallbackStages = [
   {
@@ -210,9 +224,10 @@ interface FieldProps {
   type?: string;
   placeholder?: string;
   required?: boolean;
+  onEmailClick?: (email: string) => void;
 }
 
-function Field({ label, value, onChange, editing, icon, multiline, type = "text", placeholder, required, entityId }: FieldProps) {
+function Field({ label, value, onChange, editing, icon, multiline, type = "text", placeholder, required, entityId, onEmailClick }: FieldProps) {
   const navigate = useNavigate();
   if (!editing && !value) {
     return (
@@ -265,7 +280,7 @@ function Field({ label, value, onChange, editing, icon, multiline, type = "text"
           ) : type === "email" ? (
             <span
               className="text-primary hover:underline font-medium break-words w-full cursor-pointer"
-              onClick={() => openEmailComposer(value)}
+              onClick={() => onEmailClick?.(value || "")}
             >
               {value}
             </span>
@@ -316,6 +331,7 @@ const getStatusIcon = (status: string) => {
 export default function DealDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user, userRole, profile } = useAuth();
   const { data: deal, isLoading } = useDeal(id!);
   const updateDeal = useUpdateDeal();
@@ -378,7 +394,7 @@ export default function DealDetailPage() {
 
   const [editing, setEditing] = useState(() => window.location.pathname.endsWith('/edit'));
   const [form, setForm] = useState<Record<string, unknown>>({});
-  const [customFields, setCustomFields] = useState<{ id: string; key: string; value: string; type?: string; sectionId?: string; afterFieldId?: string }[]>([]);
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
 
   const [contactDialogOpen, setContactDialogOpen] = useState(false);
   const [companyDialogOpen, setCompanyDialogOpen] = useState(false);
@@ -449,7 +465,7 @@ export default function DealDetailPage() {
       return {
         id: s.stage_key,
         label: s.stage_label,
-        description: fallback?.description || "Custom stage",
+        description: fallback?.label || "Custom stage",
         color: s.color || fallback?.color || "bg-muted-foreground",
         bgColor: fallback?.bgColor || "bg-muted/40",
         textColor: fallback?.textColor || "text-foreground",
@@ -571,7 +587,7 @@ export default function DealDetailPage() {
         afterFieldId: field.afterFieldId
       };
       return acc;
-    }, {} as Record<string, { value: string; type: string; sectionId?: string }>);
+    }, {} as Record<string, { value: string; type: string; sectionId?: string; afterFieldId?: string }>);
 
     // Check if custom fields changed compared to deal record
     const dealCustomFields = deal.custom_fields || {};
@@ -1662,14 +1678,9 @@ export default function DealDetailPage() {
                               <SelectValue placeholder="Not selected" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="website">Website</SelectItem>
-                              <SelectItem value="referral">Referral</SelectItem>
-                              <SelectItem value="linkedin">LinkedIn</SelectItem>
-                              <SelectItem value="cold_call">Cold Call</SelectItem>
-                              <SelectItem value="trade_show">Trade Show</SelectItem>
-                              <SelectItem value="advertisement">Advertisement</SelectItem>
-                              <SelectItem value="partner">Partner</SelectItem>
-                              <SelectItem value="other">Other</SelectItem>
+                              {sourceOptions.map(opt => (
+                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         ) : (

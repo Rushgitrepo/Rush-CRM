@@ -155,11 +155,7 @@ export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardE
     }
   };
 
-  const handleClose = async (open: boolean) => {
-    if (!open && !sentRef.current && hasContent()) {
-      await saveDraft(true);
-      toast.success("Draft saved");
-    }
+  const handleClose = (open: boolean) => {
     sentRef.current = false;
     onOpenChange(open);
   };
@@ -351,7 +347,10 @@ export function EmailComposer({ open, onOpenChange, mailboxes, replyTo, forwardE
             <Button
               variant="outline"
               size="sm"
-              onClick={() => saveDraft(false)}
+              onClick={async () => {
+                await saveDraft(false);
+                onOpenChange(false);
+              }}
               disabled={savingDraft || !hasContent()}
               className="rounded-full px-5"
             >

@@ -650,7 +650,8 @@ const create = async (req, res, next) => {
       website, websiteType, address, companyName, companyPhone,
       companyEmail, companySize, agentName, decisionMaker, serviceInterested,
       interactionNotes, firstMessage, lastTouch, lastContactedDate, nextFollowUpDate,
-      sourceInfo, responsiblePerson, campaignId, campaignName, createdAt, customFields
+      sourceInfo, responsiblePerson, campaignId, campaignName, createdAt, customFields,
+      contactPerson
     } = value;
 
     const workspaceId = req.body.workspaceId || null;
@@ -673,17 +674,17 @@ const create = async (req, res, next) => {
           value, currency, priority, notes, tags, expected_close_date, contact_id, company_id,
           designation, phone, phone_type, email, email_type, website, website_type, address, company_name, company_phone,
           company_email, company_size, agent_name, decision_maker, service_interested,
-          interaction_notes, first_message, last_touch, last_contacted_date, next_follow_up_date, responsible_person, pipeline, external_source_id, campaign_id, campaign_name, custom_fields, created_at)
+          interaction_notes, first_message, last_touch, last_contacted_date, next_follow_up_date, responsible_person, pipeline, external_source_id, campaign_id, campaign_name, custom_fields, created_at, contact_person)
          VALUES ($1, $2, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
-                 $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46)
+                 $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47)
          RETURNING *`,
         [req.user.orgId, req.user.id, workspaceId, assignedTo || null, title, name, stage, status, source, serializeJsonField(sourceInfo), customerType || null,
           leadValue, currency, priority, notes, tags, expectedCloseDate, contactId, companyId,
           designation, phone, phoneType || null, email, emailType || null, website, websiteType || null, address, companyName, companyPhone,
           companyEmail, companySize, agentName, decisionMaker, serviceInterested,
           interactionNotes, firstMessage, lastTouch, lastContactedDate || null, nextFollowUpDate || null, responsiblePerson || null, value.pipeline, value.externalSourceId,
-        campaignId || null, campaignName || null,
-        customFields ? JSON.stringify(customFields) : '{}', createdAt || new Date().toISOString()]
+          campaignId || null, campaignName || null,
+          customFields ? JSON.stringify(customFields) : '{}', createdAt || new Date().toISOString(), contactPerson || null]
       );
     } catch (err) {
       if (err.code === '42703') {
@@ -1203,23 +1204,25 @@ const convertToDeal = async (req, res, next) => {
     const validateUuid = (val) => val && uuidRegex.test(val) ? val : null;
 
     const { rows: dealRows } = await db.query(
-      `INSERT INTO public.deals 
+      `INSERT INTO public.deals
        (
-         org_id, user_id, created_by, title, contact_id, company_id, stage, status, 
-         value, currency, probability, notes, tags, expected_close_date, 
-         lead_id, contact_name, company_name, phone, email, 
-         priority, source, description, designation, website, address, 
-         company_phone, company_email, company_size, agent_name, 
-         decision_maker, service_interested, interaction_notes, 
-         first_message, last_touch, workspace_id, source_info, 
-         phone_type, email_type, website_type, customer_type, 
-         last_contacted_date, next_follow_up_date, assigned_to, campaign_id, campaign_name, custom_fields
+         org_id, user_id, created_by, title, contact_id, company_id, stage, status,
+         value, currency, probability, notes, tags, expected_close_date,
+         lead_id, contact_name, company_name, phone, email,
+         priority, source, description, designation, website, address,
+         company_phone, company_email, company_size, agent_name,
+         decision_maker, service_interested, interaction_notes,
+         first_message, last_touch, workspace_id, source_info,
+         phone_type, email_type, website_type, customer_type,
+         last_contacted_date, next_follow_up_date, assigned_to, campaign_id, campaign_name, custom_fields,
+         pipeline, external_source_id, contact_person, industry
        )
        VALUES (
          $1, $2, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
          $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26,
          $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38,
-         $39, $40, $41, $42, $43, $44, $45
+         $39, $40, $41, $42, $43, $44, $45,
+         $46, $47, $48, $49
        )
        RETURNING *`,
       [
@@ -1243,7 +1246,7 @@ const convertToDeal = async (req, res, next) => {
         lead.email,
         lead.priority || 'medium',
         lead.source,
-        lead.notes || lead.interaction_notes, // Description
+        lead.notes || lead.interaction_notes,
         lead.designation,
         lead.website,
         lead.address,
@@ -1267,7 +1270,11 @@ const convertToDeal = async (req, res, next) => {
         validateUuid(lead.responsible_person || lead.assigned_to),
         lead.campaign_id,
         lead.campaign_name,
-        JSON.stringify(lead.custom_fields || {})
+        JSON.stringify(lead.custom_fields || {}),
+        lead.pipeline || null,
+        lead.external_source_id || null,
+        lead.contact_person || null,
+        lead.industry || null,
       ]
     );
 

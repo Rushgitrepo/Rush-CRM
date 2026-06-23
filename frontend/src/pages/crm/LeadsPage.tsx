@@ -159,6 +159,7 @@ export default function LeadsPage() {
   // All available columns (from DB via l.*). First 4 always visible by default.
   const ALL_COLUMNS: { key: string; label: string }[] = [
     { key: "name", label: "Lead / Email" },
+    { key: "title", label: "Title" },
     { key: "company", label: "Company" },
     { key: "source", label: "Source" },
     { key: "campaignName", label: "Campaign" },
@@ -518,6 +519,7 @@ export default function LeadsPage() {
       ),
     },
     // ── Extra DB columns ──────────────────────────────────────────────
+    { key: "title", header: "Title", render: (l) => <span className="text-sm font-medium text-foreground">{l.name || "—"}</span> },
     { key: "stage", header: "Stage", render: (l) => l.stage ? <Badge variant="outline" className={cn(statusTone(l.stage), "uppercase text-[10px]")}>{l.stage}</Badge> : <span className="text-muted-foreground text-sm">—</span> },
     { key: "status", header: "Status", render: (l) => <span className="text-sm text-muted-foreground">{l.status || "—"}</span> },
     { key: "priority", header: "Priority", render: (l) => l.priority ? <Badge variant="outline" className="capitalize text-[10px]">{l.priority}</Badge> : <span className="text-muted-foreground text-sm">—</span> },

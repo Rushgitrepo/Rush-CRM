@@ -405,6 +405,7 @@ export interface MatchedLead {
 
 export interface InstantlyExtractedMetadata {
   campaign: string;
+  campaign_id?: string;
   rating: string;
   profile: string;
   facebook: string;

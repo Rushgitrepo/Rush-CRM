@@ -35,13 +35,13 @@ import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { WorkspaceShareModal } from "@/components/crm/leads/WorkspaceShareModal";
 import { MemberSearchSelect } from "@/components/tasks/MemberSearchSelect";
 import { DeleteConfirmationDialog } from "@/components/crm/DeleteConfirmationDialog";
-import { useInteractionHistory, useCreateActivity } from "@/hooks/useCrmInteractions";
+import { useCreateActivity } from "@/hooks/useCrmInteractions";
 import { useOrganizationProfiles } from "@/hooks/useTenantQuery";
 import { usePipelineStages, useCreatePipelineStage, useDeletePipelineStage, useUpdatePipelineStage } from "@/hooks/usePipelineStages";
 import { useSoftphone } from "@/contexts/SoftphoneContext";
 import { ClickToCall } from "@/components/telephony/ClickToCall";
 import { EmailComposer } from "@/components/mail/EmailComposer";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -77,6 +77,7 @@ const customerTypeOptions = [
 ];
 
 const sourceOptions = [
+  { value: "Instantly", label: "Instantly" },
   { value: "call", label: "Call" },
   { value: "website", label: "Website" },
   { value: "referral", label: "Referral" },
@@ -129,6 +130,8 @@ const yesNoOptions = [
   { value: "no", label: "No" },
   { value: "unknown", label: "Not selected" },
 ];
+type CustomField = { id: string; key: string; value: string; type?: string; sectionId?: string; afterFieldId?: string };
+
 // Professional Field component for enterprise-level forms
 interface FieldProps {
   label: string;
@@ -314,6 +317,7 @@ const getStatusIcon = (status: string) => {
 export default function LeadDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { profile, user } = useAuth();
   const { data: lead, isLoading, error } = useLead(id!);
   const updateLead = useUpdateLead();
@@ -548,7 +552,7 @@ export default function LeadDetailPage() {
         afterFieldId: field.afterFieldId
       };
       return acc;
-    }, {} as Record<string, { value: string; type: string; sectionId?: string }>);
+    }, {} as Record<string, { value: string; type: string; sectionId?: string; afterFieldId?: string }>);
 
     const leadCustomFields = lead.custom_fields || {};
     const customFieldsChanged = JSON.stringify(customFieldsObj) !== JSON.stringify(leadCustomFields);
@@ -1262,7 +1266,6 @@ export default function LeadDetailPage() {
                               value={(form.assigned_to as string) || ""}
                               onChange={(v) => set("assigned_to", v || null)}
                               placeholder="Select owner..."
-                              className="h-9"
                               />
                             ) : (
                               <div className="h-10 px-3 py-2 border rounded-lg bg-muted/40 flex items-center gap-2">
@@ -1635,12 +1638,12 @@ export default function LeadDetailPage() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <DroppableField id="fixed-qualification-opportunity-service_interested" editing={editing}>
                           <div className="space-y-2">
-                            <Label className="text-sm font-medium text-foreground flex items-center gap-1">
+                            <Label className="text-sm font-medium text-foreground flex items-center gap-1 pb-1">
                               <Star className="h-4 w-4" />
                               Service Interested
                             </Label>
                             <CreatableSelect
-                              label="Service Interested"
+                              label=""
                               value={(form.service_interested as string) || ""}
                               onChange={(v) => set("service_interested", v)}
                               options={defaultServiceOptions}

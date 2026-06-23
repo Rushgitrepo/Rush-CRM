@@ -80,6 +80,7 @@ const leadSchema = z.object({
   value: z.string().optional(),
   currency: z.string().optional(),
   notes: z.string().nullish().or(z.literal("")),
+  contactPerson: z.string().optional(),
   designation: z.string().optional(),
   phone: z.string().optional(),
   phoneType: z.string().optional(),
@@ -137,6 +138,7 @@ const customerTypeOptions = [
 ];
 
 const sourceOptions = [
+  { value: "Instantly", label: "Instantly" },
   { value: "call", label: "Call" },
   { value: "website", label: "Website" },
   { value: "referral", label: "Referral" },
@@ -425,6 +427,7 @@ export default function CreateLeadPage() {
       value: "",
       currency: "USD",
       notes: "",
+      contactPerson: "",
       designation: "",
       phone: "",
       phoneType: "work",
@@ -531,6 +534,7 @@ export default function CreateLeadPage() {
       value: data.value ? Number(data.value) : undefined,
       currency: data.currency || "USD",
       notes: data.notes || null,
+      contact_person: data.contactPerson || null,
       designation: data.designation || null,
       phone: data.phone || null,
       phoneType: data.phoneType || null,
@@ -896,7 +900,7 @@ export default function CreateLeadPage() {
                       id="fixed-lead-company-details-title"
                       editing={true}
                     >
-                      <div className="w-[573px]">
+                      <div className="w-[710px]">
                         <LabeledInput
                           label="Lead name"
                           placeholder="Lead name"
@@ -930,7 +934,7 @@ export default function CreateLeadPage() {
                       "fixed-lead-company-details-companyName",
                     )}
 
-                    <DroppableField
+                    {/* <DroppableField
                       id="fixed-lead-company-details-companyPhone"
                       editing={true}
                     >
@@ -962,8 +966,28 @@ export default function CreateLeadPage() {
                       "lead-company-details",
                       false,
                       "fixed-lead-company-details-companyEmail",
-                    )}
+                    )} */}
 
+                    
+                    <LabeledInput
+                      label="Company Phone"
+                      placeholder="+1 555 0123"
+                      fieldProps={register("companyPhone")}
+                      error={errors.companyPhone?.message}
+                    />
+                    <LabeledInput
+                      label="Company Email"
+                      placeholder="info@company.com"
+                      fieldProps={register("companyEmail")}
+                      type="email"
+                      error={errors.companyEmail?.message}
+                    />
+                    <LabeledInput
+                      label="Contact Person"
+                      placeholder="Contact person name"
+                      fieldProps={register("contactPerson")}
+                      error={errors.contactPerson?.message}
+                    />
                     <LabeledInput
                       label="Designation"
                       placeholder="Job title / designation"
@@ -1044,7 +1068,7 @@ export default function CreateLeadPage() {
                       )}
                     </div>
 
-                    <div className="space-y-2 w-[572px]">
+                    <div className="space-y-2">
                       <Label className="text-sm font-medium text-foreground">
                         Website
                       </Label>
@@ -1100,20 +1124,6 @@ export default function CreateLeadPage() {
                         </p>
                       )}
                     </div>
-
-                    <LabeledInput
-                      label="Company Phone Number"
-                      placeholder="+1 555 0123"
-                      fieldProps={register("companyPhone")}
-                      error={errors.companyPhone?.message}
-                    />
-                    <LabeledInput
-                      label="Company Email"
-                      placeholder="info@company.com"
-                      fieldProps={register("companyEmail")}
-                      type="email"
-                      error={errors.companyEmail?.message}
-                    />
                   </div>
                   {renderDroppedFields("lead-company-details")}
                 </DroppableSection>
