@@ -110,43 +110,77 @@ class ImapSyncService {
         .filter(f => f.dbFolder !== null);
 
       let syncedCount = 0;
-      const limitPerFolder = fullSync ? 1000 : 100;
+      const limitPerFolder = fullSync ? 2000 : 200;
 
       for (const { path: folderPath, dbFolder } of foldersToSync) {
         let lock;
         try {
           lock = await client.getMailboxLock(folderPath);
-          const since = fullSync ? null : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+          const since = fullSync ? null : new Date(Date.now() - 60 * 24 * 60 * 60 * 1000); // 60 days
           const searchCriteria = since ? { since } : { all: true };
           let uids = await client.search(searchCriteria);
 
-          if (uids && uids.length > 0) {
-            if (uids.length > limitPerFolder) uids = uids.slice(-limitPerFolder);
-            for await (const msg of client.fetch(uids, { envelope: true, source: true })) {
-              try {
-                const parsed = await simpleParser(msg.source);
-                const messageId = msg.envelope.messageId || `imap-${mailboxId}-${dbFolder}-${msg.uid}`;
+          if (!uids || uids.length === 0) continue;
+          if (uids.length > limitPerFolder) uids = uids.slice(-limitPerFolder);
 
-                const { rowCount } = await db.query(
-                  `INSERT INTO emails (
-                    org_id, user_id, mailbox_id, message_id, thread_id,
-                    from_email, to_email, subject, body, html_body,
-                    snippet, received_at, folder, is_read, has_attachments
-                  ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
-                  ON CONFLICT (message_id) 
-                  DO UPDATE SET folder = EXCLUDED.folder, is_read = EXCLUDED.is_read`,
-                  [
-                    mailbox.org_id, userId, mailbox.id, messageId, messageId,
-                    msg.envelope.from?.[0]?.address || '', msg.envelope.to?.[0]?.address || '',
-                    msg.envelope.subject || '(No Subject)', parsed.text || '', parsed.html || '',
-                    parsed.text?.substring(0, 150) || '', msg.envelope.date || new Date(),
-                    dbFolder, msg.flags?.has('\\Seen') || false, parsed.attachments?.length > 0,
-                  ]
-                );
-                if (rowCount > 0) syncedCount++;
-              } catch (msgErr) {
-                console.error(`Failed msg uid=${msg.uid} in ${folderPath}:`, msgErr.message);
-              }
+          // Pass 1: fetch envelopes + flags only (fast, no body download)
+          const envelopes = [];
+          for await (const msg of client.fetch(uids, { envelope: true, flags: true })) {
+            const messageId = msg.envelope.messageId || `imap-${mailboxId}-${dbFolder}-${msg.uid}`;
+            envelopes.push({ uid: msg.uid, messageId, envelope: msg.envelope, flags: msg.flags });
+          }
+
+          if (envelopes.length === 0) continue;
+
+          // Pass 2: check which message IDs already exist in DB (single batch query)
+          const allMsgIds = envelopes.map(e => e.messageId);
+          const { rows: existing } = await db.query(
+            'SELECT message_id FROM emails WHERE message_id = ANY($1)',
+            [allMsgIds]
+          );
+          const existingSet = new Set(existing.map(r => r.message_id));
+
+          // Update read/folder status for already-existing messages
+          const existingToUpdate = envelopes.filter(e => existingSet.has(e.messageId));
+          if (existingToUpdate.length > 0) {
+            for (const e of existingToUpdate) {
+              await db.query(
+                'UPDATE emails SET folder = $1, is_read = $2 WHERE message_id = $3',
+                [dbFolder, e.flags?.has('\\Seen') || false, e.messageId]
+              );
+            }
+          }
+
+          // Pass 3: fetch full source only for new messages
+          const newEnvelopes = envelopes.filter(e => !existingSet.has(e.messageId));
+          if (newEnvelopes.length === 0) continue;
+
+          const newUids = newEnvelopes.map(e => e.uid);
+          const envelopeMap = new Map(newEnvelopes.map(e => [e.uid, e]));
+
+          for await (const msg of client.fetch(newUids, { source: true })) {
+            const meta = envelopeMap.get(msg.uid);
+            if (!meta) continue;
+            try {
+              const parsed = await simpleParser(msg.source);
+              await db.query(
+                `INSERT INTO emails (
+                  org_id, user_id, mailbox_id, message_id, thread_id,
+                  from_email, to_email, subject, body, html_body,
+                  snippet, received_at, folder, is_read, has_attachments
+                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+                ON CONFLICT (message_id) DO NOTHING`,
+                [
+                  mailbox.org_id, userId, mailbox.id, meta.messageId, meta.messageId,
+                  meta.envelope.from?.[0]?.address || '', meta.envelope.to?.[0]?.address || '',
+                  meta.envelope.subject || '(No Subject)', parsed.text || '', parsed.html || '',
+                  parsed.text?.substring(0, 150) || '', meta.envelope.date || new Date(),
+                  dbFolder, meta.flags?.has('\\Seen') || false, parsed.attachments?.length > 0,
+                ]
+              );
+              syncedCount++;
+            } catch (msgErr) {
+              console.error(`Failed msg uid=${msg.uid} in ${folderPath}:`, msgErr.message);
             }
           }
         } catch (err) {

@@ -106,6 +106,7 @@ export function WebmailView({ mailboxes, onBackToIntegration, initialOpenCompose
   const [replyTo, setReplyTo] = useState<any>(null);
   const [forwardEmail, setForwardEmail] = useState<any>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [readFilter, setReadFilter] = useState<"all" | "read" | "unread">("all");
 
   const { data: emails = [], isLoading } = useQuery({
     queryKey: ["emails", user?.id, activeFolder, activeMailbox, searchQuery],
@@ -132,6 +133,14 @@ export function WebmailView({ mailboxes, onBackToIntegration, initialOpenCompose
     },
     enabled: !!user,
   });
+
+  const unreadCount = emails.filter((e: any) => !e.is_read).length;
+  const readCount = emails.filter((e: any) => e.is_read).length;
+  const filteredEmails = readFilter === "unread"
+    ? emails.filter((e: any) => !e.is_read)
+    : readFilter === "read"
+    ? emails.filter((e: any) => e.is_read)
+    : emails;
 
   const handleMarkRead = async (id: string) => {
     await api.patch(`/email/messages/${id}`, { is_read: true });
@@ -313,6 +322,7 @@ export function WebmailView({ mailboxes, onBackToIntegration, initialOpenCompose
                   setActiveFolder(folder.id);
                   setSelectedEmail(null);
                   setSelectedIds(new Set());
+                  setReadFilter("all");
                 }}
               >
                 <div className="flex items-center gap-2.5">
@@ -397,22 +407,52 @@ export function WebmailView({ mailboxes, onBackToIntegration, initialOpenCompose
             )}
           </div>
 
-          <ScrollArea className="h-[calc(100vh-320px)]">
+          {/* Read / Unread tabs */}
+          <div className="flex items-center gap-1 px-3 py-2 border-b">
+            {(["all", "unread", "read"] as const).map((tab) => {
+              const count = tab === "all" ? emails.length : tab === "unread" ? unreadCount : readCount;
+              const label = tab === "all" ? "All" : tab === "unread" ? "Unread" : "Read";
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setReadFilter(tab)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors flex items-center gap-1.5 ${
+                    readFilter === tab
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                  }`}
+                >
+                  {label}
+                  {count > 0 && (
+                    <span className={`text-[10px] rounded-full px-1.5 py-0 leading-4 ${
+                      readFilter === tab ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground"
+                    }`}>
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <ScrollArea className="h-[calc(100vh-360px)]">
             {isLoading ? (
               <EmailListSkeleton />
-            ) : emails.length === 0 ? (
+            ) : filteredEmails.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
                 <Inbox className="h-12 w-12 mb-3 opacity-30" />
-                <p className="font-medium">No emails in {activeFolder}</p>
+                <p className="font-medium">
+                  {readFilter === "unread" ? "No unread emails" : readFilter === "read" ? "No read emails" : `No emails in ${activeFolder}`}
+                </p>
                 <p className="text-xs mt-1">
-                  {activeFolder === "inbox"
+                  {activeFolder === "inbox" && readFilter === "all"
                     ? "Your inbox is empty — try syncing your mailbox."
-                    : `Nothing in ${activeFolder} yet.`}
+                    : `Nothing here yet.`}
                 </p>
               </div>
             ) : (
               <div className="divide-y divide-border">
-                {emails.map((email) => {
+                {filteredEmails.map((email) => {
                   const isSelected = selectedIds.has(email.id);
                   return (
                     <div
