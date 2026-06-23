@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Sparkles, Mail, Building2, Download, Upload, MoreHorizontal, Edit, Trash2, Eye, Globe, CheckCircle, UserCheck, Columns, UserCircle2 } from "lucide-react";
-import { useLeads, useDeleteLead, useBulkDeleteLeads, useBulkAssignLeads, useUsers } from "@/hooks/useCrmData";
+import { useLeads, useDeleteLead, useBulkDeleteLeads, useBulkAssignLeads, useBulkUpdateCreatedByLeads, useUsers } from "@/hooks/useCrmData";
 import { useUpdateLead } from "@/hooks/useCrmMutations";
 import { useCreateActivity } from "@/hooks/useCrmInteractions";
 import { useOrganizationProfiles } from "@/hooks/useTenantQuery";
@@ -147,13 +147,17 @@ export default function LeadsPage() {
   });
   const { data: users = [] } = useUsers({ department: 'Sales', includeSelf: true });
   const { data: allMembers = [] } = useOrganizationProfiles({ includeSelf: true });
+  const { data: salesMarketingMembers = [] } = useOrganizationProfiles({ includeSelf: true, department: 'sales,marketing' });
   const { data: pipelineStages = [] } = usePipelineStages();
   const deleteLead = useDeleteLead();
   const bulkDeleteLeads = useBulkDeleteLeads();
   const bulkAssignLeads = useBulkAssignLeads();
+  const bulkUpdateCreatedByLeads = useBulkUpdateCreatedByLeads();
   const updateLead = useUpdateLead();
   const [assignPickerOpen, setAssignPickerOpen] = useState(false);
   const [bulkAssignUserId, setBulkAssignUserId] = useState("");
+  const [createdByPickerOpen, setCreatedByPickerOpen] = useState(false);
+  const [bulkCreatedByUserId, setBulkCreatedByUserId] = useState("");
 
   // ── Column visibility ─────────────────────────────────────────────────────
   // All available columns (from DB via l.*). First 4 always visible by default.
@@ -337,6 +341,21 @@ export default function LeadsPage() {
           setIsAllSelectedGlobally(false);
           setAssignPickerOpen(false);
           setBulkAssignUserId("");
+        },
+      }
+    );
+  };
+
+  const handleBulkUpdateCreatedBy = (userId: string) => {
+    if (!userId || selectedLeads.length === 0) return;
+    bulkUpdateCreatedByLeads.mutate(
+      { ids: selectedLeads, created_by: userId },
+      {
+        onSuccess: () => {
+          setSelectedLeads([]);
+          setIsAllSelectedGlobally(false);
+          setCreatedByPickerOpen(false);
+          setBulkCreatedByUserId("");
         },
       }
     );
@@ -751,25 +770,47 @@ export default function LeadsPage() {
           {(selectedLeads.length > 0 || isAllSelectedGlobally) && (
             <>
               {selectedLeads.length > 0 && !isAllSelectedGlobally && (
-                <Popover open={assignPickerOpen} onOpenChange={setAssignPickerOpen}>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="gap-2">
-                      <UserCheck className="h-4 w-4" />
-                      Assign To ({selectedLeads.length})
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-72 p-3" align="start">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                      Assign {selectedLeads.length} lead{selectedLeads.length > 1 ? "s" : ""} to
-                    </p>
-                    <MemberSearchSelect
-                      members={allMembers}
-                      value={bulkAssignUserId}
-                      onChange={(id) => { setBulkAssignUserId(id); if (id) handleBulkAssign(id); }}
-                      placeholder="Select a user..."
-                    />
-                  </PopoverContent>
-                </Popover>
+                <>
+                  <Popover open={assignPickerOpen} onOpenChange={setAssignPickerOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="gap-2">
+                        <UserCheck className="h-4 w-4" />
+                        Assign To ({selectedLeads.length})
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-72 p-3" align="start">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                        Assign {selectedLeads.length} lead{selectedLeads.length > 1 ? "s" : ""} to
+                      </p>
+                      <MemberSearchSelect
+                        members={allMembers}
+                        value={bulkAssignUserId}
+                        onChange={(id) => { setBulkAssignUserId(id); if (id) handleBulkAssign(id); }}
+                        placeholder="Select a user..."
+                      />
+                    </PopoverContent>
+                  </Popover>
+
+                  <Popover open={createdByPickerOpen} onOpenChange={setCreatedByPickerOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="gap-2">
+                        <UserCircle2 className="h-4 w-4" />
+                        Created By ({selectedLeads.length})
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-72 p-3" align="start">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                        Set Creator for {selectedLeads.length} lead{selectedLeads.length > 1 ? "s" : ""} to
+                      </p>
+                      <MemberSearchSelect
+                        members={salesMarketingMembers}
+                        value={bulkCreatedByUserId}
+                        onChange={(id) => { setBulkCreatedByUserId(id); if (id) handleBulkUpdateCreatedBy(id); }}
+                        placeholder="Select a user..."
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </>
               )}
               <Button variant="outline" size="sm" onClick={handleBulkExport}>
                 <Download className="h-4 w-4 mr-2" />

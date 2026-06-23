@@ -64,31 +64,60 @@ const getAll = async (req, res, next) => {
     const { page = 1, limit = 50, search, industry } = req.query;
     const offset = (page - 1) * limit;
 
-    let query = `SELECT * FROM public.companies WHERE org_id = $1`;
+    const userRole = req.user.role;
+    const isPrivileged = userRole === 'super_admin' || userRole === 'admin' || userRole === 'owner';
+
+    // Non-privileged: see companies they created OR linked to deals assigned to them
+    let query = `
+      SELECT DISTINCT co.*
+      FROM public.companies co
+      LEFT JOIN public.deals d ON d.company_id = co.id AND d.org_id = co.org_id
+      WHERE co.org_id = $1
+    `;
     const params = [req.user.orgId];
     let paramIndex = 2;
 
+    if (!isPrivileged) {
+      query += ` AND (co.owner_id = $${paramIndex} OR d.assigned_to = $${paramIndex})`;
+      params.push(req.user.id);
+      paramIndex++;
+    }
+
     if (industry) {
-      query += ` AND industry = $${paramIndex}`;
+      query += ` AND co.industry = $${paramIndex}`;
       params.push(industry);
       paramIndex++;
     }
 
     if (search) {
-      query += ` AND (name ILIKE $${paramIndex} OR industry ILIKE $${paramIndex} OR email ILIKE $${paramIndex})`;
+      query += ` AND (co.name ILIKE $${paramIndex} OR co.industry ILIKE $${paramIndex} OR co.email ILIKE $${paramIndex})`;
       params.push(`%${search}%`);
       paramIndex++;
     }
 
-    query += ` ORDER BY created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    query += ` ORDER BY co.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     params.push(limit, offset);
 
     const result = await db.query(query, params);
 
-    const countResult = await db.query(
-      'SELECT COUNT(*) FROM public.companies WHERE org_id = $1',
-      [req.user.orgId]
-    );
+    // Count query with same filters
+    let countQuery = `
+      SELECT COUNT(DISTINCT co.id) FROM public.companies co
+      LEFT JOIN public.deals d ON d.company_id = co.id AND d.org_id = co.org_id
+      WHERE co.org_id = $1
+    `;
+    const countParams = [req.user.orgId];
+    let countParamIndex = 2;
+    if (!isPrivileged) {
+      countQuery += ` AND (co.owner_id = $${countParamIndex} OR d.assigned_to = $${countParamIndex})`;
+      countParams.push(req.user.id);
+      countParamIndex++;
+    }
+    if (industry) {
+      countQuery += ` AND co.industry = $${countParamIndex}`;
+      countParams.push(industry);
+    }
+    const countResult = await db.query(countQuery, countParams);
 
     res.json({
       data: result.rows,

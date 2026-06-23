@@ -826,26 +826,6 @@ export default function DealsPage() {
         ]}
         actions={
           <div className="flex items-center gap-2 flex-wrap">
-            {(selectedDeals.length > 0 || isAllSelectedGlobally) && (
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={handleBulkExport}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Export (
-                  {isAllSelectedGlobally
-                    ? (dbDeals as any)?.pagination?.total
-                    : selectedDeals.length}
-                  )
-                </Button>
-                <Button variant="outline" size="sm" onClick={handleBulkDelete}>
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete (
-                  {isAllSelectedGlobally
-                    ? (dbDeals as any)?.pagination?.total
-                    : selectedDeals.length}
-                  )
-                </Button>
-              </div>
-            )}
             <Button
               variant="outline"
               size="sm"
@@ -1103,6 +1083,25 @@ export default function DealsPage() {
               </ScrollArea>
             </PopoverContent>
           </Popover>
+        </div>
+      )}
+
+      {/* ── Table toolbar: bulk actions ────────────────── */}
+      {view === "list" && (selectedDeals.length > 0 || isAllSelectedGlobally) && (
+        <div className="flex items-center gap-2 flex-wrap mb-4">
+          <Button variant="outline" size="sm" onClick={handleBulkExport}>
+            <Download className="h-4 w-4 mr-2" />
+            Export ({isAllSelectedGlobally ? (dbDeals as any)?.pagination?.total : selectedDeals.length})
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleBulkDelete}
+            className="text-destructive border-destructive/30 hover:bg-destructive/10"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete ({isAllSelectedGlobally ? (dbDeals as any)?.pagination?.total : selectedDeals.length})
+          </Button>
         </div>
       )}
 

@@ -51,8 +51,8 @@ export default function CompanyDetailPage() {
       onSuccess: () => {
         setEditing(false);
         createActivity.mutate({
-          entity_type: 'company', entity_id: company.id,
-          activity_type: 'update', title: 'Updated company fields',
+          entityType: 'company', entityId: company.id,
+          activityType: 'update', title: 'Updated company fields',
           description: `Changed: ${Object.keys(filteredChanges).join(', ')}`,
         });
       }

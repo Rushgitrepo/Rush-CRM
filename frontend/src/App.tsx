@@ -41,6 +41,7 @@ import { NotificationsProvider } from "./contexts/NotificationsContext";
 import { usePushNotifications } from "./hooks/usePushNotifications";
 import { useFcm } from "./hooks/useFcm";
 // CRM
+import CrmDashboardPage from "./pages/crm/CrmDashboardPage";
 import LeadsPage from "./pages/crm/LeadsPage";
 import CreateLeadPage from "./pages/crm/CreateLeadPage";
 import LeadImportPage from "./pages/leads/LeadImportPage";
@@ -154,7 +155,7 @@ const ShortUrlRedirect = ({ to }: { to: string }) => {
 };
 
 
-const queryClient = new QueryClient();
+import { queryClient } from "@/lib/queryClient";
 
 // Mounts inside AuthProvider so useAuth() is available
 const PushNotificationsSetup = () => {
@@ -207,6 +208,7 @@ const App = () => (
                         <Route path="/collaboration/drive" element={<DrivePage />} />
                         <Route path="/collaboration/drive/personal/:driveId" element={<DrivePage />} />
                         <Route path="/collaboration/mail" element={<MailPage />} />
+                        <Route path="/crm/dashboard" element={<CrmDashboardPage />} />
                         <Route path="/crm/unibox" element={<UniboxPage />} />
                         <Route path="/collaboration/workgroups" element={<WorkgroupsPage />} />
                         <Route path="/collaboration/broadcast" element={<BroadcastPage />} />

@@ -24,6 +24,9 @@ const getAll = async (req, res, next) => {
     const { page = 1, limit = 50, search, status } = req.query;
     const offset = (page - 1) * limit;
 
+    const userRole = req.user.role;
+    const isPrivileged = userRole === 'super_admin' || userRole === 'admin' || userRole === 'owner';
+
     let query = `
       SELECT c.*,
              co.name as company_name,
@@ -31,10 +34,23 @@ const getAll = async (req, res, next) => {
              co.phone as company_phone
       FROM customers c
       LEFT JOIN companies co ON co.id = c.company_id
+      LEFT JOIN deals d ON d.id = c.deal_id
+      LEFT JOIN leads l ON l.id = c.lead_id
       WHERE c.org_id = $1
     `;
     const params = [req.user.orgId];
     let paramIndex = 2;
+
+    // Non-privileged users see customers they created OR whose source deal/lead was assigned to them
+    if (!isPrivileged) {
+      query += ` AND (
+        c.user_id = $${paramIndex}
+        OR d.assigned_to = $${paramIndex}
+        OR l.assigned_to = $${paramIndex}
+      )`;
+      params.push(req.user.id);
+      paramIndex++;
+    }
 
     if (status) {
       query += ` AND c.status = $${paramIndex}`;
@@ -52,7 +68,30 @@ const getAll = async (req, res, next) => {
     params.push(limit, offset);
 
     const { rows } = await db.query(query, params);
-    const count = await db.query('SELECT COUNT(*) FROM customers WHERE org_id = $1', [req.user.orgId]);
+
+    // Count query must match same filters
+    let countQuery = `
+      SELECT COUNT(*) FROM customers c
+      LEFT JOIN deals d ON d.id = c.deal_id
+      LEFT JOIN leads l ON l.id = c.lead_id
+      WHERE c.org_id = $1
+    `;
+    const countParams = [req.user.orgId];
+    let countParamIndex = 2;
+    if (!isPrivileged) {
+      countQuery += ` AND (
+        c.user_id = $${countParamIndex}
+        OR d.assigned_to = $${countParamIndex}
+        OR l.assigned_to = $${countParamIndex}
+      )`;
+      countParams.push(req.user.id);
+      countParamIndex++;
+    }
+    if (status) {
+      countQuery += ` AND c.status = $${countParamIndex}`;
+      countParams.push(status);
+    }
+    const count = await db.query(countQuery, countParams);
 
     res.json({
       data: rows.map(mapDbCustomer),

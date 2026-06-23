@@ -22,6 +22,10 @@ class ImapSyncService {
       logger: false
     });
 
+    client.on('error', (err) => {
+      console.error(`[IMAP Sync Connection Verification client error] ${email}:`, err);
+    });
+
     try {
       await client.connect();
       await client.logout();
@@ -69,6 +73,10 @@ class ImapSyncService {
       },
       tls: { rejectUnauthorized: false },
       logger: false
+    });
+
+    client.on('error', (err) => {
+      console.error(`[IMAP Sync client error] ${mailbox.email_address}:`, err);
     });
     return { client, mailbox };
   }

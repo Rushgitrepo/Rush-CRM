@@ -370,10 +370,10 @@ export function useUniboxEmails(filters: {
   };
 };
 
-export function useUniboxStats() {
+export function useUniboxStats(campaign_id?: string) {
   return useQuery({
-    queryKey: ["unibox-stats"],
-    queryFn: () => api.get<UniboxStats>("/unibox/stats"),
+    queryKey: ["unibox-stats", campaign_id],
+    queryFn: () => api.get<UniboxStats>("/unibox/stats", campaign_id ? { campaign_id } : undefined),
     refetchInterval: 60000,
     staleTime: 30000,
   });

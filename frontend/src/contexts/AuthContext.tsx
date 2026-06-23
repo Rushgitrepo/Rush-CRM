@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { api, authApi } from '@/lib/api';
 import { LoadingScreen } from '@/components/ui/loading-screen';
 import { getSocket } from '@/hooks/useRealtime';
+import { queryClient } from '@/lib/queryClient';
 
 interface Profile {
   id: string;
@@ -170,6 +171,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Logout error:', error);
     }
+    // Clear TanStack Query client cache so no cached data remains
+    queryClient.clear();
     api.setToken(null);
     setUser(null);
     setSession(null);

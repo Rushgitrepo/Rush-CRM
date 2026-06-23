@@ -216,6 +216,8 @@ export const leadsApi = {
     api.post<{ message: string; deletedCount: number }>('/leads/bulk-delete', Array.isArray(payload) ? { ids: payload } : payload),
   bulkAssign: (ids: string[], assigned_to: string) =>
     api.post<{ message: string; updatedCount: number; assignedTo: any }>('/leads/bulk-assign', { ids, assigned_to }),
+  bulkUpdateCreatedBy: (ids: string[], created_by: string) =>
+    api.post<{ message: string; updatedCount: number; createdBy: any }>('/leads/bulk-update-created-by', { ids, created_by }),
 };
 
 export const dealsApi = {

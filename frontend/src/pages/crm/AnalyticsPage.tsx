@@ -13,9 +13,9 @@ const monthLabel = (dateStr?: string) => {
   return d.toLocaleString("en-US", { month: "short" });
 };
 
-export default function CRMAnalyticsPage() {
-  const { data: leadsData } = useLeads();
-  const { data: dealsData } = useDeals();
+export default function CRMAnalyticsPage({ hideHeader = false }: { hideHeader?: boolean } = {}) {
+  const { data: leadsData } = useLeads({ limit: 10000 });
+  const { data: dealsData } = useDeals({ limit: 10000 });
 
   const leads = useMemo(() => {
     if (Array.isArray(leadsData)) return leadsData;
@@ -114,14 +114,16 @@ export default function CRMAnalyticsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Analytics"
-        description="Premium dashboard of revenue, conversion, and velocity." 
-        meta={[
-          { label: "Leads", value: leads.length, tone: "info" },
-          { label: "Deals", value: deals.length, tone: "success" },
-        ]}
-      />
+      {!hideHeader && (
+        <PageHeader
+          title="Analytics"
+          description="Premium dashboard of revenue, conversion, and velocity."
+          meta={[
+            { label: "Leads", value: leads.length, tone: "info" },
+            { label: "Deals", value: deals.length, tone: "success" },
+          ]}
+        />
+      )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard title="Conversion Rate" value={conversionRate} change={{ value: 0, type: "increase" }} icon={Target} iconClassName="bg-primary" />

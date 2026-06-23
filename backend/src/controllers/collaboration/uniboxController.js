@@ -408,12 +408,21 @@ const toggleArchive = async (req, res, next) => {
 // Get email statistics
 const getStats = async (req, res, next) => {
   try {
+    const { campaign_id = '' } = req.query;
     const params = [req.user.orgId];
+    let paramIndex = 2;
     let whereClause = 'WHERE org_id = $1 AND is_archived = false';
 
     const allowedCampaignIds = await getAllowedCampaignIds(req.user.id, req.user.orgId);
-    const accessFilter = appendCampaignAccessFilter(allowedCampaignIds, params, 2);
+    const accessFilter = appendCampaignAccessFilter(allowedCampaignIds, params, paramIndex);
     whereClause += accessFilter.clause;
+    paramIndex = accessFilter.paramIndex;
+
+    if (campaign_id) {
+      whereClause += ` AND ${CAMPAIGN_ID_SQL} = $${paramIndex}`;
+      params.push(campaign_id);
+      paramIndex++;
+    }
 
     const statsQuery = `
       SELECT 

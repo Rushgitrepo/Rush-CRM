@@ -89,7 +89,7 @@ export default function UniboxPage() {
 
   const [convertDialogOpen, setConvertDialogOpen] = useState(false);
   const [showLeadInfo, setShowLeadInfo] = useState(false);
-  const ITEMS_PER_PAGE = 50;
+  const ITEMS_PER_PAGE = 200;
 
   // Sync searchVal with URL search params (e.g. on navigation)
   useEffect(() => {
@@ -173,7 +173,7 @@ export default function UniboxPage() {
     setSearchVal(query);
   };
 
-  const { data: stats } = useUniboxStats();
+  const { data: stats } = useUniboxStats(selectedCampaignId || undefined);
   const { settings, updateSettings } = useInstantlySettings();
 
   if (permLoading) {

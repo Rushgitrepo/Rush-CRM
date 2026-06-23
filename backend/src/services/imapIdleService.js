@@ -94,6 +94,10 @@ class ImapIdleService {
         logger: false,
       });
 
+      client.on('error', (err) => {
+        console.error(`[IMAP IDLE client error] ${mailbox.email_address}:`, err);
+      });
+
       try {
         await client.connect();
         await client.mailboxOpen('INBOX');

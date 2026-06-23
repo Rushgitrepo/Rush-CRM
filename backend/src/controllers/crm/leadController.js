@@ -1617,6 +1617,51 @@ const bulkAssign = async (req, res, next) => {
   }
 };
 
+/**
+ * POST /leads/bulk-update-created-by
+ * Update created_by field for multiple leads
+ */
+const bulkUpdateCreatedBy = async (req, res, next) => {
+  try {
+    const { ids, created_by } = req.body;
+    const orgId = req.user.orgId;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'No lead IDs provided' });
+    }
+    if (!created_by) {
+      return res.status(400).json({ error: 'created_by user ID is required' });
+    }
+
+    const cleanIds = [...new Set(ids.filter((id) => id && typeof id === 'string'))];
+
+    // Verify the target user belongs to the org
+    const userCheck = await db.query(
+      'SELECT id, full_name FROM public.users WHERE id = $1 AND org_id = $2',
+      [created_by, orgId]
+    );
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found in your organization' });
+    }
+
+    const result = await db.query(
+      `UPDATE public.leads
+       SET created_by = $1, updated_at = NOW()
+       WHERE id = ANY($2) AND org_id = $3
+       RETURNING id`,
+      [created_by, cleanIds, orgId]
+    );
+
+    res.json({
+      message: `${result.rows.length} leads creator updated to ${userCheck.rows[0].full_name}`,
+      updatedCount: result.rows.length,
+      createdBy: userCheck.rows[0],
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getAll,
   getById,
@@ -1626,6 +1671,7 @@ module.exports = {
   remove,
   bulkRemove,
   bulkAssign,
+  bulkUpdateCreatedBy,
   getStats,
   getStages,
   createStage,

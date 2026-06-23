@@ -1,3 +1,4 @@
+import * as React from "react";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import EmojiPicker, { EmojiClickData, Theme } from "emoji-picker-react";
@@ -1366,6 +1367,28 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
     if (attachmentInputRef.current) attachmentInputRef.current.value = "";
   };
 
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    const files: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.kind === 'file') {
+        const file = item.getAsFile();
+        if (file) {
+          files.push(file);
+        }
+      }
+    }
+
+    if (files.length > 0) {
+      e.preventDefault();
+      if (!canStartConversation) return;
+      setPendingFiles((prev) => [...prev, ...files]);
+    }
+  };
+
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
     dragCounterRef.current++;
@@ -1677,6 +1700,29 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
       return (a.full_name || "").localeCompare(b.full_name || "");
     });
   }, [members, user?.id, assignedMemberManagerId]);
+
+  const [downloadProgress, setDownloadProgress] = useState<Record<string, number>>({});
+
+  const handleDownload = async (url: string, fileName: string) => {
+    try {
+      setDownloadProgress(prev => ({ ...prev, [url]: 0 }));
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Network response was not ok');
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      window.open(url, '_blank');
+    } finally {
+      setDownloadProgress(prev => { const n = { ...prev }; delete n[url]; return n; });
+    }
+  };
 
   if (!workgroup) {
     return (
@@ -2608,6 +2654,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
                                       e.target.value.length,
                                     )
                                   }
+                                  onPaste={handlePaste}
                                   placeholder={
                                     !canSendMessages
                                       ? "This chat has been locked by an administrator"
@@ -3963,7 +4010,7 @@ export default function WorkgroupDetailView({ workgroupId, onBack }: Props) {
             <div className="flex items-center gap-2">
               {lightboxImages[lightboxIndex].downloadUrl && (
                 <button
-                  onClick={() => handleDownload(lightboxImages[lightboxIndex].downloadUrl!, lightboxImages[lightboxIndex].name)}
+                  onClick={() => { void handleDownload(lightboxImages[lightboxIndex].downloadUrl!, lightboxImages[lightboxIndex].name); }}
                   className="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
                   title="Download"
                 >

@@ -139,6 +139,20 @@ export function useBulkAssignLeads() {
   });
 }
 
+export function useBulkUpdateCreatedByLeads() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ ids, created_by }: { ids: string[]; created_by: string }) =>
+      leadsApi.bulkUpdateCreatedBy(ids, created_by),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      toast.success(data.message || 'Leads creator updated successfully');
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
+
 // Stage/Status specific update hooks for better UX
 export function useUpdateLeadStage() {
   const queryClient = useQueryClient();
