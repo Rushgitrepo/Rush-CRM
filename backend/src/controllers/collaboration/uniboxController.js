@@ -1,6 +1,17 @@
 const db = require('../../config/database');
 const notificationService = require('../../services/notificationService');
 
+const parseInstantlyDate = (val) => {
+  if (!val) return null;
+  if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+  if (typeof val === 'number' || (typeof val === 'string' && /^\d+$/.test(val))) {
+    const num = Number(val);
+    return new Date(num < 10000000000 ? num * 1000 : num);
+  }
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? null : d;
+};
+
 const CAMPAIGN_ID_SQL = `COALESCE(metadata->'item'->>'campaign_id', metadata->>'campaign_id', 'none')`;
 
 const getUniboxAccessLevel = async (userId, orgId) => {
@@ -557,7 +568,7 @@ const convertToLead = async (req, res, next) => {
     const designation = extractDesignationFromEmail(email.body_text);
 
     // Created date should come from unibox email received_at date!
-    const createdDate = email.received_at ? new Date(email.received_at) : new Date();
+    const createdDate = email.received_at ? (parseInstantlyDate(email.received_at) || new Date()) : new Date();
 
     // Use the carefully curated interaction notes from the frontend!
     // Fallback to first paragraph of body if empty.
