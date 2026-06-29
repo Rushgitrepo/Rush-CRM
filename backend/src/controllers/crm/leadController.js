@@ -341,24 +341,13 @@ const getAll = async (req, res, next) => {
           SELECT 1 FROM unibox_campaign_folder_assignments ucfa
           JOIN unibox_campaign_folder_items ucfi ON ucfi.folder_id = ucfa.folder_id AND ucfi.org_id = ucfa.org_id
           WHERE ucfa.user_id = $${paramIndex} AND ucfa.org_id = l.org_id
-            AND l.campaign_id IS NOT NULL AND ucfi.campaign_id::text = l.campaign_id::text
+            AND l.campaign_id IS NOT NULL AND ucfi.campaign_id = l.campaign_id
         )
       )`;
       params.push(req.user.id);
       paramIndex++;
     } else if (!isAdmin && hasUniboxAccess) {
-      // Unibox-granted non-admin: restrict to campaign folder access
-      query += ` AND (
-        l.assigned_to = $${paramIndex} OR l.owner_id = $${paramIndex} OR l.user_id = $${paramIndex} OR l.created_by = $${paramIndex} OR l.responsible_person = $${paramIndex} OR
-        EXISTS (
-          SELECT 1 FROM unibox_campaign_folder_assignments ucfa
-          JOIN unibox_campaign_folder_items ucfi ON ucfi.folder_id = ucfa.folder_id AND ucfi.org_id = ucfa.org_id
-          WHERE ucfa.user_id = $${paramIndex} AND ucfa.org_id = l.org_id
-            AND l.campaign_id IS NOT NULL AND ucfi.campaign_id::text = l.campaign_id::text
-        )
-      )`;
-      params.push(req.user.id);
-      paramIndex++;
+      // Unibox-granted non-admin: sees all leads (campaign filter from URL is applied separately)
     }
 
     if (stage) {
@@ -505,11 +494,7 @@ const getAll = async (req, res, next) => {
 
     if (!isAdmin && !hasUniboxAccess) {
       countQuery += ` AND NOT (l.source = 'Instantly' AND l.responsible_person IS NULL)`;
-      countQuery += ` AND (l.assigned_to = $${countIdx} OR l.owner_id = $${countIdx} OR l.user_id = $${countIdx} OR l.created_by = $${countIdx} OR l.responsible_person = $${countIdx} OR EXISTS (SELECT 1 FROM unibox_campaign_folder_assignments ucfa JOIN unibox_campaign_folder_items ucfi ON ucfi.folder_id = ucfa.folder_id AND ucfi.org_id = ucfa.org_id WHERE ucfa.user_id = $${countIdx} AND ucfa.org_id = l.org_id AND l.campaign_id IS NOT NULL AND ucfi.campaign_id::text = l.campaign_id::text))`;
-      countParams.push(req.user.id);
-      countIdx++;
-    } else if (!isAdmin && hasUniboxAccess) {
-      countQuery += ` AND (l.assigned_to = $${countIdx} OR l.owner_id = $${countIdx} OR l.user_id = $${countIdx} OR l.created_by = $${countIdx} OR l.responsible_person = $${countIdx} OR EXISTS (SELECT 1 FROM unibox_campaign_folder_assignments ucfa JOIN unibox_campaign_folder_items ucfi ON ucfi.folder_id = ucfa.folder_id AND ucfi.org_id = ucfa.org_id WHERE ucfa.user_id = $${countIdx} AND ucfa.org_id = l.org_id AND l.campaign_id IS NOT NULL AND ucfi.campaign_id::text = l.campaign_id::text))`;
+      countQuery += ` AND (l.assigned_to = $${countIdx} OR l.owner_id = $${countIdx} OR l.user_id = $${countIdx} OR l.created_by = $${countIdx} OR l.responsible_person = $${countIdx} OR EXISTS (SELECT 1 FROM unibox_campaign_folder_assignments ucfa JOIN unibox_campaign_folder_items ucfi ON ucfi.folder_id = ucfa.folder_id AND ucfi.org_id = ucfa.org_id WHERE ucfa.user_id = $${countIdx} AND ucfa.org_id = l.org_id AND l.campaign_id IS NOT NULL AND ucfi.campaign_id = l.campaign_id))`;
       countParams.push(req.user.id);
       countIdx++;
     }
