@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Sparkles, Mail, Building2, Download, Upload, MoreHorizontal, Edit, Trash2, Eye, Globe, CheckCircle, UserCheck, Columns, UserCircle2 } from "lucide-react";
+import { Plus, Sparkles, Mail, Building2, Download, Upload, MoreHorizontal, Edit, Trash2, Eye, Globe, CheckCircle, UserCheck, Columns, UserCircle2, Zap } from "lucide-react";
 import { useLeads, useDeleteLead, useBulkDeleteLeads, useBulkAssignLeads, useBulkUpdateCreatedByLeads, useUsers } from "@/hooks/useCrmData";
 import { useUpdateLead } from "@/hooks/useCrmMutations";
 import { useCreateActivity } from "@/hooks/useCrmInteractions";
@@ -55,6 +55,8 @@ type LeadRow = {
   createdAt: string;
   responsiblePersonName?: string;
   responsiblePersonAvatar?: string;
+  assignedToName?: string;
+  assignedToAvatar?: string;
   campaignName?: string;
   campaignId?: string;
   createdByName?: string;
@@ -174,7 +176,8 @@ export default function LeadsPage() {
     { key: "source", label: "Source" },
     { key: "campaignName", label: "Campaign" },
     { key: "value", label: "Value" },
-    { key: "responsible", label: "Responsible" },
+    { key: "responsible", label: "Campaign Responsible" },
+    { key: "assignedTo", label: "Leads Responsible" },
     { key: "phone", label: "Contact" },
     { key: "createdAt", label: "Created" },
     { key: "createdByName", label: "Created By" },
@@ -250,6 +253,8 @@ export default function LeadsPage() {
         createdAt: l.created_at,
         responsiblePersonName: l.responsible_person_name,
         responsiblePersonAvatar: l.responsible_person_avatar,
+        assignedToName: l.assigned_to_name,
+        assignedToAvatar: l.assigned_to_avatar,
         campaignName: l.campaign_name || l.campaignName || l.campaign || "",
         campaignId: l.campaign_id || l.campaignId || "",
         createdByName: l.createdByName || l.created_by_name || null,
@@ -469,7 +474,7 @@ export default function LeadsPage() {
     },
     {
       key: "responsible",
-      header: "Responsible",
+      header: "Campaign Responsible",
       render: (lead) => (
         <div className="flex items-center gap-2">
           {lead.responsiblePersonName ? (
@@ -484,6 +489,30 @@ export default function LeadsPage() {
                 )}
               </div>
               <span className="text-xs font-medium truncate max-w-[100px]">{lead.responsiblePersonName}</span>
+            </>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+        </div> 
+      ),
+    },
+    {
+      key: "assignedTo",
+      header: "Leads Responsible",
+      render: (lead) => (
+        <div className="flex items-center gap-2">
+          {lead.assignedToName ? (
+            <>
+              <div className="h-6 w-6 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center overflow-hidden border border-border/50 shrink-0">
+                {lead.assignedToAvatar ? (
+                  <img src={lead.assignedToAvatar} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <span className="text-[10px] font-bold text-blue-600">
+                    {lead.assignedToName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
+                  </span>
+                )}
+              </div>
+              <span className="text-xs font-medium truncate max-w-[100px]">{lead.assignedToName}</span>
             </>
           ) : (
             <span className="text-xs text-muted-foreground">—</span>
@@ -537,6 +566,13 @@ export default function LeadsPage() {
               </div>
               <span className="text-xs font-medium truncate max-w-[100px]">{lead.createdByName}</span>
             </>
+          ) : lead.source === 'Instantly' ? (
+            <div className="flex items-center gap-1.5">
+              <div className="h-6 w-6 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center shrink-0">
+                <Zap className="h-3 w-3 text-orange-500" />
+              </div>
+              <span className="text-xs font-medium text-orange-600 dark:text-orange-400">Instantly</span>
+            </div>
           ) : (
             <span className="text-xs text-muted-foreground">—</span>
           )}
@@ -544,7 +580,7 @@ export default function LeadsPage() {
       ),
     },
     // ── Extra DB columns ──────────────────────────────────────────────
-    { key: "title", header: "Title", render: (l) => <span className="text-sm font-medium text-foreground">{l.name || "—"}</span> },
+    { key: "title", header: "Title", className: "min-w-[220px] max-w-[280px]", render: (l) => <span className="text-sm font-medium text-foreground truncate block max-w-[260px]" title={l.name || ""}>{l.name || "—"}</span> },
     { key: "stage", header: "Stage", render: (l) => l.stage ? <Badge variant="outline" className={cn(statusTone(l.stage), "uppercase text-[10px]")}>{l.stage}</Badge> : <span className="text-muted-foreground text-sm">—</span> },
     { key: "status", header: "Status", render: (l) => <span className="text-sm text-muted-foreground">{l.status || "—"}</span> },
     { key: "priority", header: "Priority", render: (l) => l.priority ? <Badge variant="outline" className="capitalize text-[10px]">{l.priority}</Badge> : <span className="text-muted-foreground text-sm">—</span> },
@@ -677,7 +713,7 @@ export default function LeadsPage() {
           //   ]
           // },
           {
-            label: "Responsible Person", type: "input" as any, value: assignedToFilter, onChange: setAssignedToFilter,
+            label: "Responsible", type: "input" as any, value: assignedToFilter, onChange: setAssignedToFilter,
           },
           // { label: "Tags", type: "input" as any, value: tagsFilter, onChange: setTagsFilter },
           { label: "Min Value", type: "input" as any, value: minValue, onChange: setMinValue },

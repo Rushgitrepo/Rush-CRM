@@ -1392,13 +1392,20 @@ export default function CreateLeadPage() {
                       editing={true}
                     >
                       <div className="space-y-2">
-                        <Label className="text-sm font-medium text-foreground">
-                          Responsible Person
+                        <Label className="text-sm font-medium text-foreground flex items-center gap-2">
+                          <Users className="h-4 w-4" />
+                          Campaign Responsible
+                          {assignedToDepartment && (
+                            <span className="text-[10px] font-normal text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                              {assignedToDepartment} only
+                            </span>
+                          )}
                         </Label>
-                        <Input
-                          placeholder="Responsible Person"
-                          {...register("responsiblePerson")}
-                          className="h-10"
+                        <MemberSearchSelect
+                          members={members}
+                          value={watch("responsiblePerson") || ""}
+                          onChange={(v) => setValue("responsiblePerson", v || null)}
+                          placeholder="Select campaign responsible..."
                         />
                       </div>
                     </DroppableField>

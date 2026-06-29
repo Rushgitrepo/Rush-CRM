@@ -308,27 +308,62 @@ const getAll = async (req, res, next) => {
     const offset = (page - 1) * limit;
 
     const isAdmin = req.user.role === 'super_admin' || req.user.role === 'admin';
+    const hasUniboxAccess = !isAdmin && (req.user.has_unibox_access === true || req.user.has_unibox_access === 't');
+
+    console.log('[deals/getAll] user:', req.user.id, 'role:', req.user.role, 'orgId:', req.user.orgId, 'isAdmin:', isAdmin, 'hasUniboxAccess:', hasUniboxAccess, 'raw_unibox:', req.user.has_unibox_access);
 
     let query = `
       SELECT d.*,
              c.first_name as contact_first_name, c.last_name as contact_last_name, c.email as contact_email, c.phone as contact_phone,
              co.name as linked_company_name, co.email as linked_company_email, co.phone as linked_company_phone,
              u.full_name as responsible_person_name,
-             u.avatar_url as responsible_person_avatar
+             u.avatar_url as responsible_person_avatar,
+             ua.full_name as assigned_to_name,
+             ua.avatar_url as assigned_to_avatar
       FROM public.deals d
       LEFT JOIN public.contacts c ON c.id = d.contact_id
       LEFT JOIN public.companies co ON co.id = d.company_id
-      LEFT JOIN public.users u ON u.id = d.assigned_to
+      LEFT JOIN public.users u ON u.id = d.responsible_person
+      LEFT JOIN public.users ua ON ua.id = d.assigned_to
       WHERE d.org_id = $1
     `;
     const params = [req.user.orgId];
     let paramIndex = 2;
 
-    if (!isAdmin) {
-      query += ` AND (d.assigned_to = $${paramIndex} OR d.owner_id = $${paramIndex} OR d.responsible_person = $${paramIndex} OR d.user_id = $${paramIndex} OR d.created_by = $${paramIndex})`;
-      params.push(req.user.id);
-      paramIndex++;
+    if (!isAdmin && !hasUniboxAccess) {
+      query += ` AND (
+        d.assigned_to = $${paramIndex} OR d.owner_id = $${paramIndex} OR d.responsible_person = $${paramIndex} OR d.user_id = $${paramIndex} OR d.created_by = $${paramIndex}
+        OR EXISTS (SELECT 1 FROM public.leads l WHERE l.id = d.lead_id AND (l.assigned_to = $${paramIndex} OR l.responsible_person = $${paramIndex}))
+        OR EXISTS (
+          SELECT 1 FROM unibox_campaign_folder_assignments ucfa
+          JOIN unibox_campaign_folder_items ucfi ON ucfi.folder_id = ucfa.folder_id AND ucfi.org_id = ucfa.org_id
+          WHERE ucfa.user_id = $${paramIndex} AND ucfa.org_id = $${paramIndex + 1}
+            AND (
+              (d.campaign_id IS NOT NULL AND ucfi.campaign_id::text = d.campaign_id::text)
+              OR EXISTS (
+                SELECT 1 FROM public.leads l
+                WHERE l.id = d.lead_id AND l.campaign_id IS NOT NULL
+                  AND ucfi.campaign_id::text = l.campaign_id::text
+              )
+            )
+        )
+      )`;
+      params.push(req.user.id, req.user.orgId);
+      paramIndex += 2;
+      console.log('[deals/getAll] non-admin filter applied, userId:', req.user.id, 'orgId:', req.user.orgId);
+      // debug: check folder assignments
+      const folderCheck = await db.query(
+        `SELECT ucfa.folder_id, ucfa.user_id, ucfi.campaign_id
+         FROM unibox_campaign_folder_assignments ucfa
+         JOIN unibox_campaign_folder_items ucfi ON ucfi.folder_id = ucfa.folder_id
+         WHERE ucfa.user_id = $1 AND ucfa.org_id = $2`,
+        [req.user.id, req.user.orgId]
+      );
+      console.log('[deals/getAll] folder assignments for user:', JSON.stringify(folderCheck.rows));
+    } else if (!isAdmin && hasUniboxAccess) {
+      // unibox-granted: see all deals — no additional filter
     }
+    // isAdmin → see all deals
 
     if (stage) {
       query += ` AND d.stage = $${paramIndex}`;
@@ -366,14 +401,13 @@ const getAll = async (req, res, next) => {
       paramIndex++;
     }
 
-    if (assignedTo) {
+    if (assignedTo && assignedTo !== 'all') {
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (uuidRegex.test(assignedTo)) {
         query += ` AND d.assigned_to = $${paramIndex}`;
         params.push(assignedTo);
       } else {
-        // Text search on responsible person's name
-        query += ` AND u.full_name ILIKE $${paramIndex}`;
+        query += ` AND ua.full_name ILIKE $${paramIndex}`;
         params.push(`%${assignedTo}%`);
       }
       paramIndex++;
@@ -434,16 +468,35 @@ const getAll = async (req, res, next) => {
     query += ` ORDER BY d.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     params.push(limit, offset);
 
+    console.log('[deals/getAll] final query:', query.substring(0, 500));
+    console.log('[deals/getAll] final params:', params);
     const result = await db.query(query, params);
+    console.log('[deals/getAll] result count:', result.rows.length);
 
     const countParams = [req.user.orgId];
     let countQuery = 'SELECT COUNT(DISTINCT d.id) FROM public.deals d LEFT JOIN public.companies co ON co.id = d.company_id LEFT JOIN public.users u ON u.id = d.assigned_to WHERE d.org_id = $1';
     let countIdx = 2;
 
-    if (!isAdmin) {
-      countQuery += ` AND (d.assigned_to = $${countIdx} OR d.owner_id = $${countIdx} OR d.responsible_person = $${countIdx} OR d.user_id = $${countIdx} OR d.created_by = $${countIdx})`;
-      countParams.push(req.user.id);
-      countIdx++;
+    if (!isAdmin && !hasUniboxAccess) {
+      countQuery += ` AND (
+        d.assigned_to = $${countIdx} OR d.owner_id = $${countIdx} OR d.responsible_person = $${countIdx} OR d.user_id = $${countIdx} OR d.created_by = $${countIdx}
+        OR EXISTS (SELECT 1 FROM public.leads l WHERE l.id = d.lead_id AND (l.assigned_to = $${countIdx} OR l.responsible_person = $${countIdx}))
+        OR EXISTS (
+          SELECT 1 FROM unibox_campaign_folder_assignments ucfa
+          JOIN unibox_campaign_folder_items ucfi ON ucfi.folder_id = ucfa.folder_id AND ucfi.org_id = ucfa.org_id
+          WHERE ucfa.user_id = $${countIdx} AND ucfa.org_id = $${countIdx + 1}
+            AND (
+              (d.campaign_id IS NOT NULL AND ucfi.campaign_id::text = d.campaign_id::text)
+              OR EXISTS (
+                SELECT 1 FROM public.leads l
+                WHERE l.id = d.lead_id AND l.campaign_id IS NOT NULL
+                  AND ucfi.campaign_id::text = l.campaign_id::text
+              )
+            )
+        )
+      )`;
+      countParams.push(req.user.id, req.user.orgId);
+      countIdx += 2;
     }
     if (stage) {
       countQuery += ` AND d.stage = $${countIdx}`;
@@ -465,13 +518,13 @@ const getAll = async (req, res, next) => {
       countParams.push(source);
       countIdx++;
     }
-    if (assignedTo) {
+    if (assignedTo && assignedTo !== 'all') {
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (uuidRegex.test(assignedTo)) {
         countQuery += ` AND d.assigned_to = $${countIdx}`;
         countParams.push(assignedTo);
       } else {
-        countQuery += ` AND u.full_name ILIKE $${countIdx}`;
+        countQuery += ` AND ua.full_name ILIKE $${countIdx}`;
         countParams.push(`%${assignedTo}%`);
       }
       countIdx++;
@@ -1064,15 +1117,34 @@ const bulkRemove = async (req, res, next) => {
 
 const getStats = async (req, res, next) => {
   try {
-    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+    const isAdmin = req.user.role === 'super_admin' || req.user.role === 'admin';
     const userId = req.user.id;
     const orgId = req.user.orgId;
+
+    let hasUniboxAccess = false;
+    if (!isAdmin) {
+      const uc = await db.query(`SELECT has_unibox_access FROM users WHERE id = $1`, [userId]);
+      hasUniboxAccess = uc.rows[0]?.has_unibox_access || false;
+    }
 
     let filter = 'WHERE org_id = $1';
     const params = [orgId];
 
-    if (!isAdmin) {
-      filter += ` AND (assigned_to = $2 OR owner_id = $2)`;
+    if (!isAdmin && !hasUniboxAccess) {
+      filter += ` AND (assigned_to = $2 OR owner_id = $2 OR responsible_person = $2 OR user_id = $2 OR created_by = $2
+        OR EXISTS (
+          SELECT 1 FROM unibox_campaign_folder_assignments ucfa
+          JOIN unibox_campaign_folder_items ucfi ON ucfi.folder_id = ucfa.folder_id AND ucfi.org_id = ucfa.org_id
+          WHERE ucfa.user_id = $2 AND ucfa.org_id = $1
+            AND (
+              (campaign_id IS NOT NULL AND ucfi.campaign_id::text = campaign_id::text)
+              OR EXISTS (
+                SELECT 1 FROM public.leads l
+                WHERE l.id = deals.lead_id AND l.campaign_id IS NOT NULL
+                  AND ucfi.campaign_id::text = l.campaign_id::text
+              )
+            )
+        ))`;
       params.push(userId);
     }
 

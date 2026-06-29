@@ -283,13 +283,16 @@ const getAll = async (req, res, next) => {
              w.name as workspace_name,
              u.full_name as responsible_person_name,
              u.avatar_url as responsible_person_avatar,
+             ua.full_name as assigned_to_name,
+             ua.avatar_url as assigned_to_avatar,
              uc.full_name as created_by_name,
              uc.avatar_url as created_by_avatar
       FROM public.leads l
       LEFT JOIN public.contacts c ON c.id = l.contact_id
       LEFT JOIN public.companies co ON co.id = l.company_id
       LEFT JOIN public.workgroups w ON w.id = l.workspace_id
-      LEFT JOIN public.users u ON u.id = l.assigned_to
+      LEFT JOIN public.users u ON u.id = l.responsible_person
+      LEFT JOIN public.users ua ON ua.id = l.assigned_to
       LEFT JOIN public.users uc ON uc.id = COALESCE(l.created_by, l.user_id)
       WHERE l.org_id = $1
     `;
@@ -319,10 +322,11 @@ const getAll = async (req, res, next) => {
       query += ` AND l.workspace_id = $${paramIndex}`;
       params.push(workspaceId);
       paramIndex++;
-    } else if (!isAdmin) {
-      // Regular users: must own/be assigned, or have workspace access
+    } else if (!isAdmin && !hasUniboxAccess) {
+      // Non-admin without unibox access: hide unassigned Instantly leads and restrict to own leads
+      query += ` AND NOT (l.source = 'Instantly' AND l.responsible_person IS NULL)`;
       query += ` AND (
-        l.assigned_to = $${paramIndex} OR l.owner_id = $${paramIndex} OR l.user_id = $${paramIndex} OR l.created_by = $${paramIndex} OR
+        l.assigned_to = $${paramIndex} OR l.owner_id = $${paramIndex} OR l.user_id = $${paramIndex} OR l.created_by = $${paramIndex} OR l.responsible_person = $${paramIndex} OR
         EXISTS (
           SELECT 1 FROM workgroup_members wm
           WHERE wm.workgroup_id = l.workspace_id AND wm.user_id = $${paramIndex}
@@ -333,10 +337,11 @@ const getAll = async (req, res, next) => {
           WHERE lwa.lead_id = l.id AND wm.user_id = $${paramIndex}
           AND (lwa.expires_at IS NULL OR lwa.expires_at > CURRENT_TIMESTAMP)
         )
-        ${hasUniboxAccess ? " OR (l.source = 'Instantly' AND EXISTS (SELECT 1 FROM instantly_integrations ii WHERE ii.org_id = l.org_id AND ii.auto_add_leads = true))" : ""}
       )`;
       params.push(req.user.id);
       paramIndex++;
+    } else if (!isAdmin && hasUniboxAccess) {
+      // Unibox-granted non-admin: sees ALL leads (same as admin), no restrictions
     }
 
     if (stage) {
@@ -481,10 +486,9 @@ const getAll = async (req, res, next) => {
     let countQuery = 'SELECT COUNT(DISTINCT l.id) FROM public.leads l LEFT JOIN public.companies co ON co.id = l.company_id LEFT JOIN public.users u ON u.id = l.assigned_to WHERE l.org_id = $1';
     let countIdx = 2;
 
-    if (!isAdmin) {
-      countQuery += ` AND (l.assigned_to = $${countIdx} OR l.owner_id = $${countIdx} OR l.user_id = $${countIdx} OR l.created_by = $${countIdx}
-        ${hasUniboxAccess ? " OR (l.source = 'Instantly' AND EXISTS (SELECT 1 FROM instantly_integrations ii WHERE ii.org_id = l.org_id AND ii.auto_add_leads = true))" : ""}
-      )`;
+    if (!isAdmin && !hasUniboxAccess) {
+      countQuery += ` AND NOT (l.source = 'Instantly' AND l.responsible_person IS NULL)`;
+      countQuery += ` AND (l.assigned_to = $${countIdx} OR l.owner_id = $${countIdx} OR l.user_id = $${countIdx} OR l.created_by = $${countIdx} OR l.responsible_person = $${countIdx})`;
       countParams.push(req.user.id);
       countIdx++;
     }
@@ -564,9 +568,9 @@ const getAll = async (req, res, next) => {
       FROM public.leads l LEFT JOIN public.companies co ON co.id = l.company_id LEFT JOIN public.users u ON u.id = l.assigned_to
       WHERE l.org_id = $1`;
     let scIdx = 2;
-    if (!isAdmin) {
-      scQuery += ` AND (l.assigned_to = $${scIdx} OR l.owner_id = $${scIdx} OR l.user_id = $${scIdx} OR l.created_by = $${scIdx}
-        ${hasUniboxAccess ? " OR (l.source = 'Instantly' AND EXISTS (SELECT 1 FROM instantly_integrations ii WHERE ii.org_id = l.org_id AND ii.auto_add_leads = true))" : ""})`;
+    if (!isAdmin && !hasUniboxAccess) {
+      scQuery += ` AND NOT (l.source = 'Instantly' AND l.responsible_person IS NULL)`;
+      scQuery += ` AND (l.assigned_to = $${scIdx} OR l.owner_id = $${scIdx} OR l.user_id = $${scIdx} OR l.created_by = $${scIdx} OR l.responsible_person = $${scIdx})`;
       scParams.push(req.user.id); scIdx++;
     }
     if (workspaceId) { scQuery += ` AND l.workspace_id = $${scIdx}`; scParams.push(workspaceId); scIdx++; }
@@ -643,16 +647,22 @@ const getById = async (req, res, next) => {
     try {
       result = await db.query(
         `SELECT l.*,
-                c.id as contact_id, c.first_name as contact_first_name, c.last_name as contact_last_name, c.email as contact_email, c.phone as contact_phone, 
+                c.id as contact_id, c.first_name as contact_first_name, c.last_name as contact_last_name, c.email as contact_email, c.phone as contact_phone,
                 co.id as company_id, co.name as linked_company_name, co.email as linked_company_email, co.phone as linked_company_phone,
                 w.name as workspace_name,
                 u.full_name as responsible_person_name,
-                u.avatar_url as responsible_person_avatar
+                u.avatar_url as responsible_person_avatar,
+                ua.full_name as assigned_to_name,
+                ua.avatar_url as assigned_to_avatar,
+                uc.full_name as created_by_name,
+                uc.avatar_url as created_by_avatar
          FROM public.leads l
          LEFT JOIN public.contacts c ON c.id = l.contact_id
          LEFT JOIN public.companies co ON co.id = l.company_id
          LEFT JOIN public.workgroups w ON w.id = l.workspace_id
-         LEFT JOIN public.users u ON u.id = l.assigned_to
+         LEFT JOIN public.users u ON u.id = l.responsible_person
+         LEFT JOIN public.users ua ON ua.id = l.assigned_to
+         LEFT JOIN public.users uc ON uc.id = COALESCE(l.created_by, l.user_id)
          WHERE l.id = $1 AND l.org_id = $2`,
         [id, req.user.orgId]
       );
@@ -1202,15 +1212,22 @@ const bulkRemove = async (req, res, next) => {
 
 const getStats = async (req, res, next) => {
   try {
-    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+    const isAdmin = req.user.role === 'super_admin' || req.user.role === 'admin';
     const userId = req.user.id;
     const orgId = req.user.orgId;
+
+    let hasUniboxAccess = false;
+    if (!isAdmin) {
+      const uc = await db.query(`SELECT has_unibox_access FROM users WHERE id = $1`, [userId]);
+      hasUniboxAccess = uc.rows[0]?.has_unibox_access || false;
+    }
 
     let filter = 'WHERE org_id = $1';
     const params = [orgId];
 
-    if (!isAdmin) {
-      filter += ` AND (assigned_to = $2 OR owner_id = $2 OR user_id = $2 OR created_by = $2)`;
+    if (!isAdmin && !hasUniboxAccess) {
+      filter += ` AND NOT (source = 'Instantly' AND responsible_person IS NULL)`;
+      filter += ` AND (assigned_to = $2 OR owner_id = $2 OR user_id = $2 OR created_by = $2 OR responsible_person = $2)`;
       params.push(userId);
     }
 
@@ -1283,15 +1300,15 @@ const convertToDeal = async (req, res, next) => {
          decision_maker, service_interested, interaction_notes,
          first_message, last_touch, workspace_id, source_info,
          phone_type, email_type, website_type, customer_type,
-         last_contacted_date, next_follow_up_date, assigned_to, campaign_id, campaign_name, custom_fields,
+         last_contacted_date, next_follow_up_date, assigned_to, responsible_person, campaign_id, campaign_name, custom_fields,
          pipeline, external_source_id, contact_person, industry
        )
        VALUES (
          $1, $2, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
          $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26,
          $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38,
-         $39, $40, $41, $42, $43, $44, $45,
-         $46, $47, $48, $49
+         $39, $40, $41, $42, $43, $44, $45, $46,
+         $47, $48, $49, $50
        )
        RETURNING *`,
       [
@@ -1336,7 +1353,8 @@ const convertToDeal = async (req, res, next) => {
         lead.customer_type,
         lead.last_contacted_date,
         lead.next_follow_up_date,
-        validateUuid(lead.responsible_person || lead.assigned_to),
+        validateUuid(lead.assigned_to),
+        validateUuid(lead.responsible_person),
         lead.campaign_id,
         lead.campaign_name,
         JSON.stringify(lead.custom_fields || {}),

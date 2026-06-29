@@ -590,7 +590,7 @@ export default function LeadDetailPage() {
     updateLead.mutate(sanitizePayload({
       id: lead.id,
       ...formattedChanges,
-      responsible_person: formattedChanges.assigned_to || undefined,
+      responsible_person: formattedChanges.responsible_person || undefined,
       customFields: customFieldsObj
     }), {
       onSuccess: async (updatedLead) => {
@@ -1772,14 +1772,27 @@ export default function LeadDetailPage() {
                         {renderDroppedFields("qualification-opportunity", false, "fixed-qualification-opportunity-expected_close_date")}
 
                         <DroppableField id="fixed-qualification-opportunity-responsible_person" editing={editing}>
-                          <Field
-                            label="Responsible Person"
-                            value={form.responsible_person as string}
-                            onChange={(v) => set("responsible_person", v)}
-                            editing={editing}
-                            icon={<User className="h-4 w-4" />}
-                            entityId={id}
-                          />
+                          <div className="space-y-1">
+                            <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                              <User className="h-3.5 w-3.5" />
+                              Campaign Responsible
+                            </label>
+                            <div className="flex items-center gap-2 py-1">
+                              {(lead as any)?.responsible_person_name ? (
+                                <>
+                                  <Avatar className="h-6 w-6 shrink-0">
+                                    <AvatarImage src={(lead as any)?.responsible_person_avatar || undefined} />
+                                    <AvatarFallback className="text-[10px] bg-primary/10 text-primary font-bold">
+                                      {(lead as any).responsible_person_name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <span className="text-sm font-medium text-foreground">{(lead as any).responsible_person_name}</span>
+                                </>
+                              ) : (
+                                <span className="text-sm text-muted-foreground italic">—</span>
+                              )}
+                            </div>
+                          </div>
                         </DroppableField>
                         {renderDroppedFields("qualification-opportunity", false, "fixed-qualification-opportunity-responsible_person")}
                       </div>

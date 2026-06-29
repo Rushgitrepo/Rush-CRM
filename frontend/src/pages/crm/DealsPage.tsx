@@ -94,6 +94,8 @@ type DealRow = {
   projectType?: string;
   responsiblePersonName?: string;
   responsiblePersonAvatar?: string;
+  assignedToName?: string;
+  assignedToAvatar?: string;
   priority?: string;
   probability?: number;
   expectedCloseDate?: string;
@@ -203,7 +205,7 @@ export default function DealsPage() {
     endDate: endDate || undefined,
     priority: priorityFilter !== "all" ? priorityFilter : undefined,
     source: sourceFilter !== "all" ? sourceFilter : undefined,
-    assignedTo: assignedToFilter || undefined,
+    assignedTo: assignedToFilter && assignedToFilter !== "all" ? assignedToFilter : undefined,
     tags: tagsFilter || undefined,
     campaign: campaignFilter || undefined,
     minValue: minValue || undefined,
@@ -340,6 +342,8 @@ export default function DealsPage() {
           d.responsible_person_name || d.responsiblePersonName,
         responsiblePersonAvatar:
           d.responsible_person_avatar || d.responsiblePersonAvatar,
+        assignedToName: d.assigned_to_name || d.assignedToName,
+        assignedToAvatar: d.assigned_to_avatar || d.assignedToAvatar,
         campaignName: d.campaign_name || d.campaignName || d.campaign || "",
         campaignId: d.campaign_id || d.campaignId || "",
         priority: d.priority || "medium",
@@ -400,7 +404,8 @@ export default function DealsPage() {
     { key: "value", label: "Value" },
     { key: "stage", label: "Stage" },
     { key: "status", label: "Status" },
-    { key: "responsible", label: "Responsible" },
+    { key: "responsible", label: "Campaign Responsible" },
+    { key: "assignedTo", label: "Assigned To" },
     { key: "createdAt", label: "Created" },
     { key: "priority", label: "Priority" },
     { key: "probability", label: "Probability" },
@@ -474,7 +479,7 @@ export default function DealsPage() {
       header: "Deal",
       sortable: true,
       render: (deal) => (
-        <div className="space-y-1 max-w-[250px]">
+        <div className="space-y-1 w-[220px] min-w-[180px] max-w-[280px]">
           <div className="flex items-center gap-2 overflow-hidden">
             <span className="font-semibold truncate">{deal.contact_person}</span>
             <Badge
@@ -571,7 +576,7 @@ export default function DealsPage() {
     },
     {
       key: "responsible",
-      header: "Responsible",
+      header: "Campaign Responsible",
       render: (deal) => (
         <div className="flex items-center gap-2">
           {deal.responsiblePersonName ? (
@@ -596,6 +601,30 @@ export default function DealsPage() {
               <span className="text-xs font-medium truncate max-w-[100px]">
                 {deal.responsiblePersonName}
               </span>
+            </>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "assignedTo",
+      header: "Assigned To",
+      render: (deal) => (
+        <div className="flex items-center gap-2">
+          {deal.assignedToName ? (
+            <>
+              <div className="h-6 w-6 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center overflow-hidden border border-border/50 shrink-0">
+                {deal.assignedToAvatar ? (
+                  <img src={deal.assignedToAvatar} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <span className="text-[10px] font-bold text-blue-600">
+                    {deal.assignedToName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)}
+                  </span>
+                )}
+              </div>
+              <span className="text-xs font-medium truncate max-w-[100px]">{deal.assignedToName}</span>
             </>
           ) : (
             <span className="text-xs text-muted-foreground">—</span>

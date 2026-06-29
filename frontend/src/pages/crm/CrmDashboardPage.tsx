@@ -105,14 +105,14 @@ export default function CrmDashboardPage() {
       href: "/crm/customers",
       sub: "Converted customers",
     },
-    {
-      title: "Sales",
-      value: "View",
-      icon: DollarSign,
-      color: "bg-orange-500",
-      href: "/crm/sales",
-      sub: "Orders & revenue",
-    },
+    // {
+    //   title: "Sales",
+    //   value: "View",
+    //   icon: DollarSign,
+    //   color: "bg-orange-500",
+    //   href: "/crm/sales",
+    //   sub: "Orders & revenue",
+    // },
   ];
 
   return (

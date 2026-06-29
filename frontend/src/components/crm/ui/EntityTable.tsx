@@ -268,7 +268,7 @@ export function EntityTable<T extends { id?: string | number }>({
                       </TableCell>
                     )}
                     {columns.map((col) => (
-                      <TableCell key={String(col.key)} className={cn("py-4", col.align === "right" && "text-right")}>{col.render ? col.render(row) : String((row as any)[col.key] ?? "—")}</TableCell>
+                      <TableCell key={String(col.key)} className={cn("py-4 overflow-hidden", col.className, col.align === "right" && "text-right")}>{col.render ? col.render(row) : String((row as any)[col.key] ?? "—")}</TableCell>
                     ))}
                   </TableRow>
                 );

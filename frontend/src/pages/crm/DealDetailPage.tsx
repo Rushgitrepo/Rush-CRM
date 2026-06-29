@@ -612,7 +612,6 @@ export default function DealDetailPage() {
     updateDeal.mutate(sanitizePayload({
       id: deal.id,
       ...formattedChanges,
-      responsible_person: formattedChanges.assigned_to || undefined,
       customFields: customFieldsObj
     }), {
       onSuccess: async (updatedDeal) => {

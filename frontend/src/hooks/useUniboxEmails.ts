@@ -330,6 +330,17 @@ export function useUniboxEmails(filters: {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const bulkConvertToLeads = useMutation({
+    mutationFn: async () => api.post('/unibox/emails/bulk-convert-to-leads', {}),
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["unibox-emails"] });
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      queryClient.invalidateQueries({ queryKey: ["unibox-stats"] });
+      toast.success(data.message || "Emails converted to leads");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   const syncInstantly = useMutation({
     mutationFn: async () => {
       return api.post('/integrations/instantly', { action: 'sync' });
@@ -365,6 +376,7 @@ export function useUniboxEmails(filters: {
     markAsRead,
     toggleArchive,
     convertToLead,
+    bulkConvertToLeads,
     syncInstantly,
     quickSync,
   };
@@ -538,6 +550,7 @@ export function useUniboxCampaignFolders() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["unibox-campaign-folders"] });
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
       toast.success("Folder assignment updated");
     },
     onError: (err: Error) => toast.error(err.message),

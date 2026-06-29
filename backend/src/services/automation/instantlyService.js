@@ -321,8 +321,22 @@ class InstantlyService {
    */
   async _ensureLeadExists(orgId, leadData) {
     try {
-      const { email, first_name, last_name, company, phone, source = 'Instantly', campaign_id, campaign_name } = leadData;
-      const triggeredByUserId = leadData.created_by || null;
+      const { email, first_name, last_name, company, phone, campaign_id, campaign_name } = leadData;
+      const source = leadData.source || 'Instantly';
+
+      // Find the user who has this campaign assigned in unibox (for responsible_person)
+      let assignedUserId = null;
+      if (campaign_id) {
+        const folderUserResult = await db.query(
+          `SELECT a.user_id
+           FROM unibox_campaign_folder_assignments a
+           JOIN unibox_campaign_folder_items fi ON fi.folder_id = a.folder_id
+           WHERE a.org_id = $1 AND fi.campaign_id::text = $2
+           LIMIT 1`,
+          [orgId, String(campaign_id)]
+        );
+        assignedUserId = folderUserResult.rows[0]?.user_id || null;
+      }
 
       // If we are missing critical info, try to enrich from Instantly API
       let enrichedFirstName = first_name;
@@ -436,31 +450,31 @@ class InstantlyService {
         console.log(`[Instantly Service] Auto-adding new lead: ${email}`);
         await db.query(
           `INSERT INTO leads (
-            org_id, organization_id, user_id, created_by, title, name, first_name, last_name, email, phone, company, company_name,
+            org_id, organization_id, title, name, first_name, last_name, email, phone, company, company_name,
             company_phone, company_email, designation, website, address, source, status, stage,
-            interaction_notes, description, custom_fields, campaign_id, campaign_name, contact_person, created_at, updated_at
-          ) VALUES ($1, $1, $20, $20, $2, $3, $4, $5, $6, $7, $8, $8, $7, $6, $9, $10, $11, $12, $13, $14, $15, $15, $16, $17, $18, $3, $19, now())`,
+            interaction_notes, description, custom_fields, campaign_id, campaign_name, contact_person, responsible_person, created_at, updated_at
+          ) VALUES ($1, $1, $2, $3, $4, $5, $6, $7, $8, $8, $7, $6, $9, $10, $11, $12, $13, $14, $15, $15, $16, $17, $18, $3, $19, $20, now())`,
           [
-            orgId,
-            cleanLeadTitle,
-            fullName,
-            enrichedFirstName || null,
-            enrichedLastName || null,
-            email,
-            enrichedPhone || null,
-            enrichedCompany || null,
-            designation || null,
-            enrichedWebsite || null,
-            enrichedAddress || null,
-            source,
-            'Interested',
-            stageKey,
-            interactionNotes,
-            JSON.stringify(customFields),
-            campaign_id || null,
-            campaign_name || null,
-            createdDate,
-            triggeredByUserId || null,  // $20 — user_id & created_by
+            orgId,                    // $1
+            cleanLeadTitle,           // $2
+            fullName,                 // $3
+            enrichedFirstName || null, // $4
+            enrichedLastName || null,  // $5
+            email,                    // $6
+            enrichedPhone || null,    // $7
+            enrichedCompany || null,  // $8
+            designation || null,      // $9
+            enrichedWebsite || null,  // $10
+            enrichedAddress || null,  // $11
+            source,                   // $12 ('Instantly')
+            'Interested',             // $13
+            stageKey,                 // $14
+            interactionNotes,         // $15
+            JSON.stringify(customFields), // $16
+            campaign_id || null,      // $17
+            campaign_name || null,    // $18
+            assignedUserId || null,   // $19 → responsible_person (uuid)
+            createdDate,              // $20 → created_at
           ]
         );
       } else {
@@ -491,6 +505,8 @@ class InstantlyService {
             interaction_notes = COALESCE(NULLIF(interaction_notes, ''), $8),
             description = COALESCE(NULLIF(description, ''), $8),
             custom_fields = $9,
+            responsible_person = COALESCE(responsible_person, $12),
+            source = COALESCE(NULLIF(source, ''), 'Instantly'),
             updated_at = now()
            WHERE id = $11`,
           [
@@ -504,7 +520,8 @@ class InstantlyService {
             interactionNotes || null,
             JSON.stringify(mergedCustomFields),
             contactPersonFallback,
-            existingLead.id
+            existingLead.id,
+            assignedUserId || null,   // $12 → responsible_person if not already set
           ]
         );
       }
@@ -1391,6 +1408,11 @@ class InstantlyService {
                 sender_name: senderName,
               }).catch(() => {});
             }
+
+            // Auto-convert for folder-assigned users who have auto_convert_leads ON
+            if (item.campaign_id) {
+              this._autoConvertForCampaignUsers(orgId, result.rows[0], item.campaign_id).catch(() => {});
+            }
           }
           existingSet.add(externalId);
         } catch (insertErr) {
@@ -1442,6 +1464,79 @@ class InstantlyService {
       tick();
       setInterval(tick, intervalMs);
     }, 10000);
+  }
+
+  // Auto-convert a new email to lead for any folder-assigned user with auto_convert_leads ON
+  async _autoConvertForCampaignUsers(orgId, email, campaignId) {
+    try {
+      const usersResult = await db.query(
+        `SELECT DISTINCT a.user_id
+         FROM unibox_campaign_folder_assignments a
+         INNER JOIN unibox_campaign_folder_items fi ON fi.folder_id = a.folder_id
+         WHERE a.org_id = $1 AND fi.campaign_id = $2 AND a.auto_convert_leads = true`,
+        [orgId, campaignId]
+      );
+
+      if (usersResult.rows.length === 0) return;
+
+      const stageKey = 'first_engagement';
+      const stageCheck = await db.query(
+        "SELECT id FROM pipeline_stages WHERE org_id = $1 AND pipeline = 'leads' AND stage_key = $2",
+        [orgId, stageKey]
+      );
+      if (stageCheck.rows.length === 0) {
+        await db.query(
+          `INSERT INTO pipeline_stages (org_id, pipeline, stage_key, stage_label, sort_order, color, is_active)
+           VALUES ($1, 'leads', $2, 'First Engagement', 1, '#10b981', true)`,
+          [orgId, stageKey]
+        );
+      }
+
+      const metadata = typeof email.metadata === 'string' ? JSON.parse(email.metadata) : (email.metadata || {});
+      const item = metadata.item || {};
+      const cleanTitle = (email.subject || `Email from ${email.sender_email}`)
+        .replace(/^((re|fw|fwd)\s*:\s*)+/i, '').trim();
+      const fullName = item.first_name && item.last_name
+        ? `${item.first_name} ${item.last_name}`.trim()
+        : email.sender_name || 'Prospect';
+      const createdDate = email.received_at ? new Date(email.received_at) : new Date();
+
+      for (const { user_id } of usersResult.rows) {
+        try {
+          const leadResult = await db.query(
+            `INSERT INTO leads (
+              org_id, title, name, email, company, company_name, company_email,
+              source, status, stage, interaction_notes, description,
+              campaign_id, campaign_name, created_by, responsible_person, created_at, updated_at
+            ) VALUES ($1,$2,$3,$4,$5,$5,$4,'Instantly','Interested',$6,$7,$7,$8,$9,$10,$11,$12,NOW())
+            RETURNING id`,
+            [
+              orgId,          // $1
+              cleanTitle,     // $2
+              fullName,       // $3
+              email.sender_email, // $4
+              item.company_name || null, // $5
+              stageKey,       // $6
+              `Email received via Unibox:\nSubject: ${email.subject || ''}\nFrom: ${email.sender_name || ''} <${email.sender_email}>`, // $7
+              campaignId,     // $8
+              item.campaign_name || metadata.campaign_name || null, // $9
+              null,           // $10 → created_by = null (Instantly)
+              user_id,        // $11 → responsible_person (uuid)
+              createdDate,    // $12
+            ]
+          );
+          await db.query(
+            `UPDATE unibox_emails SET status = 'Converted', converted_to_lead_id = $1, updated_at = NOW()
+             WHERE id = $2 AND org_id = $3`,
+            [leadResult.rows[0].id, email.id, orgId]
+          );
+        } catch (e) {
+          console.error(`[AutoConvert] Failed for user ${user_id}:`, e.message);
+        }
+      }
+    } catch (err) {
+      console.error('[AutoConvert] Error:', err.message);
+    }
   }
 }
 

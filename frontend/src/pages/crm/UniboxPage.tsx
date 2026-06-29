@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { useUniboxEmails, useUniboxStats, UNIBOX_STATUSES, type UniboxEmail, useUniboxLeadInfo, useUniboxCampaigns, useUniboxEmail } from "@/hooks/useUniboxEmails";
 import { useUniboxPermission } from "@/hooks/useUniboxPermission";
+import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { ConvertToLeadDialog } from "@/components/unibox/ConvertToLeadDialog";
 import { UniboxPermissionsManager } from "@/components/unibox/UniboxPermissionsManager";
@@ -48,6 +50,7 @@ import {
   ExternalLink,
   Info,
   FolderKanban,
+  Zap,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -73,7 +76,8 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 
 export default function UniboxPage() {
-  const { hasPermission, isOwner, isRestricted, assignedFolderCount, isLoading: permLoading } = useUniboxPermission();
+  const { hasPermission, isOwner, isRestricted, assignedFolderCount, autoConvertLeads, isLoading: permLoading } = useUniboxPermission();
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const statusFilter = searchParams.get("status") || "All";
@@ -90,6 +94,22 @@ export default function UniboxPage() {
   const [convertDialogOpen, setConvertDialogOpen] = useState(false);
   const [showLeadInfo, setShowLeadInfo] = useState(false);
   const ITEMS_PER_PAGE = 200;
+
+  const toggleAutoConvert = useMutation({
+    mutationFn: (enabled: boolean) =>
+      api.patch("/unibox/auto-convert", { auto_convert_leads: enabled }),
+    onSuccess: (_data, enabled) => {
+      queryClient.invalidateQueries({ queryKey: ["unibox-permission"] });
+      queryClient.invalidateQueries({ queryKey: ["unibox-emails"] });
+      if (enabled) {
+        queryClient.invalidateQueries({ queryKey: ["leads"] });
+        toast.success("Auto-convert enabled — existing emails converted to leads");
+      } else {
+        toast.success("Auto-convert disabled");
+      }
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
 
   // Sync searchVal with URL search params (e.g. on navigation)
   useEffect(() => {
@@ -154,6 +174,7 @@ export default function UniboxPage() {
     markAsRead,
     toggleArchive,
     convertToLead,
+    bulkConvertToLeads,
     syncInstantly,
     quickSync,
   } = uniboxData;
@@ -1028,11 +1049,13 @@ export default function UniboxPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-foreground">Unibox Mailbox</h1>
-              <p className="text-muted-foreground">Manage emails from Instantly.ai and convert to leads</p>
+              <p className="text-muted-foreground">
+                {isRestricted ? "Your assigned campaign emails" : "Manage emails from Instantly.ai and convert to leads"}
+              </p>
             </div>
-            <div className="flex items-center gap-6">
-              {settings && (
-                <div className="flex items-center gap-2 mr-2">
+            <div className="flex items-center gap-4">
+              {!isRestricted && settings && (
+                <div className="flex items-center gap-2">
                   <Switch
                     id="auto-add-leads-guest"
                     checked={settings.auto_add_leads}
@@ -1043,15 +1066,40 @@ export default function UniboxPage() {
                   </Label>
                 </div>
               )}
-              <Button
-                variant="outline"
-                onClick={() => syncInstantly.mutate()}
-                disabled={syncInstantly.isPending}
-                className="gap-2"
-              >
-                <TrendingUp className={cn("h-4 w-4", syncInstantly.isPending && "animate-spin")} />
-                {syncInstantly.isPending ? "Backfilling..." : "Backfill Sync"}
-              </Button>
+              {!isRestricted && (
+                <Button
+                  variant="outline"
+                  onClick={() => syncInstantly.mutate()}
+                  disabled={syncInstantly.isPending}
+                  className="gap-2"
+                >
+                  <TrendingUp className={cn("h-4 w-4", syncInstantly.isPending && "animate-spin")} />
+                  {syncInstantly.isPending ? "Backfilling..." : "Backfill Sync"}
+                </Button>
+              )}
+              {isRestricted && (
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="auto-convert-leads"
+                      checked={autoConvertLeads}
+                      disabled={toggleAutoConvert.isPending}
+                      onCheckedChange={(checked) => toggleAutoConvert.mutate(checked)}
+                    />
+                    <Label htmlFor="auto-convert-leads" className="text-sm font-medium cursor-pointer">
+                      Auto Convert
+                    </Label>
+                  </div>
+                  <Button
+                    onClick={() => bulkConvertToLeads.mutate()}
+                    disabled={bulkConvertToLeads.isPending}
+                    className="gap-2"
+                  >
+                    <Zap className={cn("h-4 w-4", bulkConvertToLeads.isPending && "animate-spin")} />
+                    {bulkConvertToLeads.isPending ? "Converting..." : "Convert All to Leads"}
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
           {mailboxContent}

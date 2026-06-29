@@ -1,5 +1,6 @@
 const db = require('../../config/database');
 const notificationService = require('../../services/notificationService');
+const realtimeService = require('../../services/realtimeService');
 
 const parseInstantlyDate = (val) => {
   if (!val) return null;
@@ -608,10 +609,10 @@ const convertToLead = async (req, res, next) => {
     // Create the lead with every single field mapped!
     const leadResult = await db.query(
       `INSERT INTO leads (
-        org_id, title, name, first_name, last_name, email, phone, company, company_name, 
-        company_phone, company_email, designation, website, address, source, status, stage, 
-        interaction_notes, description, custom_fields, campaign_id, campaign_name, created_by, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8, $7, $6, $9, $10, $11, $12, $13, $14, $15, $15, $16, $17, $18, $19, $20, NOW()) 
+        org_id, title, name, first_name, last_name, email, phone, company, company_name,
+        company_phone, company_email, designation, website, address, source, status, stage,
+        interaction_notes, description, custom_fields, campaign_id, campaign_name, created_by, responsible_person, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8, $7, $6, $9, $10, $11, $12, $13, $14, $15, $15, $16, $17, $18, $19, $21, $20, NOW())
       RETURNING *`,
       [
         req.user.orgId,
@@ -632,8 +633,9 @@ const convertToLead = async (req, res, next) => {
         JSON.stringify(mergedPayload),
         campaignId || null,
         campaignName || null,
-        req.user.id,
-        createdDate
+        null,           // created_by = null (Instantly is the source)
+        createdDate,
+        req.user.id     // responsible_person = converting user
       ]
     );
 
@@ -678,23 +680,17 @@ const checkPermission = async (req, res, next) => {
     const hasFullAccess = isSuperAdmin || user.has_unibox_access === true;
 
     const assignedFoldersResult = await db.query(
-      `SELECT COUNT(DISTINCT folder_id)::int AS count
+      `SELECT COUNT(DISTINCT folder_id)::int AS count,
+              BOOL_OR(auto_convert_leads) AS auto_convert_leads
        FROM unibox_campaign_folder_assignments
        WHERE org_id = $1 AND user_id = $2`,
       [req.user.orgId, req.user.id]
     );
 
     const assignedFolderCount = assignedFoldersResult.rows[0]?.count || 0;
+    const autoConvertLeads = assignedFoldersResult.rows[0]?.auto_convert_leads ?? false;
     const hasFolderOnlyAccess = !hasFullAccess && assignedFolderCount > 0;
     const hasPermission = hasFullAccess || hasFolderOnlyAccess;
-
-    // console.log('Permission check result:', {
-    //   isSuperAdmin,
-    //   hasFullAccess,
-    //   hasFolderOnlyAccess,
-    //   role: user.role,
-    //   has_unibox_access: user.has_unibox_access,
-    // });
 
     const result = {
       hasPermission,
@@ -703,6 +699,7 @@ const checkPermission = async (req, res, next) => {
       canManageFolders: hasFullAccess,
       isRestricted: hasFolderOnlyAccess,
       assignedFolderCount,
+      autoConvertLeads,
     };
 
     // console.log('Sending response:', result);
@@ -781,6 +778,8 @@ const grantPermission = async (req, res, next) => {
       [user_id, req.user.orgId]
     );
 
+    realtimeService.emitUniboxPermissionChanged(user_id);
+
     res.json({
       message: `Unibox access granted to ${userCheck.rows[0].full_name}`
     });
@@ -812,6 +811,8 @@ const revokePermission = async (req, res, next) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
+
+    realtimeService.emitUniboxPermissionChanged(user_id);
 
     res.json({ message: 'Unibox access revoked successfully' });
   } catch (err) {
@@ -1486,25 +1487,86 @@ const assignUserToFolder = async (req, res, next) => {
       }
     }
 
-    // Get previously assigned users to determine newly assigned ones
+    // Get previously assigned users + their auto_convert setting
     const previouslyAssigned = await db.query(
-      'SELECT user_id FROM unibox_campaign_folder_assignments WHERE folder_id = $1 AND org_id = $2',
+      'SELECT user_id, auto_convert_leads FROM unibox_campaign_folder_assignments WHERE folder_id = $1 AND org_id = $2',
       [id, orgId]
     );
     const previousUserIds = new Set(previouslyAssigned.rows.map((r) => r.user_id));
+    const previousAutoConvert = new Map(previouslyAssigned.rows.map((r) => [r.user_id, r.auto_convert_leads]));
+
+    // Find users being removed and newly added
+    const removedUserIds = [...previousUserIds].filter((uid) => !uniqueUserIds.includes(uid));
+    const newlyAddedUsers = uniqueUserIds.filter((uid) => !previousUserIds.has(uid));
+    const transferToUserId = newlyAddedUsers.length > 0 ? newlyAddedUsers[0] : (uniqueUserIds[0] || null);
+
+    // Get campaign IDs for this folder (needed for orphan adoption)
+    const campaignIdsResult = await db.query(
+      'SELECT campaign_id FROM unibox_campaign_folder_items WHERE folder_id = $1 AND org_id = $2',
+      [id, orgId]
+    );
+    const campaignIds = campaignIdsResult.rows.map((r) => String(r.campaign_id));
 
     await db.query('BEGIN');
     try {
+      // Case 1: explicit removal with a new user — transfer removed user's leads to new user
+      // Only update responsible_person, never touch created_by (that stays as original creator or null for Instantly)
+      if (removedUserIds.length > 0 && transferToUserId) {
+        for (const removedUserId of removedUserIds) {
+          await db.query(
+            `UPDATE leads
+             SET responsible_person = $1::uuid,
+                 updated_at = NOW()
+             WHERE org_id = $2
+               AND responsible_person = $3::uuid`,
+            [transferToUserId, orgId, removedUserId]
+          );
+        }
+      }
+
+      // Case 3: None selected — clear responsible_person on all campaign leads
+      if (removedUserIds.length > 0 && uniqueUserIds.length === 0 && campaignIds.length > 0) {
+        const clearResult = await db.query(
+          `UPDATE leads SET responsible_person = NULL, updated_at = NOW()
+           WHERE org_id = $1 AND campaign_id::text = ANY($2::text[])`,
+          [orgId, campaignIds]
+        );
+        console.log(`[assignUserToFolder] None selected: cleared responsible_person for ${clearResult.rowCount} leads`);
+      }
+
+      // Case 2: new user added — adopt campaign leads not owned by any current folder user
+      // Handles UI toggle order (remove then add in separate calls)
+      if (newlyAddedUsers.length > 0 && campaignIds.length > 0) {
+        for (const newUserId of newlyAddedUsers) {
+          const adoptResult = await db.query(
+            `UPDATE leads
+             SET responsible_person = $1::uuid,
+                 updated_at = NOW()
+             WHERE org_id = $2
+               AND campaign_id::text = ANY($3::text[])
+               AND (
+                 responsible_person IS NULL
+                 OR responsible_person::text <> ALL($4::text[])
+               )`,
+            [newUserId, orgId, campaignIds, uniqueUserIds]
+          );
+          console.log(`[assignUserToFolder] Orphan adoption: ${adoptResult.rowCount} leads → ${newUserId}`);
+        }
+      }
+
+      console.log('[assignUserToFolder] Done. removed:', removedUserIds, 'added:', newlyAddedUsers, 'campaigns:', campaignIds);
+
       await db.query(
         'DELETE FROM unibox_campaign_folder_assignments WHERE folder_id = $1 AND org_id = $2',
         [id, orgId]
       );
 
       for (const userId of uniqueUserIds) {
+        const autoConvert = previousAutoConvert.get(userId) ?? false;
         await db.query(
-          `INSERT INTO unibox_campaign_folder_assignments (org_id, folder_id, user_id)
-           VALUES ($1, $2, $3)`,
-          [orgId, id, userId]
+          `INSERT INTO unibox_campaign_folder_assignments (org_id, folder_id, user_id, auto_convert_leads)
+           VALUES ($1, $2, $3, $4)`,
+          [orgId, id, userId, autoConvert]
         );
       }
 
@@ -1517,6 +1579,12 @@ const assignUserToFolder = async (req, res, next) => {
     } catch (txErr) {
       await db.query('ROLLBACK');
       throw txErr;
+    }
+
+    // Emit real-time permission change to all affected users
+    const allAffectedIds = [...new Set([...removedUserIds, ...uniqueUserIds])];
+    for (const uid of allAffectedIds) {
+      realtimeService.emitUniboxPermissionChanged(uid);
     }
 
     // Notify newly assigned users (skip users who were already assigned)
@@ -1582,6 +1650,223 @@ const quickSync = async (req, res, next) => {
   }
 };
 
+const bulkConvertToLeads = async (req, res, next) => {
+  try {
+    const orgId = req.user.orgId;
+    const userId = req.user.id;
+
+    const allowedCampaignIds = await getAllowedCampaignIds(userId, orgId);
+
+    let whereClause = `WHERE org_id = $1 AND is_archived = false AND converted_to_lead_id IS NULL`;
+    const params = [orgId];
+    let paramIndex = 2;
+
+    const accessFilter = appendCampaignAccessFilter(allowedCampaignIds, params, paramIndex);
+    whereClause += accessFilter.clause;
+
+    const emailsResult = await db.query(
+      `SELECT * FROM unibox_emails ${whereClause} ORDER BY received_at DESC LIMIT 500`,
+      params
+    );
+
+    const emails = emailsResult.rows;
+    if (emails.length === 0) {
+      return res.json({ message: 'No unconverted emails found', convertedCount: 0 });
+    }
+
+    const stageKey = 'first_engagement';
+    const stageCheck = await db.query(
+      "SELECT id FROM pipeline_stages WHERE org_id = $1 AND pipeline = 'leads' AND stage_key = $2",
+      [orgId, stageKey]
+    );
+    if (stageCheck.rows.length === 0) {
+      await db.query(
+        `INSERT INTO pipeline_stages (org_id, pipeline, stage_key, stage_label, sort_order, color, is_active)
+         VALUES ($1, 'leads', $2, 'First Engagement', 1, '#10b981', true)`,
+        [orgId, stageKey]
+      );
+    }
+
+    let convertedCount = 0;
+    const convertedIds = [];
+
+    for (const email of emails) {
+      try {
+        const metadata = typeof email.metadata === 'string' ? JSON.parse(email.metadata) : (email.metadata || {});
+        const item = metadata.item || {};
+        const payload = item.payload || metadata.payload || {};
+
+        const fullName = item.first_name && item.last_name
+          ? `${item.first_name} ${item.last_name}`.trim()
+          : email.sender_name || 'Prospect';
+
+        const cleanLeadTitle = (email.subject || `Email from ${email.sender_email}`)
+          .replace(/^((re|fw|fwd)\s*:\s*)+/i, '')
+          .trim();
+
+        const enrichedCompany = item.company_name || payload.companyName || null;
+        const enrichedPhone = item.phone || payload.phone || payload.Myphone || null;
+        const enrichedWebsite = item.website || payload.website || null;
+        const enrichedAddress = payload.location || payload.Location || null;
+        const campaignId = item.campaign_id || metadata.campaign_id || null;
+        const campaignName = item.campaign_name || metadata.campaign_name || null;
+        const createdDate = email.received_at ? (new Date(email.received_at) || new Date()) : new Date();
+        const designation = extractDesignationFromEmail(email.body_text);
+
+        const leadResult = await db.query(
+          `INSERT INTO leads (
+            org_id, title, name, email, phone, company, company_name, company_phone, company_email,
+            designation, website, address, source, status, stage,
+            interaction_notes, description, campaign_id, campaign_name, created_by, responsible_person, created_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $6, $5, $4, $7, $8, $9, 'Instantly', 'Interested', $10,
+            $11, $11, $12, $13, $14, $15, $16, NOW())
+          RETURNING id`,
+          [
+            orgId,           // $1  uuid
+            cleanLeadTitle,  // $2
+            fullName,        // $3
+            email.sender_email, // $4
+            enrichedPhone,   // $5
+            enrichedCompany, // $6
+            designation,     // $7
+            enrichedWebsite, // $8
+            enrichedAddress, // $9
+            stageKey,        // $10
+            `Email received via Unibox:\nSubject: ${email.subject || ''}\nFrom: ${email.sender_name || ''} <${email.sender_email}>`, // $11
+            campaignId,      // $12
+            campaignName,    // $13
+            null,            // $14 → created_by = null (Instantly)
+            userId,          // $15 → responsible_person (uuid)
+            createdDate,     // $16
+          ]
+        );
+
+        const leadId = leadResult.rows[0].id;
+        await db.query(
+          `UPDATE unibox_emails SET status = 'Converted', converted_to_lead_id = $1, updated_at = now() WHERE id = $2 AND org_id = $3`,
+          [leadId, email.id, orgId]
+        );
+
+        convertedIds.push(leadId);
+        convertedCount++;
+      } catch (emailErr) {
+        console.error(`[bulkConvertToLeads] Failed for email ${email.id}:`, emailErr.message);
+      }
+    }
+
+    res.json({
+      message: `${convertedCount} email${convertedCount !== 1 ? 's' : ''} converted to leads`,
+      convertedCount,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Toggle auto_convert_leads for the current user's folder assignments
+const updateAutoConvert = async (req, res, next) => {
+  try {
+    const orgId = req.user.orgId;
+    const userId = req.user.id;
+    const { auto_convert_leads } = req.body;
+
+    if (typeof auto_convert_leads !== 'boolean') {
+      return res.status(400).json({ error: 'auto_convert_leads must be a boolean' });
+    }
+
+    const result = await db.query(
+      `UPDATE unibox_campaign_folder_assignments
+       SET auto_convert_leads = $1
+       WHERE org_id = $2 AND user_id = $3
+       RETURNING folder_id`,
+      [auto_convert_leads, orgId, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'No folder assignments found for this user' });
+    }
+
+    // If turning ON, auto-convert all existing unconverted emails in their campaigns
+    if (auto_convert_leads) {
+      const allowedCampaignIds = await getAllowedCampaignIds(userId, orgId);
+      if (allowedCampaignIds && allowedCampaignIds.length > 0) {
+        const stageKey = 'first_engagement';
+        const stageCheck = await db.query(
+          "SELECT id FROM pipeline_stages WHERE org_id = $1 AND pipeline = 'leads' AND stage_key = $2",
+          [orgId, stageKey]
+        );
+        if (stageCheck.rows.length === 0) {
+          await db.query(
+            `INSERT INTO pipeline_stages (org_id, pipeline, stage_key, stage_label, sort_order, color, is_active)
+             VALUES ($1, 'leads', $2, 'First Engagement', 1, '#10b981', true)`,
+            [orgId, stageKey]
+          );
+        }
+
+        const emailsResult = await db.query(
+          `SELECT * FROM unibox_emails
+           WHERE org_id = $1 AND is_archived = false AND converted_to_lead_id IS NULL
+           AND ${CAMPAIGN_ID_SQL} = ANY($2)
+           ORDER BY received_at DESC LIMIT 500`,
+          [orgId, allowedCampaignIds]
+        );
+
+        for (const email of emailsResult.rows) {
+          try {
+            const metadata = typeof email.metadata === 'string' ? JSON.parse(email.metadata) : (email.metadata || {});
+            const item = metadata.item || {};
+            const payload = item.payload || metadata.payload || {};
+            const fullName = item.first_name && item.last_name
+              ? `${item.first_name} ${item.last_name}`.trim()
+              : email.sender_name || 'Prospect';
+            const cleanLeadTitle = (email.subject || `Email from ${email.sender_email}`)
+              .replace(/^((re|fw|fwd)\s*:\s*)+/i, '').trim();
+            const campaignId = item.campaign_id || metadata.campaign_id || null;
+            const campaignName = item.campaign_name || metadata.campaign_name || null;
+            const createdDate = email.received_at ? new Date(email.received_at) : new Date();
+
+            const leadResult = await db.query(
+              `INSERT INTO leads (
+                org_id, title, name, email, company, company_name, company_email,
+                source, status, stage, interaction_notes, description,
+                campaign_id, campaign_name, created_by, responsible_person, created_at, updated_at
+              ) VALUES ($1, $2, $3, $4, $5, $5, $4, 'Instantly', 'Interested', $6,
+                $7, $7, $8, $9, $10, $11, $12, NOW())
+              RETURNING id`,
+              [
+                orgId,           // $1
+                cleanLeadTitle,  // $2
+                fullName,        // $3
+                email.sender_email, // $4
+                item.company_name || payload.companyName || null, // $5
+                stageKey,        // $6
+                `Email received via Unibox:\nSubject: ${email.subject || ''}\nFrom: ${email.sender_name || ''} <${email.sender_email}>`, // $7
+                campaignId,      // $8
+                campaignName,    // $9
+                null,            // $10 → created_by = null (Instantly)
+                userId,          // $11 → responsible_person (uuid)
+                createdDate,     // $12
+              ]
+            );
+
+            await db.query(
+              `UPDATE unibox_emails SET status = 'Converted', converted_to_lead_id = $1, updated_at = NOW()
+               WHERE id = $2 AND org_id = $3`,
+              [leadResult.rows[0].id, email.id, orgId]
+            );
+          } catch (e) {
+            console.error(`[updateAutoConvert] Failed for email ${email.id}:`, e.message);
+          }
+        }
+      }
+    }
+
+    res.json({ message: `Auto-convert ${auto_convert_leads ? 'enabled' : 'disabled'}`, auto_convert_leads });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getEmails,
   getEmail,
@@ -1592,6 +1877,8 @@ module.exports = {
   getStats,
   getTemplates,
   convertToLead,
+  bulkConvertToLeads,
+  updateAutoConvert,
   checkPermission,
   getPermissions,
   grantPermission,

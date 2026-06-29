@@ -86,30 +86,25 @@ function FolderUserAssigner({
   orgUsers: OrgUser[];
   onAssignUsers: (folderId: string, userIds: string[]) => void;
 }) {
-  const assignedIds = new Set(folder.assigned_users?.map((u) => u.id) || []);
+  const assignedUser = folder.assigned_users?.[0] || null;
   const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
 
-  const label =
-    folder.assigned_users?.length === 0
-      ? "Assign users"
-      : folder.assigned_users!.length <= 2
-        ? folder.assigned_users!.map((u) => u.full_name).join(", ")
-        : `${folder.assigned_users!.slice(0, 2).map((u) => u.full_name).join(", ")} +${folder.assigned_users!.length - 2}`;
+  const label = assignedUser ? assignedUser.full_name : "Assign user";
 
   const filtered = orgUsers.filter((u) =>
     u.full_name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const toggleUser = (userId: string, checked: boolean) => {
-    const next = new Set(assignedIds);
-    if (checked) next.add(userId);
-    else next.delete(userId);
-    onAssignUsers(folder.id, Array.from(next));
+  const selectUser = (userId: string | null) => {
+    onAssignUsers(folder.id, userId ? [userId] : []);
+    setOpen(false);
+    setSearch("");
   };
 
   return (
     <div className="ml-6 pl-1 pr-1">
-      <Popover onOpenChange={(o) => { if (!o) setSearch(""); }}>
+      <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setSearch(""); }}>
         <PopoverTrigger asChild>
           <button
             type="button"
@@ -121,7 +116,7 @@ function FolderUserAssigner({
         </PopoverTrigger>
         <PopoverContent className="w-56 p-0" align="start" side="right">
           <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-3 pt-2 pb-1">
-            Assign to users
+            Assign to user
           </p>
           {/* Search */}
           <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border">
@@ -136,18 +131,25 @@ function FolderUserAssigner({
             />
           </div>
           <div className="max-h-52 overflow-y-auto py-1">
+            {/* None option */}
+            <button
+              type="button"
+              onClick={() => selectUser(null)}
+              className={`flex w-full items-center gap-2 px-3 py-1.5 hover:bg-accent text-left border-b border-border/50 ${!assignedUser ? "bg-accent/50" : ""}`}
+            >
+              <span className="text-xs text-muted-foreground italic">None</span>
+              {!assignedUser && <span className="ml-auto text-[10px] text-primary">✓</span>}
+            </button>
             {filtered.length === 0 ? (
               <p className="text-xs text-muted-foreground px-3 py-2">No members found</p>
             ) : (
               filtered.map((user) => (
-                <label
+                <button
                   key={user.id}
-                  className="flex items-center gap-2 rounded-md px-3 py-1.5 hover:bg-accent cursor-pointer"
+                  type="button"
+                  onClick={() => selectUser(user.id)}
+                  className={`flex w-full items-center gap-2 px-3 py-1.5 hover:bg-accent text-left ${assignedUser?.id === user.id ? "bg-accent/50" : ""}`}
                 >
-                  <Checkbox
-                    checked={assignedIds.has(user.id)}
-                    onCheckedChange={(checked) => toggleUser(user.id, checked === true)}
-                  />
                   <Avatar className="h-5 w-5 shrink-0">
                     <AvatarImage src={(user as any).avatar_url || undefined} alt={user.full_name} />
                     <AvatarFallback className="text-[9px] bg-primary/20 text-primary font-bold">
@@ -155,7 +157,8 @@ function FolderUserAssigner({
                     </AvatarFallback>
                   </Avatar>
                   <span className="text-xs truncate">{user.full_name}</span>
-                </label>
+                  {assignedUser?.id === user.id && <span className="ml-auto text-[10px] text-primary">✓</span>}
+                </button>
               ))
             )}
           </div>

@@ -34,22 +34,33 @@ const getAll = async (req, res, next) => {
              co.phone as company_phone
       FROM customers c
       LEFT JOIN companies co ON co.id = c.company_id
-      LEFT JOIN deals d ON d.id = c.deal_id
-      LEFT JOIN leads l ON l.id = c.lead_id
+      LEFT JOIN deals d ON d.id = COALESCE(c.deal_id, c.converted_from_deal_id)
+      LEFT JOIN leads l ON l.id = COALESCE(c.lead_id, c.converted_from_lead_id)
       WHERE c.org_id = $1
     `;
     const params = [req.user.orgId];
     let paramIndex = 2;
 
-    // Non-privileged users see customers they created OR whose source deal/lead was assigned to them
+    // Non-privileged users see customers they created OR whose source deal/lead was assigned/responsible to them
     if (!isPrivileged) {
       query += ` AND (
         c.user_id = $${paramIndex}
         OR d.assigned_to = $${paramIndex}
+        OR d.responsible_person = $${paramIndex}
         OR l.assigned_to = $${paramIndex}
+        OR l.responsible_person = $${paramIndex}
+        OR EXISTS (
+          SELECT 1 FROM unibox_campaign_folder_assignments ucfa
+          JOIN unibox_campaign_folder_items ucfi ON ucfi.folder_id = ucfa.folder_id AND ucfi.org_id = ucfa.org_id
+          WHERE ucfa.user_id = $${paramIndex} AND ucfa.org_id = $${paramIndex + 1}
+            AND (
+              (d.campaign_id IS NOT NULL AND ucfi.campaign_id::text = d.campaign_id::text)
+              OR (l.campaign_id IS NOT NULL AND ucfi.campaign_id::text = l.campaign_id::text)
+            )
+        )
       )`;
-      params.push(req.user.id);
-      paramIndex++;
+      params.push(req.user.id, req.user.orgId);
+      paramIndex += 2;
     }
 
     if (status) {
@@ -72,8 +83,8 @@ const getAll = async (req, res, next) => {
     // Count query must match same filters
     let countQuery = `
       SELECT COUNT(*) FROM customers c
-      LEFT JOIN deals d ON d.id = c.deal_id
-      LEFT JOIN leads l ON l.id = c.lead_id
+      LEFT JOIN deals d ON d.id = COALESCE(c.deal_id, c.converted_from_deal_id)
+      LEFT JOIN leads l ON l.id = COALESCE(c.lead_id, c.converted_from_lead_id)
       WHERE c.org_id = $1
     `;
     const countParams = [req.user.orgId];
@@ -82,10 +93,21 @@ const getAll = async (req, res, next) => {
       countQuery += ` AND (
         c.user_id = $${countParamIndex}
         OR d.assigned_to = $${countParamIndex}
+        OR d.responsible_person = $${countParamIndex}
         OR l.assigned_to = $${countParamIndex}
+        OR l.responsible_person = $${countParamIndex}
+        OR EXISTS (
+          SELECT 1 FROM unibox_campaign_folder_assignments ucfa
+          JOIN unibox_campaign_folder_items ucfi ON ucfi.folder_id = ucfa.folder_id AND ucfi.org_id = ucfa.org_id
+          WHERE ucfa.user_id = $${countParamIndex} AND ucfa.org_id = $${countParamIndex + 1}
+            AND (
+              (d.campaign_id IS NOT NULL AND ucfi.campaign_id::text = d.campaign_id::text)
+              OR (l.campaign_id IS NOT NULL AND ucfi.campaign_id::text = l.campaign_id::text)
+            )
+        )
       )`;
-      countParams.push(req.user.id);
-      countParamIndex++;
+      countParams.push(req.user.id, req.user.orgId);
+      countParamIndex += 2;
     }
     if (status) {
       countQuery += ` AND c.status = $${countParamIndex}`;

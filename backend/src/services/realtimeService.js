@@ -606,6 +606,10 @@ class RealtimeService {
     this.io.to(`org:${orgId}`).emit('unibox:email_created', email);
   }
 
+  emitUniboxPermissionChanged(userId) {
+    this.io.to(`user:${userId}`).emit('unibox:permission_changed');
+  }
+
   // --- Collaboration Addons ---
 
   emitDirectMessage(receiverId, message) {
