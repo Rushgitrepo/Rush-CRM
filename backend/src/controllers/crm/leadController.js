@@ -109,7 +109,7 @@ const createLeadSchema = Joi.object({
   responsiblePerson: Joi.string().optional().allow(null, ''),
   pipeline: Joi.string().optional().allow(null, ''),
   externalSourceId: Joi.string().optional().allow(null, ''),
-  campaignId: Joi.string().uuid().optional().allow(null, ''),
+  campaignId: Joi.string().optional().allow(null, ''),
   campaignName: Joi.string().optional().allow(null, ''),
   createdAt: Joi.alternatives().try(Joi.date(), Joi.string().isoDate()).optional().allow(null, ''),
   customFields: Joi.object().optional().allow(null),
@@ -194,7 +194,7 @@ const normalizeLeadInput = (body = {}) => {
     responsiblePerson: getVal('responsiblePerson', 'responsible_person'),
     pipeline: getVal('pipeline', 'pipeline'),
     externalSourceId: getVal('externalSourceId', 'external_source_id'),
-    campaignId: getUuid('campaignId', 'campaign_id'),
+    campaignId: getVal('campaignId', 'campaign_id'),
     campaignName: getVal('campaignName', 'campaign_name'),
     createdAt: getDate('createdAt', 'created_at'),
     customFields: getVal('customFields', 'custom_fields'),
@@ -244,7 +244,7 @@ const updateLeadSchema = Joi.object({
   responsiblePerson: Joi.string().optional().allow(null, ''),
   pipeline: Joi.string().optional().allow(null, ''),
   externalSourceId: Joi.string().optional().allow(null, ''),
-  campaignId: Joi.string().uuid().optional().allow(null, ''),
+  campaignId: Joi.string().optional().allow(null, ''),
   campaignName: Joi.string().optional().allow(null, ''),
   createdAt: Joi.alternatives().try(Joi.date(), Joi.string().isoDate()).optional().allow(null, ''),
   customFields: Joi.object().optional().allow(null),
@@ -323,7 +323,7 @@ const getAll = async (req, res, next) => {
       params.push(workspaceId);
       paramIndex++;
     } else if (!isAdmin && !hasUniboxAccess) {
-      // Non-admin without unibox access: hide unassigned Instantly leads and restrict to own leads
+      // Non-admin without unibox access: restrict to own leads + campaign folder access
       query += ` AND NOT (l.source = 'Instantly' AND l.responsible_person IS NULL)`;
       query += ` AND (
         l.assigned_to = $${paramIndex} OR l.owner_id = $${paramIndex} OR l.user_id = $${paramIndex} OR l.created_by = $${paramIndex} OR l.responsible_person = $${paramIndex} OR
@@ -336,12 +336,29 @@ const getAll = async (req, res, next) => {
           JOIN workgroup_members wm ON wm.workgroup_id = lwa.workspace_id
           WHERE lwa.lead_id = l.id AND wm.user_id = $${paramIndex}
           AND (lwa.expires_at IS NULL OR lwa.expires_at > CURRENT_TIMESTAMP)
+        ) OR
+        EXISTS (
+          SELECT 1 FROM unibox_campaign_folder_assignments ucfa
+          JOIN unibox_campaign_folder_items ucfi ON ucfi.folder_id = ucfa.folder_id AND ucfi.org_id = ucfa.org_id
+          WHERE ucfa.user_id = $${paramIndex} AND ucfa.org_id = l.org_id
+            AND l.campaign_id IS NOT NULL AND ucfi.campaign_id::text = l.campaign_id::text
         )
       )`;
       params.push(req.user.id);
       paramIndex++;
     } else if (!isAdmin && hasUniboxAccess) {
-      // Unibox-granted non-admin: sees ALL leads (same as admin), no restrictions
+      // Unibox-granted non-admin: restrict to campaign folder access
+      query += ` AND (
+        l.assigned_to = $${paramIndex} OR l.owner_id = $${paramIndex} OR l.user_id = $${paramIndex} OR l.created_by = $${paramIndex} OR l.responsible_person = $${paramIndex} OR
+        EXISTS (
+          SELECT 1 FROM unibox_campaign_folder_assignments ucfa
+          JOIN unibox_campaign_folder_items ucfi ON ucfi.folder_id = ucfa.folder_id AND ucfi.org_id = ucfa.org_id
+          WHERE ucfa.user_id = $${paramIndex} AND ucfa.org_id = l.org_id
+            AND l.campaign_id IS NOT NULL AND ucfi.campaign_id::text = l.campaign_id::text
+        )
+      )`;
+      params.push(req.user.id);
+      paramIndex++;
     }
 
     if (stage) {
@@ -488,7 +505,11 @@ const getAll = async (req, res, next) => {
 
     if (!isAdmin && !hasUniboxAccess) {
       countQuery += ` AND NOT (l.source = 'Instantly' AND l.responsible_person IS NULL)`;
-      countQuery += ` AND (l.assigned_to = $${countIdx} OR l.owner_id = $${countIdx} OR l.user_id = $${countIdx} OR l.created_by = $${countIdx} OR l.responsible_person = $${countIdx})`;
+      countQuery += ` AND (l.assigned_to = $${countIdx} OR l.owner_id = $${countIdx} OR l.user_id = $${countIdx} OR l.created_by = $${countIdx} OR l.responsible_person = $${countIdx} OR EXISTS (SELECT 1 FROM unibox_campaign_folder_assignments ucfa JOIN unibox_campaign_folder_items ucfi ON ucfi.folder_id = ucfa.folder_id AND ucfi.org_id = ucfa.org_id WHERE ucfa.user_id = $${countIdx} AND ucfa.org_id = l.org_id AND l.campaign_id IS NOT NULL AND ucfi.campaign_id::text = l.campaign_id::text))`;
+      countParams.push(req.user.id);
+      countIdx++;
+    } else if (!isAdmin && hasUniboxAccess) {
+      countQuery += ` AND (l.assigned_to = $${countIdx} OR l.owner_id = $${countIdx} OR l.user_id = $${countIdx} OR l.created_by = $${countIdx} OR l.responsible_person = $${countIdx} OR EXISTS (SELECT 1 FROM unibox_campaign_folder_assignments ucfa JOIN unibox_campaign_folder_items ucfi ON ucfi.folder_id = ucfa.folder_id AND ucfi.org_id = ucfa.org_id WHERE ucfa.user_id = $${countIdx} AND ucfa.org_id = l.org_id AND l.campaign_id IS NOT NULL AND ucfi.campaign_id::text = l.campaign_id::text))`;
       countParams.push(req.user.id);
       countIdx++;
     }
@@ -735,10 +756,29 @@ const create = async (req, res, next) => {
       }
     }
 
+    // Auto-assign responsible_person from campaign folder if not manually provided
+    let resolvedResponsiblePerson = responsiblePerson || null;
+    console.log('[CREATE LEAD] campaignId:', campaignId, '| responsiblePerson:', responsiblePerson);
+    if (campaignId && !resolvedResponsiblePerson) {
+      try {
+        const rpResult = await db.query(
+          `SELECT ucfa.user_id
+           FROM unibox_campaign_folder_assignments ucfa
+           JOIN unibox_campaign_folder_items ucfi ON ucfi.folder_id = ucfa.folder_id AND ucfi.org_id = ucfa.org_id
+           WHERE ucfa.org_id = $1 AND ucfi.campaign_id::text = $2::text
+           LIMIT 1`,
+          [req.user.orgId, campaignId]
+        );
+        console.log('[CREATE LEAD] responsible_person lookup rows:', rpResult.rows);
+        if (rpResult.rows.length > 0) resolvedResponsiblePerson = rpResult.rows[0].user_id;
+      } catch (e) { console.log('[CREATE LEAD] lookup error:', e.message); }
+    }
+    console.log('[CREATE LEAD] resolvedResponsiblePerson:', resolvedResponsiblePerson);
+
     let result;
     try {
       result = await db.query(
-        `INSERT INTO public.leads 
+        `INSERT INTO public.leads
          (org_id, user_id, created_by, workspace_id, assigned_to, title, name, stage, status, source, source_info, customer_type,
           value, currency, priority, notes, tags, expected_close_date, contact_id, company_id,
           designation, phone, phone_type, email, email_type, website, website_type, address, company_name, company_phone,
@@ -751,7 +791,7 @@ const create = async (req, res, next) => {
           leadValue, currency, priority, notes, tags, expectedCloseDate, contactId, companyId,
           designation, phone, phoneType || null, email, emailType || null, website, websiteType || null, address, companyName, companyPhone,
           companyEmail, companySize, agentName, decisionMaker, serviceInterested,
-          interactionNotes, firstMessage, lastTouch, lastContactedDate || null, nextFollowUpDate || null, responsiblePerson || null, value.pipeline, value.externalSourceId,
+          interactionNotes, firstMessage, lastTouch, lastContactedDate || null, nextFollowUpDate || null, resolvedResponsiblePerson, value.pipeline, value.externalSourceId,
           campaignId || null, campaignName || null,
           customFields ? JSON.stringify(customFields) : '{}', createdAt || new Date().toISOString(), contactPerson || null]
       );
@@ -923,6 +963,27 @@ const update = async (req, res, next) => {
 
     if (fields.length === 0) {
       return res.status(400).json({ error: 'No valid fields to update' });
+    }
+
+    // Auto-set responsible_person when campaign_id is updated but responsible_person is not explicitly set
+    const updatingCampaign = value.campaignId !== undefined;
+    const explicitlySettingResponsible = value.responsiblePerson !== undefined;
+    if (updatingCampaign && !explicitlySettingResponsible && value.campaignId) {
+      try {
+        const rpResult = await db.query(
+          `SELECT ucfa.user_id
+           FROM unibox_campaign_folder_assignments ucfa
+           JOIN unibox_campaign_folder_items ucfi ON ucfi.folder_id = ucfa.folder_id AND ucfi.org_id = ucfa.org_id
+           WHERE ucfa.org_id = $1 AND ucfi.campaign_id::text = $2::text
+           LIMIT 1`,
+          [req.user.orgId, value.campaignId]
+        );
+        if (rpResult.rows.length > 0) {
+          fields.push(`responsible_person = $${paramIndex}`);
+          values.push(rpResult.rows[0].user_id);
+          paramIndex++;
+        }
+      } catch (e) { /* ignore */ }
     }
 
     fields.push(`updated_at = NOW()`);
@@ -1749,6 +1810,24 @@ const bulkUpdateCreatedBy = async (req, res, next) => {
   }
 };
 
+const getCampaignsList = async (req, res, next) => {
+  try {
+    const { rows } = await db.query(
+      `SELECT DISTINCT campaign_id, campaign_name
+       FROM public.leads
+       WHERE org_id = $1
+         AND campaign_id IS NOT NULL
+         AND campaign_name IS NOT NULL
+         AND campaign_name <> ''
+       ORDER BY campaign_name`,
+      [req.user.orgId]
+    );
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getAll,
   getById,
@@ -1765,6 +1844,7 @@ module.exports = {
   updateStage_custom,
   deleteStage,
   convertToDeal,
+  getCampaignsList,
   importLeads,
   ensureDefaultStages,
   DEFAULT_LEAD_STAGES,

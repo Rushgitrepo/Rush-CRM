@@ -210,6 +210,7 @@ export const leadsApi = {
   updateStage: (id: string, stage: string) => api.patch<any>(`/leads/${id}/stage`, { stage }),
   delete: (id: string) => api.delete(`/leads/${id}`),
   getStats: () => api.get<any>('/leads/stats'),
+  getCampaignsList: () => api.get<{ campaign_id: string; campaign_name: string }[]>('/leads/campaigns/list'),
   convertToDeal: (id: string) => api.post<any>(`/leads/${id}/convert-to-deal`, {}),
   importLeads: (leads: any[]) => api.post<any>('/leads/import', { leads }),
   bulkDelete: (payload: { ids?: string[]; all?: boolean; filters?: any } | string[]) =>

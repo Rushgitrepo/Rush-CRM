@@ -331,7 +331,7 @@ export function useUniboxEmails(filters: {
   });
 
   const bulkConvertToLeads = useMutation({
-    mutationFn: async () => api.post('/unibox/emails/bulk-convert-to-leads', {}),
+    mutationFn: async (campaignId?: string) => api.post('/unibox/emails/bulk-convert-to-leads', campaignId ? { campaign_id: campaignId } : {}),
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["unibox-emails"] });
       queryClient.invalidateQueries({ queryKey: ["leads"] });

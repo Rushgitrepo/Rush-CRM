@@ -42,7 +42,7 @@ import { useSoftphone } from "@/contexts/SoftphoneContext";
 import { ClickToCall } from "@/components/telephony/ClickToCall";
 import { EmailComposer } from "@/components/mail/EmailComposer";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, leadsApi } from "@/lib/api";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { format, isValid } from "date-fns";
@@ -337,6 +337,13 @@ export default function LeadDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { profile, user } = useAuth();
+  const [campaignSearch, setCampaignSearch] = useState("");
+  const [campaignDropdownOpen, setCampaignDropdownOpen] = useState(false);
+  const { data: campaignsList = [] } = useQuery({
+    queryKey: ["leads-campaigns-list"],
+    queryFn: () => leadsApi.getCampaignsList(),
+    staleTime: 60000,
+  });
   const { data: lead, isLoading, error } = useLead(id!);
   const updateLead = useUpdateLead();
   const updateLeadStage = useUpdateLeadStage();
@@ -1845,6 +1852,60 @@ export default function LeadDetailPage() {
                             disabled={!editing}
                           />
                         </div>
+                        <Field
+                          label="External Source ID"
+                          value={form.external_source_id as string}
+                          onChange={(v) => set("external_source_id", v)}
+                          editing={editing}
+                          icon={<Target className="h-4 w-4" />}
+                          placeholder="e.g. CRM-123"
+                          entityId={id}
+                        />
+                        {editing ? (
+                          <div className="space-y-1">
+                            <label className="text-xs font-medium text-muted-foreground flex items-center gap-1"><Sparkles className="h-4 w-4" /> Campaign Name</label>
+                            <div className="relative">
+                              <Input
+                                className="h-9 text-sm"
+                                placeholder="Search campaign..."
+                                value={campaignSearch !== "" ? campaignSearch : (form.campaign_name as string || "")}
+                                onFocus={() => { setCampaignDropdownOpen(true); setCampaignSearch(""); }}
+                                onChange={(e) => { setCampaignSearch(e.target.value); setCampaignDropdownOpen(true); }}
+                                onBlur={() => setTimeout(() => setCampaignDropdownOpen(false), 150)}
+                              />
+                              {campaignDropdownOpen && campaignsList.filter(c => c.campaign_name.toLowerCase().includes(campaignSearch.toLowerCase())).length > 0 && (
+                                <div className="absolute z-50 top-full mt-1 w-full bg-popover border border-border rounded-md shadow-lg max-h-52 overflow-y-auto">
+                                  {campaignsList.filter(c => c.campaign_name.toLowerCase().includes(campaignSearch.toLowerCase())).map((c) => (
+                                    <button
+                                      key={c.campaign_id}
+                                      type="button"
+                                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted truncate"
+                                      onMouseDown={() => {
+                                        set("campaign_name", c.campaign_name);
+                                        set("campaign_id", c.campaign_id);
+                                        setCampaignSearch("");
+                                        setCampaignDropdownOpen(false);
+                                      }}
+                                    >
+                                      {c.campaign_name}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <Field
+                            label="Campaign Name"
+                            value={form.campaign_name as string}
+                            onChange={(v) => set("campaign_name", v)}
+                            editing={false}
+                            icon={<Sparkles className="h-4 w-4" />}
+                            placeholder="e.g. Summer Promo 2026"
+                            entityId={id}
+                          />
+                        )}
+                        {renderDroppedFields("source-section")}
 
                         <div className="md:col-span-2 space-y-2">
                           <Label className="text-sm font-medium text-foreground">Source Information</Label>
@@ -1877,25 +1938,7 @@ export default function LeadDetailPage() {
                             </div>
                           )}
                         </div>
-                        <Field
-                          label="External Source ID"
-                          value={form.external_source_id as string}
-                          onChange={(v) => set("external_source_id", v)}
-                          editing={editing}
-                          icon={<Target className="h-4 w-4" />}
-                          placeholder="e.g. CRM-123"
-                          entityId={id}
-                        />
-                        <Field
-                          label="Campaign Name"
-                          value={form.campaign_name as string}
-                          onChange={(v) => set("campaign_name", v)}
-                          editing={editing}
-                          icon={<Sparkles className="h-4 w-4" />}
-                          placeholder="e.g. Summer Promo 2026"
-                          entityId={id}
-                        />
-                        {renderDroppedFields("source-section")}
+                        
                       </div>
                     </DroppableSection>
                   </CardContent>

@@ -1,5 +1,5 @@
-import { useMemo, useState, useEffect, Suspense, lazy } from "react";
-import { useNavigate } from "react-router-dom";
+import { useMemo, useState, useEffect, useRef, Suspense, lazy } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   Plus,
   Sparkles,
@@ -115,7 +115,24 @@ type DealRow = {
 
 export default function DealsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
+  const [highlightedDealId, setHighlightedDealId] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    const savedScroll = sessionStorage.getItem("deals_scroll_y");
+    const savedId = sessionStorage.getItem("deals_last_id");
+    if (savedScroll) {
+      const y = parseInt(savedScroll, 10);
+      requestAnimationFrame(() => { window.scrollTo({ top: y, behavior: "instant" }); });
+      sessionStorage.removeItem("deals_scroll_y");
+    }
+    if (savedId) {
+      setHighlightedDealId(savedId);
+      sessionStorage.removeItem("deals_last_id");
+      setTimeout(() => setHighlightedDealId(undefined), 3000);
+    }
+  }, [location.key]);
   const [showEmailComposer, setShowEmailComposer] = useState(false);
   const [emailComposerTo, setEmailComposerTo] = useState("");
   const [emailComposerDealId, setEmailComposerDealId] = useState<string>("");
@@ -479,16 +496,14 @@ export default function DealsPage() {
       header: "Deal",
       sortable: true,
       render: (deal) => (
-        <div className="space-y-1 w-[220px] min-w-[180px] max-w-[280px]">
+        <div className="space-y-0.5 max-w-[250px]">
           <div className="flex items-center gap-2 overflow-hidden">
-            <span className="font-semibold truncate">{deal.contact_person}</span>
+            <span className="font-semibold truncate">{deal.contact_person || deal.name}</span>
             <Badge
               variant="outline"
-              className="bg-muted/50 whitespace-nowrap flex-shrink-0"
+              className={cn("whitespace-nowrap flex-shrink-0 uppercase", statusTone(deal.stage))}
             >
-              {deal.stage
-                .replace(/_/g, " ")
-                .replace(/\b\w/g, (c) => c.toUpperCase())}
+              {(deal.stage || "").replace(/_/g, " ") || "New"}
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground flex items-center gap-2">
@@ -643,7 +658,7 @@ export default function DealsPage() {
       ),
     },
     // ── Extra DB columns ──────────────────────────────────────────────
-    { key: "title", header: "Title", render: (d) => <span className="text-sm font-medium text-foreground">{d.name || "—"}</span> },
+    { key: "title", header: "Title", className: "min-w-[220px] max-w-[280px]", render: (d) => <span className="text-sm font-medium text-foreground truncate block max-w-[260px]" title={d.name || ""}>{d.name || "—"}</span> },
     {
       key: "source",
       header: "Source",
@@ -1173,7 +1188,12 @@ export default function DealsPage() {
                   icon={<Sparkles className="h-6 w-6" />}
                 />
               }
-              onRowClick={(row) => navigate(`/crm/deals/${row.id}`)}
+              highlightedId={highlightedDealId}
+              onRowClick={(row) => {
+                sessionStorage.setItem("deals_scroll_y", String(window.scrollY));
+                sessionStorage.setItem("deals_last_id", String(row.id));
+                navigate(`/crm/deals/${row.id}`);
+              }}
             />
           </CardContent>
         </Card>

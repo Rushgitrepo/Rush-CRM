@@ -31,6 +31,7 @@ interface EntityTableProps<T> {
   onSelectionChange?: (selectedIds: (string | number)[]) => void;
   isAllSelectedGlobally?: boolean;
   onGlobalSelectionChange?: (isGlobal: boolean) => void;
+  highlightedId?: string | number;
 }
 
 export function EntityTable<T extends { id?: string | number }>({
@@ -50,6 +51,7 @@ export function EntityTable<T extends { id?: string | number }>({
   onSelectionChange,
   isAllSelectedGlobally = false,
   onGlobalSelectionChange,
+  highlightedId,
 }: EntityTableProps<T>) {
   const [internalPage, setInternalPage] = useState(1);
   const [sortKey, setSortKey] = useState<string | null>(null);
@@ -251,10 +253,16 @@ export function EntityTable<T extends { id?: string | number }>({
               paged.map((row, idx) => {
                 const id = (row as any).id;
                 const isSelected = selectedRows.includes(id);
+                const isHighlighted = highlightedId !== undefined && String(id) === String(highlightedId);
                 return (
                   <TableRow
                     key={id ?? idx}
-                    className={cn(onRowClick && "cursor-pointer hover:bg-muted/40", isSelected && "bg-primary/5")}
+                    data-row-id={id}
+                    className={cn(
+                      onRowClick && "cursor-pointer hover:bg-muted/40",
+                      isSelected && "bg-primary/5",
+                      isHighlighted && "ring-2 ring-primary ring-inset bg-primary/10"
+                    )}
                     onClick={() => onRowClick?.(row)}
                   >
                     {onSelectionChange && (

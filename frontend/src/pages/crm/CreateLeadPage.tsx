@@ -1,4 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { leadsApi } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useForm } from "react-hook-form";
@@ -108,6 +110,7 @@ const leadSchema = z.object({
   priority: z.string().optional(),
   tags: z.string().optional(),
   campaignName: z.string().optional(),
+  campaignId: z.string().optional(),
 });
 
 type LeadForm = z.infer<typeof leadSchema>;
@@ -496,6 +499,17 @@ export default function CreateLeadPage() {
     }
   }, [selectedPipeline, setValue]);
   const { data: dbStages = [] } = usePipelineStages();
+  const { data: campaignsList = [] } = useQuery({
+    queryKey: ["leads-campaigns-list"],
+    queryFn: () => leadsApi.getCampaignsList(),
+    staleTime: 60000,
+  });
+  const [campaignSearch, setCampaignSearch] = useState("");
+  const [campaignDropdownOpen, setCampaignDropdownOpen] = useState(false);
+  const filteredCampaigns = useMemo(() =>
+    campaignsList.filter(c => c.campaign_name.toLowerCase().includes(campaignSearch.toLowerCase())),
+    [campaignsList, campaignSearch]
+  );
 
   const customDbStages = dbStages
     .filter((s) => !stageOptions.some((d) => d.value === s.stage_key))
@@ -604,6 +618,7 @@ export default function CreateLeadPage() {
       externalSourceId: data.externalSourceId || null,
       agentName: data.agentName || null,
       campaignName: data.campaignName || null,
+      campaignId: data.campaignId || null,
       priority: data.priority || null,
       tags: data.tags
         ? data.tags
@@ -1590,11 +1605,35 @@ export default function CreateLeadPage() {
                         <Label className="text-sm font-medium text-foreground">
                           Campaign Name
                         </Label>
-                        <Input
-                          placeholder="e.g. Summer Promo 2026"
-                          {...register("campaignName")}
-                          className="h-10"
-                        />
+                        <div className="relative">
+                          <Input
+                            placeholder="Search campaign..."
+                            value={campaignSearch || watch("campaignName") || ""}
+                            onFocus={() => { setCampaignDropdownOpen(true); setCampaignSearch(""); }}
+                            onChange={(e) => { setCampaignSearch(e.target.value); setCampaignDropdownOpen(true); }}
+                            onBlur={() => setTimeout(() => setCampaignDropdownOpen(false), 150)}
+                            className="h-10"
+                          />
+                          {campaignDropdownOpen && filteredCampaigns.length > 0 && (
+                            <div className="absolute z-[200] bottom-full mb-1 left-0 min-w-[320px] w-full bg-popover border border-border rounded-md shadow-xl max-h-64 overflow-y-auto">
+                              {filteredCampaigns.map((c) => (
+                                <button
+                                  key={c.campaign_id}
+                                  type="button"
+                                  className="w-full text-left px-3 py-2 text-sm hover:bg-muted truncate"
+                                  onMouseDown={() => {
+                                    setValue("campaignName", c.campaign_name);
+                                    setValue("campaignId", c.campaign_id);
+                                    setCampaignSearch("");
+                                    setCampaignDropdownOpen(false);
+                                  }}
+                                >
+                                  {c.campaign_name}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </DroppableField>
                     {renderDroppedFields(

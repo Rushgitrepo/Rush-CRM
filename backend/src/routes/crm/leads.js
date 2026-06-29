@@ -8,6 +8,7 @@ router.use(auth, requireOrg);
 router.get('/', leadController.getAll);
 router.get('/stats', leadController.getStats);
 router.get('/stages', leadController.getStages);
+router.get('/campaigns/list', leadController.getCampaignsList);
 router.post('/stages', leadController.createStage);
 router.put('/stages/:id', leadController.updateStage_custom);
 router.delete('/stages/:id', leadController.deleteStage);

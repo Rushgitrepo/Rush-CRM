@@ -1091,7 +1091,7 @@ export default function UniboxPage() {
                     </Label>
                   </div>
                   <Button
-                    onClick={() => bulkConvertToLeads.mutate()}
+                    onClick={() => bulkConvertToLeads.mutate(selectedCampaignId || undefined)}
                     disabled={bulkConvertToLeads.isPending}
                     className="gap-2"
                   >

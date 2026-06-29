@@ -1654,6 +1654,7 @@ const bulkConvertToLeads = async (req, res, next) => {
   try {
     const orgId = req.user.orgId;
     const userId = req.user.id;
+    const { campaign_id: filterCampaignId } = req.body;
 
     const allowedCampaignIds = await getAllowedCampaignIds(userId, orgId);
 
@@ -1661,8 +1662,15 @@ const bulkConvertToLeads = async (req, res, next) => {
     const params = [orgId];
     let paramIndex = 2;
 
-    const accessFilter = appendCampaignAccessFilter(allowedCampaignIds, params, paramIndex);
-    whereClause += accessFilter.clause;
+    // If a specific campaign is selected, only convert that campaign's emails
+    if (filterCampaignId) {
+      whereClause += ` AND campaign_id = $${paramIndex}`;
+      params.push(filterCampaignId);
+      paramIndex++;
+    } else {
+      const accessFilter = appendCampaignAccessFilter(allowedCampaignIds, params, paramIndex);
+      whereClause += accessFilter.clause;
+    }
 
     const emailsResult = await db.query(
       `SELECT * FROM unibox_emails ${whereClause} ORDER BY received_at DESC LIMIT 500`,

@@ -1,5 +1,5 @@
-import { useMemo, useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useMemo, useState, useEffect, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Plus, Sparkles, Mail, Building2, Download, Upload, MoreHorizontal, Edit, Trash2, Eye, Globe, CheckCircle, UserCheck, Columns, UserCircle2, Zap } from "lucide-react";
 import { useLeads, useDeleteLead, useBulkDeleteLeads, useBulkAssignLeads, useBulkUpdateCreatedByLeads, useUsers } from "@/hooks/useCrmData";
 import { useUpdateLead } from "@/hooks/useCrmMutations";
@@ -79,7 +79,29 @@ type LeadRow = {
 
 export default function LeadsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [highlightedLeadId, setHighlightedLeadId] = useState<string | undefined>(undefined);
+
+  // Restore scroll position and highlight when coming back from lead detail
+  useEffect(() => {
+    const savedScroll = sessionStorage.getItem("leads_scroll_y");
+    const savedId = sessionStorage.getItem("leads_last_id");
+    if (savedScroll) {
+      const y = parseInt(savedScroll, 10);
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: y, behavior: "instant" });
+      });
+      sessionStorage.removeItem("leads_scroll_y");
+    }
+    if (savedId) {
+      setHighlightedLeadId(savedId);
+      sessionStorage.removeItem("leads_last_id");
+      // Auto-clear highlight after 3 seconds
+      setTimeout(() => setHighlightedLeadId(undefined), 3000);
+    }
+  }, [location.key]);
   const [showEmailComposer, setShowEmailComposer] = useState(false);
   const [emailComposerTo, setEmailComposerTo] = useState("");
   const [emailComposerLeadId, setEmailComposerLeadId] = useState<string>("");
@@ -609,7 +631,7 @@ export default function LeadsPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => navigate(`/crm/leads/${lead.id}`)}>
+              <DropdownMenuItem onClick={() => { sessionStorage.setItem("leads_scroll_y", String(window.scrollY)); navigate(`/crm/leads/${lead.id}`); }}>
                 <Eye className="h-4 w-4 mr-2" />
                 View Details
               </DropdownMenuItem>
@@ -893,7 +915,12 @@ export default function LeadsPage() {
                   icon={<Sparkles className="h-6 w-6" />}
                 />
               }
-              onRowClick={(row) => navigate(`/crm/leads/${row.id}`)}
+              highlightedId={highlightedLeadId}
+              onRowClick={(row) => {
+                sessionStorage.setItem("leads_scroll_y", String(window.scrollY || document.documentElement.scrollTop));
+                sessionStorage.setItem("leads_last_id", String(row.id));
+                navigate(`/crm/leads/${row.id}`);
+              }}
             />
           </CardContent>
         </Card>
