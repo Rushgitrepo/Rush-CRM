@@ -15,13 +15,15 @@ import {
   Upload,
   XCircle,
   Columns,
+  UserCheck,
 } from "lucide-react";
 import {
   useDeals,
   useDeleteDeal,
   useBulkDeleteDeals,
-  useUsers,
+  useBulkAssignDeals,
 } from "@/hooks/useCrmData";
+import { useOrganizationProfiles } from "@/hooks/useTenantQuery";
 import { useUpdateDeal } from "@/hooks/useCrmMutations";
 import { useCreateActivity } from "@/hooks/useCrmInteractions";
 import { Button } from "@/components/ui/button";
@@ -46,6 +48,7 @@ import { DataToolbar } from "@/components/crm/ui/DataToolbar";
 import { EntityTable, EntityColumn } from "@/components/crm/ui/EntityTable";
 import { EmptyState } from "@/components/crm/ui/EmptyState";
 import { useCustomDialog } from "@/contexts/DialogContext";
+import { MemberSearchSelect } from "@/components/tasks/MemberSearchSelect";
 import { DealsKanbanView } from "@/components/crm/deals/DealsKanbanView";
 import { DealsActivitiesView } from "@/components/crm/deals/DealsActivitiesView";
 import { DealsCalendarView } from "@/components/crm/deals/DealsCalendarView";
@@ -183,6 +186,8 @@ export default function DealsPage() {
     "deals_campaign",
     "",
   );
+  const [minValue, setMinValue] = usePersistentState("deals_minValue", "");
+  const [maxValue, setMaxValue] = usePersistentState("deals_maxValue", "");
 
   const {
     data: dbDeals,
@@ -198,18 +203,35 @@ export default function DealsPage() {
     endDate: endDate || undefined,
     priority: priorityFilter !== "all" ? priorityFilter : undefined,
     source: sourceFilter !== "all" ? sourceFilter : undefined,
-    assignedTo: assignedToFilter !== "all" ? assignedToFilter : undefined,
+    assignedTo: assignedToFilter || undefined,
     tags: tagsFilter || undefined,
     campaign: campaignFilter || undefined,
-  });
-  const { data: users = [] } = useUsers({
-    department: "Sales",
-    includeSelf: true,
+    minValue: minValue || undefined,
+    maxValue: maxValue || undefined,
   });
   const { data: pipelineStages = [] } = useDealPipelineStages();
+  const { data: allMembers = [] } = useOrganizationProfiles({ includeSelf: true });
   const deleteDeal = useDeleteDeal();
   const bulkDeleteDeals = useBulkDeleteDeals();
+  const bulkAssignDeals = useBulkAssignDeals();
   const updateDeal = useUpdateDeal();
+  const [assignPickerOpen, setAssignPickerOpen] = useState(false);
+  const [bulkAssignUserId, setBulkAssignUserId] = useState("");
+
+  const handleBulkAssign = (userId: string) => {
+    if (!userId || selectedDeals.length === 0) return;
+    bulkAssignDeals.mutate(
+      { ids: selectedDeals, assigned_to: userId },
+      {
+        onSuccess: () => {
+          setSelectedDeals([]);
+          setIsAllSelectedGlobally(false);
+          setAssignPickerOpen(false);
+          setBulkAssignUserId("");
+        },
+      }
+    );
+  };
 
   const handleBulkDelete = async () => {
     if (selectedDeals.length === 0 && !isAllSelectedGlobally) return;
@@ -274,7 +296,7 @@ export default function DealsPage() {
   useEffect(() => {
     setSelectedDeals([]);
     setIsAllSelectedGlobally(false);
-  }, [search, status, stage, startDate, endDate]);
+  }, [search, status, stage, startDate, endDate, priorityFilter, assignedToFilter, minValue, maxValue]);
 
   const deals: DealRow[] = useMemo(() => {
     // Handle different response formats from the API
@@ -339,6 +361,21 @@ export default function DealsPage() {
   }, [dbDeals]);
 
   const [sourceTab, setSourceTab] = useState("all");
+
+  // Combine pipeline stages from settings + unique stage values from actual deals in DB
+  const stageOptions = useMemo(() => {
+    const pipelineMap = new Map(
+      (pipelineStages || []).map((s: any) => [s.stage_key, s.stage_label])
+    );
+    const uniqueFromDb: string[] = (dbDeals as any)?.unique_stages || [];
+    // Add any stage from DB that doesn't exist in pipeline_stages
+    uniqueFromDb.forEach((key) => {
+      if (!pipelineMap.has(key)) {
+        pipelineMap.set(key, key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()));
+      }
+    });
+    return Array.from(pipelineMap.entries()).map(([value, label]) => ({ label, value }));
+  }, [pipelineStages, dbDeals]);
 
   // Dynamic source tabs from deal data
   const sourceTabs = useMemo(() => {
@@ -834,7 +871,7 @@ export default function DealsPage() {
               <Upload className="h-4 w-4 mr-2" />
               Import
             </Button>
-            <Button
+            {/* <Button
               variant="outline"
               className="gap-2"
               onClick={() =>
@@ -843,7 +880,7 @@ export default function DealsPage() {
             >
               <Layers className="h-4 w-4" />
               Automation
-            </Button>
+            </Button> */}
             <Button className="bg-primary" onClick={handleCreate}>
               <Plus className="mr-2 h-4 w-4" />
               New Deal
@@ -855,116 +892,67 @@ export default function DealsPage() {
       <DataToolbar
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Search everything (deal, company, contact, email, notes...)"
+        searchPlaceholder="Search title,name, comp, camp, email, web, desig, notes, contact..."
         filters={[
-          // {
-          //   label: "Stage",
-          //   value: stage,
-          //   onChange: setStage,
-          //   options: [
-          //     { label: "All stages", value: "all" },
-          //     ...pipelineStages.map(s => ({ label: s.stage_label, value: s.stage_key }))
-          //   ],
-          // },
           {
             label: "Status",
             value: status,
             onChange: setStatus,
             options: [
-              { label: "All", value: "all" },
               { label: "Open", value: "open" },
               { label: "Won", value: "won" },
-              { label: "Lost", value: "lost" },
+              // { label: "Lost", value: "lost" },
+              { label: "Unqualified", value: "unqualified" },
             ],
+          },
+          {
+            label: "Stage",
+            value: stage,
+            onChange: setStage,
+            options: stageOptions,
           },
           {
             label: "Priority",
             value: priorityFilter,
             onChange: setPriorityFilter,
             options: [
-              { label: "All Priority", value: "all" },
               { label: "Low", value: "low" },
               { label: "Medium", value: "medium" },
               { label: "High", value: "high" },
               { label: "Urgent", value: "urgent" },
             ],
           },
-          // {
-          //   label: "Source",
-          //   value: sourceFilter,
-          //   onChange: setSourceFilter,
-          //   options: [
-          //     { label: "All Sources", value: "all" },
-          //     { label: "Website", value: "Website" },
-          //     { label: "Referral", value: "Referral" },
-          //     { label: "Cold Call", value: "Cold Call" },
-          //     { label: "LinkedIn", value: "LinkedIn" },
-          //     { label: "Email", value: "Email" },
-          //     { label: "Other", value: "Other" },
-          //   ],
-          // },
           {
             label: "Responsible Person",
+            type: "input" as any,
             value: assignedToFilter,
             onChange: setAssignedToFilter,
-            options: [
-              ...(users?.map((u: any) => ({
-                label: u.full_name || u.email,
-                value: u.id,
-              })) || []),
-            ],
           },
-          // {
-          //   label: "Workspace",
-          //   type: "custom",
-          //   value: workspaceFilter,
-          //   onChange: setWorkspaceFilter,
-          //   render: () => (
-          //     <WorkspaceFilter
-          //       value={workspaceFilter}
-          //       onChange={setWorkspaceFilter}
-          //     />
-          //   )
-          // },
-          // {
-          //   label: "Campaign",
-          //   type: "input",
-          //   value: campaignFilter,
-          //   onChange: setCampaignFilter
-          // },
-          // {
-          //   label: "Tags",
-          //   type: "input",
-          //   value: tagsFilter,
-          //   onChange: setTagsFilter
-          // },
-          {
-            label: "From",
-            type: "date",
-            value: startDate,
-            onChange: setStartDate,
-          },
-          {
-            label: "To",
-            type: "date",
-            value: endDate,
-            onChange: setEndDate,
-          },
+          { label: "Min Value", type: "input" as any, value: minValue, onChange: setMinValue },
+          { label: "Max Value", type: "input" as any, value: maxValue, onChange: setMaxValue },
+          { label: "From", type: "date" as any, value: startDate, onChange: setStartDate },
+          { label: "To", type: "date" as any, value: endDate, onChange: setEndDate },
         ]}
-        quickFilters={[
-          {
-            label: "Won",
-            value: "won",
-            active: status === "won",
-            onToggle: setStatus,
-          },
-          {
-            label: "Open",
-            value: "open",
-            active: status === "open",
-            onToggle: setStatus,
-          },
-        ]}
+        // quickFilters={[
+        //   {
+        //     label: "Won",
+        //     value: "won",
+        //     active: status === "won",
+        //     onToggle: setStatus,
+        //   },
+        //   {
+        //     label: "Open",
+        //     value: "open",
+        //     active: status === "open",
+        //     onToggle: setStatus,
+        //   },
+        //   {
+        //     label: "Unqualified",
+        //     value: "unqualified",
+        //     active: status === "unqualified",
+        //     onToggle: setStatus,
+        //   },
+        // ]}
         sortValue={sortBy}
         sortOptions={[
           { label: "Recent", value: "recent" },
@@ -978,11 +966,11 @@ export default function DealsPage() {
           { id: "kanban", label: "Kanban" },
           { id: "activities", label: "Activities" },
           { id: "calendar", label: "Calendar" },
-          {
-            id: "automation",
-            label: "Automation",
-            icon: <Sparkles className="h-4 w-4" />,
-          },
+          // {
+          //   id: "automation",
+          //   label: "Automation",
+          //   icon: <Sparkles className="h-4 w-4" />,
+          // },
         ]}
         onViewChange={(v) => setView(v as ViewType)}
       ></DataToolbar>
@@ -1089,6 +1077,25 @@ export default function DealsPage() {
       {/* ── Table toolbar: bulk actions ────────────────── */}
       {view === "list" && (selectedDeals.length > 0 || isAllSelectedGlobally) && (
         <div className="flex items-center gap-2 flex-wrap mb-4">
+          <Popover open={assignPickerOpen} onOpenChange={setAssignPickerOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2">
+                <UserCheck className="h-4 w-4" />
+                Assign To ({isAllSelectedGlobally ? (dbDeals as any)?.pagination?.total : selectedDeals.length})
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-72 p-3" align="start">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                Assign {selectedDeals.length} deal{selectedDeals.length > 1 ? "s" : ""} to
+              </p>
+              <MemberSearchSelect
+                members={allMembers}
+                value={bulkAssignUserId}
+                onChange={(id) => { setBulkAssignUserId(id); if (id) handleBulkAssign(id); }}
+                placeholder="Select a user..."
+              />
+            </PopoverContent>
+          </Popover>
           <Button variant="outline" size="sm" onClick={handleBulkExport}>
             <Download className="h-4 w-4 mr-2" />
             Export ({isAllSelectedGlobally ? (dbDeals as any)?.pagination?.total : selectedDeals.length})

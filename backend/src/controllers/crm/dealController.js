@@ -1,4 +1,4 @@
-﻿const db = require('../../config/database');
+const db = require('../../config/database');
 const Joi = require('joi');
 const { fireWorkflows } = require('../../services/workflowEngine');
 
@@ -301,7 +301,9 @@ const getAll = async (req, res, next) => {
       source,
       assignedTo,
       tags,
-      campaign
+      campaign,
+      minValue,
+      maxValue
     } = req.query;
     const offset = (page - 1) * limit;
 
@@ -365,8 +367,15 @@ const getAll = async (req, res, next) => {
     }
 
     if (assignedTo) {
-      query += ` AND d.assigned_to = $${paramIndex}`;
-      params.push(assignedTo);
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (uuidRegex.test(assignedTo)) {
+        query += ` AND d.assigned_to = $${paramIndex}`;
+        params.push(assignedTo);
+      } else {
+        // Text search on responsible person's name
+        query += ` AND u.full_name ILIKE $${paramIndex}`;
+        params.push(`%${assignedTo}%`);
+      }
       paramIndex++;
     }
 
@@ -383,11 +392,23 @@ const getAll = async (req, res, next) => {
       paramIndex++;
     }
 
+    if (minValue) {
+      query += ` AND d.value >= $${paramIndex}`;
+      params.push(Number(minValue));
+      paramIndex++;
+    }
+
+    if (maxValue) {
+      query += ` AND d.value <= $${paramIndex}`;
+      params.push(Number(maxValue));
+      paramIndex++;
+    }
+
     if (search) {
       query += ` AND (
-        d.title ILIKE $${paramIndex} OR 
-        d.notes ILIKE $${paramIndex} OR 
-        d.source ILIKE $${paramIndex} OR 
+        d.title ILIKE $${paramIndex} OR
+        d.notes ILIKE $${paramIndex} OR
+        d.source ILIKE $${paramIndex} OR
         d.description ILIKE $${paramIndex} OR
         d.designation ILIKE $${paramIndex} OR
         d.address ILIKE $${paramIndex} OR
@@ -396,6 +417,11 @@ const getAll = async (req, res, next) => {
         d.project_type ILIKE $${paramIndex} OR
         d.company_name ILIKE $${paramIndex} OR
         d.contact_name ILIKE $${paramIndex} OR
+        d.email ILIKE $${paramIndex} OR
+        d.phone ILIKE $${paramIndex} OR
+        d.website ILIKE $${paramIndex} OR
+        d.campaign_name ILIKE $${paramIndex} OR
+        d.contact_person ILIKE $${paramIndex} OR
         c.first_name ILIKE $${paramIndex} OR
         c.last_name ILIKE $${paramIndex} OR
         c.email ILIKE $${paramIndex} OR
@@ -411,7 +437,7 @@ const getAll = async (req, res, next) => {
     const result = await db.query(query, params);
 
     const countParams = [req.user.orgId];
-    let countQuery = 'SELECT COUNT(DISTINCT d.id) FROM public.deals d LEFT JOIN public.companies co ON co.id = d.company_id WHERE d.org_id = $1';
+    let countQuery = 'SELECT COUNT(DISTINCT d.id) FROM public.deals d LEFT JOIN public.companies co ON co.id = d.company_id LEFT JOIN public.users u ON u.id = d.assigned_to WHERE d.org_id = $1';
     let countIdx = 2;
 
     if (!isAdmin) {
@@ -440,8 +466,14 @@ const getAll = async (req, res, next) => {
       countIdx++;
     }
     if (assignedTo) {
-      countQuery += ` AND d.assigned_to = $${countIdx}`;
-      countParams.push(assignedTo);
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (uuidRegex.test(assignedTo)) {
+        countQuery += ` AND d.assigned_to = $${countIdx}`;
+        countParams.push(assignedTo);
+      } else {
+        countQuery += ` AND u.full_name ILIKE $${countIdx}`;
+        countParams.push(`%${assignedTo}%`);
+      }
       countIdx++;
     }
     if (tags) {
@@ -455,13 +487,42 @@ const getAll = async (req, res, next) => {
       countParams.push(campaign);
       countIdx++;
     }
+    if (minValue) {
+      countQuery += ` AND d.value >= $${countIdx}`;
+      countParams.push(Number(minValue));
+      countIdx++;
+    }
+    if (maxValue) {
+      countQuery += ` AND d.value <= $${countIdx}`;
+      countParams.push(Number(maxValue));
+      countIdx++;
+    }
     if (search) {
-      countQuery += ` AND (d.title ILIKE $${countIdx} OR co.name ILIKE $${countIdx})`;
+      countQuery += ` AND (
+        d.title ILIKE $${countIdx} OR
+        d.company_name ILIKE $${countIdx} OR
+        d.contact_name ILIKE $${countIdx} OR
+        d.email ILIKE $${countIdx} OR
+        d.phone ILIKE $${countIdx} OR
+        d.website ILIKE $${countIdx} OR
+        d.campaign_name ILIKE $${countIdx} OR
+        d.contact_person ILIKE $${countIdx} OR
+        d.designation ILIKE $${countIdx} OR
+        d.notes ILIKE $${countIdx} OR
+        co.name ILIKE $${countIdx}
+      )`;
       countParams.push(`%${search}%`);
       countIdx++;
     }
 
     const countResult = await db.query(countQuery, countParams);
+
+    // Fetch all unique stage values that actually exist in deals
+    const stagesResult = await db.query(
+      `SELECT DISTINCT stage FROM public.deals WHERE org_id = $1 AND stage IS NOT NULL ORDER BY stage`,
+      [req.user.orgId]
+    );
+    const uniqueStages = stagesResult.rows.map(r => r.stage).filter(Boolean);
 
     res.json({
       data: result.rows.map(deal => ({
@@ -486,6 +547,7 @@ const getAll = async (req, res, next) => {
         limit: parseInt(limit),
         totalPages: Math.ceil(countResult.rows[0].count / limit),
       },
+      unique_stages: uniqueStages,
     });
   } catch (err) {
     next(err);
@@ -1465,6 +1527,40 @@ const deleteStage = async (req, res, next) => {
   }
 };
 
+const bulkAssign = async (req, res, next) => {
+  try {
+    const { ids, assigned_to } = req.body;
+    const orgId = req.user.orgId;
+
+    if (!Array.isArray(ids) || ids.length === 0)
+      return res.status(400).json({ error: 'No deal IDs provided' });
+    if (!assigned_to)
+      return res.status(400).json({ error: 'assigned_to user ID is required' });
+
+    const cleanIds = [...new Set(ids.filter((id) => id && typeof id === 'string'))];
+
+    const userCheck = await db.query(
+      'SELECT id, full_name FROM public.users WHERE id = $1 AND org_id = $2',
+      [assigned_to, orgId]
+    );
+    if (userCheck.rows.length === 0)
+      return res.status(404).json({ error: 'Assigned user not found in your organization' });
+
+    const result = await db.query(
+      `UPDATE public.deals SET assigned_to = $1, updated_at = NOW() WHERE id = ANY($2) AND org_id = $3 RETURNING id`,
+      [assigned_to, cleanIds, orgId]
+    );
+
+    res.json({
+      message: `${result.rows.length} deals assigned to ${userCheck.rows[0].full_name}`,
+      updatedCount: result.rows.length,
+      assignedTo: userCheck.rows[0],
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getAll,
   getById,
@@ -1484,5 +1580,7 @@ module.exports = {
   addSigningParty,
   removeSigningParty,
   convertToCustomer,
+  bulkAssign,
   DEFAULT_DEAL_STAGES,
 };
+

@@ -88,7 +88,7 @@ interface DealsKanbanViewProps {
   onStageSelect?: (stage: string | null) => void;
 }
 
-export function DealsKanbanView({ deals = [], selectedStage, onStageSelect }: DealsKanbanViewProps) {
+export function DealsKanbanView({ deals = [], selectedStage }: DealsKanbanViewProps) {
   const navigate = useNavigate();
   const updateDeal = useUpdateDeal();
   const deleteDeal = useDeleteDeal();
@@ -114,8 +114,28 @@ export function DealsKanbanView({ deals = [], selectedStage, onStageSelect }: De
     is_active: s.is_active
   })).filter(s => s.is_active !== false);
 
+  // Map lead stages or unknown stages to valid deal pipeline stage keys
+  const STAGE_FALLBACK_MAP: Record<string, string> = {
+    'new':              'drawings_received',
+    'contacted':        'drawings_received',
+    'qualified':        'awaiting_proposal',
+    'proposal':         'proposal_sent',
+    'negotiation':      'proposal_sent',
+    'first_engagement': 'drawings_received',
+    'qualification':    'drawings_received',
+    'open':             'drawings_received',
+  };
+
+  const validStageKeys = stages.map(s => s.key);
+
+  const resolveDealStage = (deal: DealData): string => {
+    const s = deal.stage || '';
+    if (validStageKeys.includes(s)) return s;
+    return STAGE_FALLBACK_MAP[s.toLowerCase()] || validStageKeys[0] || 'drawings_received';
+  };
+
   const getStageDeals = (stageKey: string) =>
-    deals.filter((d) => (d.stage || "drawings_received") === stageKey);
+    deals.filter((d) => resolveDealStage(d) === stageKey);
 
   const getStageTotalValue = (stageKey: string) =>
     getStageDeals(stageKey).reduce((sum, d) => sum + (Number(d.value) || 0), 0);
@@ -139,7 +159,7 @@ export function DealsKanbanView({ deals = [], selectedStage, onStageSelect }: De
     const dealId = e.dataTransfer.getData("dealId");
     if (!dealId) return;
     const deal = deals.find((d) => d.id === dealId);
-    if (deal && deal.stage !== newStageKey) {
+    if (deal && resolveDealStage(deal) !== newStageKey) {
       const stageInfo = stages.find((s) => s.key === newStageKey);
       updateDeal.mutate({
         id: dealId,

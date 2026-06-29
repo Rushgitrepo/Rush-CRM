@@ -76,6 +76,15 @@ const customerTypeOptions = [
   { value: "partner", label: "Partner" },
 ];
 
+const statusOptions = [
+  { value: "new", label: "New" },
+  { value: "contacted", label: "Contacted" },
+  { value: "qualified", label: "Qualified" },
+  { value: "interested", label: "Interested" },
+  { value: "converted", label: "Converted" },
+  { value: "disqualified", label: "Disqualified" },
+];
+
 const sourceOptions = [
   { value: "Instantly", label: "Instantly" },
   { value: "call", label: "Call" },
@@ -265,6 +274,15 @@ const defaultPipelineStages = [
     textColor: "text-blue-700",
     borderColor: "border-blue-200",
     icon: CheckCircle
+  },
+  {
+    id: "interested",
+    label: "Interested",
+    color: "bg-blue-600",
+    bgColor: "bg-orange-50 dark:bg-orange-900/20",
+    textColor: "text-orange-700",
+    borderColor: "border-orange-200",
+    icon: Star
   },
   {
     id: "proposal",
@@ -1231,7 +1249,12 @@ export default function LeadDetailPage() {
                             <Label className="text-sm font-medium text-foreground">Stage</Label>
                             <Select
                               value={(form.stage as string) || ""}
-                              onValueChange={(v) => set("stage", v)}
+                              onValueChange={(v) => {
+                                set("stage", v);
+                                if (statusOptions.some(opt => opt.value === v)) {
+                                  set("status", v);
+                                }
+                              }}
                               disabled={!editing}
                             >
                               <SelectTrigger className="h-9 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 bg-background text-sm">
@@ -1248,6 +1271,29 @@ export default function LeadDetailPage() {
                           </div>
                         </DroppableField>
                         {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-stage")}
+
+                        <DroppableField id="fixed-lead-company-details-status" editing={editing}>
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium text-foreground">Status</Label>
+                            <Select
+                              value={(form.status as string) || ""}
+                              onValueChange={(v) => set("status", v)}
+                              disabled={!editing}
+                            >
+                              <SelectTrigger className="h-9 border-border focus:border-primary focus:ring-2 focus:ring-primary/20 bg-background text-sm">
+                                <SelectValue placeholder="Select status" />
+                              </SelectTrigger>
+                              <SelectContent className="max-h-[200px] overflow-y-auto">
+                                {statusOptions.map((opt) => (
+                                  <SelectItem key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </DroppableField>
+                        {renderDroppedFields("lead-company-details", false, "fixed-lead-company-details-status")}
 
                         <DroppableField id="fixed-lead-company-details-assigned_to" editing={editing}>
                           <div className="space-y-2">

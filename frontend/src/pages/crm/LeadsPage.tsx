@@ -113,6 +113,7 @@ export default function LeadsPage() {
   const [view, setView] = usePersistentState<ViewType>("leads_view", "list");
   const [search, setSearch] = usePersistentState("leads_search", "");
   const [status, setStatus] = usePersistentState("leads_status", "all");
+  const [stageFilter, setStageFilter] = usePersistentState("leads_stage", "all");
   const [type, setType] = usePersistentState("leads_type", "all");
   const [workspaceFilter, setWorkspaceFilter] = usePersistentState("leads_workspace", "all");
   const { confirm } = useCustomDialog();
@@ -126,13 +127,16 @@ export default function LeadsPage() {
   const [endDate, setEndDate] = usePersistentState<string>("leads_endDate", "");
   const [priorityFilter, setPriorityFilter] = usePersistentState("leads_priority", "all");
   const [sourceFilter, setSourceFilter] = usePersistentState("leads_source", "all");
-  const [assignedToFilter, setAssignedToFilter] = usePersistentState("leads_assignedTo", "all");
+  const [assignedToFilter, setAssignedToFilter] = usePersistentState("leads_assignedTo", "");
   const [tagsFilter, setTagsFilter] = usePersistentState("leads_tags", "");
   const [campaignFilter, setCampaignFilter] = usePersistentState("leads_campaign", "");
-
+  const [minValue, setMinValue] = usePersistentState("leads_minValue", "");
+  const [maxValue, setMaxValue] = usePersistentState("leads_maxValue", "");
+ 
   const { data: dbLeads, isLoading, isError } = useLeads({
     search,
     status: status !== "all" ? status : undefined,
+    stage: stageFilter !== "all" ? stageFilter : undefined,
     type: type !== "all" ? type : undefined,
     workspaceId: workspaceFilter !== "all" ? workspaceFilter : undefined,
     page: currentPage,
@@ -141,9 +145,11 @@ export default function LeadsPage() {
     endDate: endDate || undefined,
     priority: priorityFilter !== "all" ? priorityFilter : undefined,
     source: sourceFilter !== "all" ? sourceFilter : undefined,
-    assignedTo: assignedToFilter !== "all" ? assignedToFilter : undefined,
+    assignedTo: assignedToFilter ? assignedToFilter : undefined,
     tags: tagsFilter || undefined,
     campaign: campaignFilter || undefined,
+    minValue: minValue || undefined,
+    maxValue: maxValue || undefined,
   });
   const { data: users = [] } = useUsers({ department: 'Sales', includeSelf: true });
   const { data: allMembers = [] } = useOrganizationProfiles({ includeSelf: true });
@@ -270,7 +276,7 @@ export default function LeadsPage() {
   useEffect(() => {
     setSelectedLeads([]);
     setIsAllSelectedGlobally(false);
-  }, [search, status, type, workspaceFilter, startDate, endDate]);
+  }, [search, status, stageFilter, type, workspaceFilter, startDate, endDate, assignedToFilter, priorityFilter, minValue, maxValue]);
 
   const [sourceTab, setSourceTab] = useState("all");
 
@@ -635,14 +641,22 @@ export default function LeadsPage() {
       <DataToolbar
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Search everything (lead, company, contact, email, notes...)"
+        searchPlaceholder="Search title,name, comp, camp, email, web, created, desig, notes, contact..."
+        searchClassName="max-w-[510px]"
         filters={[
           {
             label: "Status", value: status, onChange: setStatus, options: [
-              { label: "New", value: "new" },
-              { label: "Contacted", value: "contacted" }, { label: "Qualified", value: "qualified" },
-              { label: "Converted", value: "converted" }, { label: "Disqualified", value: "disqualified" },
+              { label: "New", value: "new"},
+              { label: "Contacted", value: "contacted" },
+              { label: "Qualified", value: "qualified" },
+              { label: "Interested", value: "interested" },
+              { label: "Converted", value: "converted" },
+              { label: "Disqualified", value: "disqualified" },
             ]
+          },
+          {
+            label: "Stage", value: stageFilter, onChange: setStageFilter,
+            options: [...(pipelineStages?.map(s => ({ label: s.stage_label, value: s.stage_key })) || [])]
           },
           // {
           //   label: "Type", value: type, onChange: setType, options: [
@@ -651,7 +665,7 @@ export default function LeadsPage() {
           // },
           {
             label: "Priority", value: priorityFilter, onChange: setPriorityFilter, options: [
-              { label: "Low", value: "low" },
+              { label: "New", value: "new" }, { label: "Low", value: "low" },
               { label: "Medium", value: "medium" }, { label: "High", value: "high" }, { label: "Urgent", value: "urgent" },
             ]
           },
@@ -663,10 +677,11 @@ export default function LeadsPage() {
           //   ]
           // },
           {
-            label: "Responsible Person", value: assignedToFilter, onChange: setAssignedToFilter,
-            options: [...(users?.map(u => ({ label: u.full_name || u.email, value: u.id })) || [])]
+            label: "Responsible Person", type: "input" as any, value: assignedToFilter, onChange: setAssignedToFilter,
           },
           // { label: "Tags", type: "input" as any, value: tagsFilter, onChange: setTagsFilter },
+          { label: "Min Value", type: "input" as any, value: minValue, onChange: setMinValue },
+          { label: "Max Value", type: "input" as any, value: maxValue, onChange: setMaxValue },
           { label: "From", type: "date" as any, value: startDate, onChange: setStartDate },
           { label: "To", type: "date" as any, value: endDate, onChange: setEndDate },
         ]}
@@ -791,25 +806,6 @@ export default function LeadsPage() {
                     </PopoverContent>
                   </Popover>
 
-                  <Popover open={createdByPickerOpen} onOpenChange={setCreatedByPickerOpen}>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm" className="gap-2">
-                        <UserCircle2 className="h-4 w-4" />
-                        Created By ({selectedLeads.length})
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-72 p-3" align="start">
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                        Set Creator for {selectedLeads.length} lead{selectedLeads.length > 1 ? "s" : ""} to
-                      </p>
-                      <MemberSearchSelect
-                        members={salesMarketingMembers}
-                        value={bulkCreatedByUserId}
-                        onChange={(id) => { setBulkCreatedByUserId(id); if (id) handleBulkUpdateCreatedBy(id); }}
-                        placeholder="Select a user..."
-                      />
-                    </PopoverContent>
-                  </Popover>
                 </>
               )}
               <Button variant="outline" size="sm" onClick={handleBulkExport}>

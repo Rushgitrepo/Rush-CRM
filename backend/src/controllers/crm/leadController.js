@@ -270,7 +270,9 @@ const getAll = async (req, res, next) => {
       assignedTo,
       createdBy,
       tags,
-      campaign
+      campaign,
+      minValue,
+      maxValue
     } = req.query;
     const offset = (page - 1) * limit;
 
@@ -338,13 +340,13 @@ const getAll = async (req, res, next) => {
     }
 
     if (stage) {
-      query += ` AND l.stage = $${paramIndex}`;
+      query += ` AND LOWER(l.stage) = LOWER($${paramIndex})`;
       params.push(stage);
       paramIndex++;
     }
 
     if (status) {
-      query += ` AND l.status = $${paramIndex}`;
+      query += ` AND LOWER(l.status) = LOWER($${paramIndex})`;
       params.push(status);
       paramIndex++;
     }
@@ -380,8 +382,14 @@ const getAll = async (req, res, next) => {
     }
 
     if (assignedTo) {
-      query += ` AND l.assigned_to = $${paramIndex}`;
-      params.push(assignedTo);
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assignedTo);
+      if (isUuid) {
+        query += ` AND l.assigned_to = $${paramIndex}`;
+        params.push(assignedTo);
+      } else {
+        query += ` AND (u.full_name ILIKE $${paramIndex} OR u.email ILIKE $${paramIndex})`;
+        params.push(`%${assignedTo}%`);
+      }
       paramIndex++;
     }
 
@@ -404,6 +412,18 @@ const getAll = async (req, res, next) => {
       paramIndex++;
     }
 
+    if (minValue) {
+      query += ` AND l.value >= $${paramIndex}`;
+      params.push(Number(minValue));
+      paramIndex++;
+    }
+
+    if (maxValue) {
+      query += ` AND l.value <= $${paramIndex}`;
+      params.push(Number(maxValue));
+      paramIndex++;
+    }
+
     if (search) {
       // Date search: if input looks like a date, match by created_at date
       const dateSearch = search.trim();
@@ -423,6 +443,9 @@ const getAll = async (req, res, next) => {
           l.source ILIKE $${paramIndex} OR
           l.designation ILIKE $${paramIndex} OR
           l.address ILIKE $${paramIndex} OR
+          l.campaign_name ILIKE $${paramIndex} OR
+          l.website ILIKE $${paramIndex} OR
+          l.contact_person ILIKE $${paramIndex} OR
           co.name ILIKE $${paramIndex} OR
           uc.full_name ILIKE $${paramIndex}
         )`;
@@ -455,7 +478,7 @@ const getAll = async (req, res, next) => {
     }
 
     const countParams = [req.user.orgId];
-    let countQuery = 'SELECT COUNT(DISTINCT l.id) FROM public.leads l LEFT JOIN public.companies co ON co.id = l.company_id WHERE l.org_id = $1';
+    let countQuery = 'SELECT COUNT(DISTINCT l.id) FROM public.leads l LEFT JOIN public.companies co ON co.id = l.company_id LEFT JOIN public.users u ON u.id = l.assigned_to WHERE l.org_id = $1';
     let countIdx = 2;
 
     if (!isAdmin) {
@@ -471,12 +494,12 @@ const getAll = async (req, res, next) => {
       countIdx++;
     }
     if (stage) {
-      countQuery += ` AND l.stage = $${countIdx}`;
+      countQuery += ` AND LOWER(l.stage) = LOWER($${countIdx})`;
       countParams.push(stage);
       countIdx++;
     }
     if (status) {
-      countQuery += ` AND l.status = $${countIdx}`;
+      countQuery += ` AND LOWER(l.status) = LOWER($${countIdx})`;
       countParams.push(status);
       countIdx++;
     }
@@ -496,8 +519,14 @@ const getAll = async (req, res, next) => {
       countIdx++;
     }
     if (assignedTo) {
-      countQuery += ` AND l.assigned_to = $${countIdx}`;
-      countParams.push(assignedTo);
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assignedTo);
+      if (isUuid) {
+        countQuery += ` AND l.assigned_to = $${countIdx}`;
+        countParams.push(assignedTo);
+      } else {
+        countQuery += ` AND (u.full_name ILIKE $${countIdx} OR u.email ILIKE $${countIdx})`;
+        countParams.push(`%${assignedTo}%`);
+      }
       countIdx++;
     }
     if (tags) {
@@ -511,8 +540,18 @@ const getAll = async (req, res, next) => {
       countParams.push(campaign);
       countIdx++;
     }
+    if (minValue) {
+      countQuery += ` AND l.value >= $${countIdx}`;
+      countParams.push(Number(minValue));
+      countIdx++;
+    }
+    if (maxValue) {
+      countQuery += ` AND l.value <= $${countIdx}`;
+      countParams.push(Number(maxValue));
+      countIdx++;
+    }
     if (search) {
-      countQuery += ` AND (l.title ILIKE $${countIdx} OR l.name ILIKE $${countIdx} OR l.email ILIKE $${countIdx} OR co.name ILIKE $${countIdx})`;
+      countQuery += ` AND (l.title ILIKE $${countIdx} OR l.name ILIKE $${countIdx} OR l.email ILIKE $${countIdx} OR co.name ILIKE $${countIdx} OR l.campaign_name ILIKE $${countIdx} OR l.website ILIKE $${countIdx} OR l.contact_person ILIKE $${countIdx})`;
       countParams.push(`%${search}%`);
       countIdx++;
     }
@@ -522,7 +561,7 @@ const getAll = async (req, res, next) => {
     // Source counts — same filters except source, grouped by source
     const scParams = [req.user.orgId];
     let scQuery = `SELECT COALESCE(l.source, '') as source, COUNT(DISTINCT l.id) as count
-      FROM public.leads l LEFT JOIN public.companies co ON co.id = l.company_id
+      FROM public.leads l LEFT JOIN public.companies co ON co.id = l.company_id LEFT JOIN public.users u ON u.id = l.assigned_to
       WHERE l.org_id = $1`;
     let scIdx = 2;
     if (!isAdmin) {
@@ -531,10 +570,30 @@ const getAll = async (req, res, next) => {
       scParams.push(req.user.id); scIdx++;
     }
     if (workspaceId) { scQuery += ` AND l.workspace_id = $${scIdx}`; scParams.push(workspaceId); scIdx++; }
-    if (status) { scQuery += ` AND l.status = $${scIdx}`; scParams.push(status); scIdx++; }
+    if (status) { scQuery += ` AND LOWER(l.status) = LOWER($${scIdx})`; scParams.push(status); scIdx++; }
     if (priority) { scQuery += ` AND l.priority = $${scIdx}`; scParams.push(priority); scIdx++; }
-    if (assignedTo) { scQuery += ` AND l.assigned_to = $${scIdx}`; scParams.push(assignedTo); scIdx++; }
-    if (search) { scQuery += ` AND (l.title ILIKE $${scIdx} OR l.name ILIKE $${scIdx} OR l.email ILIKE $${scIdx} OR co.name ILIKE $${scIdx})`; scParams.push(`%${search}%`); scIdx++; }
+    if (assignedTo) {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assignedTo);
+      if (isUuid) {
+        scQuery += ` AND l.assigned_to = $${scIdx}`;
+        scParams.push(assignedTo);
+      } else {
+        scQuery += ` AND (u.full_name ILIKE $${scIdx} OR u.email ILIKE $${scIdx})`;
+        scParams.push(`%${assignedTo}%`);
+      }
+      scIdx++;
+    }
+    if (minValue) {
+      scQuery += ` AND l.value >= $${scIdx}`;
+      scParams.push(Number(minValue));
+      scIdx++;
+    }
+    if (maxValue) {
+      scQuery += ` AND l.value <= $${scIdx}`;
+      scParams.push(Number(maxValue));
+      scIdx++;
+    }
+    if (search) { scQuery += ` AND (l.title ILIKE $${scIdx} OR l.name ILIKE $${scIdx} OR l.email ILIKE $${scIdx} OR co.name ILIKE $${scIdx} OR l.campaign_name ILIKE $${scIdx} OR l.website ILIKE $${scIdx} OR l.contact_person ILIKE $${scIdx})`; scParams.push(`%${search}%`); scIdx++; }
     scQuery += ' GROUP BY l.source';
 
     let sourceCounts = {};
@@ -1021,11 +1080,11 @@ const bulkRemove = async (req, res, next) => {
       if (filters) {
         if (filters.search) {
           params.push(`%${filters.search}%`);
-          filterClause += ` AND (title ILIKE $${params.length} OR name ILIKE $${params.length} OR email ILIKE $${params.length} OR company_name ILIKE $${params.length})`;
+          filterClause += ` AND (title ILIKE $${params.length} OR name ILIKE $${params.length} OR email ILIKE $${params.length} OR company_name ILIKE $${params.length} OR campaign_name ILIKE $${params.length} OR website ILIKE $${params.length} OR contact_person ILIKE $${params.length})`;
         }
         if (filters.status && filters.status !== 'all') {
           params.push(filters.status);
-          filterClause += ` AND (status = $${params.length} OR stage = $${params.length})`;
+          filterClause += ` AND (LOWER(status) = LOWER($${params.length}) OR LOWER(stage) = LOWER($${params.length}))`;
         }
         if (filters.type && filters.type !== 'all') {
           params.push(filters.type);
@@ -1197,7 +1256,17 @@ const convertToDeal = async (req, res, next) => {
       return res.status(200).json({ message: 'Lead already converted', dealId: lead.converted_to_deal_id });
     }
 
-    const stage = lead.stage || 'qualification';
+    // Map lead stages to valid deal pipeline stages
+    const leadToDealStageMap = {
+      'new':          'drawings_received',
+      'contacted':    'drawings_received',
+      'qualified':    'awaiting_proposal',
+      'proposal':     'proposal_sent',
+      'negotiation':  'proposal_sent',
+      'unqualified':  'unqualified',
+    };
+    const leadStage = (lead.stage || 'new').toLowerCase();
+    const stage = leadToDealStageMap[leadStage] || 'drawings_received';
     const status = 'open';
 
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

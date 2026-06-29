@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { LayoutGrid, ListFilter, Filter, XCircle } from "lucide-react";
+import { LayoutGrid, ListFilter, Filter, XCircle, X } from "lucide-react";
 
 export type ToolbarFilterOption = { label: string; value: string; count?: number };
 export type ToolbarQuickFilter = { label: string; value: string; active: boolean; onToggle: (value: string) => void };
@@ -17,6 +17,7 @@ interface DataToolbarProps {
   search?: string;
   onSearchChange?: (value: string) => void;
   searchPlaceholder?: string;
+  searchClassName?: string;
   filters?: {
     label: string;
     type?: "select" | "input" | "date" | "custom";
@@ -40,6 +41,7 @@ export function DataToolbar({
   search,
   onSearchChange,
   searchPlaceholder = "Search...",
+  searchClassName,
   filters,
   quickFilters,
   sortValue,
@@ -55,7 +57,7 @@ export function DataToolbar({
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-1 flex-wrap gap-3 items-center">
           {onSearchChange && (
-            <div className="relative w-full md:w-72">
+            <div className={cn("relative w-full max:w-72", searchClassName)}>
               <Input
                 value={search}
                 onChange={(e) => onSearchChange?.(e.target.value)}
@@ -72,7 +74,7 @@ export function DataToolbar({
         <div className="flex flex-wrap items-center gap-2 justify-end">
           {sortOptions && onSortChange && (
             <Select value={sortValue} onValueChange={onSortChange}>
-              <SelectTrigger className="w-[160px] bg-muted/40 border-border/60">
+              <SelectTrigger className="w-[100px] bg-muted/40 border-border/60">
                 <SelectValue placeholder="Sort" />
               </SelectTrigger>
               <SelectContent>
@@ -110,7 +112,7 @@ export function DataToolbar({
           {children}
         </div>
       </div>
-      <div className="flex gap-4">
+      <div className="flex flex-wrap items-center gap-2">
         {filters && filters.length > 0 && (
           <Popover>
             <PopoverTrigger asChild>
@@ -138,7 +140,6 @@ export function DataToolbar({
               className="w-[320px] p-4 max-h-[45vh] overflow-y-auto custom-scrollbar"
               align="start"
               onPointerDownOutside={(e) => {
-                // Prevent closing when clicking on a Select content (which is in a portal)
                 if (e.target instanceof Element && e.target.closest('[role="listbox"]')) {
                   e.preventDefault();
                 }
@@ -220,6 +221,28 @@ export function DataToolbar({
           </Button>
         )}
 
+        {/* Active filter chips */}
+        {filters?.filter(f => f.value && f.value !== "all" && f.type !== "custom").map((filter) => {
+          const label = filter.options?.find(o => o.value === filter.value)?.label || filter.value;
+          return (
+            <Badge
+              key={filter.label}
+              variant="secondary"
+              className="h-7 gap-1.5 pl-2.5 pr-1.5 text-xs font-medium rounded-full border border-border/60 bg-primary/10 text-primary hover:bg-primary/15 transition-colors"
+            >
+              <span className="text-muted-foreground text-[10px] font-normal">{filter.label}:</span>
+              {label}
+              <button
+                onClick={() => filter.onChange?.(filter.resetValue ?? (filter.type === "input" || filter.type === "date" ? "" : "all"))}
+                className="ml-0.5 rounded-full hover:bg-primary/20 p-0.5 transition-colors"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          );
+        })}
+
+        {/* Quick filter buttons */}
         {quickFilters && quickFilters.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {quickFilters.map((filter) => (

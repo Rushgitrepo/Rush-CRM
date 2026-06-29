@@ -9,6 +9,7 @@ const STALE_TIME = 2 * 60 * 1000; // 2 minutes
 export function useLeads(params?: {
   search?: string;
   status?: string;
+  stage?: string;
   type?: string;
   workspaceId?: string;
   page?: number;
@@ -20,6 +21,8 @@ export function useLeads(params?: {
   assignedTo?: string;
   tags?: string | string[];
   campaign?: string;
+  minValue?: string | number;
+  maxValue?: string | number;
 }) {
   return useQuery({
     queryKey: ['leads', params],
@@ -239,6 +242,8 @@ export function useDeals(params?: {
   assignedTo?: string;
   tags?: string | string[];
   campaign?: string;
+  minValue?: string;
+  maxValue?: string;
 }) {
   return useQuery({
     queryKey: ['deals', params],
@@ -255,6 +260,19 @@ export function useDeals(params?: {
     refetchOnWindowFocus: true,
     refetchOnMount: true,
     placeholderData: (previousData) => previousData,
+  });
+}
+
+export function useBulkAssignDeals() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ ids, assigned_to }: { ids: string[]; assigned_to: string }) =>
+      dealsApi.bulkAssign(ids, assigned_to),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['deals'] });
+      toast.success(data.message || 'Deals assigned successfully');
+    },
+    onError: (error: Error) => toast.error(error.message),
   });
 }
 

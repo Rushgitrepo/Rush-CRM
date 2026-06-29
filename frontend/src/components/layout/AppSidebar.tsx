@@ -168,7 +168,7 @@ const navigation: NavItem[] = [
           // { title: "Vendors", href: "/inventory/vendors", hasNested: false },
         ],
       },
-      { title: "Sales", href: "/crm/sales", icon: DollarSign },
+      // { title: "Sales", href: "/crm/sales", icon: DollarSign },
       // { title: "Analytics", href: "/crm/analytics", icon: BarChart3 },
       { title: "Communications", href: "/crm/communications", icon: Phone },
     ],

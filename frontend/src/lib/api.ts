@@ -250,6 +250,8 @@ export const dealsApi = {
   delete: (id: string) => api.delete(`/deals/${id}`),
   bulkDelete: (payload: { ids?: string[]; all?: boolean; filters?: any } | string[]) =>
     api.post<{ message: string; deletedCount: number }>('/deals/bulk-delete', Array.isArray(payload) ? { ids: payload } : payload),
+  bulkAssign: (ids: string[], assigned_to: string) =>
+    api.post<{ message: string; updatedCount: number; assignedTo: any }>('/deals/bulk-assign', { ids, assigned_to }),
   getStats: () => api.get<any>('/deals/stats'),
 };
 

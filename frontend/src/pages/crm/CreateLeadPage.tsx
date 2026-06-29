@@ -130,6 +130,15 @@ const stageOptions = [
   { value: "unqualified", label: "Unqualified" },
 ];
 
+const statusOptions = [
+  { value: "new", label: "New" },
+  { value: "contacted", label: "Contacted" },
+  { value: "qualified", label: "Qualified" },
+  { value: "interested", label: "Interested" },
+  { value: "converted", label: "Converted" },
+  { value: "disqualified", label: "Disqualified" },
+];
+
 const customerTypeOptions = [
   { value: "lead", label: "Lead" },
   { value: "prospect", label: "Prospect" },
@@ -817,7 +826,9 @@ export default function CreateLeadPage() {
                           value={watch("stage") || ""}
                           onChange={(v) => {
                             setValue("stage", v);
-                            setValue("status", v);
+                            if (statusOptions.some(opt => opt.value === v)) {
+                              setValue("status", v);
+                            }
                           }}
                           options={allStageOptions}
                           placeholder="Select stage"
@@ -833,6 +844,42 @@ export default function CreateLeadPage() {
                       "lead-company-details",
                       false,
                       "fixed-lead-company-details-stage",
+                    )}
+
+                    <DroppableField
+                      id="fixed-lead-company-details-status"
+                      editing={true}
+                    >
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-foreground">
+                          Status
+                        </Label>
+                        <Select
+                          value={watch("status") || "new"}
+                          onValueChange={(v) => setValue("status", v)}
+                        >
+                          <SelectTrigger className="h-11">
+                            <SelectValue placeholder="Select status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {statusOptions.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {errors.status && (
+                          <p className="text-xs text-destructive">
+                            {errors.status.message}
+                          </p>
+                        )}
+                      </div>
+                    </DroppableField>
+                    {renderDroppedFields(
+                      "lead-company-details",
+                      false,
+                      "fixed-lead-company-details-status",
                     )}
 
                     <DroppableField
