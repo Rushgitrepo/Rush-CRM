@@ -41,6 +41,15 @@ async function runMigrations() {
       const migrationPath = path.join(migrationsDir, file);
       const migrationSQL = fs.readFileSync(migrationPath, 'utf8');
       
+      if (process.env.NODE_ENV === 'production' && /\bdrop\b/i.test(migrationSQL)) {
+        console.warn(`⚠️ [Migration Guard] Skipping drop command in migration "${file}" on production. Logging and marking as processed.`);
+        await db.query(
+          'INSERT INTO migrations (filename) VALUES ($1)',
+          [file]
+        );
+        continue;
+      }
+      
       try {
         await db.query(migrationSQL);
         

@@ -1,6 +1,18 @@
 const db = require('../../config/database');
 const realtimeService = require('../realtimeService');
 
+const parseInstantlyDate = (val) => {
+  if (!val) return null;
+  if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+  if (typeof val === 'number' || (typeof val === 'string' && /^\d+$/.test(val))) {
+    const num = Number(val);
+    return new Date(num < 10000000000 ? num * 1000 : num);
+  }
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? null : d;
+};
+
+
 // Designation signature parser from bottom of email body text
 const extractDesignationFromEmail = (bodyText) => {
   if (!bodyText) return null;
@@ -381,7 +393,7 @@ class InstantlyService {
       const designation = extractDesignationFromEmail(leadData.body_text);
 
       // Created date should come from unibox email received_at date!
-      const createdDate = leadData.received_at ? new Date(leadData.received_at) : new Date();
+      const createdDate = leadData.received_at ? (parseInstantlyDate(leadData.received_at) || new Date()) : new Date();
 
       // Additional notes with email subject, sender, date, body
       let interactionNotes = '';
@@ -699,7 +711,7 @@ class InstantlyService {
           subject = item.subject || '(No subject)';
           bodyText = (item.body && item.body.text) || item.content_preview || '';
           bodyHtml = (item.body && item.body.html) || '';
-          receivedAt = new Date(item.timestamp_email || item.timestamp_created || Date.now());
+          receivedAt = parseInstantlyDate(item.timestamp_email || item.timestamp_created) || new Date();
 
           // Try to get lead details from item
           const leadObj = item.lead && typeof item.lead === 'object' ? item.lead : {};
@@ -751,7 +763,7 @@ class InstantlyService {
             '⚠️ Full email content unavailable — update your Instantly API key to include "emails:read" scope.'
           ].filter(Boolean).join('\n');
           bodyHtml = '';
-          receivedAt = new Date(item.timestamp_updated || item.timestamp_created || Date.now());
+          receivedAt = parseInstantlyDate(item.timestamp_updated || item.timestamp_created) || new Date();
         }
 
         // Auto-add to leads table if enabled
@@ -1031,7 +1043,8 @@ class InstantlyService {
     const campaignId = payload.campaign || payload.campaign_id || leadObj.campaign_id || null;
     const campaignName = payload.campaign_name || payload.campaign || null;
     const externalId = (payload.email_id || payload.id || payload.lead_id || `inst-wh-${Date.now()}`).toString();
-    const receivedAt = new Date(payload.timestamp || payload.timestamp_email || Date.now());
+    const rawTime = payload.timestamp || payload.timestamp_email || payload.timestamp_created || payload.received_at || payload.date || payload.time || payload.created_at;
+    const receivedAt = parseInstantlyDate(rawTime) || new Date();
 
     let status = EVENT_TO_UNIBOX_STATUS[eventType] || 'Lead';
     if (eventType === 'auto_reply_received') status = 'Out of Office';
@@ -1315,7 +1328,7 @@ class InstantlyService {
         const subject   = item.subject || '(No subject)';
         const bodyText  = item.body?.text || item.content_preview || '';
         const bodyHtml  = item.body?.html || '';
-        const receivedAt = new Date(item.timestamp_email || item.timestamp_created || Date.now());
+        const receivedAt = parseInstantlyDate(item.timestamp_email || item.timestamp_created) || new Date();
 
         // Resolve campaign name
         let campaignName = null;

@@ -39,6 +39,7 @@ fi
 
 echo "Installing backend dependencies..."
 npm install
+npm run migrate
 # 3. Manage Backend Process with PM2
 echo "--- Step 2: PM2 Backend Process Management ---"
 PM2_NAME="rush-rms-backend"
