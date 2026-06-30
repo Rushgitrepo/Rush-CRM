@@ -205,6 +205,7 @@ export default function DealsPage() {
     "deals_campaign",
     "",
   );
+  const [campaignNameFilter, setCampaignNameFilter] = usePersistentState("deals_campaignName", "");
   const [minValue, setMinValue] = usePersistentState("deals_minValue", "");
   const [maxValue, setMaxValue] = usePersistentState("deals_maxValue", "");
 
@@ -225,6 +226,7 @@ export default function DealsPage() {
     assignedTo: assignedToFilter && assignedToFilter !== "all" ? assignedToFilter : undefined,
     tags: tagsFilter || undefined,
     campaign: campaignFilter || undefined,
+    campaignName: campaignNameFilter || undefined,
     minValue: minValue || undefined,
     maxValue: maxValue || undefined,
   });
@@ -421,6 +423,7 @@ export default function DealsPage() {
     { key: "value", label: "Value" },
     { key: "stage", label: "Stage" },
     { key: "status", label: "Status" },
+    // Campaign responsible db field name is responsible_person 
     { key: "responsible", label: "Campaign Responsible" },
     { key: "assignedTo", label: "Assigned To" },
     { key: "createdAt", label: "Created" },
@@ -589,6 +592,8 @@ export default function DealsPage() {
         </Badge>
       ),
     },
+
+    // Campaign responsible db field name is responsible_person 
     {
       key: "responsible",
       header: "Campaign Responsible",
@@ -965,6 +970,12 @@ export default function DealsPage() {
               { label: "High", value: "high" },
               { label: "Urgent", value: "urgent" },
             ],
+          },
+          {
+            label: "Campaign",
+            type: "input" as any,
+            value: campaignNameFilter,
+            onChange: setCampaignNameFilter,
           },
           {
             label: "Responsible Person",

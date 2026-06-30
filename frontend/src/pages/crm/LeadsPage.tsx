@@ -154,6 +154,7 @@ export default function LeadsPage() {
   const [assignedToFilter, setAssignedToFilter] = usePersistentState("leads_assignedTo", "");
   const [tagsFilter, setTagsFilter] = usePersistentState("leads_tags", "");
   const [campaignFilter, setCampaignFilter] = usePersistentState("leads_campaign", "");
+  const [campaignNameFilter, setCampaignNameFilter] = usePersistentState("leads_campaignName", "");
   const [minValue, setMinValue] = usePersistentState("leads_minValue", "");
   const [maxValue, setMaxValue] = usePersistentState("leads_maxValue", "");
  
@@ -172,6 +173,7 @@ export default function LeadsPage() {
     assignedTo: assignedToFilter ? assignedToFilter : undefined,
     tags: tagsFilter || undefined,
     campaign: campaignFilter || undefined,
+    campaignName: campaignNameFilter || undefined,
     minValue: minValue || undefined,
     maxValue: maxValue || undefined,
   });
@@ -198,7 +200,9 @@ export default function LeadsPage() {
     { key: "source", label: "Source" },
     { key: "campaignName", label: "Campaign" },
     { key: "value", label: "Value" },
+    // Campaign responsible db field name is responsible_person 
     { key: "responsible", label: "Campaign Responsible" },
+    // Lead responsible db field name is assigned_to 
     { key: "assignedTo", label: "Leads Responsible" },
     { key: "phone", label: "Contact" },
     { key: "createdAt", label: "Created" },
@@ -494,6 +498,7 @@ export default function LeadsPage() {
         </span>
       ),
     },
+    // Campaign responsible db field name is responsible_person 
     {
       key: "responsible",
       header: "Campaign Responsible",
@@ -518,6 +523,7 @@ export default function LeadsPage() {
         </div> 
       ),
     },
+     // Lead responsible db field name is assigned_to
     {
       key: "assignedTo",
       header: "Leads Responsible",
@@ -734,6 +740,9 @@ export default function LeadsPage() {
           //     { label: "LinkedIn", value: "LinkedIn" }, { label: "Email", value: "Email" }, { label: "Other", value: "Other" },
           //   ]
           // },
+          {
+            label: "Campaign", type: "input" as any, value: campaignNameFilter, onChange: setCampaignNameFilter,
+          },
           {
             label: "Responsible", type: "input" as any, value: assignedToFilter, onChange: setAssignedToFilter,
           },

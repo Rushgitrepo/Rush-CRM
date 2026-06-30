@@ -1401,7 +1401,8 @@ export default function CreateLeadPage() {
                       false,
                       "fixed-qualification-opportunity-expectedCloseDate",
                     )}
-
+                    
+                    {/* Campaign responsible db field name is responsible_person */}
                     <DroppableField
                       id="fixed-qualification-opportunity-responsiblePerson"
                       editing={true}
@@ -1409,12 +1410,12 @@ export default function CreateLeadPage() {
                       <div className="space-y-2">
                         <Label className="text-sm font-medium text-foreground flex items-center gap-2">
                           <Users className="h-4 w-4" />
-                          Campaign Responsible
-                          {assignedToDepartment && (
+                          Campaign Responsible  
+                          {/* {assignedToDepartment && (
                             <span className="text-[10px] font-normal text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
                               {assignedToDepartment} only
                             </span>
-                          )}
+                          )} */}
                         </Label>
                         <MemberSearchSelect
                           members={members}

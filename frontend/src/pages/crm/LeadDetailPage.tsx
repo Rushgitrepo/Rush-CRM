@@ -1778,6 +1778,7 @@ export default function LeadDetailPage() {
                         </DroppableField>
                         {renderDroppedFields("qualification-opportunity", false, "fixed-qualification-opportunity-expected_close_date")}
 
+                        {/* Campaign responsible db field name is responsible_person */}
                         <DroppableField id="fixed-qualification-opportunity-responsible_person" editing={editing}>
                           <div className="space-y-1">
                             <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">

@@ -302,6 +302,7 @@ const getAll = async (req, res, next) => {
       assignedTo,
       tags,
       campaign,
+      campaignName,
       minValue,
       maxValue
     } = req.query;
@@ -421,8 +422,14 @@ const getAll = async (req, res, next) => {
     }
 
     if (campaign) {
-      query += ` AND d.campaign_id = $${paramIndex}`;
+      query += ` AND d.campaign_id::text = $${paramIndex}::text`;
       params.push(campaign);
+      paramIndex++;
+    }
+
+    if (campaignName) {
+      query += ` AND (d.campaign_name ILIKE $${paramIndex} OR u.full_name ILIKE $${paramIndex})`;
+      params.push(`%${campaignName}%`);
       paramIndex++;
     }
 
@@ -536,8 +543,13 @@ const getAll = async (req, res, next) => {
       countIdx++;
     }
     if (campaign) {
-      countQuery += ` AND d.campaign_id = $${countIdx}`;
+      countQuery += ` AND d.campaign_id::text = $${countIdx}::text`;
       countParams.push(campaign);
+      countIdx++;
+    }
+    if (campaignName) {
+      countQuery += ` AND (d.campaign_name ILIKE $${countIdx} OR EXISTS (SELECT 1 FROM users rpu WHERE rpu.id = d.responsible_person AND rpu.full_name ILIKE $${countIdx}))`;
+      countParams.push(`%${campaignName}%`);
       countIdx++;
     }
     if (minValue) {

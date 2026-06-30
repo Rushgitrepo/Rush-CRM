@@ -21,6 +21,7 @@ export function useLeads(params?: {
   assignedTo?: string;
   tags?: string | string[];
   campaign?: string;
+  campaignName?: string;
   minValue?: string | number;
   maxValue?: string | number;
 }) {
@@ -242,6 +243,7 @@ export function useDeals(params?: {
   assignedTo?: string;
   tags?: string | string[];
   campaign?: string;
+  campaignName?: string;
   minValue?: string;
   maxValue?: string;
 }) {
