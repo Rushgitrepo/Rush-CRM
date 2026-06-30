@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS users (
     last_seen_at timestamp with time zone,
     "position" character varying(100),
     timezone character varying(100),
-    language character varying(10) DEFAULT 'en'::character varying,
+    languages TEXT[],
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
 );
@@ -1403,7 +1403,7 @@ CREATE TABLE IF NOT EXISTS leads (
     customer_type character varying(50),
     last_contacted_date timestamp with time zone,
     next_follow_up_date timestamp with time zone,
-    responsible_person character varying(255),
+    responsible_person uuid,
     priority character varying(50),
     tags text[],
     expected_close_date date,
@@ -1413,6 +1413,8 @@ CREATE TABLE IF NOT EXISTS leads (
     value numeric DEFAULT 0,
     currency character varying(10) DEFAULT 'USD'::character varying,
     import_id uuid,
+    industry character varying(255),
+    contact_person character varying(255),
     created_by uuid,
     updated_by uuid,
     is_converted boolean DEFAULT false,
@@ -2753,6 +2755,7 @@ CREATE TABLE IF NOT EXISTS unibox_campaign_folder_assignments (
     org_id uuid NOT NULL,
     folder_id uuid NOT NULL,
     user_id uuid NOT NULL,
+    auto_convert_leads boolean NOT NULL DEFAULT false,
     created_at timestamp with time zone DEFAULT now()
 );
 

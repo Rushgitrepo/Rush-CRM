@@ -23,6 +23,7 @@ export default function EditEmployeePage() {
   
   const [formData, setFormData] = useState({
     // Basic Info
+    full_name: '',
     first_name: '',
     last_name: '',
     email: '',
@@ -100,12 +101,13 @@ export default function EditEmployeePage() {
       const response: any = await api.get(`/employees/${id}`);
       const employee = response.data || response;
       
-      if (!employee || !employee.first_name) {
+      if (!employee || !employee.id) {
         throw new Error('Employee data not found');
       }
       
       // Convert arrays to comma-separated strings and handle all fields safely
       const formattedData = {
+        full_name: `${employee.first_name || ''} ${employee.last_name || ''}`.trim(),
         first_name: employee.first_name || '',
         last_name: employee.last_name || '',
         email: employee.email || '',
@@ -173,16 +175,20 @@ export default function EditEmployeePage() {
   };
 
   const handleSubmit = async () => {
-    if (!formData.first_name || !formData.last_name || !formData.email) {
+    if (!formData.full_name || !formData.email) {
       toast.error('Please fill in required fields', {
-        description: 'First name, last name, and email are required'
+        description: 'Full name and email are required'
       });
       return;
     }
+    const nameParts = formData.full_name.trim().split(/\s+/);
+    formData.first_name = nameParts[0] || formData.full_name;
+    formData.last_name = nameParts.slice(1).join(' ') || '';
 
     setLoading(true);
     try {
       const cleanedData = Object.entries(formData).reduce((acc, [key, value]) => {
+        if (key === 'full_name') return acc; // derived field, not a DB column
         if (value !== '' && value !== null && value !== undefined) {
           // Convert numeric fields
           if (['base_salary', 'commission_rate', 'graduation_year', 'years_of_experience'].includes(key)) {
@@ -304,7 +310,7 @@ export default function EditEmployeePage() {
             </div>
             <div>
               <h1 className="text-3xl font-bold text-gray-900 text-primary/80">Edit Employee</h1>
-              <p className="text-gray-600 mt-1">{formData.first_name} {formData.last_name}</p>
+              <p className="text-gray-600 mt-1">{formData.full_name}</p>
             </div>
           </div>
 
@@ -350,22 +356,12 @@ export default function EditEmployeePage() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <Label>First Name <span className="text-red-500">*</span></Label>
+                  <div className="md:col-span-2">
+                    <Label>Full Name <span className="text-red-500">*</span></Label>
                     <Input
-                      value={formData.first_name}
-                      onChange={(e) => handleChange('first_name', e.target.value)}
-                      placeholder="Enter first name"
-                      className="mt-2"
-                    />
-                  </div>
-
-                  <div>
-                    <Label>Last Name <span className="text-red-500">*</span></Label>
-                    <Input
-                      value={formData.last_name}
-                      onChange={(e) => handleChange('last_name', e.target.value)}
-                      placeholder="Enter last name"
+                      value={formData.full_name}
+                      onChange={(e) => handleChange('full_name', e.target.value)}
+                      placeholder="Enter full name"
                       className="mt-2"
                     />
                   </div>
@@ -401,7 +397,7 @@ export default function EditEmployeePage() {
                     />
                   </div>
 
-                  <div>
+                  {/* <div>
                     <Label>Official Email</Label>
                     <Input
                       type="email"
@@ -410,7 +406,7 @@ export default function EditEmployeePage() {
                       placeholder="official@company.com"
                       className="mt-2"
                     />
-                  </div>
+                  </div> */}
 
                   <div>
                     <Label>Personal Email</Label>

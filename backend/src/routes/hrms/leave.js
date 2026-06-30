@@ -9,6 +9,7 @@ router.use(auth, requireOrg);
 router.get('/types', leaveController.getLeaveTypes);
 router.post('/types', leaveController.createLeaveType);
 router.put('/types/:id', leaveController.updateLeaveType);
+router.delete('/types/:id', leaveController.deleteLeaveType);
 
 // Leave Balances
 router.get('/balance/my', leaveController.getMyBalance);
@@ -19,6 +20,10 @@ router.post('/balance/:employeeId/initialize', leaveController.initializeEmploye
 router.get('/', leaveController.getLeaveRequests);
 router.post('/', leaveController.createLeaveRequest);
 router.patch('/:id', leaveController.updateLeaveRequest);
+router.delete('/:id', leaveController.deleteLeaveRequest);
+
+// Annual Reset
+router.post('/balance/reset-annual', leaveController.resetAnnualBalances);
 
 // Analytics
 router.get('/analytics/stats', leaveController.getLeaveAnalytics);

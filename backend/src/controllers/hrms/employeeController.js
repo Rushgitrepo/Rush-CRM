@@ -3,7 +3,7 @@ const Joi = require('joi');
 
 const createEmployeeSchema = Joi.object({
   first_name: Joi.string().required(),
-  last_name: Joi.string().required(),
+  last_name: Joi.string().optional().allow(''),
   email: Joi.string().email().required(),
   phone: Joi.string().optional().allow(''),
   department: Joi.string().optional().allow(''),
@@ -134,6 +134,11 @@ const getAll = async (req, res, next) => {
       FROM public.employees e
       LEFT JOIN public.employees m ON e.manager_id = m.id
       WHERE e.org_id = $1
+        AND NOT EXISTS (
+          SELECT 1 FROM public.users u
+          WHERE LOWER(u.email) = LOWER(e.email)
+            AND u.role IN ('super_admin', 'admin')
+        )
     `;
     const params = [req.user.orgId];
     let paramIndex = 2;
@@ -162,7 +167,7 @@ const getAll = async (req, res, next) => {
     const result = await db.query(query, params);
 
     // Get total count
-    let countQuery = `SELECT COUNT(*) FROM public.employees WHERE org_id = $1`;
+    let countQuery = `SELECT COUNT(*) FROM public.employees e WHERE e.org_id = $1 AND NOT EXISTS (SELECT 1 FROM public.users u WHERE LOWER(u.email) = LOWER(e.email) AND u.role IN ('super_admin', 'admin'))`;
     const countParams = [req.user.orgId];
     let countParamIndex = 2;
 
@@ -242,11 +247,12 @@ const create = async (req, res, next) => {
     }
 
     // Build dynamic INSERT query
-    const fields = ['org_id', 'created_by'];
-    const values = [req.user.orgId, req.user.id];
-    let paramIndex = 3;
+    const fields = ['org_id', 'created_by', 'last_name'];
+    const values = [req.user.orgId, req.user.id, value.last_name || ''];
+    let paramIndex = 4;
 
     Object.entries(value).forEach(([key, val]) => {
+      if (key === 'last_name') return; // already added above
       if (val !== undefined && val !== null && val !== '') {
         const fieldName = key === 'position' ? '"position"' : key;
         const finalVal = key === 'department' ? val.trim().toLowerCase() : val;
@@ -350,7 +356,7 @@ const update = async (req, res, next) => {
     values.push(id, req.user.orgId);
 
     const result = await db.query(
-      `UPDATE public.employees SET ${fields.join(', ')} 
+      `UPDATE public.employees SET ${fields.join(', ')}
        WHERE id = $${paramIndex++} AND org_id = $${paramIndex}
        RETURNING *, CONCAT(first_name, ' ', last_name) as name`,
       values
@@ -360,7 +366,35 @@ const update = async (req, res, next) => {
       return res.status(404).json({ error: 'Employee not found' });
     }
 
-    res.json(result.rows[0]);
+    const updated = result.rows[0];
+
+    // Sync relevant fields back to public.users if a matching user exists (by email)
+    if (updated.email) {
+      const syncFields = [];
+      const syncValues = [];
+      let si = 1;
+
+      const fullName = `${updated.first_name || ''} ${updated.last_name || ''}`.trim();
+      if (fullName) { syncFields.push(`full_name = $${si++}`); syncValues.push(fullName); }
+      if (value.email)      { syncFields.push(`email = $${si++}`);      syncValues.push(updated.email); }
+      if (value.phone !== undefined)      { syncFields.push(`phone = $${si++}`);      syncValues.push(updated.phone || null); }
+      if (value.department !== undefined) { syncFields.push(`department = $${si++}`); syncValues.push(updated.department || null); }
+      if (value.position !== undefined)   { syncFields.push(`"position" = $${si++}`); syncValues.push(updated.position || null); }
+      if (value.languages !== undefined)  { syncFields.push(`languages = $${si++}`);  syncValues.push(updated.languages || null); }
+      if (value.status !== undefined)     { syncFields.push(`is_active = $${si++}`);  syncValues.push(updated.status === 'active'); }
+
+      if (syncFields.length > 0) {
+        // match by old email (before potential email change)
+        const matchEmail = value.email ? req.body._old_email || updated.email : updated.email;
+        syncValues.push(matchEmail, req.user.orgId);
+        await db.query(
+          `UPDATE public.users SET ${syncFields.join(', ')} WHERE LOWER(email) = LOWER($${si++}) AND org_id = $${si}`,
+          syncValues
+        ).catch(() => {});
+      }
+    }
+
+    res.json(updated);
   } catch (err) {
     next(err);
   }

@@ -11,10 +11,12 @@ const createAttendanceSchema = Joi.object({
 });
 
 const updateAttendanceSchema = Joi.object({
-  clock_in: Joi.date().optional(),
-  clock_out: Joi.date().optional(),
-  status: Joi.string().valid('present', 'absent', 'late', 'leave').optional(),
-  notes: Joi.string().optional().allow(''),
+  clock_in:    Joi.date().optional().allow(null),
+  clock_out:   Joi.date().optional().allow(null),
+  break_start: Joi.date().optional().allow(null),
+  break_end:   Joi.date().optional().allow(null),
+  status: Joi.string().valid('present', 'absent', 'late', 'leave', 'half_day', 'on_break').optional(),
+  notes: Joi.string().optional().allow('', null),
 }).min(1);
 
 const getAll = async (req, res, next) => {

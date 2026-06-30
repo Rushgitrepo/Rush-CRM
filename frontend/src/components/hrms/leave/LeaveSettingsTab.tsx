@@ -7,14 +7,16 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, Settings } from "lucide-react";
+import { Plus, Edit, Settings, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 
 export default function LeaveSettingsTab() {
   const [createDialog, setCreateDialog] = useState(false);
   const [editDialog, setEditDialog] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState(false);
   const [selectedType, setSelectedType] = useState<any>(null);
   const [formData, setFormData] = useState({
     name: "",
@@ -63,6 +65,19 @@ export default function LeaveSettingsTab() {
       toast.error("Failed to update leave type", {
         description: error?.message || "Please try again",
       });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/leave/types/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["leave-types"] });
+      toast.success("Leave type deleted");
+      setDeleteDialog(false);
+      setSelectedType(null);
+    },
+    onError: (error: any) => {
+      toast.error("Failed to delete leave type", { description: error?.message });
     },
   });
 
@@ -163,9 +178,14 @@ export default function LeaveSettingsTab() {
                     <CardTitle className="text-base">{type.name}</CardTitle>
                     <p className="text-xs text-gray-500 mt-1">{type.code}</p>
                   </div>
-                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => handleEdit(type)}>
-                    <Edit className="h-4 w-4" />
-                  </Button>
+                  <div className="flex gap-1">
+                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => handleEdit(type)}>
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive hover:text-destructive" onClick={() => { setSelectedType(type); setDeleteDialog(true); }}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -291,6 +311,28 @@ export default function LeaveSettingsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={deleteDialog} onOpenChange={setDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Leave Type</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{selectedType?.name}</strong>? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => selectedType && deleteMutation.mutate(selectedType.id)}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? "Deleting..." : "Yes, Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Edit Dialog */}
       <Dialog open={editDialog} onOpenChange={setEditDialog}>

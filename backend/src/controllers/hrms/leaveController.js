@@ -147,6 +147,9 @@ const getEmployeeBalance = async (req, res, next) => {
 const getMyBalance = async (req, res, next) => {
   try {
     const year = req.query.year || new Date().getFullYear();
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
     // Get current user's employee record
     const empResult = await db.query(
@@ -155,13 +158,33 @@ const getMyBalance = async (req, res, next) => {
     );
 
     if (empResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Employee record not found' });
+      // No employee record — return leave types with 0 balance so UI still shows something
+      const types = await db.query(
+        'SELECT id, name, code, color, days_allowed, monthly_limit FROM leave_types WHERE org_id = $1 AND is_active = true ORDER BY name',
+        [req.user.orgId]
+      );
+      return res.json({
+        data: types.rows.map(lt => ({
+          leave_type_id: lt.id,
+          leave_type_name: lt.name,
+          leave_type_code: lt.code,
+          leave_type_color: lt.color,
+          total_allocated: lt.days_allowed,
+          monthly_limit: lt.monthly_limit,
+          used: 0, pending: 0, available: lt.days_allowed,
+          carried_forward: 0,
+          monthly_used: 0,
+          monthly_remaining: lt.monthly_limit || null,
+          year,
+          not_initialized: true,
+        }))
+      });
     }
 
     const employeeId = empResult.rows[0].id;
 
     const result = await db.query(
-      `SELECT 
+      `SELECT
         lb.id,
         lb.employee_id,
         lb.leave_type_id,
@@ -175,15 +198,68 @@ const getMyBalance = async (req, res, next) => {
         lt.name as leave_type_name,
         lt.code as leave_type_code,
         lt.color as leave_type_color,
-        lt.can_carry_forward
+        lt.can_carry_forward,
+        lt.days_allowed,
+        lt.monthly_limit,
+        COALESCE((
+          SELECT SUM(lr.days_requested)
+          FROM leave_requests lr
+          WHERE lr.employee_id = lb.employee_id
+            AND lr.leave_type_id = lb.leave_type_id
+            AND lr.status IN ('approved', 'pending')
+            AND lr.start_date >= $4
+            AND lr.start_date <= $5
+        ), 0) as monthly_used
       FROM employee_leave_balances lb
       JOIN leave_types lt ON lb.leave_type_id = lt.id
       WHERE lb.employee_id = $1 AND lb.org_id = $2 AND lb.year = $3
       ORDER BY lt.name`,
-      [employeeId, req.user.orgId, year]
+      [employeeId, req.user.orgId, year, monthStart, monthEnd]
     );
 
-    res.json({ data: result.rows });
+    // If no balances exist yet — auto-initialize from leave_types and return them
+    if (result.rows.length === 0) {
+      const types = await db.query(
+        'SELECT id, name, code, color, days_allowed, monthly_limit FROM leave_types WHERE org_id = $1 AND is_active = true ORDER BY name',
+        [req.user.orgId]
+      );
+
+      // Auto-create balance rows
+      for (const lt of types.rows) {
+        await db.query(
+          `INSERT INTO employee_leave_balances (employee_id, leave_type_id, org_id, year, total_allocated, used, pending)
+           VALUES ($1, $2, $3, $4, $5, 0, 0)
+           ON CONFLICT (employee_id, leave_type_id, year) DO NOTHING`,
+          [employeeId, lt.id, req.user.orgId, year, lt.days_allowed || 0]
+        ).catch(() => {});
+      }
+
+      return res.json({
+        data: types.rows.map(lt => ({
+          leave_type_id: lt.id,
+          leave_type_name: lt.name,
+          leave_type_code: lt.code,
+          leave_type_color: lt.color,
+          total_allocated: lt.days_allowed || 0,
+          monthly_limit: lt.monthly_limit,
+          used: 0, pending: 0, available: lt.days_allowed || 0,
+          carried_forward: 0,
+          monthly_used: 0,
+          monthly_remaining: lt.monthly_limit || null,
+          year,
+        }))
+      });
+    }
+
+    const rows = result.rows.map(r => ({
+      ...r,
+      monthly_used: parseFloat(r.monthly_used || 0),
+      monthly_remaining: r.monthly_limit
+        ? Math.max(0, r.monthly_limit - parseFloat(r.monthly_used || 0))
+        : null,
+    }));
+
+    res.json({ data: rows });
   } catch (err) {
     next(err);
   }
@@ -236,11 +312,14 @@ const initializeEmployeeBalance = async (req, res, next) => {
 
 const getLeaveRequests = async (req, res, next) => {
   try {
-    const { status, employeeId, startDate, endDate } = req.query;
+    const { status, employeeId, startDate, endDate, mine, createdToday } = req.query;
 
-    // If no employeeId provided, get current user's employee ID
+    const isAdminRole = ['super_admin', 'admin', 'manager'].includes(req.user.role);
+
+    // mine=true forces own-employee filter (used by MyLeavesTab for all roles)
+    // Admins/managers without mine=true see all org requests
     let targetEmployeeId = employeeId;
-    if (!targetEmployeeId) {
+    if (!targetEmployeeId && (!isAdminRole || mine === 'true')) {
       const empResult = await db.query(
         'SELECT id FROM employees WHERE email = $1 AND org_id = $2',
         [req.user.email, req.user.orgId]
@@ -251,18 +330,52 @@ const getLeaveRequests = async (req, res, next) => {
     }
 
     let query = `
-      SELECT 
+      SELECT
         lr.*,
         CONCAT(e.first_name, ' ', e.last_name) as employee_name,
         e.department,
         lt.name as leave_type_name,
         lt.code as leave_type_code,
         lt.color as leave_type_color,
-        u.full_name as approver_name
+        lt.days_allowed as leave_type_days_allowed,
+        lt.monthly_limit as leave_type_monthly_limit,
+        u.full_name as approver_name,
+        elb.total_allocated as bal_total,
+        elb.used as bal_used,
+        elb.pending as bal_pending,
+        elb.available as bal_available,
+        elb.carried_forward as bal_carried_forward,
+        COALESCE((
+          SELECT SUM(lr2.days_requested)
+          FROM leave_requests lr2
+          WHERE lr2.employee_id = lr.employee_id
+            AND lr2.leave_type_id = lr.leave_type_id
+            AND lr2.status IN ('approved', 'pending')
+            AND EXTRACT(YEAR FROM lr2.start_date) = EXTRACT(YEAR FROM CURRENT_DATE)
+            AND EXTRACT(MONTH FROM lr2.start_date) = EXTRACT(MONTH FROM CURRENT_DATE)
+        ), 0) as bal_monthly_used,
+        (
+          SELECT json_agg(json_build_object(
+            'code', lt2.code,
+            'name', lt2.name,
+            'color', lt2.color,
+            'available', GREATEST(0, elb2.total_allocated - elb2.used - elb2.pending),
+            'total', elb2.total_allocated
+          ) ORDER BY lt2.name)
+          FROM employee_leave_balances elb2
+          JOIN leave_types lt2 ON lt2.id = elb2.leave_type_id
+          WHERE elb2.employee_id = lr.employee_id
+            AND elb2.year = EXTRACT(YEAR FROM CURRENT_DATE)
+            AND lt2.org_id = lr.org_id
+        ) as all_balances
       FROM leave_requests lr
       JOIN employees e ON lr.employee_id = e.id
       JOIN leave_types lt ON lr.leave_type_id = lt.id
       LEFT JOIN users u ON lr.approver_id = u.id
+      LEFT JOIN employee_leave_balances elb
+        ON elb.employee_id = lr.employee_id
+        AND elb.leave_type_id = lr.leave_type_id
+        AND elb.year = EXTRACT(YEAR FROM CURRENT_DATE)
       WHERE lr.org_id = $1
     `;
 
@@ -291,6 +404,10 @@ const getLeaveRequests = async (req, res, next) => {
       query += ` AND lr.start_date <= $${paramIndex}`;
       params.push(endDate);
       paramIndex++;
+    }
+
+    if (createdToday === 'true') {
+      query += ` AND lr.created_at >= CURRENT_DATE AND lr.created_at < CURRENT_DATE + INTERVAL '1 day'`;
     }
 
     query += ' ORDER BY lr.created_at DESC';
@@ -340,18 +457,39 @@ const createLeaveRequest = async (req, res, next) => {
       [employeeId, value.leave_type_id, year]
     );
 
+    // Get monthly usage for info
+    const now = new Date(value.start_date);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const monthlyUsed = await db.query(
+      `SELECT COALESCE(SUM(days_requested), 0) as used
+       FROM leave_requests
+       WHERE employee_id = $1 AND leave_type_id = $2
+         AND status IN ('approved', 'pending')
+         AND start_date >= $3 AND start_date <= $4`,
+      [employeeId, value.leave_type_id, monthStart, monthEnd]
+    );
+    const monthUsedDays = parseFloat(monthlyUsed.rows[0].used || 0);
+
+    let available = 0;
+    let balanceWarning = null;
+
     if (balance.rows.length === 0) {
-      return res.status(400).json({ error: 'Leave balance not initialized for this year' });
+      balanceWarning = 'no_balance';
+    } else {
+      available = parseFloat(balance.rows[0].available);
+      if (available <= 0) balanceWarning = 'zero_balance';
+      else if (available < value.days_requested) balanceWarning = 'insufficient_balance';
     }
 
-    const available = parseFloat(balance.rows[0].available);
-    if (available < value.days_requested) {
-      return res.status(400).json({ 
-        error: `Insufficient leave balance. Available: ${available} days, Requested: ${value.days_requested} days` 
-      });
+    // Get leave type monthly_limit
+    const ltResult = await db.query('SELECT monthly_limit FROM leave_types WHERE id = $1', [value.leave_type_id]);
+    const monthlyLimit = ltResult.rows[0]?.monthly_limit || null;
+    if (monthlyLimit && monthUsedDays + value.days_requested > monthlyLimit) {
+      balanceWarning = 'monthly_limit_exceeded';
     }
 
-    // Create leave request
+    // Create leave request (allow even with zero balance — HR will decide paid/unpaid)
     const result = await db.query(
       `INSERT INTO leave_requests (
         employee_id, leave_type_id, org_id, start_date, end_date,
@@ -365,13 +503,15 @@ const createLeaveRequest = async (req, res, next) => {
       ]
     );
 
-    // Update pending balance
-    await db.query(
-      `UPDATE employee_leave_balances
-       SET pending = pending + $1, updated_at = NOW()
-       WHERE employee_id = $2 AND leave_type_id = $3 AND year = $4`,
-      [value.days_requested, employeeId, value.leave_type_id, year]
-    );
+    // Update pending balance (only if balance exists)
+    if (balance.rows.length > 0) {
+      await db.query(
+        `UPDATE employee_leave_balances
+         SET pending = pending + $1, updated_at = NOW()
+         WHERE employee_id = $2 AND leave_type_id = $3 AND year = $4`,
+        [value.days_requested, employeeId, value.leave_type_id, year]
+      );
+    }
 
     // Add comment
     await db.query(
@@ -380,24 +520,51 @@ const createLeaveRequest = async (req, res, next) => {
       [result.rows[0].id, req.user.id, 'Leave request submitted']
     );
 
-    // Notify HR managers about the new leave request
-    const managers = await notificationService.getOrgAdmins(req.user.orgId);
+    // Notify admin + manager (NOT super_admin) about the new leave request
     const leaveType = await db.query('SELECT name FROM leave_types WHERE id = $1', [value.leave_type_id]);
     const leaveTypeName = leaveType.rows[0]?.name || 'Leave';
     const startFmt = new Date(value.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const endFmt = new Date(value.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const notifyTitle = 'New Leave Request';
+    const notifyMsg = `${req.user.full_name || req.user.email} requested ${leaveTypeName} from ${startFmt} to ${endFmt}`;
+
+    // Fetch admin + manager only (exclude super_admin)
+    const hrAdmins = await notificationService.getOrgUsersByRole(req.user.orgId, ['admin', 'manager']);
+
+    // Insert into hrms_notifications for each recipient (skip self)
+    for (const userId of hrAdmins) {
+      if (String(userId) === String(req.user.id)) continue;
+      await db.query(
+        `INSERT INTO hrms_notifications (org_id, user_id, notification_type, title, message, data, priority)
+         VALUES ($1, $2, 'leave_request', $3, $4, $5, 'high')`,
+        [
+          req.user.orgId,
+          userId,
+          notifyTitle,
+          notifyMsg,
+          JSON.stringify({ leaveRequestId: result.rows[0].id, actionUrl: '/hrms/leave?tab=team-leaves' }),
+        ]
+      );
+    }
+
+    // Also send via global notification service
     notificationService.notify(
       req.user.orgId,
-      managers,
+      hrAdmins,
       'leave_requested',
-      'New Leave Request',
-      `${req.user.full_name || req.user.email} requested ${leaveTypeName} from ${startFmt} to ${endFmt}`,
-      `/hrms/leaves`,
+      notifyTitle,
+      notifyMsg,
+      `/hrms/leave?tab=team-leaves`,
       req.user.id,
-      { leaveRequestId: result.rows[0].id, employeeEmail: req.user.email }
+      { leaveRequestId: result.rows[0].id }
     );
 
-    res.status(201).json(result.rows[0]);
+    res.status(201).json({
+      ...result.rows[0],
+      balance_warning: balanceWarning,
+      available_days: available,
+      monthly_used: monthUsedDays,
+    });
   } catch (err) {
     next(err);
   }
@@ -406,18 +573,19 @@ const createLeaveRequest = async (req, res, next) => {
 const updateLeaveRequest = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { status, rejection_reason } = req.body;
+    const { status, rejection_reason, paid_status } = req.body;
 
     if (!['approved', 'rejected', 'cancelled'].includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
     }
+    if (paid_status && !['paid', 'unpaid'].includes(paid_status)) {
+      return res.status(400).json({ error: 'paid_status must be paid or unpaid' });
+    }
 
-    // Get leave request
     const leaveReq = await db.query(
       'SELECT * FROM leave_requests WHERE id = $1 AND org_id = $2',
       [id, req.user.orgId]
     );
-
     if (leaveReq.rows.length === 0) {
       return res.status(404).json({ error: 'Leave request not found' });
     }
@@ -425,24 +593,38 @@ const updateLeaveRequest = async (req, res, next) => {
     const leave = leaveReq.rows[0];
     const year = new Date(leave.start_date).getFullYear();
 
-    // Update leave request
+    // Determine final paid_status
+    const finalPaidStatus = status === 'approved'
+      ? (paid_status || 'paid')
+      : null;
+
     const result = await db.query(
       `UPDATE leave_requests
        SET status = $1, approver_id = $2, approved_at = NOW(),
-           rejection_reason = $3, updated_at = NOW()
-       WHERE id = $4 AND org_id = $5
+           rejection_reason = $3, paid_status = $4, updated_at = NOW()
+       WHERE id = $5 AND org_id = $6
        RETURNING *`,
-      [status, req.user.id, rejection_reason, id, req.user.orgId]
+      [status, req.user.id, rejection_reason, finalPaidStatus, id, req.user.orgId]
     );
 
-    // Update balance based on status
+    // Update balance — only deduct from leave balance if PAID approval
     if (status === 'approved') {
-      await db.query(
-        `UPDATE employee_leave_balances
-         SET pending = pending - $1, used = used + $1, updated_at = NOW()
-         WHERE employee_id = $2 AND leave_type_id = $3 AND year = $4`,
-        [leave.days_requested, leave.employee_id, leave.leave_type_id, year]
-      );
+      if (finalPaidStatus === 'paid') {
+        await db.query(
+          `UPDATE employee_leave_balances
+           SET pending = pending - $1, used = used + $1, updated_at = NOW()
+           WHERE employee_id = $2 AND leave_type_id = $3 AND year = $4`,
+          [leave.days_requested, leave.employee_id, leave.leave_type_id, year]
+        );
+      } else {
+        // Unpaid: release from pending but don't count as "used" paid days
+        await db.query(
+          `UPDATE employee_leave_balances
+           SET pending = pending - $1, updated_at = NOW()
+           WHERE employee_id = $2 AND leave_type_id = $3 AND year = $4`,
+          [leave.days_requested, leave.employee_id, leave.leave_type_id, year]
+        );
+      }
     } else if (status === 'rejected' || status === 'cancelled') {
       await db.query(
         `UPDATE employee_leave_balances
@@ -452,37 +634,103 @@ const updateLeaveRequest = async (req, res, next) => {
       );
     }
 
-    // Add comment
-    const comment = status === 'rejected' 
-      ? `Leave request rejected${rejection_reason ? ': ' + rejection_reason : ''}`
-      : `Leave request ${status}`;
-    
+    const actionLabel = status === 'approved'
+      ? `approved as ${finalPaidStatus} leave`
+      : status === 'rejected'
+        ? `rejected${rejection_reason ? ': ' + rejection_reason : ''}`
+        : status;
+
     await db.query(
       `INSERT INTO leave_request_comments (leave_request_id, user_id, comment, action)
        VALUES ($1, $2, $3, $4)`,
-      [id, req.user.id, comment, status]
+      [id, req.user.id, `Leave request ${actionLabel}`, status]
     );
 
-    // Notify the employee whose leave was acted upon
     const empUser = await db.query(
       `SELECT u.id FROM employees e JOIN users u ON u.email = e.email WHERE e.id = $1 AND e.org_id = $2 LIMIT 1`,
       [leave.employee_id, req.user.orgId]
     );
     if (empUser.rows.length > 0) {
-      const statusLabel = status === 'approved' ? 'approved ✅' : status === 'rejected' ? 'rejected ❌' : status;
+      const notifMsg = status === 'approved'
+        ? `Your leave has been approved as ${finalPaidStatus} leave ✅`
+        : status === 'rejected'
+          ? `Your leave request has been rejected ❌${rejection_reason ? ': ' + rejection_reason : ''}`
+          : `Your leave request has been ${status}`;
       notificationService.notify(
         req.user.orgId,
         empUser.rows[0].id,
         'leave_status_changed',
         `Leave Request ${status.charAt(0).toUpperCase() + status.slice(1)}`,
-        `Your leave request has been ${statusLabel}${rejection_reason ? ': ' + rejection_reason : ''}`,
-        `/hrms/leaves`,
+        notifMsg,
+        `/hrms/leave`,
         req.user.id,
-        { leaveRequestId: id, status }
+        { leaveRequestId: id, status, paid_status: finalPaidStatus }
       );
     }
 
     res.json(result.rows[0]);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Reset all leave balances for new year
+const resetAnnualBalances = async (req, res, next) => {
+  try {
+    const year = new Date().getFullYear();
+    const orgId = req.user.orgId;
+
+    // Get all leave types for this org
+    const typesResult = await db.query(
+      'SELECT * FROM leave_types WHERE org_id = $1 AND is_active = true',
+      [orgId]
+    );
+
+    // Get all active employees
+    const empResult = await db.query(
+      "SELECT id FROM employees WHERE org_id = $1 AND status = 'active'",
+      [orgId]
+    );
+
+    let created = 0;
+    let reset = 0;
+
+    for (const emp of empResult.rows) {
+      for (const lt of typesResult.rows) {
+        // Check if balance already exists for this year
+        const existing = await db.query(
+          'SELECT id, total_allocated, used, can_carry_forward FROM employee_leave_balances elb JOIN leave_types lt ON elb.leave_type_id = lt.id WHERE elb.employee_id = $1 AND elb.leave_type_id = $2 AND elb.year = $3',
+          [emp.id, lt.id, year]
+        );
+
+        if (existing.rows.length === 0) {
+          // Carry forward check from previous year
+          let carryForward = 0;
+          if (lt.can_carry_forward) {
+            const prevYear = await db.query(
+              'SELECT available FROM employee_leave_balances WHERE employee_id = $1 AND leave_type_id = $2 AND year = $3',
+              [emp.id, lt.id, year - 1]
+            );
+            if (prevYear.rows.length > 0) {
+              const maxCarry = lt.max_carry_forward_days || lt.max_carry_forward || 0;
+              carryForward = Math.min(parseFloat(prevYear.rows[0].available || 0), maxCarry);
+            }
+          }
+
+          await db.query(
+            `INSERT INTO employee_leave_balances
+               (employee_id, leave_type_id, org_id, year, total_allocated, used, pending, carried_forward)
+             VALUES ($1, $2, $3, $4, $5, 0, 0, $6)`,
+            [emp.id, lt.id, orgId, year, (lt.days_allowed || 0) + carryForward, carryForward]
+          );
+          created++;
+        } else {
+          reset++;
+        }
+      }
+    }
+
+    res.json({ message: `Annual reset complete for ${year}`, created, already_exists: reset });
   } catch (err) {
     next(err);
   }
@@ -496,8 +744,8 @@ const getLeaveAnalytics = async (req, res, next) => {
 
     // Overall stats
     const stats = await db.query(
-      `SELECT 
-        COUNT(*) as total_requests,
+      `SELECT
+        COUNT(*) FILTER (WHERE status != 'cancelled') as total_requests,
         COUNT(*) FILTER (WHERE status = 'pending') as pending,
         COUNT(*) FILTER (WHERE status = 'approved') as approved,
         COUNT(*) FILTER (WHERE status = 'rejected') as rejected,
@@ -648,11 +896,64 @@ const createPublicHoliday = async (req, res, next) => {
   }
 };
 
+const deleteLeaveType = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const result = await db.query(
+      'DELETE FROM leave_types WHERE id = $1 AND org_id = $2 RETURNING id',
+      [id, req.user.orgId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Leave type not found' });
+    }
+    res.json({ message: 'Leave type deleted successfully' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Employee can only delete their OWN cancelled requests
+const deleteLeaveRequest = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // Get employee id for this user
+    const empResult = await db.query(
+      'SELECT id FROM employees WHERE email = $1 AND org_id = $2',
+      [req.user.email, req.user.orgId]
+    );
+    if (empResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Employee record not found' });
+    }
+    const employeeId = empResult.rows[0].id;
+
+    // Only allow deleting own cancelled requests
+    const check = await db.query(
+      `SELECT id, status, days_requested, leave_type_id, start_date
+       FROM leave_requests WHERE id = $1 AND employee_id = $2 AND org_id = $3`,
+      [id, employeeId, req.user.orgId]
+    );
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'Leave request not found' });
+    }
+    const req_ = check.rows[0];
+    if (req_.status !== 'cancelled') {
+      return res.status(400).json({ error: 'Only cancelled requests can be deleted' });
+    }
+
+    await db.query('DELETE FROM leave_requests WHERE id = $1', [id]);
+    res.json({ message: 'Leave request deleted' });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   // Leave Types
   getLeaveTypes,
   createLeaveType,
   updateLeaveType,
+  deleteLeaveType,
   
   // Balances
   getEmployeeBalance,
@@ -663,6 +964,8 @@ module.exports = {
   getLeaveRequests,
   createLeaveRequest,
   updateLeaveRequest,
+  deleteLeaveRequest,
+  resetAnnualBalances,
   
   // Analytics
   getLeaveAnalytics,

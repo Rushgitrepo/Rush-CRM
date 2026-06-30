@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,7 @@ interface Employee {
   position: string | null; hire_date: string; status: string;
   employee_id: string | null; salary: number | null; address: string | null;
   profile_picture?: string;
+  _source?: 'hrms' | 'system';
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -41,10 +43,12 @@ function getDeptColor(dept: string) {
   return DEPT_COLORS[Math.abs(hash) % DEPT_COLORS.length];
 }
 
-const EMPTY_FORM = { first_name: "", last_name: "", email: "", phone: "", department: "", position: "", salary: "", address: "" };
+const EMPTY_FORM = { full_name: "", email: "", phone: "", department: "", position: "", salary: "", address: "" };
 
 export default function EmployeesPage() {
   const navigate = useNavigate();
+  const { userRole } = useAuth();
+  const isAdmin = userRole?.role === "super_admin" || userRole?.role === "admin" || userRole?.role === "manager";
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [deptFilter, setDeptFilter] = useState("all");
@@ -53,14 +57,114 @@ export default function EmployeesPage() {
   const [editing, setEditing] = useState<Employee | null>(null);
   const [deleting, setDeleting] = useState<Employee | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [enrolling, setEnrolling] = useState(false);
   const qc = useQueryClient();
+
+  const navigateToEmployee = async (emp: Employee, editMode = false) => {
+    if (emp._source === 'hrms') {
+      navigate(editMode ? `/hrms/employees/${emp.id}/edit` : `/hrms/employees/${emp.id}`);
+      return;
+    }
+    setEnrolling(true);
+    try {
+      const fullName = emp.name || `${emp.first_name} ${emp.last_name}`.trim();
+      const result: any = await api.post("/employees", {
+        first_name: fullName,
+        email: emp.email,
+        phone: emp.phone,
+        department: emp.department,
+        position: emp.position,
+        status: 'active',
+      });
+      const newId = result?.id || result?.data?.id;
+      qc.invalidateQueries({ queryKey: ["employees"] });
+      qc.invalidateQueries({ queryKey: ["members-all-for-employees"] });
+      navigate(editMode ? `/hrms/employees/${newId}/edit` : `/hrms/employees/${newId}`);
+    } catch {
+      // Already enrolled — find by email
+      try {
+        const existing: any = await api.get("/employees", { search: emp.email });
+        const found = (existing?.data || []).find((e: any) => e.email?.toLowerCase() === emp.email?.toLowerCase());
+        if (found) {
+          navigate(editMode ? `/hrms/employees/${found.id}/edit` : `/hrms/employees/${found.id}`);
+        } else {
+          toast.error("Could not load employee profile");
+        }
+      } catch { toast.error("Could not load employee profile"); }
+    } finally {
+      setEnrolling(false);
+    }
+  };
 
   const { data: resp, isLoading } = useQuery({
     queryKey: ["employees", search, statusFilter, deptFilter],
     queryFn: () => api.get("/employees", { search, status: statusFilter !== "all" ? statusFilter : undefined, department: deptFilter !== "all" ? deptFilter : undefined }),
     refetchInterval: 30000,
   });
-  const employees: Employee[] = (resp as any)?.data || [];
+  const { data: membersResp } = useQuery({
+    queryKey: ["members-all-for-employees"],
+    queryFn: () => api.get("/members", { includeSelf: true, limit: 1000 }),
+    refetchInterval: 30000,
+  });
+
+  // Build email → avatar_url map from system users to use as fallback for HRMS employees
+  const memberAvatarByEmail = new Map<string, string>(
+    ((membersResp as any) || [])
+      .filter((u: any) => u.email && u.avatar_url)
+      .map((u: any) => [u.email.toLowerCase(), u.avatar_url])
+  );
+
+  // Track which emails belong to super_admin/admin so we can hide them from the list
+  const adminEmails = new Set<string>(
+    ((membersResp as any) || [])
+      .filter((u: any) => u.email && (u.role === 'super_admin' || u.role === 'admin'))
+      .map((u: any) => u.email.toLowerCase())
+  );
+
+  const hrmsEmployees: Employee[] = ((resp as any)?.data || [])
+    .filter((e: any) => !adminEmails.has((e.email || '').toLowerCase()))
+    .map((e: any) => ({
+      ...e,
+      _source: 'hrms' as const,
+      profile_picture: e.profile_picture || memberAvatarByEmail.get(e.email?.toLowerCase()) || undefined,
+    }));
+
+  const hrmsEmails = new Set(hrmsEmployees.map((e) => e.email?.toLowerCase()));
+  const systemUsers: Employee[] = ((membersResp as any) || [])
+    .filter((u: any) => u.email && !hrmsEmails.has(u.email.toLowerCase()) && u.role !== 'super_admin' && u.role !== 'admin')
+    .filter((u: any) => {
+      if (statusFilter === "active") return u.is_active !== false;
+      if (statusFilter === "inactive") return u.is_active === false;
+      return true;
+    })
+    .filter((u: any) => {
+      if (!search) return true;
+      const q = search.toLowerCase();
+      return (u.full_name || "").toLowerCase().includes(q) || (u.email || "").toLowerCase().includes(q);
+    })
+    .filter((u: any) => {
+      if (deptFilter === "all") return true;
+      return (u.department || "").toLowerCase() === deptFilter.toLowerCase();
+    })
+    .map((u: any) => ({
+      id: u.id,
+      name: u.full_name || u.email,
+      first_name: (u.full_name || "").split(" ")[0] || "",
+      last_name: (u.full_name || "").split(" ").slice(1).join(" ") || "",
+      email: u.email,
+      phone: u.phone || null,
+      department: u.department || null,
+      position: u.position || u.role || null,
+      hire_date: u.created_at,
+      status: u.is_active === false ? "inactive" : "active",
+      employee_id: null,
+      salary: null,
+      address: null,
+      profile_picture: u.avatar_url || undefined,
+      _source: 'system' as const,
+    }));
+
+  const employees: Employee[] = [...hrmsEmployees, ...systemUsers];
   const departments = [...new Set(employees.map((e) => e.department).filter(Boolean))] as string[];
 
   const saveMutation = useMutation({
@@ -73,27 +177,35 @@ export default function EmployeesPage() {
     onError: (e: any) => toast.error(e.response?.data?.error || "Failed"),
   });
 
-  const archiveMutation = useMutation({
-    mutationFn: (id: string) => api.patch(`/employees/${id}`, { status: "inactive" }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["employees"] }); toast.success("Archived"); setDeleteDialog(false); setDeleting(null); },
-    onError: (e: any) => toast.error(e.response?.data?.error || "Failed"),
-  });
-
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.delete(`/employees/${id}`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["employees"] }); toast.success("Deleted"); setDeleteDialog(false); setDeleting(null); },
-    onError: (e: any) => toast.error(e.response?.data?.error || "Failed"),
+    mutationFn: (emp: Employee) =>
+      emp._source === 'hrms'
+        ? api.delete(`/employees/${emp.id}`)
+        : api.delete(`/members/${emp.id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["employees"] });
+      qc.invalidateQueries({ queryKey: ["members-all-for-employees"] });
+      toast.success("Deleted");
+      setDeleteDialog(false);
+      setDeleting(null);
+    },
+    onError: (e: any) => toast.error(e?.message || "Failed to delete"),
   });
 
   const openEdit = (emp: Employee) => {
     setEditing(emp);
-    setForm({ first_name: emp.first_name || "", last_name: emp.last_name || "", email: emp.email || "", phone: emp.phone || "", department: emp.department || "", position: emp.position || "", salary: emp.salary?.toString() || "", address: emp.address || "" });
+    const fullName = emp.name || `${emp.first_name} ${emp.last_name}`.trim();
+    setForm({ full_name: fullName, email: emp.email || "", phone: emp.phone || "", department: emp.department || "", position: emp.position || "", salary: emp.salary?.toString() || "", address: emp.address || "" });
     setDialog(true);
   };
 
   const handleSave = () => {
-    if (!form.first_name || !form.email) { toast.error("Name and email required"); return; }
-    saveMutation.mutate({ ...form, salary: form.salary ? parseFloat(form.salary) : null });
+    if (!form.full_name || !form.email) { toast.error("Name and email required"); return; }
+    const nameParts = form.full_name.trim().split(/\s+/);
+    const first_name = nameParts[0] || form.full_name;
+    const last_name = nameParts.slice(1).join(" ") || "";
+    const { full_name: _ignored, ...rest } = form;
+    saveMutation.mutate({ first_name, last_name, ...rest, salary: rest.salary ? parseFloat(rest.salary) : null });
   };
 
   const stats = [
@@ -103,16 +215,28 @@ export default function EmployeesPage() {
     { label: "Departments", value: departments.length,                                         icon: Building2,  color: "bg-violet-500" },
   ];
 
+  if (!isAdmin) return (
+    <div className="flex flex-col items-center justify-center h-64 gap-3">
+      <p className="text-lg font-semibold">Access Denied</p>
+      <p className="text-sm text-muted-foreground">Only admins can view the employee list.</p>
+    </div>
+  );
+
   return (
     <div className="space-y-5">
+      {enrolling && (
+        <div className="fixed inset-0 bg-background/60 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="bg-card border rounded-lg px-6 py-4 shadow-lg text-sm text-muted-foreground">Loading employee profile…</div>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">Employees</h1>
           <p className="text-sm text-muted-foreground">Manage your organization's staff</p>
         </div>
-        <Button size="sm" className="gap-1.5" onClick={() => navigate('/hrms/employees/create')}>
+        {/* <Button size="sm" className="gap-1.5" onClick={() => navigate('/hrms/employees/create')}>
           <Plus className="h-3.5 w-3.5" /> Add Employee
-        </Button>
+        </Button> */}
       </div>
 
       {/* Stats */}
@@ -154,10 +278,10 @@ export default function EmployeesPage() {
 
       {/* Employee list */}
       <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
-        <div className="flex items-center gap-2 px-5 py-3.5 border-b border-border/40">
+        {/* <div className="flex items-center gap-2 px-5 py-3.5 border-b border-border/40">
           <Users className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm font-semibold">Employees ({employees.length})</span>
-        </div>
+        </div> */}
         <div className="flex items-center gap-3 px-5 py-2 text-[10px] font-medium text-muted-foreground uppercase tracking-wider border-b border-border/30 bg-muted/20">
           <span className="flex-1">Name</span>
           <span className="w-40 hidden md:block">Contact</span>
@@ -178,17 +302,22 @@ export default function EmployeesPage() {
             <div className="flex flex-col items-center justify-center py-16 gap-2">
               <Users className="h-10 w-10 text-muted-foreground/20" />
               <p className="text-sm text-muted-foreground">No employees found</p>
-              <Button size="sm" variant="outline" onClick={() => navigate('/hrms/employees/create')} className="gap-1.5 mt-1">
+              {/* <Button size="sm" variant="outline" onClick={() => navigate('/hrms/employees/create')} className="gap-1.5 mt-1">
                 <Plus className="h-3.5 w-3.5" /> Add first employee
-              </Button>
+              </Button> */}
             </div>
           ) : employees.map((emp) => {
             const name = emp.name || `${emp.first_name} ${emp.last_name}`.trim();
             return (
-              <div key={emp.id} className="flex items-center gap-3 px-5 py-3 hover:bg-muted/30 transition-colors group cursor-pointer" onClick={() => navigate(`/hrms/employees/${emp.id}`)}>
+              <div key={emp.id} className="flex items-center gap-3 px-5 py-3 hover:bg-muted/30 transition-colors cursor-pointer"
+                onClick={() => navigateToEmployee(emp, false)}>
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <Avatar className="h-8 w-8 shrink-0">
-                    <AvatarImage src={`${FILE_BASE_URL}${emp.profile_picture}`} alt={name} />
+                    <AvatarImage src={
+                      emp.profile_picture
+                        ? (emp.profile_picture.startsWith('http') ? emp.profile_picture : `${FILE_BASE_URL}${emp.profile_picture}`)
+                        : ""
+                    } alt={name} />
                     <AvatarFallback className={cn("text-[11px] text-white", emp.department ? getDeptColor(emp.department) : "bg-primary")}>
                       {getInitials(name || "?")}
                     </AvatarFallback>
@@ -205,24 +334,24 @@ export default function EmployeesPage() {
                 <div className="w-28 hidden sm:block">
                   {emp.department ? (
                     <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <span className={cn("h-2 w-2 rounded-full", getDeptColor(emp.department))} />
+                      <span className={cn("h-2 w-2 rounded-full", (emp.department))} />
                       {emp.department}
                     </span>
                   ) : <span className="text-xs text-muted-foreground/40">—</span>}
                 </div>
                 <div className="w-24 hidden lg:block">
-                  <p className="text-xs text-muted-foreground">{format(new Date(emp.hire_date), "MMM d, yyyy")}</p>
+                  <p className="text-xs text-muted-foreground">{emp.hire_date ? format(new Date(emp.hire_date), "MMM d, yyyy") : "—"}</p>
                 </div>
                 <div className="w-20 flex justify-center">
                   <Badge variant="outline" className={cn("text-[10px] capitalize", STATUS_COLORS[emp.status] ?? "bg-muted text-muted-foreground")}>
                     {emp.status.replace("_", " ")}
                   </Badge>
                 </div>
-                <div className="w-16 flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={(e) => { e.stopPropagation(); navigate(`/hrms/employees/${emp.id}/edit`); }} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                <div className="w-16 flex justify-end gap-1">
+                  <button onClick={(e) => { e.stopPropagation(); navigateToEmployee(emp, true); }} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" title="Edit">
                     <Edit className="h-3.5 w-3.5" />
                   </button>
-                  <button onClick={(e) => { e.stopPropagation(); setDeleting(emp); setDeleteDialog(true); }} className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-muted transition-colors">
+                  <button onClick={(e) => { e.stopPropagation(); setDeleting(emp); setDeleteDialog(true); }} className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-muted transition-colors" title="Delete">
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
@@ -237,10 +366,7 @@ export default function EmployeesPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>{editing ? "Edit Employee" : "Add Employee"}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-1">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5"><Label>First Name *</Label><Input value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} placeholder="John" /></div>
-              <div className="space-y-1.5"><Label>Last Name</Label><Input value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} placeholder="Doe" /></div>
-            </div>
+            <div className="space-y-1.5"><Label>Full Name *</Label><Input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} placeholder="John Doe" /></div>
             <div className="space-y-1.5"><Label>Email *</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="john@company.com" /></div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5"><Label>Phone</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+1 555 0000" /></div>
@@ -265,19 +391,15 @@ export default function EmployeesPage() {
       <AlertDialog open={deleteDialog} onOpenChange={setDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove Employee</AlertDialogTitle>
+            <AlertDialogTitle>Delete Employee</AlertDialogTitle>
             <AlertDialogDescription>
-              What would you like to do with <strong>{deleting?.name || `${deleting?.first_name} ${deleting?.last_name}`}</strong>?
-              Archive keeps all records; Delete is permanent.
+              Are you sure you want to delete <strong>{deleting?.name || `${deleting?.first_name} ${deleting?.last_name}`}</strong>? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deleting && archiveMutation.mutate(deleting.id)} className="bg-yellow-600 hover:bg-yellow-700" disabled={archiveMutation.isPending}>
-              {archiveMutation.isPending ? "Archiving..." : "Archive"}
-            </AlertDialogAction>
-            <AlertDialogAction onClick={() => deleting && deleteMutation.mutate(deleting.id)} className="bg-red-600 hover:bg-red-700" disabled={deleteMutation.isPending}>
-              {deleteMutation.isPending ? "Deleting..." : "Delete"}
+            <AlertDialogAction onClick={() => deleting && deleteMutation.mutate(deleting)} className="bg-red-600 hover:bg-red-700" disabled={deleteMutation.isPending}>
+              {deleteMutation.isPending ? "Deleting..." : "Yes, Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

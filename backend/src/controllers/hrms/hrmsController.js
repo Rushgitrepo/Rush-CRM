@@ -74,7 +74,7 @@ const getActivities = async (req, res, next) => {
       FROM attendance a
       JOIN employees e ON a.employee_id = e.id
       WHERE a.org_id = $1 AND a.clock_in IS NOT NULL
-      AND a.clock_in >= CURRENT_DATE - INTERVAL '7 days'
+      AND a.clock_in >= CURRENT_DATE
       
       UNION ALL
       
@@ -87,7 +87,7 @@ const getActivities = async (req, res, next) => {
       FROM attendance a
       JOIN employees e ON a.employee_id = e.id
       WHERE a.org_id = $1 AND a.clock_out IS NOT NULL
-      AND a.clock_out >= CURRENT_DATE - INTERVAL '7 days'
+      AND a.clock_out >= CURRENT_DATE
       
       UNION ALL
       
@@ -101,7 +101,8 @@ const getActivities = async (req, res, next) => {
       JOIN employees e ON lr.employee_id = e.id
       JOIN leave_types lt ON lr.leave_type_id = lt.id
       WHERE lr.org_id = $1
-      AND lr.created_at >= CURRENT_DATE - INTERVAL '7 days'
+      AND lr.status != 'cancelled'
+      AND lr.created_at >= CURRENT_DATE
       
       ORDER BY timestamp DESC
       LIMIT $2

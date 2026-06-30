@@ -138,8 +138,8 @@ const login = async (req, res, next) => {
 const getProfile = async (req, res, next) => {
   try {
     const userResult = await db.query(
-      `SELECT u.id, u.email, u.full_name, u.organization_id, u.org_id, u.avatar_url, u.role, u.phone, u.position, u.department, u.bio, u.timezone, u.language, u.module_permissions, u.notification_settings
-       FROM users u 
+      `SELECT u.id, u.email, u.full_name, u.organization_id, u.org_id, u.avatar_url, u.role, u.phone, u.position, u.department, u.bio, u.timezone, u.languages, u.module_permissions, u.notification_settings
+       FROM users u
        WHERE u.id = $1`,
       [req.user.id]
     );
@@ -156,21 +156,21 @@ const getProfile = async (req, res, next) => {
 
 const updateProfile = async (req, res, next) => {
   try {
-    const { fullName, phone, position, department, bio, timezone, language } = req.body;
+    const { fullName, phone, position, department, bio, timezone, languages } = req.body;
 
     const result = await db.query(
-      `UPDATE users 
+      `UPDATE users
        SET full_name = COALESCE($1, full_name),
            phone = COALESCE($2, phone),
            position = COALESCE($3, position),
            department = COALESCE($4, department),
            bio = COALESCE($5, bio),
            timezone = COALESCE($6, timezone),
-           language = COALESCE($7, language),
+           languages = COALESCE($7, languages),
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $8
-       RETURNING id, email, full_name, phone, position, department, bio, timezone, language`,
-      [fullName, phone, position, department, bio, timezone, language, req.user.id]
+       RETURNING id, email, full_name, phone, position, department, bio, timezone, languages`,
+      [fullName, phone, position, department, bio, timezone, languages, req.user.id]
     );
 
     res.json(result.rows[0]);

@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -834,20 +835,23 @@ export default function EmployeeDetailPage() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="document_type">Document Type</Label>
-              <select
-                id="document_type"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              <Select
                 value={uploadForm.document_type}
-                onChange={(e) => setUploadForm({ ...uploadForm, document_type: e.target.value })}
+                onValueChange={(val) => setUploadForm({ ...uploadForm, document_type: val })}
               >
-                <option value="CNIC">CNIC</option>
-                <option value="Contract">Contract</option>
-                <option value="Resume">Resume</option>
-                <option value="Certificate">Certificate</option>
-                <option value="Degree">Degree</option>
-                <option value="Experience Letter">Experience Letter</option>
-                <option value="Other">Other</option>
-              </select>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select document type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CNIC">CNIC</SelectItem>
+                  <SelectItem value="Contract">Contract</SelectItem>
+                  <SelectItem value="Resume">Resume</SelectItem>
+                  <SelectItem value="Certificate">Certificate</SelectItem>
+                  <SelectItem value="Degree">Degree</SelectItem>
+                  <SelectItem value="Experience Letter">Experience Letter</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="document_name">Document Name (Optional)</Label>
@@ -869,7 +873,7 @@ export default function EmployeeDetailPage() {
                   setUploadForm({ ...uploadForm, file });
                 }}
               />
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 Supported: PDF, JPG, PNG, DOC, DOCX (Max 10MB)
               </p>
             </div>

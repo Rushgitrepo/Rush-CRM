@@ -32,7 +32,6 @@ export default function LeaveAnalyticsTab() {
             </div>
           </CardContent>
         </Card>
-
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -44,7 +43,6 @@ export default function LeaveAnalyticsTab() {
             </div>
           </CardContent>
         </Card>
-
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -56,7 +54,6 @@ export default function LeaveAnalyticsTab() {
             </div>
           </CardContent>
         </Card>
-
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -68,7 +65,6 @@ export default function LeaveAnalyticsTab() {
             </div>
           </CardContent>
         </Card>
-
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -98,7 +94,6 @@ export default function LeaveAnalyticsTab() {
                 {byType.map((type: any) => {
                   const daysTaken = parseFloat(type.days_taken) || 0;
                   const percentage = (daysTaken / maxDays) * 100;
-                  
                   return (
                     <div key={type.name} className="space-y-2">
                       <div className="flex items-center justify-between text-sm">
@@ -110,10 +105,7 @@ export default function LeaveAnalyticsTab() {
                       <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
                         <div
                           className="h-full transition-all duration-300"
-                          style={{
-                            width: `${percentage}%`,
-                            backgroundColor: type.color,
-                          }}
+                          style={{ width: `${percentage}%`, backgroundColor: type.color }}
                         />
                       </div>
                     </div>
@@ -138,7 +130,6 @@ export default function LeaveAnalyticsTab() {
               <div className="space-y-3">
                 {byMonth.map((month: any) => {
                   const daysTaken = parseFloat(month.days_taken) || 0;
-                  
                   return (
                     <div key={month.month} className="flex items-center gap-3">
                       <div className="w-12 text-sm font-medium text-gray-600">{month.month}</div>
@@ -187,7 +178,7 @@ export default function LeaveAnalyticsTab() {
                 </thead>
                 <tbody>
                   {topEmployees.map((emp: any, idx: number) => (
-                    <tr key={idx} className="border-b hover:bg-gray-50">
+                    <tr key={idx} className="border-b">
                       <td className="py-3 px-4 text-sm">{emp.employee_name}</td>
                       <td className="py-3 px-4 text-sm text-gray-600">{emp.department || "N/A"}</td>
                       <td className="py-3 px-4 text-sm text-center">{emp.request_count || 0}</td>

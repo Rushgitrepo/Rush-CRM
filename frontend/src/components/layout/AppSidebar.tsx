@@ -111,6 +111,7 @@ interface NavSubItem {
   href: string;
   icon?: React.ComponentType<{ className?: string }>;
   nestedChildren?: NestedChild[];
+  roles?: string[];
 }
 
 interface NavItem {
@@ -179,7 +180,7 @@ const navigation: NavItem[] = [
     children: [
       { title: "Dashboard", href: "/hrms", icon: BarChart3 },
       { title: "Attendance", href: "/hrms/attendance", icon: ClipboardList },
-      { title: "Employees", href: "/hrms/employees", icon: UserCheck },
+      { title: "Employees", href: "/hrms/employees", icon: UserCheck, roles: ["super_admin", "admin", "manager"] },
       { title: "Leave Management", href: "/hrms/leave", icon: Calendar },
       { title: "Payroll", href: "/hrms/payroll", icon: DollarSign },
       { title: "Notifications", href: "/hrms/notifications", icon: Bell },
@@ -1343,9 +1344,11 @@ export function AppSidebar({
                             )}
                         </div>
                         {/* Sub-modules */}
-                        {item.children.map((child) =>
-                          renderSubItem(child, item.title),
-                        )}
+                        {item.children
+                          .filter((child) => !child.roles || child.roles.includes(userRole?.role ?? ""))
+                          .map((child) =>
+                            renderSubItem(child, item.title),
+                          )}
                       </div>
                     );
                   }

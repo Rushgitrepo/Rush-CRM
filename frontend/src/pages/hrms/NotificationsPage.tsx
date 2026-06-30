@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +42,7 @@ interface NotificationStats {
 export default function NotificationsPage() {
   const [filter, setFilter] = useState("all");
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   // Fetch notifications
   const { data: notificationsResponse, isLoading } = useQuery({
@@ -104,6 +106,9 @@ export default function NotificationsPage() {
       case "clock_out":
         return <Clock className="h-5 w-5 text-blue-600" />;
       case "leave":
+      case "leave_request":
+      case "leave_requested":
+      case "leave_status_changed":
         return <Calendar className="h-5 w-5 text-green-600" />;
       case "employee":
         return <Users className="h-5 w-5 text-purple-600" />;
@@ -119,10 +124,13 @@ export default function NotificationsPage() {
     return baseColor;
   };
 
-  const handleMarkAsRead = (notification: Notification) => {
+  const handleMarkAsRead = (notification: any) => {
     if (!notification.is_read) {
       markAsReadMutation.mutate(notification.id);
     }
+    // Navigate to actionUrl if present
+    const url = notification.data?.actionUrl || notification.action_url;
+    if (url) navigate(url);
   };
 
   const handleDeleteNotification = (id: string) => {

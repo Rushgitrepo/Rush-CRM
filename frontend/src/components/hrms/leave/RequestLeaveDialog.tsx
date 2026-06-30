@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,8 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { differenceInDays, addDays } from "date-fns";
+import { differenceInDays } from "date-fns";
 import { AlertCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface RequestLeaveDialogProps {
   open: boolean;
@@ -20,6 +21,13 @@ interface RequestLeaveDialogProps {
 
 export default function RequestLeaveDialog({ open, onOpenChange, balances }: RequestLeaveDialogProps) {
   const qc = useQueryClient();
+
+  const { data: leaveTypesResp } = useQuery({
+    queryKey: ["leave-types"],
+    queryFn: () => api.get("/leave/types"),
+  });
+  const leaveTypes: any[] = (leaveTypesResp as any)?.data || [];
+
   const [formData, setFormData] = useState({
     leave_type_id: "",
     start_date: "",
@@ -30,7 +38,7 @@ export default function RequestLeaveDialog({ open, onOpenChange, balances }: Req
     contact_during_leave: "",
   });
 
-  const selectedBalance = balances.find((b) => b.leave_type_id === formData.leave_type_id);
+  const selectedBalance = balances.find((b) => b.leave_type_id === formData.leave_type_id) || null;
   const daysRequested =
     formData.start_date && formData.end_date
       ? differenceInDays(new Date(formData.end_date), new Date(formData.start_date)) + 1
@@ -74,10 +82,7 @@ export default function RequestLeaveDialog({ open, onOpenChange, balances }: Req
       return;
     }
 
-    if (selectedBalance && daysRequested > selectedBalance.available) {
-      toast.error(`Insufficient leave balance. Available: ${selectedBalance.available} days`);
-      return;
-    }
+    // Don't block submit on zero balance — HR will decide paid/unpaid
 
     createMutation.mutate({
       ...formData,
@@ -87,7 +92,7 @@ export default function RequestLeaveDialog({ open, onOpenChange, balances }: Req
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Request Leave</DialogTitle>
           <DialogDescription>Submit a new leave request for approval</DialogDescription>
@@ -102,31 +107,49 @@ export default function RequestLeaveDialog({ open, onOpenChange, balances }: Req
                 <SelectValue placeholder="Select leave type" />
               </SelectTrigger>
               <SelectContent>
-                {balances.length === 0 ? (
+                {leaveTypes.length === 0 ? (
                   <div className="p-4 text-center text-sm text-muted-foreground">
                     <p className="font-medium mb-1">No leave types available</p>
-                    <p className="text-xs">Please contact HR to initialize your leave balance</p>
+                    <p className="text-xs">Please contact HR to configure leave types in Settings</p>
                   </div>
                 ) : (
-                  balances.map((balance) => (
-                    <SelectItem key={balance.leave_type_id} value={balance.leave_type_id}>
-                      <div className="flex items-center justify-between w-full">
-                        <span>{balance.leave_type_name}</span>
-                        <span className="text-xs text-gray-500 ml-4">
-                          {balance.available} / {balance.total_allocated} days
-                        </span>
-                      </div>
-                    </SelectItem>
-                  ))
+                  leaveTypes.map((lt) => {
+                    const bal = balances.find((b) => b.leave_type_id === lt.id);
+                    return (
+                      <SelectItem key={lt.id} value={lt.id}>
+                        <div className="flex items-center justify-between w-full">
+                          <span>{lt.name}</span>
+                          {bal && (
+                            <span className="text-xs text-gray-500 ml-4">
+                              {bal.available} / {bal.total_allocated} days
+                            </span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    );
+                  })
                 )}
               </SelectContent>
             </Select>
-            {selectedBalance && (
-              <p className="text-xs text-gray-600">
-                Available: {selectedBalance.available} days | Used: {selectedBalance.used} days | Pending:{" "}
-                {selectedBalance.pending} days
+            {selectedBalance ? (
+              <div className="space-y-1">
+                <p className="text-xs text-gray-600">
+                  Available: <span className={cn("font-semibold", selectedBalance.available <= 0 ? "text-red-600" : "text-green-600")}>{selectedBalance.available} days</span>
+                  {" · "} Used: {selectedBalance.used} days · Pending: {selectedBalance.pending} days
+                </p>
+                {selectedBalance.available <= 0 && (
+                  <p className="text-xs text-orange-600 flex items-center gap-1">
+                    <AlertCircle className="h-3.5 w-3.5" />
+                    Annual balance exhausted — HR will decide Paid or Unpaid
+                  </p>
+                )}
+              </div>
+            ) : formData.leave_type_id ? (
+              <p className="text-xs text-orange-600 flex items-center gap-1">
+                <AlertCircle className="h-3.5 w-3.5" />
+                No balance allocated for this leave type — HR will decide
               </p>
-            )}
+            ) : null}
           </div>
 
           {/* Dates */}
@@ -218,7 +241,7 @@ export default function RequestLeaveDialog({ open, onOpenChange, balances }: Req
           </Button>
           <Button 
             onClick={handleSubmit} 
-            disabled={createMutation.isPending || balances.length === 0}
+            disabled={createMutation.isPending || leaveTypes.length === 0}
           >
             {createMutation.isPending ? "Submitting..." : "Submit Request"}
           </Button>

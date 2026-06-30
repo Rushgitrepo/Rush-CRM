@@ -4,12 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Plus, Calendar, CheckCircle, XCircle, Clock, AlertCircle } from "lucide-react";
+import { Plus, Calendar, CheckCircle, XCircle, Clock, AlertCircle, DollarSign, Banknote, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import RequestLeaveDialog from "./RequestLeaveDialog";
+import { useAuth } from "@/contexts/AuthContext";
 
 const STATUS_COLORS: Record<string, string> = {
   approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -28,6 +29,18 @@ const STATUS_ICONS: Record<string, any> = {
 export default function MyLeavesTab() {
   const [requestDialog, setRequestDialog] = useState(false);
   const qc = useQueryClient();
+  const { userRole } = useAuth();
+  const isAdmin = userRole?.role === "super_admin" || userRole?.role === "admin" || userRole?.role === "manager";
+  const currentYear = new Date().getFullYear();
+
+  const resetMutation = useMutation({
+    mutationFn: () => api.post("/leave/balance/reset-annual", {}),
+    onSuccess: (res: any) => {
+      qc.invalidateQueries({ queryKey: ["my-leave-balances"] });
+      toast.success(`Annual reset done for ${currentYear}`, { description: res?.message });
+    },
+    onError: () => toast.error("Failed to reset annual balances"),
+  });
 
   // Fetch leave balances
   const { data: balancesResp } = useQuery({
@@ -36,23 +49,30 @@ export default function MyLeavesTab() {
   });
   const balances = (balancesResp as any)?.data || [];
 
-  // Fetch my leave requests
+  // Fetch my leave requests — mine=true ensures own-only even for admin/manager
   const { data: requestsResp, isLoading } = useQuery({
     queryKey: ["my-leave-requests"],
-    queryFn: () => api.get("/leave"),
+    queryFn: () => api.get("/leave", { mine: "true" }),
   });
   const requests = (requestsResp as any)?.data || [];
 
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["my-leave-requests"] });
+    qc.invalidateQueries({ queryKey: ["my-leave-balances"] });
+    qc.invalidateQueries({ queryKey: ["leave-calendar"] });
+    qc.invalidateQueries({ queryKey: ["leave-analytics"] });
+  };
+
   const cancelMutation = useMutation({
     mutationFn: (id: string) => api.patch(`/leave/${id}`, { status: "cancelled" }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["my-leave-requests"] });
-      qc.invalidateQueries({ queryKey: ["my-leave-balances"] });
-      qc.invalidateQueries({ queryKey: ["leave-calendar"] });
-      qc.invalidateQueries({ queryKey: ["leave-analytics"] });
-      toast.success("Leave request cancelled");
-    },
+    onSuccess: () => { invalidate(); toast.success("Leave request cancelled"); },
     onError: () => toast.error("Failed to cancel request"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/leave/${id}`),
+    onSuccess: () => { invalidate(); toast.success("Leave request deleted"); },
+    onError: () => toast.error("Failed to delete request"),
   });
 
   return (
@@ -60,52 +80,114 @@ export default function MyLeavesTab() {
       {/* Leave Balance Cards */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Leave Balance</h2>
-          <Button onClick={() => setRequestDialog(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Request Leave
-          </Button>
+          <div>
+            <h2 className="text-lg font-semibold">Leave Balance</h2>
+            <p className="text-xs text-muted-foreground">Year {currentYear} — resets every January 1</p>
+          </div>
+          <div className="flex gap-2">
+            {isAdmin && (
+              <Button variant="outline" size="sm" className="gap-2" onClick={() => resetMutation.mutate()} disabled={resetMutation.isPending}>
+                <RefreshCw className="h-4 w-4" />
+                {resetMutation.isPending ? "Resetting..." : "Reset Annual Balances"}
+              </Button>
+            )}
+            <Button onClick={() => setRequestDialog(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Request Leave
+            </Button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {balances.length === 0 ? (
             <Card className="col-span-full">
-              <CardContent className="p-6 text-center">
-                <p className="text-gray-500">No leave balance initialized</p>
+              <CardContent className="p-8 text-center">
+                <Calendar className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+                <p className="text-gray-500 font-medium mb-1">No leave balance initialized</p>
+                <p className="text-xs text-muted-foreground">Contact HR to initialize your leave balance</p>
               </CardContent>
             </Card>
           ) : (
             balances.map((balance: any) => {
-              const usedPercentage = (balance.used / balance.total_allocated) * 100;
-              const availablePercentage = (balance.available / balance.total_allocated) * 100;
+              const annualTotal = parseFloat(balance.total_allocated || 0);
+              const used = parseFloat(balance.used || 0);
+              const pending = parseFloat(balance.pending || 0);
+              const available = parseFloat(balance.available || 0);
+              const monthlyLimit = balance.monthly_limit;
+              const monthlyUsed = parseFloat(balance.monthly_used || 0);
+              const monthlyRemaining = balance.monthly_remaining;
+              const usedPct = annualTotal > 0 ? Math.round((used / annualTotal) * 100) : 0;
 
               return (
-                <Card key={balance.id} className="border-l-4" style={{ borderLeftColor: balance.leave_type_color }}>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium">{balance.leave_type_name}</CardTitle>
+                <Card key={balance.id || balance.leave_type_id} className="border-l-4 overflow-hidden" style={{ borderLeftColor: balance.leave_type_color }}>
+                  <CardHeader className="pb-2 pt-4 px-4">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm font-semibold">{balance.leave_type_name}</CardTitle>
+                      {balance.not_initialized && (
+                        <span className="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full">Not Initialized</span>
+                      )}
+                    </div>
                   </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-3xl font-bold">{balance.available}</span>
-                      <span className="text-sm text-gray-500">/ {balance.total_allocated} days</span>
+                  <CardContent className="px-4 pb-4 space-y-3">
+
+                    {/* Annual section */}
+                    <div className="rounded-lg bg-muted/30 p-3 space-y-2">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                        <span>Annual Balance ({currentYear})</span>
+                        <span style={{ color: balance.leave_type_color }} className="font-bold text-sm">
+                          {available} / {annualTotal} days
+                        </span>
+                      </div>
+                      <Progress value={annualTotal > 0 ? (available / annualTotal) * 100 : 0} className="h-1.5" />
+                      <div className="grid grid-cols-3 gap-1 text-xs pt-1">
+                        <div className="text-center">
+                          <p className="text-muted-foreground">Total</p>
+                          <p className="font-bold text-sm">{annualTotal}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-muted-foreground">Used</p>
+                          <p className="font-bold text-sm text-orange-600">{used}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-muted-foreground">Remaining</p>
+                          <p className={cn("font-bold text-sm", available <= 0 ? "text-red-600" : "text-green-600")}>{available}</p>
+                        </div>
+                      </div>
+                      {pending > 0 && (
+                        <p className="text-xs text-yellow-600 text-center">{pending} day(s) pending approval</p>
+                      )}
                     </div>
 
-                    <Progress value={availablePercentage} className="h-2" />
+                    {/* Monthly section */}
+                    {monthlyLimit ? (
+                      <div className="rounded-lg bg-muted/20 p-3 space-y-2">
+                        <div className="flex items-center justify-between text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                          <span>This Month</span>
+                          <span className="font-bold text-sm">{monthlyUsed} / {monthlyLimit} days</span>
+                        </div>
+                        <Progress value={monthlyLimit > 0 ? (monthlyUsed / monthlyLimit) * 100 : 0} className="h-1.5" />
+                        <div className="grid grid-cols-2 gap-1 text-xs pt-1">
+                          <div className="text-center">
+                            <p className="text-muted-foreground">Monthly Limit</p>
+                            <p className="font-bold text-sm">{monthlyLimit}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-muted-foreground">Remaining</p>
+                            <p className={cn("font-bold text-sm", (monthlyRemaining ?? 0) <= 0 ? "text-red-600" : "text-blue-600")}>
+                              {monthlyRemaining ?? monthlyLimit}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground text-center">No monthly limit set</p>
+                    )}
 
-                    <div className="grid grid-cols-3 gap-2 text-xs">
-                      <div>
-                        <p className="text-gray-500">Used</p>
-                        <p className="font-semibold">{balance.used}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">Pending</p>
-                        <p className="font-semibold">{balance.pending}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">Available</p>
-                        <p className="font-semibold text-green-600">{balance.available}</p>
-                      </div>
-                    </div>
+                    {balance.carried_forward > 0 && (
+                      <p className="text-xs text-blue-600 text-center">
+                        + {balance.carried_forward} days carried forward from last year
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
               );
@@ -149,12 +231,18 @@ export default function MyLeavesTab() {
                               style={{ backgroundColor: request.leave_type_color }}
                             />
                             <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
                                 <h3 className="font-semibold">{request.leave_type_name}</h3>
                                 <Badge variant="outline" className={cn("text-xs", STATUS_COLORS[request.status])}>
                                   <Icon className="h-3 w-3 mr-1" />
                                   {request.status}
                                 </Badge>
+                                {request.status === "approved" && request.paid_status && (
+                                  <Badge variant="outline" className={cn("text-xs", request.paid_status === "paid" ? "bg-green-50 text-green-700 border-green-200" : "bg-orange-50 text-orange-700 border-orange-200")}>
+                                    {request.paid_status === "paid" ? <DollarSign className="h-3 w-3 mr-1" /> : <Banknote className="h-3 w-3 mr-1" />}
+                                    {request.paid_status === "paid" ? "Paid Leave" : "Unpaid Leave"}
+                                  </Badge>
+                                )}
                               </div>
                               <div className="flex items-center gap-4 text-sm text-gray-600">
                                 <span className="flex items-center gap-1">
@@ -186,13 +274,18 @@ export default function MyLeavesTab() {
                         </div>
 
                         {request.status === "pending" && (
-                          <Button
-                            size="sm"
-                            variant="outline"
+                          <Button size="sm" variant="outline"
                             onClick={() => cancelMutation.mutate(request.id)}
-                            disabled={cancelMutation.isPending}
-                          >
+                            disabled={cancelMutation.isPending}>
                             Cancel
+                          </Button>
+                        )}
+                        {request.status === "cancelled" && (
+                          <Button size="sm" variant="outline"
+                            className="text-destructive hover:bg-destructive/10"
+                            onClick={() => deleteMutation.mutate(request.id)}
+                            disabled={deleteMutation.isPending}>
+                            Delete
                           </Button>
                         )}
                       </div>

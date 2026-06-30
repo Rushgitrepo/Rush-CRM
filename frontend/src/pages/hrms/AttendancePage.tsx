@@ -6,12 +6,15 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { Clock, MapPin, CheckCircle, Play, Square, Coffee, Search } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Clock, MapPin, CheckCircle, Play, Square, Coffee, Search, Edit, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { format, isToday, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface AttendanceRecord {
   id: string; employee_id: string; employee_name: string; date: string;
@@ -34,9 +37,17 @@ function getInitials(name: string) {
   return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 }
 
+function toTimeInput(iso: string | null): string {
+  if (!iso) return "";
+  try { return format(new Date(iso), "HH:mm"); } catch { return ""; }
+}
+
 type ClockType = "clock_in" | "clock_out" | "break_start" | "break_end";
 
 export default function AttendancePage() {
+  const { userRole } = useAuth();
+  const isAdmin = userRole?.role === "super_admin" || userRole?.role === "admin" || userRole?.role === "manager";
+
   const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [search, setSearch] = useState("");
   const [clockDialog, setClockDialog] = useState(false);
@@ -44,6 +55,14 @@ export default function AttendancePage() {
   const [notes, setNotes] = useState("");
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [now, setNow] = useState(new Date());
+
+  const [editDialog, setEditDialog] = useState(false);
+  const [editRecord, setEditRecord] = useState<AttendanceRecord | null>(null);
+  const [editForm, setEditForm] = useState({ clock_in: "", clock_out: "", break_start: "", break_end: "", status: "", notes: "" });
+
+  const [deleteDialog, setDeleteDialog] = useState(false);
+  const [deleteRecord, setDeleteRecord] = useState<AttendanceRecord | null>(null);
+
   const qc = useQueryClient();
 
   useEffect(() => {
@@ -84,6 +103,63 @@ export default function AttendancePage() {
     },
     onError: (e: any) => toast.error(e.response?.data?.error || "Failed"),
   });
+
+  const editMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => api.put(`/attendance/${id}`, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["attendance"] });
+      qc.invalidateQueries({ queryKey: ["my-attendance"] });
+      toast.success("Attendance updated");
+      setEditDialog(false);
+      setEditRecord(null);
+    },
+    onError: (e: any) => toast.error(e?.message || "Failed to update"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/attendance/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["attendance"] });
+      qc.invalidateQueries({ queryKey: ["my-attendance"] });
+      toast.success("Record deleted");
+      setDeleteDialog(false);
+      setDeleteRecord(null);
+    },
+    onError: (e: any) => toast.error(e?.message || "Failed to delete"),
+  });
+
+  const openEdit = (r: AttendanceRecord) => {
+    setEditRecord(r);
+    setEditForm({
+      clock_in:    toTimeInput(r.clock_in),
+      clock_out:   toTimeInput(r.clock_out),
+      break_start: toTimeInput(r.break_start),
+      break_end:   toTimeInput(r.break_end),
+      status:      r.status,
+      notes:       r.notes || "",
+    });
+    setEditDialog(true);
+  };
+
+  const handleEditSave = () => {
+    if (!editRecord) return;
+    const dateStr = editRecord.date.split('T')[0];
+    const toISO = (t: string) => {
+      if (!t) return null;
+      return `${dateStr}T${t}:00`;
+    };
+    editMutation.mutate({
+      id: editRecord.id,
+      data: {
+        clock_in:    toISO(editForm.clock_in),
+        clock_out:   toISO(editForm.clock_out),
+        break_start: toISO(editForm.break_start),
+        break_end:   toISO(editForm.break_end),
+        status:      editForm.status,
+        notes:       editForm.notes || null,
+      },
+    });
+  };
 
   const canDo = (type: ClockType) => {
     if (!myAttendance) return type === "clock_in";
@@ -155,15 +231,15 @@ export default function AttendancePage() {
         </div>
       )}
 
-      <div className="flex items-center gap-3">
+      {isAdmin && <div className="flex items-center gap-3">
         <div className="relative flex-1 max-w-xs">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input className="pl-8 h-8 text-sm" placeholder="Search employees..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <Input type="date" className="h-8 text-sm w-auto" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
-      </div>
+      </div>}
 
-      <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+      {isAdmin && <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
         <div className="flex items-center gap-2 px-5 py-3.5 border-b border-border/40">
           <Clock className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm font-semibold">Records — {format(parseISO(selectedDate), "MMMM d, yyyy")}</span>
@@ -171,10 +247,13 @@ export default function AttendancePage() {
         </div>
         <div className="flex items-center gap-3 px-5 py-2 text-[10px] font-medium text-muted-foreground uppercase tracking-wider border-b border-border/30 bg-muted/20">
           <span className="flex-1">Employee</span>
-          <span className="w-16 text-center hidden sm:block">In</span>
-          <span className="w-16 text-center hidden sm:block">Out</span>
+          <span className="w-16 text-center hidden sm:block">Check-In</span>
+          <span className="w-16 text-center hidden lg:block">Break-In</span>
+          <span className="w-16 text-center hidden lg:block">Break-Out</span>
+          <span className="w-16 text-center hidden sm:block">Check-Out</span>
           <span className="w-12 text-center hidden md:block">Hours</span>
           <span className="w-20 text-center">Status</span>
+          {isAdmin && <span className="w-16 text-center">Actions</span>}
         </div>
         <div className="divide-y divide-border/40">
           {isLoading ? (
@@ -202,17 +281,30 @@ export default function AttendancePage() {
               </div>
               <span className="w-16 text-center text-xs text-muted-foreground hidden sm:block">{r.clock_in ? format(new Date(r.clock_in), "HH:mm") : "—"}</span>
               <span className="w-16 text-center text-xs hidden sm:block">{r.clock_out ? format(new Date(r.clock_out), "HH:mm") : <span className="text-emerald-500 text-[10px]">Active</span>}</span>
+              <span className="w-16 text-center text-xs text-muted-foreground hidden lg:block">{r.break_start ? format(new Date(r.break_start), "HH:mm") : "—"}</span>
+              <span className="w-16 text-center text-xs text-muted-foreground hidden lg:block">{r.break_end ? format(new Date(r.break_end), "HH:mm") : "—"}</span>
               <span className="w-12 text-center text-xs font-medium hidden md:block">{r.total_hours ? `${r.total_hours}h` : "—"}</span>
               <div className="w-20 flex justify-center">
                 <Badge variant="outline" className={cn("text-[10px] capitalize", STATUS_COLORS[r.status] ?? "bg-muted text-muted-foreground")}>
                   {r.status.replace("_", " ")}
                 </Badge>
               </div>
+              {isAdmin && (
+                <div className="w-16 flex justify-center gap-1">
+                  <button onClick={() => openEdit(r)} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" title="Edit">
+                    <Edit className="h-3.5 w-3.5" />
+                  </button>
+                  <button onClick={() => { setDeleteRecord(r); setDeleteDialog(true); }} className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-muted transition-colors" title="Delete">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
-      </div>
+      </div>}
 
+      {/* Clock In/Out Dialog */}
       <Dialog open={clockDialog} onOpenChange={setClockDialog}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
@@ -243,6 +335,78 @@ export default function AttendancePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Attendance Dialog (admin only) */}
+      <Dialog open={editDialog} onOpenChange={setEditDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Attendance</DialogTitle>
+            <DialogDescription>{editRecord?.employee_name} — {editRecord?.date}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Clock In</Label>
+                <Input type="time" value={editForm.clock_in} onChange={(e) => setEditForm({ ...editForm, clock_in: e.target.value })} />
+              </div>
+              
+              <div className="space-y-1.5">
+                <Label>Break Start</Label>
+                <Input type="time" value={editForm.break_start} onChange={(e) => setEditForm({ ...editForm, break_start: e.target.value })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Break End</Label>
+                <Input type="time" value={editForm.break_end} onChange={(e) => setEditForm({ ...editForm, break_end: e.target.value })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Clock Out</Label>
+                <Input type="time" value={editForm.clock_out} onChange={(e) => setEditForm({ ...editForm, clock_out: e.target.value })} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Status</Label>
+              <Select value={editForm.status} onValueChange={(v) => setEditForm({ ...editForm, status: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="present">Present</SelectItem>
+                  <SelectItem value="absent">Absent</SelectItem>
+                  <SelectItem value="late">Late</SelectItem>
+                  <SelectItem value="half_day">Half Day</SelectItem>
+                  <SelectItem value="on_break">On Break</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Notes</Label>
+              <Textarea rows={2} value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} placeholder="Optional notes..." />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setEditDialog(false)}>Cancel</Button>
+            <Button size="sm" onClick={handleEditSave} disabled={editMutation.isPending}>
+              {editMutation.isPending ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={deleteDialog} onOpenChange={setDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Attendance Record</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete attendance record for <strong>{deleteRecord?.employee_name}</strong> on {deleteRecord?.date}? This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteRecord && deleteMutation.mutate(deleteRecord.id)} className="bg-red-600 hover:bg-red-700" disabled={deleteMutation.isPending}>
+              {deleteMutation.isPending ? "Deleting..." : "Yes, Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

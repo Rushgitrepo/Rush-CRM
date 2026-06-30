@@ -121,9 +121,9 @@ const notify = async (orgId, targetUserId, type, title, message, actionUrl = nul
 const getOrgAdmins = async (orgId) => {
   try {
     const result = await db.query(
-      `SELECT id FROM public.users 
-       WHERE COALESCE(organization_id, org_id) = $1 
-         AND role IN ('admin', 'super_admin', 'hr_manager', 'manager')
+      `SELECT id FROM public.users
+       WHERE COALESCE(organization_id, org_id) = $1
+         AND role IN ('admin', 'super_admin', 'manager')
          AND is_active = true`,
       [orgId]
     );
