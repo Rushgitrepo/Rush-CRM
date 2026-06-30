@@ -326,22 +326,22 @@ const getAll = async (req, res, next) => {
       // Non-admin without unibox access: restrict to own leads + campaign folder access
       query += ` AND NOT (l.source = 'Instantly' AND l.responsible_person IS NULL)`;
       query += ` AND (
-        l.assigned_to = $${paramIndex} OR l.owner_id = $${paramIndex} OR l.user_id = $${paramIndex} OR l.created_by = $${paramIndex} OR l.responsible_person = $${paramIndex} OR
+        l.assigned_to::text = $${paramIndex}::text OR l.owner_id::text = $${paramIndex}::text OR l.user_id::text = $${paramIndex}::text OR l.created_by::text = $${paramIndex}::text OR l.responsible_person::text = $${paramIndex}::text OR
         EXISTS (
           SELECT 1 FROM workgroup_members wm
-          WHERE wm.workgroup_id = l.workspace_id AND wm.user_id = $${paramIndex}
+          WHERE wm.workgroup_id = l.workspace_id AND wm.user_id::text = $${paramIndex}::text
         ) OR
         EXISTS (
           SELECT 1 FROM lead_workspace_access lwa
           JOIN workgroup_members wm ON wm.workgroup_id = lwa.workspace_id
-          WHERE lwa.lead_id = l.id AND wm.user_id = $${paramIndex}
+          WHERE lwa.lead_id = l.id AND wm.user_id::text = $${paramIndex}::text
           AND (lwa.expires_at IS NULL OR lwa.expires_at > CURRENT_TIMESTAMP)
         ) OR
         EXISTS (
           SELECT 1 FROM unibox_campaign_folder_assignments ucfa
           JOIN unibox_campaign_folder_items ucfi ON ucfi.folder_id = ucfa.folder_id AND ucfi.org_id = ucfa.org_id
-          WHERE ucfa.user_id = $${paramIndex} AND ucfa.org_id = l.org_id
-            AND l.campaign_id IS NOT NULL AND ucfi.campaign_id = l.campaign_id
+          WHERE ucfa.user_id::text = $${paramIndex}::text AND ucfa.org_id = l.org_id
+            AND l.campaign_id IS NOT NULL AND ucfi.campaign_id = l.campaign_id::text
         )
       )`;
       params.push(req.user.id);
@@ -494,7 +494,7 @@ const getAll = async (req, res, next) => {
 
     if (!isAdmin && !hasUniboxAccess) {
       countQuery += ` AND NOT (l.source = 'Instantly' AND l.responsible_person IS NULL)`;
-      countQuery += ` AND (l.assigned_to = $${countIdx} OR l.owner_id = $${countIdx} OR l.user_id = $${countIdx} OR l.created_by = $${countIdx} OR l.responsible_person = $${countIdx} OR EXISTS (SELECT 1 FROM unibox_campaign_folder_assignments ucfa JOIN unibox_campaign_folder_items ucfi ON ucfi.folder_id = ucfa.folder_id AND ucfi.org_id = ucfa.org_id WHERE ucfa.user_id = $${countIdx} AND ucfa.org_id = l.org_id AND l.campaign_id IS NOT NULL AND ucfi.campaign_id = l.campaign_id))`;
+      countQuery += ` AND (l.assigned_to::text = $${countIdx}::text OR l.owner_id::text = $${countIdx}::text OR l.user_id::text = $${countIdx}::text OR l.created_by::text = $${countIdx}::text OR l.responsible_person::text = $${countIdx}::text OR EXISTS (SELECT 1 FROM unibox_campaign_folder_assignments ucfa JOIN unibox_campaign_folder_items ucfi ON ucfi.folder_id = ucfa.folder_id AND ucfi.org_id = ucfa.org_id WHERE ucfa.user_id::text = $${countIdx}::text AND ucfa.org_id = l.org_id AND l.campaign_id IS NOT NULL AND ucfi.campaign_id = l.campaign_id::text))`;
       countParams.push(req.user.id);
       countIdx++;
     }
