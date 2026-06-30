@@ -412,9 +412,9 @@ export function InteractionPanel({ entityType, entityId, activeTab: externalTab,
                             {item.userName || "Unknown User"}
                           </span>
                         </div>
-                        <p className="text-sm text-foreground/80 leading-relaxed">{item.content}</p>
+                        <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap">{item.content}</p>
                         {item.detail && item.type === 'activity' && (
-                          <p className="text-xs text-muted-foreground mt-0.5">{item.detail}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5 whitespace-pre-wrap">{item.detail}</p>
                         )}
                         {'isEdited' in item && item.isEdited && (
                           <span className="text-[10px] text-muted-foreground">(edited)</span>

@@ -942,6 +942,7 @@ export default function DealsPage() {
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search title,name, comp, camp, email, web, desig, notes, contact..."
+        searchClassName="max-w-[550px]"
         filters={[
           {
             label: "Status",
@@ -1019,7 +1020,7 @@ export default function DealsPage() {
         viewOptions={[
           { id: "list", label: "List" },
           { id: "kanban", label: "Kanban" },
-          { id: "activities", label: "Activities" },
+          // { id: "activities", label: "Activities" },
           { id: "calendar", label: "Calendar" },
           // {
           //   id: "automation",

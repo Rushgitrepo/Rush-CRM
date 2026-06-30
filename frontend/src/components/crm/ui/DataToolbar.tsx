@@ -74,7 +74,7 @@ export function DataToolbar({
         <div className="flex flex-wrap items-center gap-2 justify-end">
           {sortOptions && onSortChange && (
             <Select value={sortValue} onValueChange={onSortChange}>
-              <SelectTrigger className="w-[100px] bg-muted/40 border-border/60">
+              <SelectTrigger className="w-[120px] bg-muted/40 border-border/60">
                 <SelectValue placeholder="Sort" />
               </SelectTrigger>
               <SelectContent>
