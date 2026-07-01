@@ -29,6 +29,7 @@ const CATEGORY_MAP = {
   candidate_status_changed: 'recruitment',
   interview_scheduled: 'recruitment',
   offer_created: 'recruitment',
+  requisition_created: 'recruitment',
   // Collaboration
   direct_message: 'collaboration',
   mention: 'collaboration',

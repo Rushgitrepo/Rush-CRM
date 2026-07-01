@@ -8,10 +8,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { ArrowLeft, CheckCircle, XCircle, FileText, Clock, User, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import { recruitmentApi } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function RequisitionDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { userRole } = useAuth();
   const [loading, setLoading] = useState(true);
   const [approvalComment, setApprovalComment] = useState('');
   const [requisition, setRequisition] = useState<any>(null);
@@ -38,9 +40,7 @@ export default function RequisitionDetailPage() {
 
   const getStatusBadge = (status: string) => {
     const statusConfig: Record<string, { label: string; variant: any; color: string }> = {
-      pending_dept_head: { label: 'Pending Dept Head', variant: 'secondary', color: 'orange' },
-      pending_hr: { label: 'Pending HR', variant: 'secondary', color: 'blue' },
-      pending_management: { label: 'Pending Management', variant: 'default', color: 'purple' },
+      pending_hr: { label: 'Pending HR Approval', variant: 'secondary', color: 'blue' },
       approved: { label: 'Approved', variant: 'default', color: 'green' },
       rejected: { label: 'Rejected', variant: 'destructive', color: 'red' },
       in_advertisement: { label: 'In Advertisement', variant: 'default', color: 'blue' },
@@ -217,7 +217,7 @@ export default function RequisitionDetailPage() {
                   )}
 
                   {/* Approval Actions */}
-                  {requisition.status.includes('pending') && (
+                  {(userRole?.role === 'super_admin' || userRole?.role === 'admin' || userRole?.role === 'manager' || userRole?.role === 'hr_manager' || userRole?.role === 'hr') && requisition.status.includes('pending') && (
                     <div className="border-t pt-6 space-y-4">
                       <h3 className="font-semibold">Approval Action</h3>
                       <Textarea

@@ -311,8 +311,6 @@ const getAll = async (req, res, next) => {
     const isAdmin = req.user.role === 'super_admin' || req.user.role === 'admin';
     const hasUniboxAccess = !isAdmin && (req.user.has_unibox_access === true || req.user.has_unibox_access === 't');
 
-    console.log('[deals/getAll] user:', req.user.id, 'role:', req.user.role, 'orgId:', req.user.orgId, 'isAdmin:', isAdmin, 'hasUniboxAccess:', hasUniboxAccess, 'raw_unibox:', req.user.has_unibox_access);
-
     let query = `
       SELECT d.*,
              c.first_name as contact_first_name, c.last_name as contact_last_name, c.email as contact_email, c.phone as contact_phone,
@@ -475,10 +473,10 @@ const getAll = async (req, res, next) => {
     query += ` ORDER BY d.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     params.push(limit, offset);
 
-    console.log('[deals/getAll] final query:', query.substring(0, 500));
-    console.log('[deals/getAll] final params:', params);
+    // console.log('[deals/getAll] final query:', query.substring(0, 500));
+    // console.log('[deals/getAll] final params:', params);
     const result = await db.query(query, params);
-    console.log('[deals/getAll] result count:', result.rows.length);
+    // console.log('[deals/getAll] result count:', result.rows.length);
 
     const countParams = [req.user.orgId];
     let countQuery = 'SELECT COUNT(DISTINCT d.id) FROM public.deals d LEFT JOIN public.companies co ON co.id = d.company_id LEFT JOIN public.users u ON u.id = d.assigned_to WHERE d.org_id = $1';

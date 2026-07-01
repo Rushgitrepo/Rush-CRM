@@ -732,8 +732,12 @@ export const recruitmentApi = {
   }) => api.post<any>('/recruitment/requisitions', data),
   updateRequisitionStatus: (id: string, action: 'approve' | 'reject', comments?: string) =>
     api.put<any>(`/recruitment/requisitions/${id}/status`, { action, comments }),
+  updateRequisition: (id: string, data: any) =>
+    api.put<any>(`/recruitment/requisitions/${id}`, data),
   getPendingApprovals: () => api.get<any[]>('/recruitment/requisitions/pending-approvals'),
   deleteRequisition: (id: string) => api.delete(`/recruitment/requisitions/${id}`),
+  bulkDeleteRequisitions: (ids: string[]) =>
+    api.post<{ message: string; deletedCount: number }>('/recruitment/requisitions/bulk-delete', { ids }),
 
   // Candidates
   getCandidates: (params?: { status?: string; requisitionId?: string; search?: string }) =>

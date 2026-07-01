@@ -12,6 +12,8 @@ router.get('/', requisitionController.getRequisitions);
 router.get('/pending-approvals', requisitionController.getPendingApprovals);
 router.get('/:id', requisitionController.getRequisitionById);
 router.put('/:id/status', requisitionController.updateRequisitionStatus);
+router.put('/:id', requisitionController.updateRequisition);
 router.delete('/:id', requisitionController.deleteRequisition);
+router.post('/bulk-delete', requisitionController.bulkDeleteRequisitions);
 
 module.exports = router;

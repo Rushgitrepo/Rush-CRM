@@ -1,5 +1,6 @@
 const db = require('../../config/database');
 const Joi = require('joi');
+const notificationService = require('../../services/notificationService');
 
 // Validation Schemas
 const createRequisitionSchema = Joi.object({
@@ -58,29 +59,27 @@ exports.createRequisition = async (req, res) => {
     const user = userResult.rows[0];
     const userName = user.full_name;
 
-    // Insert requisition
+    // Insert requisition with initial status 'pending_hr'
     const result = await db.query(
       `INSERT INTO job_requisitions (
         requisition_id, position, department, number_of_positions,
         job_description, requirements, request_type, urgency, grade,
-        requested_by, requested_by_name, requested_by_email, organization_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        requested_by, requested_by_name, requested_by_email, organization_id, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *`,
       [
         requisitionId, value.position, value.department, value.numberOfPositions,
         value.jobDescription, value.requirements, value.requestType, value.urgency,
-        value.grade, userId, userName, user.email, organizationId
+        value.grade, userId, userName, user.email, organizationId, 'pending_hr'
       ]
     );
 
     const requisition = result.rows[0];
 
-    // Create approval workflow steps
+    // Create approval workflow steps (only Requester and HR Manager)
     const approvalSteps = [
       { step: 1, role: 'Requester', status: 'completed', action: 'submitted', approver_id: userId, approver_name: userName, approver_email: user.email },
-      { step: 2, role: 'Department Head', status: 'pending', action: 'pending_review' },
-      { step: 3, role: 'HR Manager', status: 'not_started', action: 'awaiting' },
-      { step: 4, role: 'Higher Authority', status: 'not_started', action: 'awaiting' }
+      { step: 2, role: 'HR Manager', status: 'pending', action: 'pending_review' }
     ];
 
     for (const step of approvalSteps) {
@@ -95,6 +94,25 @@ exports.createRequisition = async (req, res) => {
           step.status === 'completed' ? new Date() : null
         ]
       );
+    }
+
+    // Send notifications to HR, Admins, and Super Admins
+    try {
+      const adminIds = await notificationService.getOrgUsersByRole(organizationId, ['super_admin', 'admin', 'manager']);
+      if (adminIds && adminIds.length > 0) {
+        await notificationService.notify(
+          organizationId,
+          adminIds,
+          'requisition_created',
+          'New Requisition Request',
+          `${userName} has submitted a new requisition request for ${requisition.position} (${requisition.department}).`,
+          `/recruitment/requisitions/${requisition.id}`,
+          userId,
+          { requisitionId: requisition.id }
+        );
+      }
+    } catch (notifError) {
+      console.error('Failed to send requisition creation notifications:', notifError);
     }
 
     res.status(201).json({
@@ -376,6 +394,33 @@ exports.deleteRequisition = async (req, res) => {
     const { id } = req.params;
     const organizationId = req.user.orgId;
 
+    // 1. Delete Requisition Approvals
+    await db.query('DELETE FROM requisition_approvals WHERE requisition_id = $1', [id]);
+
+    // 2. Get candidates referencing this requisition
+    const candidatesResult = await db.query('SELECT id FROM candidates WHERE requisition_id = $1', [id]);
+    const candidateIds = candidatesResult.rows.map(row => row.id);
+
+    if (candidateIds.length > 0) {
+      // 3. Delete Candidate Rankings
+      await db.query('DELETE FROM candidate_rankings WHERE candidate_id = ANY($1) OR requisition_id = $2', [candidateIds, id]);
+      // 4. Delete Candidate Timeline
+      await db.query('DELETE FROM candidate_timeline WHERE candidate_id = ANY($1)', [candidateIds]);
+      // 5. Delete Job Offers
+      await db.query('DELETE FROM job_offers WHERE candidate_id = ANY($1) OR requisition_id = $2', [candidateIds, id]);
+      // 6. Delete Candidate Scores
+      await db.query('DELETE FROM candidate_scores WHERE candidate_id = ANY($1)', [candidateIds]);
+      // 7. Delete Interviews
+      await db.query('DELETE FROM candidate_interviews WHERE candidate_id = ANY($1) OR requisition_id = $2', [candidateIds, id]);
+      // 8. Delete Candidates
+      await db.query('DELETE FROM candidates WHERE id = ANY($1)', [candidateIds]);
+    } else {
+      // Cleanup any rankings/offers/interviews referencing this requisition directly even if candidateIds is empty
+      await db.query('DELETE FROM candidate_rankings WHERE requisition_id = $1', [id]);
+      await db.query('DELETE FROM job_offers WHERE requisition_id = $1', [id]);
+      await db.query('DELETE FROM candidate_interviews WHERE requisition_id = $1', [id]);
+    }
+
     let query = 'DELETE FROM job_requisitions WHERE id = $1';
     const params = [id];
 
@@ -398,4 +443,123 @@ exports.deleteRequisition = async (req, res) => {
     res.status(500).json({ error: 'Failed to delete requisition' });
   }
 };
+
+const updateRequisitionSchema = Joi.object({
+  position: Joi.string().required(),
+  department: Joi.string().required(),
+  numberOfPositions: Joi.number().integer().min(1).required(),
+  jobDescription: Joi.string().required(),
+  requirements: Joi.string().optional().allow(''),
+  requestType: Joi.string().valid('single', 'team', 'other').default('single'),
+  urgency: Joi.string().valid('low', 'medium', 'high', 'urgent').default('medium'),
+  grade: Joi.string().optional().allow(''),
+  status: Joi.string().optional()
+});
+
+// Update Requisition
+exports.updateRequisition = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const organizationId = req.user.orgId;
+    const { error, value } = updateRequisitionSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ error: error.details[0].message });
+    }
+
+    let query = `
+      UPDATE job_requisitions 
+      SET position = $1, department = $2, number_of_positions = $3,
+          job_description = $4, requirements = $5, request_type = $6,
+          urgency = $7, grade = $8, updated_at = NOW()
+      WHERE id = $9
+    `;
+    const params = [
+      value.position, value.department, value.numberOfPositions,
+      value.jobDescription, value.requirements, value.requestType,
+      value.urgency, value.grade, id
+    ];
+
+    let paramIndex = 10;
+    if (organizationId) {
+      query += ` AND organization_id = $${paramIndex}`;
+      params.push(organizationId);
+    }
+
+    query += ' RETURNING *';
+
+    const result = await db.query(query, params);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Requisition not found' });
+    }
+
+    res.json({
+      message: 'Requisition updated successfully',
+      requisition: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating requisition:', error);
+    res.status(500).json({ error: 'Failed to update requisition' });
+  }
+};
+
+// Bulk Delete Requisitions
+exports.bulkDeleteRequisitions = async (req, res) => {
+  try {
+    const { ids } = req.body;
+    const organizationId = req.user.orgId;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Invalid or empty requisition IDs' });
+    }
+
+    // 1. Delete Requisition Approvals
+    await db.query('DELETE FROM requisition_approvals WHERE requisition_id = ANY($1)', [ids]);
+
+    // 2. Get candidates referencing these requisitions
+    const candidatesResult = await db.query('SELECT id FROM candidates WHERE requisition_id = ANY($1)', [ids]);
+    const candidateIds = candidatesResult.rows.map(row => row.id);
+
+    if (candidateIds.length > 0) {
+      // 3. Delete Candidate Rankings
+      await db.query('DELETE FROM candidate_rankings WHERE candidate_id = ANY($1) OR requisition_id = ANY($2)', [candidateIds, ids]);
+      // 4. Delete Candidate Timeline
+      await db.query('DELETE FROM candidate_timeline WHERE candidate_id = ANY($1)', [candidateIds]);
+      // 5. Delete Job Offers
+      await db.query('DELETE FROM job_offers WHERE candidate_id = ANY($1) OR requisition_id = ANY($2)', [candidateIds, ids]);
+      // 6. Delete Candidate Scores
+      await db.query('DELETE FROM candidate_scores WHERE candidate_id = ANY($1)', [candidateIds]);
+      // 7. Delete Interviews
+      await db.query('DELETE FROM candidate_interviews WHERE candidate_id = ANY($1) OR requisition_id = ANY($2)', [candidateIds, ids]);
+      // 8. Delete Candidates
+      await db.query('DELETE FROM candidates WHERE id = ANY($1)', [candidateIds]);
+    } else {
+      // Cleanup directly by requisition IDs
+      await db.query('DELETE FROM candidate_rankings WHERE requisition_id = ANY($1)', [ids]);
+      await db.query('DELETE FROM job_offers WHERE requisition_id = ANY($1)', [ids]);
+      await db.query('DELETE FROM candidate_interviews WHERE requisition_id = ANY($1)', [ids]);
+    }
+
+    let query = 'DELETE FROM job_requisitions WHERE id = ANY($1)';
+    const params = [ids];
+
+    if (organizationId) {
+      query += ' AND organization_id = $2';
+      params.push(organizationId);
+    }
+
+    query += ' RETURNING *';
+
+    const result = await db.query(query, params);
+
+    res.json({
+      message: 'Requisitions deleted successfully',
+      deletedCount: result.rows.length
+    });
+  } catch (error) {
+    console.error('Error bulk deleting requisitions:', error);
+    res.status(500).json({ error: 'Failed to delete requisitions' });
+  }
+};
+
 

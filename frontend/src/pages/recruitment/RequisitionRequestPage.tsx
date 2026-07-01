@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { recruitmentApi } from '@/lib/api';
+import { DEPARTMENTS } from '@/lib/constants';
 
 export default function RequisitionRequestPage() {
   const navigate = useNavigate();
@@ -76,12 +77,9 @@ export default function RequisitionRequestPage() {
                   <SelectValue placeholder="Select department" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="it">IT</SelectItem>
-                  <SelectItem value="hr">HR</SelectItem>
-                  <SelectItem value="sales">Sales</SelectItem>
-                  <SelectItem value="marketing">Marketing</SelectItem>
-                  <SelectItem value="finance">Finance</SelectItem>
-                  <SelectItem value="operations">Operations</SelectItem>
+                  {DEPARTMENTS.map((dept) => (
+                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

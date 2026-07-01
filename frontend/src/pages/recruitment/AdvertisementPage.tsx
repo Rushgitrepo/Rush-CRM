@@ -30,6 +30,7 @@ export default function AdvertisementPage() {
     salaryRange: '',
     applicationDeadline: '',
     contactEmail: '',
+    contactPhone: '',
     platforms: {
       linkedin: false,
       facebook: false,
@@ -61,6 +62,7 @@ export default function AdvertisementPage() {
         salaryRange: '',
         applicationDeadline: '',
         contactEmail: '',
+        contactPhone: '',
         platforms: {
           linkedin: false,
           facebook: false,
@@ -101,6 +103,7 @@ ${adData.requirements}
 ${adData.applicationDeadline ? `⏰ Application Deadline: ${new Date(adData.applicationDeadline).toLocaleDateString()}` : ''}
 
 📧 To Apply: Send your CV to ${adData.contactEmail || 'hr@company.com'}
+${adData.contactPhone ? `📞 Contact: ${adData.contactPhone}` : ''}
 
 #Hiring #JobOpening #${adData.title.replace(/\s+/g, '')} #Careers #JobAlert`;
   };
@@ -291,6 +294,19 @@ ${adData.applicationDeadline ? `⏰ Application Deadline: ${new Date(adData.appl
                     value={adData.contactEmail}
                     onChange={(e) => setAdData({ ...adData, contactEmail: e.target.value })}
                     placeholder="hr@company.com"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="contactPhone">Contact Phone (Optional)</Label>
+                  <Input
+                    id="contactPhone"
+                    type="tel"
+                    value={adData.contactPhone}
+                    onChange={(e) => setAdData({ ...adData, contactPhone: e.target.value })}
+                    placeholder="e.g., +92 300 1234567"
                   />
                 </div>
               </div>

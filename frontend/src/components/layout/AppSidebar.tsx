@@ -120,6 +120,7 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
   badge?: string;
   children?: NavSubItem[];
+  roles?: string[];
 }
 
 const navigation: NavItem[] = [
@@ -189,22 +190,23 @@ const navigation: NavItem[] = [
   {
     title: "Recruitment",
     icon: UserCog,
+    roles: ["super_admin", "admin", "manager", "team_lead"],
     children: [
       { title: "Dashboard", href: "/recruitment", icon: LayoutDashboard },
-      { title: "Approvals", href: "/recruitment/approvals", icon: CheckCircle },
       {
         title: "Requisitions",
         href: "/recruitment/requisitions",
         icon: FileText,
       },
+      { title: "Approvals", href: "/recruitment/approvals", icon: CheckCircle },
       { title: "Candidates", href: "/recruitment/candidates", icon: Users },
       {
         title: "Interviews",
         href: "/recruitment/interviews",
         icon: MessageSquare,
       },
-      { title: "Offers", href: "/recruitment/offers", icon: DollarSign },
       { title: "Scoring", href: "/recruitment/scoring", icon: Target },
+      { title: "Offers", href: "/recruitment/offers", icon: DollarSign },
       // { title: "Talent Pool", href: "/recruitment/talent-pool", icon: UsersRound },
       { title: "Analytics", href: "/recruitment/analytics", icon: BarChart3 },
     ],
@@ -500,6 +502,7 @@ export function AppSidebar({
     const allItems = navigation
       .map((item) => {
         if (item.title === "Admin Portal" && !isAdmin) return null;
+        if (item.roles && !item.roles.includes(userRole?.role ?? "")) return null;
         return item;
       })
       .filter(Boolean) as NavItem[];
@@ -513,7 +516,7 @@ export function AppSidebar({
     );
 
     return { mainItems, bottomItems };
-  }, [isAdmin]);
+  }, [isAdmin, userRole]);
 
   const toggleSection = (title: string) => {
     setOpenSections((prev) =>

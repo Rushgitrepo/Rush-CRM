@@ -62,6 +62,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import { ModulePermissionEditor } from "@/components/admin/ModulePermissionEditor";
 import { getAvatarUrl } from "@/lib/utils";
+import { DEPARTMENTS } from "@/lib/constants";
 
 const ROLE_OPTIONS = [
   { value: "admin", label: "Admin" },
@@ -70,16 +71,6 @@ const ROLE_OPTIONS = [
   { value: "employee", label: "Employee" },
 ];
 
-const DEPARTMENTS = [
-  "Management",
-  "Sales",
-  "Marketing",
-  "Operations",
-  "Human Resources",
-  "Engineering",
-  "Customer Support",
-  "Finance",
-];
 
 export default function AdminDashboardPage() {
   const {

@@ -14,8 +14,8 @@ import { useAdminUsers, AdminUser } from "@/hooks/useAdminUsers";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
+import { DEPARTMENTS } from "@/lib/constants";
 
-const departments = ["IT", "Sales", "Marketing", "HR", "Finance", "Operations", "Engineering", "Support"];
 const PAGE_SIZE = 10;
 
 export default function UsersPage() {
@@ -227,7 +227,7 @@ export default function UsersPage() {
                     <Select value={addUserForm.department} onValueChange={v => setAddUserForm({ ...addUserForm, department: v })}>
                       <SelectTrigger><SelectValue placeholder="Select dept" /></SelectTrigger>
                       <SelectContent>
-                        {departments.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                        {DEPARTMENTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
@@ -382,7 +382,7 @@ export default function UsersPage() {
                 <SelectTrigger className="w-36"><SelectValue placeholder="Department" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Depts</SelectItem>
-                  {departments.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                  {DEPARTMENTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -534,7 +534,7 @@ export default function UsersPage() {
                   <Select value={editForm.department} onValueChange={v => setEditForm({ ...editForm, department: v })}>
                     <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent>
-                      {departments.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                      {DEPARTMENTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
