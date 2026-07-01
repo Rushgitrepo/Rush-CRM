@@ -25,6 +25,9 @@ router.delete('/:id', leaveController.deleteLeaveRequest);
 // Annual Reset
 router.post('/balance/reset-annual', leaveController.resetAnnualBalances);
 
+// Monthly Reset
+router.post('/balance/reset-monthly', leaveController.resetMonthlyLeaves);
+
 // Analytics
 router.get('/analytics/stats', leaveController.getLeaveAnalytics);
 

@@ -30,7 +30,8 @@ const getStats = async (req, res, next) => {
         SUM(a.total_hours) as total_hours_today
       FROM employees e
       LEFT JOIN attendance a ON e.id = a.employee_id ${dateFilter}
-      WHERE e.org_id = $1 AND e.status = 'active'
+      WHERE e.org_id = $1
+        AND NOT EXISTS (SELECT 1 FROM public.users u WHERE LOWER(u.email) = LOWER(e.email) AND u.role IN ('super_admin', 'admin'))
     `, [req.user.orgId]);
 
     // Get leave statistics
@@ -117,14 +118,24 @@ const getActivities = async (req, res, next) => {
 // Get attendance records
 const getAttendance = async (req, res, next) => {
   try {
-    const { date, search, employee_id, status } = req.query;
+    const { date, from, to, search, employee_id, status } = req.query;
     let whereClause = 'WHERE a.org_id = $1';
     const params = [req.user.orgId];
     let paramIndex = 2;
 
-    if (date) {
+    if (from) {
+      whereClause += ` AND DATE(a.date) >= $${paramIndex}`;
+      params.push(from);
+      paramIndex++;
+    } else if (date) {
       whereClause += ` AND DATE(a.date) = $${paramIndex}`;
       params.push(date);
+      paramIndex++;
+    }
+
+    if (to) {
+      whereClause += ` AND DATE(a.date) <= $${paramIndex}`;
+      params.push(to);
       paramIndex++;
     }
 
@@ -571,12 +582,44 @@ const createHRMSNotification = async (orgId, userId, employeeId, type, title, me
   }
 };
 
+const getMyHistory = async (req, res, next) => {
+  try {
+    const { limit = 90, offset = 0, from, to } = req.query;
+    const empResult = await db.query(
+      'SELECT id FROM employees WHERE user_id = $1 AND org_id = $2',
+      [req.user.id, req.user.orgId]
+    );
+    if (empResult.rows.length === 0) return res.json([]);
+
+    const params = [empResult.rows[0].id];
+    let where = 'WHERE a.employee_id = $1';
+    if (from) { params.push(from); where += ` AND DATE(a.date) >= $${params.length}`; }
+    if (to)   { params.push(to);   where += ` AND DATE(a.date) <= $${params.length}`; }
+    params.push(parseInt(limit), parseInt(offset));
+
+    const { rows } = await db.query(
+      `SELECT a.*,
+              CONCAT(e.first_name, ' ', e.last_name) AS employee_name
+       FROM attendance a
+       LEFT JOIN employees e ON e.id = a.employee_id
+       ${where}
+       ORDER BY a.date DESC
+       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params
+    );
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getStats,
   getActivities,
   getAttendance,
   getTodayAttendance,
   getMyTodayAttendance,
+  getMyHistory,
   clockIn,
   clockOut,
   startBreak,

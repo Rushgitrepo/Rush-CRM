@@ -12,13 +12,18 @@ import { useAuth } from "@/contexts/AuthContext";
 export default function LeaveManagementPage() {
   const { userRole } = useAuth();
   const isAdmin = userRole?.role === "super_admin" || userRole?.role === "admin" || userRole?.role === "manager";
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(() => searchParams.get("tab") || "my-leaves");
 
   useEffect(() => {
     const tab = searchParams.get("tab");
     if (tab) setActiveTab(tab);
   }, [searchParams]);
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    setSearchParams({ tab }, { replace: true });
+  };
 
   return (
     <div className="space-y-6">
@@ -27,7 +32,7 @@ export default function LeaveManagementPage() {
         <p className="text-gray-600 mt-1">Manage leave requests, balances, and policies</p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
         <TabsList className={`grid w-full lg:w-auto lg:inline-grid ${isAdmin ? "grid-cols-5" : "grid-cols-1"}`}>
           <TabsTrigger value="my-leaves" className="gap-2">
             <Clock className="h-4 w-4" />

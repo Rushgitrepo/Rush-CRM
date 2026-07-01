@@ -304,6 +304,93 @@ const clockIn = async (req, res, next) => {
   }
 };
 
+const myToday = async (req, res, next) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const empResult = await db.query(
+      'SELECT id FROM public.employees WHERE user_id = $1 AND org_id = $2',
+      [req.user.id, req.user.orgId]
+    );
+    if (empResult.rows.length === 0) return res.json(null);
+    const { rows } = await db.query(
+      `SELECT a.*, CONCAT(e.first_name,' ',e.last_name) as employee_name
+       FROM public.attendance a
+       LEFT JOIN public.employees e ON e.id = a.employee_id
+       WHERE a.employee_id = $1 AND DATE(a.date) = $2 AND a.org_id = $3`,
+      [empResult.rows[0].id, today, req.user.orgId]
+    );
+    res.json(rows[0] || null);
+  } catch (err) { next(err); }
+};
+
+const myHistory = async (req, res, next) => {
+  try {
+    const { limit = 30, offset = 0 } = req.query;
+    const empResult = await db.query(
+      'SELECT id FROM public.employees WHERE user_id = $1 AND org_id = $2',
+      [req.user.id, req.user.orgId]
+    );
+    if (empResult.rows.length === 0) return res.json([]);
+    const { rows } = await db.query(
+      `SELECT a.*, CONCAT(e.first_name,' ',e.last_name) as employee_name
+       FROM public.attendance a
+       LEFT JOIN public.employees e ON e.id = a.employee_id
+       WHERE a.employee_id = $1 AND a.org_id = $2
+       ORDER BY a.date DESC
+       LIMIT $3 OFFSET $4`,
+      [empResult.rows[0].id, req.user.orgId, limit, offset]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+};
+
+const breakStart = async (req, res, next) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const empResult = await db.query(
+      'SELECT id FROM public.employees WHERE user_id = $1 AND org_id = $2',
+      [req.user.id, req.user.orgId]
+    );
+    if (empResult.rows.length === 0) return res.status(404).json({ error: 'Employee not found' });
+    const { rows } = await db.query(
+      'SELECT id, break_start FROM public.attendance WHERE employee_id = $1 AND DATE(date) = $2 AND org_id = $3',
+      [empResult.rows[0].id, today, req.user.orgId]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'No clock-in record for today' });
+    if (rows[0].break_start) return res.status(400).json({ error: 'Break already started' });
+    const result = await db.query(
+      'UPDATE public.attendance SET break_start=$1, status=$2, updated_at=NOW() WHERE id=$3 RETURNING *',
+      [now, 'on_break', rows[0].id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) { next(err); }
+};
+
+const breakEnd = async (req, res, next) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const empResult = await db.query(
+      'SELECT id FROM public.employees WHERE user_id = $1 AND org_id = $2',
+      [req.user.id, req.user.orgId]
+    );
+    if (empResult.rows.length === 0) return res.status(404).json({ error: 'Employee not found' });
+    const { rows } = await db.query(
+      'SELECT id, break_start, break_end FROM public.attendance WHERE employee_id = $1 AND DATE(date) = $2 AND org_id = $3',
+      [empResult.rows[0].id, today, req.user.orgId]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'No clock-in record for today' });
+    if (!rows[0].break_start) return res.status(400).json({ error: 'Break not started' });
+    if (rows[0].break_end) return res.status(400).json({ error: 'Break already ended' });
+    const result = await db.query(
+      'UPDATE public.attendance SET break_end=$1, status=$2, updated_at=NOW() WHERE id=$3 RETURNING *',
+      [now, 'present', rows[0].id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) { next(err); }
+};
+
 const clockOut = async (req, res, next) => {
   try {
     const today = new Date().toISOString().split('T')[0];
@@ -377,5 +464,9 @@ module.exports = {
   remove,
   clockIn,
   clockOut,
+  breakStart,
+  breakEnd,
+  myToday,
+  myHistory,
   getStats,
 };

@@ -4,7 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Plus, Calendar, CheckCircle, XCircle, Clock, AlertCircle, DollarSign, Banknote, RefreshCw } from "lucide-react";
+import {
+  Plus,
+  Calendar,
+  CheckCircle,
+  XCircle,
+  Clock,
+  AlertCircle,
+  DollarSign,
+  Banknote,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { format, differenceInDays } from "date-fns";
@@ -30,17 +39,8 @@ export default function MyLeavesTab() {
   const [requestDialog, setRequestDialog] = useState(false);
   const qc = useQueryClient();
   const { userRole } = useAuth();
-  const isAdmin = userRole?.role === "super_admin" || userRole?.role === "admin" || userRole?.role === "manager";
+  const isSuperAdmin = userRole?.role === "super_admin";
   const currentYear = new Date().getFullYear();
-
-  const resetMutation = useMutation({
-    mutationFn: () => api.post("/leave/balance/reset-annual", {}),
-    onSuccess: (res: any) => {
-      qc.invalidateQueries({ queryKey: ["my-leave-balances"] });
-      toast.success(`Annual reset done for ${currentYear}`, { description: res?.message });
-    },
-    onError: () => toast.error("Failed to reset annual balances"),
-  });
 
   // Fetch leave balances
   const { data: balancesResp } = useQuery({
@@ -64,137 +64,199 @@ export default function MyLeavesTab() {
   };
 
   const cancelMutation = useMutation({
-    mutationFn: (id: string) => api.patch(`/leave/${id}`, { status: "cancelled" }),
-    onSuccess: () => { invalidate(); toast.success("Leave request cancelled"); },
+    mutationFn: (id: string) =>
+      api.patch(`/leave/${id}`, { status: "cancelled" }),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Leave request cancelled");
+    },
     onError: () => toast.error("Failed to cancel request"),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/leave/${id}`),
-    onSuccess: () => { invalidate(); toast.success("Leave request deleted"); },
+    onSuccess: () => {
+      invalidate();
+      toast.success("Leave request deleted");
+    },
     onError: () => toast.error("Failed to delete request"),
   });
 
   return (
     <div className="space-y-6">
-      {/* Leave Balance Cards */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-lg font-semibold">Leave Balance</h2>
-            <p className="text-xs text-muted-foreground">Year {currentYear} — resets every January 1</p>
-          </div>
-          <div className="flex gap-2">
-            {isAdmin && (
-              <Button variant="outline" size="sm" className="gap-2" onClick={() => resetMutation.mutate()} disabled={resetMutation.isPending}>
-                <RefreshCw className="h-4 w-4" />
-                {resetMutation.isPending ? "Resetting..." : "Reset Annual Balances"}
-              </Button>
-            )}
+      {/* Leave Balance Cards — shown for everyone except super_admin */}
+      {!isSuperAdmin && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold">Leave Balance</h2>
+              <p className="text-xs text-muted-foreground">
+                Year {currentYear} — resets every January 1
+              </p>
+            </div>
             <Button onClick={() => setRequestDialog(true)} className="gap-2">
               <Plus className="h-4 w-4" />
               Request Leave
             </Button>
           </div>
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {balances.length === 0 ? (
-            <Card className="col-span-full">
-              <CardContent className="p-8 text-center">
-                <Calendar className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
-                <p className="text-gray-500 font-medium mb-1">No leave balance initialized</p>
-                <p className="text-xs text-muted-foreground">Contact HR to initialize your leave balance</p>
-              </CardContent>
-            </Card>
-          ) : (
-            balances.map((balance: any) => {
-              const annualTotal = parseFloat(balance.total_allocated || 0);
-              const used = parseFloat(balance.used || 0);
-              const pending = parseFloat(balance.pending || 0);
-              const available = parseFloat(balance.available || 0);
-              const monthlyLimit = balance.monthly_limit;
-              const monthlyUsed = parseFloat(balance.monthly_used || 0);
-              const monthlyRemaining = balance.monthly_remaining;
-              const usedPct = annualTotal > 0 ? Math.round((used / annualTotal) * 100) : 0;
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {balances.length === 0 ? (
+              <Card className="col-span-full">
+                <CardContent className="p-8 text-center">
+                  <Calendar className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+                  <p className="text-gray-500 font-medium mb-1">
+                    No leave balance initialized
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Contact HR to initialize your leave balance
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              balances.map((balance: any) => {
+                const annualTotal = parseFloat(balance.total_allocated || 0);
+                const used = parseFloat(balance.used || 0);
+                const pending = parseFloat(balance.pending || 0);
+                const available = parseFloat(balance.available || 0);
+                const monthlyLimit = balance.monthly_limit;
+                const monthlyUsed = parseFloat(balance.monthly_used || 0);
+                const monthlyRemaining = balance.monthly_remaining;
+                const _usedPct =
+                  annualTotal > 0 ? Math.round((used / annualTotal) * 100) : 0;
+                void _usedPct;
 
-              return (
-                <Card key={balance.id || balance.leave_type_id} className="border-l-4 overflow-hidden" style={{ borderLeftColor: balance.leave_type_color }}>
-                  <CardHeader className="pb-2 pt-4 px-4">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-sm font-semibold">{balance.leave_type_name}</CardTitle>
-                      {balance.not_initialized && (
-                        <span className="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full">Not Initialized</span>
-                      )}
-                    </div>
-                  </CardHeader>
-                  <CardContent className="px-4 pb-4 space-y-3">
-
-                    {/* Annual section */}
-                    <div className="rounded-lg bg-muted/30 p-3 space-y-2">
-                      <div className="flex items-center justify-between text-xs text-muted-foreground font-medium uppercase tracking-wide">
-                        <span>Annual Balance ({currentYear})</span>
-                        <span style={{ color: balance.leave_type_color }} className="font-bold text-sm">
-                          {available} / {annualTotal} days
-                        </span>
+                return (
+                  <Card
+                    key={balance.id || balance.leave_type_id}
+                    className="border-l-4 overflow-hidden"
+                    style={{ borderLeftColor: balance.leave_type_color }}
+                  >
+                    <CardHeader className="pb-2 pt-4 px-4">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-sm font-semibold">
+                          {balance.leave_type_name}
+                        </CardTitle>
+                        {balance.not_initialized && (
+                          <span className="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full">
+                            Not Initialized
+                          </span>
+                        )}
                       </div>
-                      <Progress value={annualTotal > 0 ? (available / annualTotal) * 100 : 0} className="h-1.5" />
-                      <div className="grid grid-cols-3 gap-1 text-xs pt-1">
-                        <div className="text-center">
-                          <p className="text-muted-foreground">Total</p>
-                          <p className="font-bold text-sm">{annualTotal}</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-muted-foreground">Used</p>
-                          <p className="font-bold text-sm text-orange-600">{used}</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-muted-foreground">Remaining</p>
-                          <p className={cn("font-bold text-sm", available <= 0 ? "text-red-600" : "text-green-600")}>{available}</p>
-                        </div>
-                      </div>
-                      {pending > 0 && (
-                        <p className="text-xs text-yellow-600 text-center">{pending} day(s) pending approval</p>
-                      )}
-                    </div>
-
-                    {/* Monthly section */}
-                    {monthlyLimit ? (
-                      <div className="rounded-lg bg-muted/20 p-3 space-y-2">
+                    </CardHeader>
+                    <CardContent className="px-4 pb-4 space-y-3">
+                      {/* Annual section */}
+                      <div className="rounded-lg bg-muted/30 p-3 space-y-2">
                         <div className="flex items-center justify-between text-xs text-muted-foreground font-medium uppercase tracking-wide">
-                          <span>This Month</span>
-                          <span className="font-bold text-sm">{monthlyUsed} / {monthlyLimit} days</span>
+                          <span>Leave Balance ({currentYear})</span>
+                          <span
+                            style={{ color: balance.leave_type_color }}
+                            className="font-bold text-sm"
+                          >
+                            {available} / {annualTotal} days
+                          </span>
                         </div>
-                        <Progress value={monthlyLimit > 0 ? (monthlyUsed / monthlyLimit) * 100 : 0} className="h-1.5" />
-                        <div className="grid grid-cols-2 gap-1 text-xs pt-1">
+                        <Progress
+                          value={
+                            annualTotal > 0
+                              ? (available / annualTotal) * 100
+                              : 0
+                          }
+                          className="h-1.5"
+                        />
+                        <div className="grid grid-cols-3 gap-1 text-xs pt-1">
                           <div className="text-center">
-                            <p className="text-muted-foreground">Monthly Limit</p>
-                            <p className="font-bold text-sm">{monthlyLimit}</p>
+                            <p className="text-muted-foreground">Total</p>
+                            <p className="font-bold text-sm">{annualTotal}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-muted-foreground">Used</p>
+                            <p className="font-bold text-sm text-orange-600">
+                              {used}
+                            </p>
                           </div>
                           <div className="text-center">
                             <p className="text-muted-foreground">Remaining</p>
-                            <p className={cn("font-bold text-sm", (monthlyRemaining ?? 0) <= 0 ? "text-red-600" : "text-blue-600")}>
-                              {monthlyRemaining ?? monthlyLimit}
+                            <p
+                              className={cn(
+                                "font-bold text-sm",
+                                available <= 0
+                                  ? "text-red-600"
+                                  : "text-green-600",
+                              )}
+                            >
+                              {available}
                             </p>
                           </div>
                         </div>
+                        {pending > 0 && (
+                          <p className="text-xs text-yellow-600 text-center">
+                            {pending} day(s) pending approval
+                          </p>
+                        )}
                       </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground text-center">No monthly limit set</p>
-                    )}
 
-                    {balance.carried_forward > 0 && (
-                      <p className="text-xs text-blue-600 text-center">
-                        + {balance.carried_forward} days carried forward from last year
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })
-          )}
+                      {/* Monthly section */}
+                      {monthlyLimit ? (
+                        <div className="rounded-lg bg-muted/20 p-3 space-y-2">
+                          <div className="flex items-center justify-between text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                            <span>This Month</span>
+                            <span className="font-bold text-sm">
+                              {monthlyUsed} / {monthlyLimit} days
+                            </span>
+                          </div>
+                          <Progress
+                            value={
+                              monthlyLimit > 0
+                                ? (monthlyUsed / monthlyLimit) * 100
+                                : 0
+                            }
+                            className="h-1.5"
+                          />
+                          <div className="grid grid-cols-2 gap-1 text-xs pt-1">
+                            <div className="text-center">
+                              <p className="text-muted-foreground">
+                                Monthly Limit
+                              </p>
+                              <p className="font-bold text-sm">
+                                {monthlyLimit}
+                              </p>
+                            </div>
+                            <div className="text-center">
+                              <p className="text-muted-foreground">Remaining</p>
+                              <p
+                                className={cn(
+                                  "font-bold text-sm",
+                                  (monthlyRemaining ?? 0) <= 0
+                                    ? "text-red-600"
+                                    : "text-blue-600",
+                                )}
+                              >
+                                {monthlyRemaining ?? monthlyLimit}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground text-center">
+                          No monthly limit set
+                        </p>
+                      )}
+
+                      {balance.carried_forward > 0 && (
+                        <p className="text-xs text-blue-600 text-center">
+                          + {balance.carried_forward} days carried forward from
+                          last year
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Leave Requests */}
       <div>
@@ -210,7 +272,11 @@ export default function MyLeavesTab() {
               <div className="p-8 text-center">
                 <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                 <p className="text-gray-500 mb-4">No leave requests yet</p>
-                <Button onClick={() => setRequestDialog(true)} variant="outline" className="gap-2">
+                <Button
+                  onClick={() => setRequestDialog(true)}
+                  variant="outline"
+                  className="gap-2"
+                >
                   <Plus className="h-4 w-4" />
                   Request Your First Leave
                 </Button>
@@ -219,72 +285,126 @@ export default function MyLeavesTab() {
               <div className="divide-y">
                 {requests.map((request: any) => {
                   const Icon = STATUS_ICONS[request.status] || Clock;
-                  const duration = differenceInDays(new Date(request.end_date), new Date(request.start_date)) + 1;
+                  const duration =
+                    differenceInDays(
+                      new Date(request.end_date),
+                      new Date(request.start_date),
+                    ) + 1;
 
                   return (
-                    <div key={request.id} className="p-4 hover:bg-primary-50 transition-colors">
+                    <div
+                      key={request.id}
+                      className="p-4 hover:bg-primary-50 transition-colors"
+                    >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-3 mb-2">
                             <div
                               className="w-1 h-12 rounded-full"
-                              style={{ backgroundColor: request.leave_type_color }}
+                              style={{
+                                backgroundColor: request.leave_type_color,
+                              }}
                             />
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                <h3 className="font-semibold">{request.leave_type_name}</h3>
-                                <Badge variant="outline" className={cn("text-xs", STATUS_COLORS[request.status])}>
+                                <h3 className="font-semibold">
+                                  {request.leave_type_name}
+                                </h3>
+                                <Badge
+                                  variant="outline"
+                                  className={cn(
+                                    "text-xs",
+                                    STATUS_COLORS[request.status],
+                                  )}
+                                >
                                   <Icon className="h-3 w-3 mr-1" />
                                   {request.status}
                                 </Badge>
-                                {request.status === "approved" && request.paid_status && (
-                                  <Badge variant="outline" className={cn("text-xs", request.paid_status === "paid" ? "bg-green-50 text-green-700 border-green-200" : "bg-orange-50 text-orange-700 border-orange-200")}>
-                                    {request.paid_status === "paid" ? <DollarSign className="h-3 w-3 mr-1" /> : <Banknote className="h-3 w-3 mr-1" />}
-                                    {request.paid_status === "paid" ? "Paid Leave" : "Unpaid Leave"}
-                                  </Badge>
-                                )}
+                                {request.status === "approved" &&
+                                  request.paid_status && (
+                                    <Badge
+                                      variant="outline"
+                                      className={cn(
+                                        "text-xs",
+                                        request.paid_status === "paid"
+                                          ? "bg-green-50 text-green-700 border-green-200"
+                                          : "bg-orange-50 text-orange-700 border-orange-200",
+                                      )}
+                                    >
+                                      {request.paid_status === "paid" ? (
+                                        <DollarSign className="h-3 w-3 mr-1" />
+                                      ) : (
+                                        <Banknote className="h-3 w-3 mr-1" />
+                                      )}
+                                      {request.paid_status === "paid"
+                                        ? "Paid Leave"
+                                        : "Unpaid Leave"}
+                                    </Badge>
+                                  )}
                               </div>
                               <div className="flex items-center gap-4 text-sm text-gray-600">
                                 <span className="flex items-center gap-1">
                                   <Calendar className="h-3.5 w-3.5" />
-                                  {format(new Date(request.start_date), "MMM d")} -{" "}
-                                  {format(new Date(request.end_date), "MMM d, yyyy")}
+                                  {format(
+                                    new Date(request.start_date),
+                                    "MMM d",
+                                  )}{" "}
+                                  -{" "}
+                                  {format(
+                                    new Date(request.end_date),
+                                    "MMM d, yyyy",
+                                  )}
                                 </span>
-                                <span className="font-medium">{duration} day{duration > 1 ? "s" : ""}</span>
+                                <span className="font-medium">
+                                  {duration} day{duration > 1 ? "s" : ""}
+                                </span>
                               </div>
                             </div>
                           </div>
 
-                          <p className="text-sm text-gray-700 ml-4 pl-3">{request.reason}</p>
+                          <p className="text-sm text-gray-700 ml-4 pl-3">
+                            {request.reason}
+                          </p>
 
                           {request.rejection_reason && (
                             <div className="ml-4 pl-3 mt-2">
                               <p className="text-xs text-red-600 bg-red-50 p-2 rounded">
-                                <strong>Rejection reason:</strong> {request.rejection_reason}
+                                <strong>Rejection reason:</strong>{" "}
+                                {request.rejection_reason}
                               </p>
                             </div>
                           )}
 
                           {request.approver_name && (
                             <p className="text-xs text-gray-500 ml-4 pl-3 mt-2">
-                              {request.status === "approved" ? "Approved" : "Reviewed"} by {request.approver_name}
-                              {request.approved_at && ` on ${format(new Date(request.approved_at), "MMM d, yyyy")}`}
+                              {request.status === "approved"
+                                ? "Approved"
+                                : "Reviewed"}{" "}
+                              by {request.approver_name}
+                              {request.approved_at &&
+                                ` on ${format(new Date(request.approved_at), "MMM d, yyyy")}`}
                             </p>
                           )}
                         </div>
 
                         {request.status === "pending" && (
-                          <Button size="sm" variant="outline"
+                          <Button
+                            size="sm"
+                            variant="outline"
                             onClick={() => cancelMutation.mutate(request.id)}
-                            disabled={cancelMutation.isPending}>
+                            disabled={cancelMutation.isPending}
+                          >
                             Cancel
                           </Button>
                         )}
                         {request.status === "cancelled" && (
-                          <Button size="sm" variant="outline"
+                          <Button
+                            size="sm"
+                            variant="outline"
                             className="text-destructive hover:bg-destructive/10"
                             onClick={() => deleteMutation.mutate(request.id)}
-                            disabled={deleteMutation.isPending}>
+                            disabled={deleteMutation.isPending}
+                          >
                             Delete
                           </Button>
                         )}

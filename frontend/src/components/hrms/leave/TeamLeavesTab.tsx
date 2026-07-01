@@ -12,6 +12,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -31,10 +36,13 @@ import {
   AlertCircle,
   DollarSign,
   Banknote,
+  X,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { format, differenceInDays } from "date-fns";
+import { format, differenceInDays, eachDayOfInterval } from "date-fns";
 import { cn } from "@/lib/utils";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -58,13 +66,146 @@ function getInitials(name: string) {
     .slice(0, 2);
 }
 
+// Check if a leave request matches the date filters.
+// A match means the leave period contains at least one day matching all active filters.
+function matchesDateFilters(
+  startDate: string,
+  endDate: string,
+  year: string,
+  month: string,
+  day: string,
+): boolean {
+  if (!year && !month && !day) return true;
+
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  // Enumerate every day of the leave to check
+  let days: Date[];
+  try {
+    days = eachDayOfInterval({ start, end });
+  } catch {
+    days = [start];
+  }
+
+  return days.some((d) => {
+    if (year && d.getFullYear() !== parseInt(year)) return false;
+    if (month && d.getMonth() + 1 !== parseInt(month)) return false;
+    if (day && d.getDate() !== parseInt(day)) return false;
+    return true;
+  });
+}
+
+const currentYear = new Date().getFullYear();
+
+// --- Calendar-style picker sub-components ---
+
+function YearPicker({ value, onChange, onClose }: { value: string; onChange: (v: string) => void; onClose: () => void }) {
+  const [decade, setDecade] = useState(Math.floor(currentYear / 10) * 10);
+  const years = Array.from({ length: 12 }, (_, i) => decade + i);
+  return (
+    <div className="p-3 w-56">
+      <div className="flex items-center justify-between mb-2">
+        <button onClick={() => setDecade(d => d - 12)} className="p-1 rounded hover:bg-muted">
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <span className="text-sm font-semibold">{decade} – {decade + 11}</span>
+        <button onClick={() => setDecade(d => d + 12)} className="p-1 rounded hover:bg-muted">
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="grid grid-cols-3 gap-1">
+        {years.map((y) => (
+          <button
+            key={y}
+            onClick={() => { onChange(String(y)); onClose(); }}
+            className={cn(
+              "rounded py-1.5 text-sm font-medium transition-colors",
+              value === String(y)
+                ? "bg-primary text-primary-foreground"
+                : "hover:bg-muted text-foreground",
+            )}
+          >
+            {y}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const MONTH_ABBR = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function MonthPicker({ value, onChange, onClose }: { value: string; onChange: (v: string) => void; onClose: () => void }) {
+  return (
+    <div className="p-3 w-52">
+      <p className="text-xs text-muted-foreground font-medium mb-2 text-center">Select Month</p>
+      <div className="grid grid-cols-3 gap-1">
+        {MONTH_ABBR.map((m, i) => (
+          <button
+            key={i}
+            onClick={() => { onChange(String(i + 1)); onClose(); }}
+            className={cn(
+              "rounded py-2 text-sm font-medium transition-colors",
+              value === String(i + 1)
+                ? "bg-primary text-primary-foreground"
+                : "hover:bg-muted text-foreground",
+            )}
+          >
+            {m}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DayPicker({ value, onChange, onClose }: { value: string; onChange: (v: string) => void; onClose: () => void }) {
+  const days = Array.from({ length: 31 }, (_, i) => i + 1);
+  return (
+    <div className="p-3 w-52">
+      <p className="text-xs text-muted-foreground font-medium mb-2 text-center">Select Day</p>
+      <div className="grid grid-cols-7 gap-0.5">
+        {days.map((d) => (
+          <button
+            key={d}
+            onClick={() => { onChange(String(d)); onClose(); }}
+            className={cn(
+              "rounded py-1.5 text-xs font-medium transition-colors",
+              value === String(d)
+                ? "bg-primary text-primary-foreground"
+                : "hover:bg-muted text-foreground",
+            )}
+          >
+            {d}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function TeamLeavesTab() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [yearFilter, setYearFilter] = useState("");
+  const [monthFilter, setMonthFilter] = useState("");
+  const [dayFilter, setDayFilter] = useState("");
+  const [yearOpen, setYearOpen] = useState(false);
+  const [monthOpen, setMonthOpen] = useState(false);
+  const [dayOpen, setDayOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const [rejectDialog, setRejectDialog] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const qc = useQueryClient();
+
+  const hasDateFilter = !!(yearFilter || monthFilter || dayFilter);
+
+  const clearDateFilters = () => {
+    setYearFilter("");
+    setMonthFilter("");
+    setDayFilter("");
+  };
 
   // Fetch team leave requests
   const { data: requestsResp, isLoading } = useQuery({
@@ -75,17 +216,22 @@ export default function TeamLeavesTab() {
       }),
     refetchInterval: 10000,
   });
+
   // Never show cancelled in team view
   const allRequests = ((requestsResp as any)?.data || []).filter(
     (r: any) => r.status !== "cancelled",
   );
 
-  // Filter by search
-  const requests = allRequests.filter((r: any) =>
-    search
-      ? r.employee_name.toLowerCase().includes(search.toLowerCase())
-      : true,
-  );
+  // Apply all filters
+  const requests = allRequests.filter((r: any) => {
+    if (search && !r.employee_name.toLowerCase().includes(search.toLowerCase()))
+      return false;
+    if (
+      !matchesDateFilters(r.start_date, r.end_date, yearFilter, monthFilter, dayFilter)
+    )
+      return false;
+    return true;
+  });
 
   const invalidateAll = () => {
     qc.invalidateQueries({ queryKey: ["team-leave-requests"] });
@@ -135,15 +281,9 @@ export default function TeamLeavesTab() {
     rejectMutation.mutate({ id: selectedRequest.id, reason: rejectionReason });
   };
 
-  const pendingCount = requests.filter(
-    (r: any) => r.status === "pending",
-  ).length;
-  const approvedCount = requests.filter(
-    (r: any) => r.status === "approved",
-  ).length;
-  const rejectedCount = requests.filter(
-    (r: any) => r.status === "rejected",
-  ).length;
+  const pendingCount = requests.filter((r: any) => r.status === "pending").length;
+  const approvedCount = requests.filter((r: any) => r.status === "approved").length;
+  const rejectedCount = requests.filter((r: any) => r.status === "rejected").length;
 
   return (
     <div className="space-y-6">
@@ -165,9 +305,7 @@ export default function TeamLeavesTab() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Pending</p>
-                <p className="text-2xl font-bold text-yellow-600">
-                  {pendingCount}
-                </p>
+                <p className="text-2xl font-bold text-yellow-600">{pendingCount}</p>
               </div>
               <Clock className="h-8 w-8 text-yellow-500" />
             </div>
@@ -178,9 +316,7 @@ export default function TeamLeavesTab() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Approved</p>
-                <p className="text-2xl font-bold text-green-600">
-                  {approvedCount}
-                </p>
+                <p className="text-2xl font-bold text-green-600">{approvedCount}</p>
               </div>
               <CheckCircle className="h-8 w-8 text-green-500" />
             </div>
@@ -191,9 +327,7 @@ export default function TeamLeavesTab() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Rejected</p>
-                <p className="text-2xl font-bold text-red-600">
-                  {rejectedCount}
-                </p>
+                <p className="text-2xl font-bold text-red-600">{rejectedCount}</p>
               </div>
               <XCircle className="h-8 w-8 text-red-500" />
             </div>
@@ -202,27 +336,110 @@ export default function TeamLeavesTab() {
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input
-            placeholder="Search by employee name..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Name Search */}
+          <div className="relative flex-1 min-w-[200px] max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Search by employee name..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+
+          {/* Status */}
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-36">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="approved">Approved</SelectItem>
+              <SelectItem value="rejected">Rejected</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Year — calendar-style popover */}
+          <Popover open={yearOpen} onOpenChange={setYearOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className={cn("gap-1.5 h-9", yearFilter && "border-primary text-primary")}>
+                <Calendar className="h-3.5 w-3.5" />
+                {yearFilter || "Year"}
+                {yearFilter && (
+                  <span onClick={(e) => { e.stopPropagation(); setYearFilter(""); }} className="ml-0.5 hover:text-destructive">
+                    <X className="h-3 w-3" />
+                  </span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="p-0 w-auto" align="start">
+              <YearPicker value={yearFilter} onChange={setYearFilter} onClose={() => setYearOpen(false)} />
+            </PopoverContent>
+          </Popover>
+
+          {/* Month — calendar-style popover */}
+          <Popover open={monthOpen} onOpenChange={setMonthOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className={cn("gap-1.5 h-9", monthFilter && "border-primary text-primary")}>
+                <Calendar className="h-3.5 w-3.5" />
+                {monthFilter ? MONTH_ABBR[parseInt(monthFilter) - 1] : "Month"}
+                {monthFilter && (
+                  <span onClick={(e) => { e.stopPropagation(); setMonthFilter(""); }} className="ml-0.5 hover:text-destructive">
+                    <X className="h-3 w-3" />
+                  </span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="p-0 w-auto" align="start">
+              <MonthPicker value={monthFilter} onChange={setMonthFilter} onClose={() => setMonthOpen(false)} />
+            </PopoverContent>
+          </Popover>
+
+          {/* Day — calendar-style popover */}
+          <Popover open={dayOpen} onOpenChange={setDayOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className={cn("gap-1.5 h-9", dayFilter && "border-primary text-primary")}>
+                <Calendar className="h-3.5 w-3.5" />
+                {dayFilter ? `Day ${dayFilter}` : "Day"}
+                {dayFilter && (
+                  <span onClick={(e) => { e.stopPropagation(); setDayFilter(""); }} className="ml-0.5 hover:text-destructive">
+                    <X className="h-3 w-3" />
+                  </span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="p-0 w-auto" align="start">
+              <DayPicker value={dayFilter} onChange={setDayFilter} onClose={() => setDayOpen(false)} />
+            </PopoverContent>
+          </Popover>
+
+          {/* Clear all date filters */}
+          {hasDateFilter && (
+            <Button variant="ghost" size="sm" onClick={clearDateFilters} className="gap-1 text-muted-foreground h-9">
+              <X className="h-3.5 w-3.5" />
+              Clear
+            </Button>
+          )}
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="approved">Approved</SelectItem>
-            <SelectItem value="rejected">Rejected</SelectItem>
-          </SelectContent>
-        </Select>
+
+        {/* Active filter hint */}
+        {hasDateFilter && (
+          <p className="text-xs text-muted-foreground pl-1">
+            Showing leaves that fall on:{" "}
+            <span className="font-medium text-foreground">
+              {[
+                dayFilter && `Day ${dayFilter}`,
+                monthFilter && MONTH_ABBR[parseInt(monthFilter) - 1],
+                yearFilter,
+              ]
+                .filter(Boolean)
+                .join(", ")}
+            </span>
+          </p>
+        )}
       </div>
 
       {/* Requests List */}
@@ -238,7 +455,7 @@ export default function TeamLeavesTab() {
               <p className="text-gray-500">No leave requests found</p>
             </div>
           ) : (
-            <div className="divide-y">
+            <div className="divide-y max-h-[520px] overflow-y-auto">
               {requests.map((request: any) => {
                 const Icon = STATUS_ICONS[request.status] || Clock;
                 const duration =
@@ -309,7 +526,7 @@ export default function TeamLeavesTab() {
                               </p>
                             </div>
 
-                            {/* Leave Balance — compact AL:4 ML:3 SL:3 — only on pending */}
+                            {/* Leave Balance */}
                             {request.status === "pending" && request.all_balances && request.all_balances.length > 0 ? (
                               <div className="flex flex-wrap items-center gap-1.5 mt-1">
                                 <span className="text-xs text-muted-foreground font-medium">Balance:</span>
@@ -360,13 +577,8 @@ export default function TeamLeavesTab() {
                           <Button
                             size="sm"
                             className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-2"
-                            onClick={() =>
-                              approvePaidMutation.mutate(request.id)
-                            }
-                            disabled={
-                              approvePaidMutation.isPending ||
-                              approveUnpaidMutation.isPending
-                            }
+                            onClick={() => approvePaidMutation.mutate(request.id)}
+                            disabled={approvePaidMutation.isPending || approveUnpaidMutation.isPending}
                           >
                             <DollarSign className="h-3 w-3 mr-1" />
                             Paid
@@ -374,13 +586,8 @@ export default function TeamLeavesTab() {
                           <Button
                             size="sm"
                             className="h-7 text-xs bg-orange-500 hover:bg-orange-600 text-white px-2"
-                            onClick={() =>
-                              approveUnpaidMutation.mutate(request.id)
-                            }
-                            disabled={
-                              approvePaidMutation.isPending ||
-                              approveUnpaidMutation.isPending
-                            }
+                            onClick={() => approveUnpaidMutation.mutate(request.id)}
+                            disabled={approvePaidMutation.isPending || approveUnpaidMutation.isPending}
                           >
                             <Banknote className="h-3 w-3 mr-1" />
                             Unpaid

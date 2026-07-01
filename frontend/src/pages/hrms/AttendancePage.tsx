@@ -48,7 +48,8 @@ export default function AttendancePage() {
   const { userRole } = useAuth();
   const isAdmin = userRole?.role === "super_admin" || userRole?.role === "admin" || userRole?.role === "manager";
 
-  const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [adminFrom, setAdminFrom] = useState("");
+  const [adminTo, setAdminTo] = useState("");
   const [search, setSearch] = useState("");
   const [clockDialog, setClockDialog] = useState(false);
   const [clockType, setClockType] = useState<ClockType>("clock_in");
@@ -62,6 +63,9 @@ export default function AttendancePage() {
 
   const [deleteDialog, setDeleteDialog] = useState(false);
   const [deleteRecord, setDeleteRecord] = useState<AttendanceRecord | null>(null);
+
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
 
   const qc = useQueryClient();
 
@@ -78,16 +82,29 @@ export default function AttendancePage() {
   }, []);
 
   const { data: records = [], isLoading } = useQuery({
-    queryKey: ["attendance", selectedDate, search],
-    queryFn: () => api.get<AttendanceRecord[]>("/hrms/attendance", { date: selectedDate, search }),
+    queryKey: ["attendance", adminFrom, adminTo, search],
+    queryFn: () => api.get<AttendanceRecord[]>("/hrms/attendance", {
+      ...(adminFrom && { from: adminFrom }),
+      ...(adminTo && { to: adminTo }),
+      search,
+    }),
     refetchInterval: 30000,
   });
 
   const { data: myAttendance } = useQuery({
-    queryKey: ["my-attendance", format(new Date(), "yyyy-MM-dd")],
+    queryKey: ["my-attendance-today"],
     queryFn: () => api.get<AttendanceRecord>("/hrms/attendance/my-today"),
     refetchInterval: 10000,
-    enabled: isToday(parseISO(selectedDate)),
+  });
+
+  const { data: myHistory = [] } = useQuery({
+    queryKey: ["my-attendance-history", fromDate, toDate],
+    queryFn: () => api.get<AttendanceRecord[]>("/hrms/attendance/my-history", {
+      limit: 365,
+      ...(fromDate && { from: fromDate }),
+      ...(toDate && { to: toDate }),
+    }),
+    enabled: !isAdmin,
   });
 
   const clockMutation = useMutation({
@@ -95,7 +112,8 @@ export default function AttendancePage() {
       api.post(`/hrms/attendance/${type.replace(/_/g, "-")}`, { notes, location }),
     onSuccess: (_, type) => {
       qc.invalidateQueries({ queryKey: ["attendance"] });
-      qc.invalidateQueries({ queryKey: ["my-attendance"] });
+      qc.invalidateQueries({ queryKey: ["my-attendance-today"] });
+      qc.invalidateQueries({ queryKey: ["my-attendance-history"] });
       qc.invalidateQueries({ queryKey: ["hrms-stats"] });
       toast.success(`${type.replace(/_/g, " ")} recorded`);
       setClockDialog(false);
@@ -191,8 +209,7 @@ export default function AttendancePage() {
         </div>
       </div>
 
-      {isToday(parseISO(selectedDate)) && (
-        <div className="rounded-xl border border-border/50 bg-card p-5">
+      <div className="rounded-xl border border-border/50 bg-card p-5">
           <p className="text-sm font-semibold mb-4">My Attendance Today</p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
             {[
@@ -229,20 +246,126 @@ export default function AttendancePage() {
             </div>
           )}
         </div>
-      )}
 
-      {isAdmin && <div className="flex items-center gap-3">
+      {isAdmin && <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 max-w-xs">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input className="pl-8 h-8 text-sm" placeholder="Search employees..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <Input type="date" className="h-8 text-sm w-auto" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">From</span>
+          <input
+            type="date"
+            value={adminFrom}
+            onChange={(e) => setAdminFrom(e.target.value)}
+            className="h-8 text-xs rounded-md border border-border bg-background px-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+          <span className="text-xs text-muted-foreground">To</span>
+          <input
+            type="date"
+            value={adminTo}
+            onChange={(e) => setAdminTo(e.target.value)}
+            className="h-8 text-xs rounded-md border border-border bg-background px-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+          {(adminFrom || adminTo) && (
+            <button
+              onClick={() => { setAdminFrom(""); setAdminTo(""); }}
+              className="text-xs text-muted-foreground hover:text-destructive px-1"
+            >
+              ✕ Clear
+            </button>
+          )}
+        </div>
       </div>}
+
+      {/* My Attendance History — non-admin employees, read-only */}
+      {!isAdmin && (
+        <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 border-b border-border/40">
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-semibold">My Attendance History</span>
+              <span className="text-xs text-muted-foreground">({(myHistory as AttendanceRecord[]).length} records)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">From</span>
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="h-8 text-xs rounded-md border border-border bg-background px-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              <span className="text-xs text-muted-foreground">To</span>
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="h-8 text-xs rounded-md border border-border bg-background px-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              {(fromDate || toDate) && (
+                <button
+                  onClick={() => { setFromDate(""); setToDate(""); }}
+                  className="text-xs text-muted-foreground hover:text-destructive px-1"
+                >
+                  ✕ Clear
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-3 px-5 py-2 text-[10px] font-medium text-muted-foreground uppercase tracking-wider border-b border-border/30 bg-muted/20">
+            <span className="w-28">Date</span>
+            <span className="w-16 text-center">Clock In</span>
+            <span className="w-24 text-center hidden sm:block">Break</span>
+            <span className="w-16 text-center">Clock Out</span>
+            <span className="w-12 text-center hidden md:block">Hours</span>
+            <span className="w-20 text-center">Status</span>
+          </div>
+          <div className="divide-y divide-border/40 max-h-[500px] overflow-y-auto">
+            {(myHistory as AttendanceRecord[]).length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 gap-2">
+                <Clock className="h-10 w-10 text-muted-foreground/20" />
+                <p className="text-sm text-muted-foreground">No attendance records yet</p>
+              </div>
+            ) : (myHistory as AttendanceRecord[]).map((r) => {
+              const dateStr = r.date.split('T')[0];
+              const today = isToday(parseISO(dateStr));
+              return (
+                <div key={r.id} className={cn("flex items-center gap-3 px-5 py-2.5 transition-colors hover:bg-muted/30", today && "bg-primary/5")}>
+                  <span className="w-28 text-xs font-medium">
+                    {today
+                      ? <span className="text-primary font-semibold">Today</span>
+                      : format(parseISO(dateStr), "MMM d, yyyy")}
+                  </span>
+                  <span className="w-16 text-center text-xs">{r.clock_in ? format(new Date(r.clock_in), "HH:mm") : "—"}</span>
+                  <span className="w-24 text-center text-xs hidden sm:block">
+                    {r.break_start
+                      ? `${format(new Date(r.break_start), "HH:mm")}${r.break_end ? ` – ${format(new Date(r.break_end), "HH:mm")}` : " (active)"}`
+                      : "—"}
+                  </span>
+                  <span className="w-16 text-center text-xs">
+                    {r.clock_out ? format(new Date(r.clock_out), "HH:mm") : <span className="text-emerald-500 text-[10px]">Active</span>}
+                  </span>
+                  <span className="w-12 text-center text-xs font-medium hidden md:block">{r.total_hours ? `${r.total_hours}h` : "—"}</span>
+                  <div className="w-20 flex justify-center">
+                    <Badge variant="outline" className={cn("text-[10px] capitalize", STATUS_COLORS[r.status] ?? "bg-muted text-muted-foreground")}>
+                      {r.status.replace("_", " ")}
+                    </Badge>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {isAdmin && <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
         <div className="flex items-center gap-2 px-5 py-3.5 border-b border-border/40">
           <Clock className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-semibold">Records — {format(parseISO(selectedDate), "MMMM d, yyyy")}</span>
+          <span className="text-sm font-semibold">
+            Records{(adminFrom || adminTo)
+              ? ` — ${adminFrom ? format(parseISO(adminFrom), "MMM d") : "…"} to ${adminTo ? format(parseISO(adminTo), "MMM d, yyyy") : "…"}`
+              : ""}
+          </span>
           <span className="text-xs text-muted-foreground">({(records as AttendanceRecord[]).length})</span>
         </div>
         <div className="flex items-center gap-3 px-5 py-2 text-[10px] font-medium text-muted-foreground uppercase tracking-wider border-b border-border/30 bg-muted/20">

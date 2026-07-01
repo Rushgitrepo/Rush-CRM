@@ -7,6 +7,7 @@ const {
   getAttendance,
   getTodayAttendance,
   getMyTodayAttendance,
+  getMyHistory,
   clockIn,
   clockOut,
   startBreak,
@@ -25,6 +26,7 @@ router.get('/activities', getActivities);
 router.get('/attendance', getAttendance);
 router.get('/attendance/today', getTodayAttendance);
 router.get('/attendance/my-today', getMyTodayAttendance);
+router.get('/attendance/my-history', getMyHistory);
 
 // Clock in/out routes
 router.post('/attendance/clock-in', clockIn);

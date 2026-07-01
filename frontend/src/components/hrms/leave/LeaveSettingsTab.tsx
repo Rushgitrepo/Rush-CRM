@@ -9,9 +9,10 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, Settings, Trash2 } from "lucide-react";
+import { Plus, Edit, Settings, Trash2, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function LeaveSettingsTab() {
   const [createDialog, setCreateDialog] = useState(false);
@@ -27,8 +28,11 @@ export default function LeaveSettingsTab() {
     is_paid: true,
     requires_approval: true,
     can_carry_forward: false,
+    resets_monthly: false,
   });
   const qc = useQueryClient();
+  const { userRole } = useAuth();
+  const isAdmin = ["super_admin", "admin", "manager", "hr"].includes(userRole?.role || "");
 
   const { data: typesResp, isLoading } = useQuery({
     queryKey: ["leave-types"],
@@ -81,6 +85,24 @@ export default function LeaveSettingsTab() {
     },
   });
 
+  const resetAnnualMutation = useMutation({
+    mutationFn: () => api.post("/leave/balance/reset-annual", {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["my-leave-balances"] });
+      toast.success("Annual leave balances reset successfully");
+    },
+    onError: () => toast.error("Failed to reset annual balances"),
+  });
+
+  const resetMonthlyMutation = useMutation({
+    mutationFn: () => api.post("/leave/balance/reset-monthly", {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["my-leave-balances"] });
+      toast.success("Monthly leave balances reset successfully");
+    },
+    onError: () => toast.error("Failed to reset monthly balances"),
+  });
+
   const resetForm = () => {
     setFormData({
       name: "",
@@ -91,6 +113,7 @@ export default function LeaveSettingsTab() {
       is_paid: true,
       requires_approval: true,
       can_carry_forward: false,
+      resets_monthly: false,
     });
   };
 
@@ -105,6 +128,7 @@ export default function LeaveSettingsTab() {
       is_paid: type.is_paid,
       requires_approval: type.requires_approval,
       can_carry_forward: type.can_carry_forward,
+      resets_monthly: type.resets_monthly || false,
     });
     setEditDialog(true);
   };
@@ -212,6 +236,11 @@ export default function LeaveSettingsTab() {
                       Carry Forward
                     </Badge>
                   )}
+                  {type.resets_monthly && (
+                    <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-700 border-orange-200">
+                      Resets Monthly
+                    </Badge>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -298,6 +327,16 @@ export default function LeaveSettingsTab() {
                   onCheckedChange={(checked) => setFormData({ ...formData, can_carry_forward: checked })}
                 />
               </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Resets Monthly</Label>
+                  <p className="text-xs text-muted-foreground">Used/pending resets to 0 every month</p>
+                </div>
+                <Switch
+                  checked={formData.resets_monthly}
+                  onCheckedChange={(checked) => setFormData({ ...formData, resets_monthly: checked })}
+                />
+              </div>
             </div>
           </div>
 
@@ -333,6 +372,55 @@ export default function LeaveSettingsTab() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Balance Reset Controls — admin/manager/hr only */}
+      {isAdmin && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <RefreshCw className="h-4 w-4" />
+              Balance Reset Controls
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Manually trigger leave balance resets. Auto-resets also run on schedule.
+            </p>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-3">
+            <div className="flex-1 min-w-[220px] border rounded-lg p-4 space-y-2">
+              <p className="font-medium text-sm">Monthly Reset</p>
+              <p className="text-xs text-muted-foreground">
+                Resets used/pending to 0 for all leave types marked "Resets Monthly". Runs automatically on the 1st of each month.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 mt-2"
+                onClick={() => resetMonthlyMutation.mutate()}
+                disabled={resetMonthlyMutation.isPending}
+              >
+                <RefreshCw className={`h-4 w-4 ${resetMonthlyMutation.isPending ? "animate-spin" : ""}`} />
+                {resetMonthlyMutation.isPending ? "Resetting..." : "Reset Monthly Balances"}
+              </Button>
+            </div>
+            <div className="flex-1 min-w-[220px] border rounded-lg p-4 space-y-2">
+              <p className="font-medium text-sm">Annual Reset</p>
+              <p className="text-xs text-muted-foreground">
+                Re-initializes all employee leave balances for the current year. Runs automatically every January 1st.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 mt-2"
+                onClick={() => resetAnnualMutation.mutate()}
+                disabled={resetAnnualMutation.isPending}
+              >
+                <RefreshCw className={`h-4 w-4 ${resetAnnualMutation.isPending ? "animate-spin" : ""}`} />
+                {resetAnnualMutation.isPending ? "Resetting..." : "Reset Annual Balances"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Edit Dialog */}
       <Dialog open={editDialog} onOpenChange={setEditDialog}>
@@ -411,6 +499,16 @@ export default function LeaveSettingsTab() {
                 <Switch
                   checked={formData.can_carry_forward}
                   onCheckedChange={(checked) => setFormData({ ...formData, can_carry_forward: checked })}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Resets Monthly</Label>
+                  <p className="text-xs text-muted-foreground">Used/pending resets to 0 every month</p>
+                </div>
+                <Switch
+                  checked={formData.resets_monthly}
+                  onCheckedChange={(checked) => setFormData({ ...formData, resets_monthly: checked })}
                 />
               </div>
             </div>

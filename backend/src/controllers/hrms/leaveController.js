@@ -157,31 +157,100 @@ const getMyBalance = async (req, res, next) => {
       [req.user.email, req.user.orgId]
     );
 
-    if (empResult.rows.length === 0) {
-      // No employee record — return leave types with 0 balance so UI still shows something
-      const types = await db.query(
-        'SELECT id, name, code, color, days_allowed, monthly_limit FROM leave_types WHERE org_id = $1 AND is_active = true ORDER BY name',
-        [req.user.orgId]
-      );
-      return res.json({
-        data: types.rows.map(lt => ({
-          leave_type_id: lt.id,
-          leave_type_name: lt.name,
-          leave_type_code: lt.code,
-          leave_type_color: lt.color,
-          total_allocated: lt.days_allowed,
-          monthly_limit: lt.monthly_limit,
-          used: 0, pending: 0, available: lt.days_allowed,
-          carried_forward: 0,
-          monthly_used: 0,
-          monthly_remaining: lt.monthly_limit || null,
-          year,
-          not_initialized: true,
-        }))
-      });
+    let employeeId = empResult.rows[0]?.id;
+
+    if (!employeeId) {
+      // Super admin doesn't need personal leave tracking
+      if (req.user.role === 'super_admin') {
+        return res.json({ data: [] });
+      }
+
+      // Auto-create a minimal employee record for admin/manager/employee users without one
+      try {
+        const userResult = await db.query(
+          'SELECT full_name FROM public.users WHERE id = $1',
+          [req.user.id]
+        );
+        const fullName = userResult.rows[0]?.full_name || req.user.email.split('@')[0];
+        const nameParts = fullName.trim().split(' ');
+        const firstName = nameParts[0] || fullName;
+        const lastName = nameParts.slice(1).join(' ') || '';
+
+        const newEmp = await db.query(
+          `INSERT INTO employees (org_id, first_name, last_name, email, status)
+           VALUES ($1, $2, $3, $4, 'active')
+           ON CONFLICT (email, org_id) DO UPDATE SET status = employees.status
+           RETURNING id`,
+          [req.user.orgId, firstName, lastName, req.user.email]
+        );
+        employeeId = newEmp.rows[0]?.id;
+      } catch (_) {
+        // Fallback if insert fails — return leave types as placeholder
+        const types = await db.query(
+          'SELECT id, name, code, color, days_allowed, monthly_limit FROM leave_types WHERE org_id = $1 AND is_active = true ORDER BY name',
+          [req.user.orgId]
+        );
+        return res.json({
+          data: types.rows.map(lt => ({
+            leave_type_id: lt.id,
+            leave_type_name: lt.name,
+            leave_type_code: lt.code,
+            leave_type_color: lt.color,
+            total_allocated: lt.days_allowed,
+            monthly_limit: lt.monthly_limit,
+            used: 0, pending: 0, available: lt.days_allowed,
+            carried_forward: 0,
+            monthly_used: 0,
+            monthly_remaining: lt.monthly_limit || null,
+            year,
+          }))
+        });
+      }
+
+      // Auto-initialize leave balances for this new employee
+      if (employeeId) {
+        const types = await db.query(
+          'SELECT id, days_allowed FROM leave_types WHERE org_id = $1 AND is_active = true',
+          [req.user.orgId]
+        );
+        for (const lt of types.rows) {
+          await db.query(
+            `INSERT INTO employee_leave_balances (employee_id, leave_type_id, org_id, year, total_allocated, used, pending)
+             VALUES ($1, $2, $3, $4, $5, 0, 0)
+             ON CONFLICT (employee_id, leave_type_id, year) DO NOTHING`,
+            [employeeId, lt.id, req.user.orgId, year, lt.days_allowed || 0]
+          ).catch(() => {});
+        }
+      }
     }
 
-    const employeeId = empResult.rows[0].id;
+    // Auto-reset monthly leave types if the month has changed since last reset
+    const now2 = new Date();
+    const currentYear = now2.getFullYear();
+    const currentMonth = now2.getMonth() + 1;
+    const firstOfMonth = `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`;
+
+    try {
+      const monthlyResetCheck = await db.query(
+        `SELECT lb.id, lb.last_monthly_reset
+         FROM employee_leave_balances lb
+         JOIN leave_types lt ON lb.leave_type_id = lt.id
+         WHERE lb.employee_id = $1 AND lb.org_id = $2 AND lb.year = $3 AND lt.resets_monthly = true`,
+        [employeeId, req.user.orgId, year]
+      );
+      for (const row of monthlyResetCheck.rows) {
+        const lastReset = row.last_monthly_reset ? new Date(row.last_monthly_reset) : null;
+        const needsReset = !lastReset
+          || lastReset.getFullYear() < currentYear
+          || (lastReset.getFullYear() === currentYear && lastReset.getMonth() + 1 < currentMonth);
+        if (needsReset) {
+          await db.query(
+            'UPDATE employee_leave_balances SET used = 0, pending = 0, last_monthly_reset = $1 WHERE id = $2',
+            [firstOfMonth, row.id]
+          );
+        }
+      }
+    } catch (_) { /* columns not yet migrated — skip auto-reset */ }
 
     const result = await db.query(
       `SELECT
@@ -195,12 +264,14 @@ const getMyBalance = async (req, res, next) => {
         lb.pending,
         lb.available,
         lb.carried_forward,
+        lb.last_monthly_reset,
         lt.name as leave_type_name,
         lt.code as leave_type_code,
         lt.color as leave_type_color,
         lt.can_carry_forward,
         lt.days_allowed,
         lt.monthly_limit,
+        lt.resets_monthly,
         COALESCE((
           SELECT SUM(lr.days_requested)
           FROM leave_requests lr
@@ -675,6 +746,67 @@ const updateLeaveRequest = async (req, res, next) => {
 };
 
 // Reset all leave balances for new year
+const resetMonthlyLeaves = async (req, res, next) => {
+  try {
+    const orgId = req.user.orgId;
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+    const firstOfMonth = `${year}-${String(month).padStart(2, '0')}-01`;
+
+    // Get all leave types marked for monthly reset
+    const typesResult = await db.query(
+      "SELECT id, name, days_allowed FROM leave_types WHERE org_id = $1 AND is_active = true AND resets_monthly = true",
+      [orgId]
+    );
+
+    if (typesResult.rows.length === 0) {
+      return res.json({ message: 'No leave types have "Resets Monthly" enabled. Edit the leave type in Settings to enable it.', reset: 0 });
+    }
+
+    // Get all active employees (excluding super_admin/admin)
+    const empResult = await db.query(
+      `SELECT e.id FROM employees e
+       WHERE e.org_id = $1 AND e.status = 'active'
+         AND NOT EXISTS (SELECT 1 FROM public.users u WHERE LOWER(u.email) = LOWER(e.email) AND u.role IN ('super_admin', 'admin'))`,
+      [orgId]
+    );
+
+    let reset = 0;
+    for (const emp of empResult.rows) {
+      for (const lt of typesResult.rows) {
+        const existing = await db.query(
+          'SELECT id FROM employee_leave_balances WHERE employee_id = $1 AND leave_type_id = $2 AND year = $3',
+          [emp.id, lt.id, year]
+        );
+
+        if (existing.rows.length > 0) {
+          await db.query(
+            'UPDATE employee_leave_balances SET used = 0, pending = 0, last_monthly_reset = $1 WHERE employee_id = $2 AND leave_type_id = $3 AND year = $4',
+            [firstOfMonth, emp.id, lt.id, year]
+          );
+        } else {
+          await db.query(
+            `INSERT INTO employee_leave_balances (employee_id, leave_type_id, org_id, year, total_allocated, used, pending, carried_forward, last_monthly_reset)
+             VALUES ($1, $2, $3, $4, $5, 0, 0, 0, $6)`,
+            [emp.id, lt.id, orgId, year, lt.days_allowed || 0, firstOfMonth]
+          );
+        }
+        reset++;
+      }
+    }
+
+    const monthName = now.toLocaleString('default', { month: 'long' });
+    res.json({
+      message: `Monthly reset complete for ${monthName} ${year}`,
+      reset,
+      types: typesResult.rows.map(t => t.name),
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 const resetAnnualBalances = async (req, res, next) => {
   try {
     const year = new Date().getFullYear();
@@ -966,6 +1098,7 @@ module.exports = {
   updateLeaveRequest,
   deleteLeaveRequest,
   resetAnnualBalances,
+  resetMonthlyLeaves,
   
   // Analytics
   getLeaveAnalytics,
