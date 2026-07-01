@@ -399,7 +399,7 @@ const getAll = async (req, res, next) => {
         query += ` AND l.assigned_to = $${paramIndex}`;
         params.push(assignedTo);
       } else {
-        query += ` AND (u.full_name ILIKE $${paramIndex} OR u.email ILIKE $${paramIndex})`;
+        query += ` AND (ua.full_name ILIKE $${paramIndex} OR ua.email ILIKE $${paramIndex})`;
         params.push(`%${assignedTo}%`);
       }
       paramIndex++;
@@ -425,7 +425,7 @@ const getAll = async (req, res, next) => {
     }
 
     if (campaignName) {
-      query += ` AND (l.campaign_name ILIKE $${paramIndex} OR u.full_name ILIKE $${paramIndex})`;
+      query += ` AND u.full_name ILIKE $${paramIndex}`;
       params.push(`%${campaignName}%`);
       paramIndex++;
     }
@@ -465,6 +465,8 @@ const getAll = async (req, res, next) => {
           l.website ILIKE $${paramIndex} OR
           l.contact_person ILIKE $${paramIndex} OR
           co.name ILIKE $${paramIndex} OR
+          u.full_name ILIKE $${paramIndex} OR
+          ua.full_name ILIKE $${paramIndex} OR
           uc.full_name ILIKE $${paramIndex}
         )`;
         params.push(`%${search}%`);
@@ -496,7 +498,7 @@ const getAll = async (req, res, next) => {
     }
 
     const countParams = [req.user.orgId];
-    let countQuery = 'SELECT COUNT(DISTINCT l.id) FROM public.leads l LEFT JOIN public.companies co ON co.id = l.company_id LEFT JOIN public.users u ON u.id = l.assigned_to WHERE l.org_id = $1';
+    let countQuery = 'SELECT COUNT(DISTINCT l.id) FROM public.leads l LEFT JOIN public.companies co ON co.id = l.company_id LEFT JOIN public.users u ON u.id = l.assigned_to LEFT JOIN public.users rp ON rp.id = l.responsible_person LEFT JOIN public.users uc ON uc.id = COALESCE(l.created_by, l.user_id) WHERE l.org_id = $1';
     let countIdx = 2;
 
     if (!isAdmin && !hasUniboxAccess) {
@@ -558,7 +560,7 @@ const getAll = async (req, res, next) => {
       countIdx++;
     }
     if (campaignName) {
-      countQuery += ` AND (l.campaign_name ILIKE $${countIdx} OR EXISTS (SELECT 1 FROM users rpu WHERE rpu.id = l.responsible_person AND rpu.full_name ILIKE $${countIdx}))`;
+      countQuery += ` AND rp.full_name ILIKE $${countIdx}`;
       countParams.push(`%${campaignName}%`);
       countIdx++;
     }
@@ -573,7 +575,7 @@ const getAll = async (req, res, next) => {
       countIdx++;
     }
     if (search) {
-      countQuery += ` AND (l.title ILIKE $${countIdx} OR l.name ILIKE $${countIdx} OR l.email ILIKE $${countIdx} OR co.name ILIKE $${countIdx} OR l.campaign_name ILIKE $${countIdx} OR l.website ILIKE $${countIdx} OR l.contact_person ILIKE $${countIdx})`;
+      countQuery += ` AND (l.title ILIKE $${countIdx} OR l.name ILIKE $${countIdx} OR l.email ILIKE $${countIdx} OR l.phone ILIKE $${countIdx} OR l.company_name ILIKE $${countIdx} OR l.campaign_name ILIKE $${countIdx} OR l.website ILIKE $${countIdx} OR l.contact_person ILIKE $${countIdx} OR co.name ILIKE $${countIdx} OR u.full_name ILIKE $${countIdx} OR rp.full_name ILIKE $${countIdx} OR uc.full_name ILIKE $${countIdx})`;
       countParams.push(`%${search}%`);
       countIdx++;
     }
@@ -583,7 +585,7 @@ const getAll = async (req, res, next) => {
     // Source counts — same filters except source, grouped by source
     const scParams = [req.user.orgId];
     let scQuery = `SELECT COALESCE(l.source, '') as source, COUNT(DISTINCT l.id) as count
-      FROM public.leads l LEFT JOIN public.companies co ON co.id = l.company_id LEFT JOIN public.users u ON u.id = l.assigned_to
+      FROM public.leads l LEFT JOIN public.companies co ON co.id = l.company_id LEFT JOIN public.users u ON u.id = l.assigned_to LEFT JOIN public.users rpu ON rpu.id = l.responsible_person LEFT JOIN public.users uc ON uc.id = COALESCE(l.created_by, l.user_id)
       WHERE l.org_id = $1`;
     let scIdx = 2;
     if (!isAdmin && !hasUniboxAccess) {
@@ -592,7 +594,10 @@ const getAll = async (req, res, next) => {
       scParams.push(req.user.id); scIdx++;
     }
     if (workspaceId) { scQuery += ` AND l.workspace_id = $${scIdx}`; scParams.push(workspaceId); scIdx++; }
+    if (stage) { scQuery += ` AND LOWER(l.stage) = LOWER($${scIdx})`; scParams.push(stage); scIdx++; }
     if (status) { scQuery += ` AND LOWER(l.status) = LOWER($${scIdx})`; scParams.push(status); scIdx++; }
+    if (startDate) { scQuery += ` AND l.created_at >= $${scIdx}`; scParams.push(startDate); scIdx++; }
+    if (endDate) { scQuery += ` AND l.created_at <= $${scIdx}`; scParams.push(endDate); scIdx++; }
     if (priority) { scQuery += ` AND l.priority = $${scIdx}`; scParams.push(priority); scIdx++; }
     if (assignedTo) {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assignedTo);
@@ -605,17 +610,16 @@ const getAll = async (req, res, next) => {
       }
       scIdx++;
     }
-    if (minValue) {
-      scQuery += ` AND l.value >= $${scIdx}`;
-      scParams.push(Number(minValue));
-      scIdx++;
+    if (createdBy) { scQuery += ` AND COALESCE(l.created_by, l.user_id) = $${scIdx}`; scParams.push(createdBy); scIdx++; }
+    if (tags) {
+      const tagList = Array.isArray(tags) ? tags : tags.split(',').map(t => t.trim());
+      scQuery += ` AND l.tags @> $${scIdx}`; scParams.push(tagList); scIdx++;
     }
-    if (maxValue) {
-      scQuery += ` AND l.value <= $${scIdx}`;
-      scParams.push(Number(maxValue));
-      scIdx++;
-    }
-    if (search) { scQuery += ` AND (l.title ILIKE $${scIdx} OR l.name ILIKE $${scIdx} OR l.email ILIKE $${scIdx} OR co.name ILIKE $${scIdx} OR l.campaign_name ILIKE $${scIdx} OR l.website ILIKE $${scIdx} OR l.contact_person ILIKE $${scIdx})`; scParams.push(`%${search}%`); scIdx++; }
+    if (campaign) { scQuery += ` AND l.campaign_id::text = $${scIdx}::text`; scParams.push(campaign); scIdx++; }
+    if (campaignName) { scQuery += ` AND rpu.full_name ILIKE $${scIdx}`; scParams.push(`%${campaignName}%`); scIdx++; }
+    if (minValue) { scQuery += ` AND l.value >= $${scIdx}`; scParams.push(Number(minValue)); scIdx++; }
+    if (maxValue) { scQuery += ` AND l.value <= $${scIdx}`; scParams.push(Number(maxValue)); scIdx++; }
+    if (search) { scQuery += ` AND (l.title ILIKE $${scIdx} OR l.name ILIKE $${scIdx} OR l.email ILIKE $${scIdx} OR l.phone ILIKE $${scIdx} OR l.company_name ILIKE $${scIdx} OR l.campaign_name ILIKE $${scIdx} OR l.website ILIKE $${scIdx} OR l.contact_person ILIKE $${scIdx} OR co.name ILIKE $${scIdx} OR u.full_name ILIKE $${scIdx} OR rpu.full_name ILIKE $${scIdx} OR uc.full_name ILIKE $${scIdx})`; scParams.push(`%${search}%`); scIdx++; }
     scQuery += ' GROUP BY l.source';
 
     let sourceCounts = {};
