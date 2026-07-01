@@ -150,7 +150,7 @@ const getAll = async (req, res, next) => {
     }
 
     if (department && department !== 'all') {
-      query += ` AND e.department = $${paramIndex}`;
+      query += ` AND LOWER(e.department) = LOWER($${paramIndex})`;
       params.push(department);
       paramIndex++;
     }
@@ -178,7 +178,7 @@ const getAll = async (req, res, next) => {
     }
 
     if (department && department !== 'all') {
-      countQuery += ` AND department = $${countParamIndex}`;
+      countQuery += ` AND LOWER(department) = LOWER($${countParamIndex})`;
       countParams.push(department);
       countParamIndex++;
     }

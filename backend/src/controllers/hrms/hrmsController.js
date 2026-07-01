@@ -21,8 +21,17 @@ const getStats = async (req, res, next) => {
 
     // Get employee statistics
     const employeeStats = await db.query(`
-      SELECT 
-        COUNT(DISTINCT e.id) as total_employees,
+      SELECT
+        (
+          SELECT COUNT(DISTINCT e2.id) FROM employees e2
+          WHERE e2.org_id = $1
+            AND NOT EXISTS (SELECT 1 FROM users u2 WHERE LOWER(u2.email) = LOWER(e2.email) AND u2.role IN ('super_admin', 'admin'))
+        ) + (
+          SELECT COUNT(DISTINCT u3.id) FROM users u3
+          WHERE u3.org_id = $1
+            AND u3.role NOT IN ('super_admin', 'admin')
+            AND NOT EXISTS (SELECT 1 FROM employees e3 WHERE LOWER(e3.email) = LOWER(u3.email) AND e3.org_id = $1)
+        ) as total_employees,
         COUNT(DISTINCT CASE WHEN a.status = 'present' OR a.status = 'late' THEN e.id END) as present_today,
         COUNT(DISTINCT CASE WHEN a.status = 'absent' THEN e.id END) as absent_today,
         COUNT(DISTINCT CASE WHEN a.status = 'late' THEN e.id END) as late_today,
@@ -158,14 +167,16 @@ const getAttendance = async (req, res, next) => {
     }
 
     const query = `
-      SELECT 
+      SELECT
         a.*,
         COALESCE(e.name, e.first_name || ' ' || e.last_name, e.first_name, 'Unknown Employee') as employee_name,
         e.employee_id as emp_id,
         e.department,
-        e.position
+        e.position,
+        u.avatar_url
       FROM attendance a
       JOIN employees e ON a.employee_id = e.id
+      LEFT JOIN users u ON e.user_id = u.id
       ${whereClause}
       ORDER BY a.date DESC, a.clock_in DESC
       LIMIT 100
@@ -182,14 +193,16 @@ const getAttendance = async (req, res, next) => {
 const getTodayAttendance = async (req, res, next) => {
   try {
     const query = `
-      SELECT 
+      SELECT
         a.*,
         COALESCE(e.name, e.first_name || ' ' || e.last_name, e.first_name, 'Unknown Employee') as employee_name,
         e.employee_id as emp_id,
         e.department,
-        e.position
+        e.position,
+        u.avatar_url
       FROM attendance a
       JOIN employees e ON a.employee_id = e.id
+      LEFT JOIN users u ON e.user_id = u.id
       WHERE a.org_id = $1 AND DATE(a.date) = CURRENT_DATE
       ORDER BY a.clock_in DESC
     `;

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
@@ -23,6 +23,7 @@ interface AttendanceRecord {
   total_hours: number | null; overtime_hours: number;
   status: string; notes: string | null;
   location_lat: number | null; location_lng: number | null;
+  avatar_url?: string | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -395,6 +396,7 @@ export default function AttendancePage() {
             <div key={r.id} className="flex items-center gap-3 px-5 py-2.5 hover:bg-muted/30 transition-colors">
               <div className="flex items-center gap-2.5 flex-1 min-w-0">
                 <Avatar className="h-7 w-7 shrink-0">
+                  {r.avatar_url && <AvatarImage src={r.avatar_url} alt={r.employee_name} />}
                   <AvatarFallback className="text-[10px] bg-primary/10 text-primary">{getInitials(r.employee_name || "?")}</AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">

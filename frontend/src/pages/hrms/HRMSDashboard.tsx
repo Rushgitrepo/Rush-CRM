@@ -7,7 +7,7 @@ import {
   Briefcase, XCircle, DollarSign, Banknote,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,6 +31,7 @@ interface AttendanceRecord {
   clock_in: string | null; clock_out: string | null;
   break_start: string | null; break_end: string | null;
   total_hours: number | null; status: string;
+  avatar_url?: string | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -384,6 +385,7 @@ export default function HRMSDashboard() {
                 <div key={record.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     <Avatar className="h-9 w-9 shrink-0">
+                      {record.avatar_url && <AvatarImage src={record.avatar_url} alt={record.employee_name} />}
                       <AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
                         {getInitials(record.employee_name || "?")}
                       </AvatarFallback>
@@ -475,6 +477,7 @@ export default function HRMSDashboard() {
                 return (
                   <div key={req.id} className="flex items-center gap-3 py-3 flex-wrap sm:flex-nowrap">
                     <Avatar className="h-8 w-8 shrink-0">
+                      {req.avatar_url && <AvatarImage src={req.avatar_url} alt={req.employee_name} />}
                       <AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
                         {getInitials(req.employee_name || "?")}
                       </AvatarFallback>

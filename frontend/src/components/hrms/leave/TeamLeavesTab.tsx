@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   CheckCircle,
   XCircle,
@@ -468,8 +468,9 @@ export default function TeamLeavesTab() {
                   <div key={request.id} className="p-4 transition-colors">
                     <div className="flex items-start gap-4">
                       {/* Employee Info */}
-                      <Avatar className="h-6 w-6 shrink-0">
-                        <AvatarFallback className="bg-blue-100 text-blue-700">
+                      <Avatar className="h-8 w-8 shrink-0">
+                        {request.avatar_url && <AvatarImage src={request.avatar_url} alt={request.employee_name} />}
+                        <AvatarFallback className="bg-blue-100 text-blue-700 text-xs">
                           {getInitials(request.employee_name)}
                         </AvatarFallback>
                       </Avatar>

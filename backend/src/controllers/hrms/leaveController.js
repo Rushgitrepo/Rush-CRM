@@ -411,6 +411,7 @@ const getLeaveRequests = async (req, res, next) => {
         lt.days_allowed as leave_type_days_allowed,
         lt.monthly_limit as leave_type_monthly_limit,
         u.full_name as approver_name,
+        eu.avatar_url as avatar_url,
         elb.total_allocated as bal_total,
         elb.used as bal_used,
         elb.pending as bal_pending,
@@ -443,6 +444,7 @@ const getLeaveRequests = async (req, res, next) => {
       JOIN employees e ON lr.employee_id = e.id
       JOIN leave_types lt ON lr.leave_type_id = lt.id
       LEFT JOIN users u ON lr.approver_id = u.id
+      LEFT JOIN users eu ON e.user_id = eu.id
       LEFT JOIN employee_leave_balances elb
         ON elb.employee_id = lr.employee_id
         AND elb.leave_type_id = lr.leave_type_id

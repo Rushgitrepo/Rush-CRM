@@ -25,6 +25,11 @@ interface Employee {
   _source?: 'hrms' | 'system';
 }
 
+const PRESET_DEPARTMENTS = [
+  "Management", "Sales", "Marketing", "Operations",
+  "Human Resources", "Engineering", "Customer Support", "Finance",
+];
+
 const STATUS_COLORS: Record<string, string> = {
   active:   "bg-emerald-50 text-emerald-700 border-emerald-200",
   inactive: "bg-red-50 text-red-700 border-red-200",
@@ -165,7 +170,21 @@ export default function EmployeesPage() {
     }));
 
   const employees: Employee[] = [...hrmsEmployees, ...systemUsers];
-  const departments = [...new Set(employees.map((e) => e.department).filter(Boolean))] as string[];
+
+  // Start with preset departments, then add any extra from employees (case-insensitive dedup)
+  const departments = (() => {
+    const seen = new Map<string, string>(
+      PRESET_DEPARTMENTS.map((d) => [d.toLowerCase(), d])
+    );
+    employees.forEach((e) => {
+      if (!e.department) return;
+      const key = e.department.toLowerCase();
+      if (!seen.has(key)) {
+        seen.set(key, e.department.replace(/\b\w/g, (c) => c.toUpperCase()));
+      }
+    });
+    return [...seen.values()];
+  })();
 
   const saveMutation = useMutation({
     mutationFn: (data: any) => editing ? api.put(`/employees/${editing.id}`, data) : api.post("/employees", data),
@@ -267,11 +286,11 @@ export default function EmployeesPage() {
             <SelectItem value="on_leave">On Leave</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={deptFilter} onValueChange={setDeptFilter}>
+        <Select value={deptFilter} onValueChange={(v) => setDeptFilter(v)}>
           <SelectTrigger className="h-8 w-40 text-sm"><SelectValue placeholder="All Departments" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Departments</SelectItem>
-            {departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+            {departments.map((d) => <SelectItem key={d.toLowerCase()} value={d.toLowerCase()}>{d}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
