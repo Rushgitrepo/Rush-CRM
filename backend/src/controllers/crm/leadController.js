@@ -929,11 +929,15 @@ const update = async (req, res, next) => {
     const hasStage = value.stage !== undefined;
     const hasStatus = value.status !== undefined;
 
+    const UUID_FIELDS = ['responsiblePerson', 'assignedTo', 'contactId', 'companyId'];
+
     for (const [key, val] of Object.entries(value)) {
       const dbField = fieldMapping[key];
       if (dbField && val !== undefined) {
         let dbValue = val;
-        if (['expectedCloseDate', 'lastContactedDate', 'nextFollowUpDate', 'createdAt'].includes(key) && val === '') {
+        if (UUID_FIELDS.includes(key) && (val === '' || val === 'null' || val === 'undefined')) {
+          dbValue = null;
+        } else if (['expectedCloseDate', 'lastContactedDate', 'nextFollowUpDate', 'createdAt'].includes(key) && val === '') {
           dbValue = null;
         } else if (key === 'status' || key === 'stage') {
           dbValue = mapStatusToDatabase(val);
