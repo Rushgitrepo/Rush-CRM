@@ -318,12 +318,15 @@ const getAll = async (req, res, next) => {
              u.full_name as responsible_person_name,
              u.avatar_url as responsible_person_avatar,
              ua.full_name as assigned_to_name,
-             ua.avatar_url as assigned_to_avatar
+             ua.avatar_url as assigned_to_avatar,
+             uc.full_name as created_by_name,
+             uc.avatar_url as created_by_avatar
       FROM public.deals d
       LEFT JOIN public.contacts c ON c.id = d.contact_id
       LEFT JOIN public.companies co ON co.id = d.company_id
       LEFT JOIN public.users u ON u.id = d.responsible_person
       LEFT JOIN public.users ua ON ua.id = d.assigned_to
+      LEFT JOIN public.users uc ON uc.id = COALESCE(d.created_by, d.user_id)
       WHERE d.org_id = $1
     `;
     const params = [req.user.orgId];
@@ -464,7 +467,10 @@ const getAll = async (req, res, next) => {
         c.first_name ILIKE $${paramIndex} OR
         c.last_name ILIKE $${paramIndex} OR
         c.email ILIKE $${paramIndex} OR
-        co.name ILIKE $${paramIndex}
+        co.name ILIKE $${paramIndex} OR
+        u.full_name ILIKE $${paramIndex} OR
+        ua.full_name ILIKE $${paramIndex} OR
+        uc.full_name ILIKE $${paramIndex}
       )`;
       params.push(`%${search}%`);
       paramIndex++;
@@ -479,7 +485,15 @@ const getAll = async (req, res, next) => {
     // console.log('[deals/getAll] result count:', result.rows.length);
 
     const countParams = [req.user.orgId];
-    let countQuery = 'SELECT COUNT(DISTINCT d.id) FROM public.deals d LEFT JOIN public.companies co ON co.id = d.company_id LEFT JOIN public.users u ON u.id = d.assigned_to WHERE d.org_id = $1';
+    let countQuery = `
+      SELECT COUNT(DISTINCT d.id)
+      FROM public.deals d
+      LEFT JOIN public.companies co ON co.id = d.company_id
+      LEFT JOIN public.users u ON u.id = d.responsible_person
+      LEFT JOIN public.users ua ON ua.id = d.assigned_to
+      LEFT JOIN public.users uc ON uc.id = COALESCE(d.created_by, d.user_id)
+      WHERE d.org_id = $1
+    `;
     let countIdx = 2;
 
     if (!isAdmin && !hasUniboxAccess) {
@@ -572,7 +586,10 @@ const getAll = async (req, res, next) => {
         d.contact_person ILIKE $${countIdx} OR
         d.designation ILIKE $${countIdx} OR
         d.notes ILIKE $${countIdx} OR
-        co.name ILIKE $${countIdx}
+        co.name ILIKE $${countIdx} OR
+        u.full_name ILIKE $${countIdx} OR
+        ua.full_name ILIKE $${countIdx} OR
+        uc.full_name ILIKE $${countIdx}
       )`;
       countParams.push(`%${search}%`);
       countIdx++;
@@ -626,11 +643,17 @@ const getById = async (req, res, next) => {
               c.first_name as contact_first_name, c.last_name as contact_last_name, c.email as contact_email, c.phone as contact_phone,
               co.name as linked_company_name, co.email as linked_company_email, co.phone as linked_company_phone,
               u.full_name as responsible_person_name,
-              u.avatar_url as responsible_person_avatar
+              u.avatar_url as responsible_person_avatar,
+              ua.full_name as assigned_to_name,
+              ua.avatar_url as assigned_to_avatar,
+              uc.full_name as created_by_name,
+              uc.avatar_url as created_by_avatar
        FROM public.deals d
        LEFT JOIN public.contacts c ON c.id = d.contact_id
        LEFT JOIN public.companies co ON co.id = d.company_id
-       LEFT JOIN public.users u ON u.id = d.assigned_to
+       LEFT JOIN public.users u ON u.id = d.responsible_person
+       LEFT JOIN public.users ua ON ua.id = d.assigned_to
+       LEFT JOIN public.users uc ON uc.id = COALESCE(d.created_by, d.user_id)
        WHERE d.id = $1 AND d.org_id = $2`,
       [id, req.user.orgId]
     );

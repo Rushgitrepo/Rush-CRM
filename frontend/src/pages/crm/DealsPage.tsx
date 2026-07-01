@@ -111,6 +111,8 @@ type DealRow = {
   contact_person?: string;
   agent_name?: string;
   pipeline?: string;
+  createdByName?: string;
+  createdByAvatar?: string;
 };
 
 export default function DealsPage() {
@@ -379,6 +381,8 @@ export default function DealsPage() {
         contact_person: d.contact_person || "",
         agent_name: d.agent_name || "",
         pipeline: d.pipeline || "",
+        createdByName: d.created_by_name || d.createdByName || "",
+        createdByAvatar: d.created_by_avatar || d.createdByAvatar || "",
       };
     });
   }, [dbDeals]);
@@ -426,6 +430,7 @@ export default function DealsPage() {
     // Campaign responsible db field name is responsible_person 
     { key: "responsible", label: "Campaign Responsible" },
     { key: "assignedTo", label: "Assigned To" },
+    { key: "createdBy", label: "Created By" },
     { key: "createdAt", label: "Created" },
     { key: "priority", label: "Priority" },
     { key: "probability", label: "Probability" },
@@ -645,6 +650,30 @@ export default function DealsPage() {
                 )}
               </div>
               <span className="text-xs font-medium truncate max-w-[100px]">{deal.assignedToName}</span>
+            </>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "createdBy",
+      header: "Created By",
+      render: (deal) => (
+        <div className="flex items-center gap-2">
+          {deal.createdByName ? (
+            <>
+              <div className="h-6 w-6 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center overflow-hidden border border-border/50 shrink-0">
+                {deal.createdByAvatar ? (
+                  <img src={deal.createdByAvatar} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <span className="text-[10px] font-bold text-orange-600">
+                    {deal.createdByName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)}
+                  </span>
+                )}
+              </div>
+              <span className="text-xs font-medium truncate max-w-[100px]">{deal.createdByName}</span>
             </>
           ) : (
             <span className="text-xs text-muted-foreground">—</span>
