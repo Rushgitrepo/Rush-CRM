@@ -191,7 +191,7 @@ const normalizeLeadInput = (body = {}) => {
     lastContactedDate: getDate('lastContactedDate', 'last_contacted_date'),
     nextFollowUpDate: getDate('nextFollowUpDate', 'next_follow_up_date'),
     sourceInfo: getVal('sourceInfo', 'source_info'),
-    responsiblePerson: getVal('responsiblePerson', 'responsible_person'),
+    responsiblePerson: getUuid('responsiblePerson', 'responsible_person'),
     pipeline: getVal('pipeline', 'pipeline'),
     externalSourceId: getVal('externalSourceId', 'external_source_id'),
     campaignId: getVal('campaignId', 'campaign_id'),
