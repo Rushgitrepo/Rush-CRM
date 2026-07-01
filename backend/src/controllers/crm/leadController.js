@@ -194,7 +194,7 @@ const normalizeLeadInput = (body = {}) => {
     responsiblePerson: getUuid('responsiblePerson', 'responsible_person'),
     pipeline: getVal('pipeline', 'pipeline'),
     externalSourceId: getVal('externalSourceId', 'external_source_id'),
-    campaignId: getVal('campaignId', 'campaign_id'),
+    campaignId: getUuid('campaignId', 'campaign_id'),
     campaignName: getVal('campaignName', 'campaign_name'),
     createdAt: getDate('createdAt', 'created_at'),
     customFields: getVal('customFields', 'custom_fields'),
@@ -929,7 +929,7 @@ const update = async (req, res, next) => {
     const hasStage = value.stage !== undefined;
     const hasStatus = value.status !== undefined;
 
-    const UUID_FIELDS = ['responsiblePerson', 'assignedTo', 'contactId', 'companyId'];
+    const UUID_FIELDS = ['responsiblePerson', 'assignedTo', 'contactId', 'companyId', 'campaignId'];
 
     for (const [key, val] of Object.entries(value)) {
       const dbField = fieldMapping[key];
